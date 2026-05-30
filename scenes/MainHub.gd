@@ -279,15 +279,15 @@ func _on_notif_pressed() -> void:
 	notif_visible = !notif_visible
 	notif_panel.visible = notif_visible
 	if notif_visible:
-		_refresh_notifications()
 		GameState.mark_all_notifications_read()
+		_refresh_notifications()
 		_update_display()
 
 func _on_clear_notifs_pressed() -> void:
 	GameState.mark_all_notifications_read()
 	_refresh_notifications()
 	_update_display()
-
+	
 func _refresh_notifications() -> void:
 	for child in notif_box.get_children():
 		child.queue_free()
@@ -300,26 +300,54 @@ func _refresh_notifications() -> void:
 		notif_box.add_child(empty)
 		return
 
-	# Show newest first
 	for i in range(notifs.size() - 1, -1, -1):
 		var n = notifs[i]
 		var card = PanelContainer.new()
+
+		# Unread cards get a highlighted style
+		if not n["read"]:
+			var stylebox = StyleBoxFlat.new()
+			stylebox.bg_color = Color(0.18, 0.18, 0.22, 1.0)
+			stylebox.border_width_left = 3
+			stylebox.border_color = (
+				Color(1.0, 0.3, 0.3) if n["priority"] == "Critical" else
+				(Color(1.0, 0.6, 0.1) if n["priority"] == "High" else Color(0.3, 0.5, 1.0))
+			)
+			card.add_theme_stylebox_override("panel", stylebox)
+		else:
+			var stylebox = StyleBoxFlat.new()
+			stylebox.bg_color = Color(0.12, 0.12, 0.14, 1.0)
+			stylebox.border_width_left = 3
+			stylebox.border_color = Color(0.3, 0.3, 0.3)
+			card.add_theme_stylebox_override("panel", stylebox)
+
 		var vbox = VBoxContainer.new()
 		vbox.add_theme_constant_override("separation", 2)
 		card.add_child(vbox)
 
-		var header = Label.new()
+		var header_row = HBoxContainer.new()
+		vbox.add_child(header_row)
+
 		var priority_icon = "🔴" if n["priority"] == "Critical" else ("🟠" if n["priority"] == "High" else "🔵")
-		header.text = "%s  S%d W%d" % [priority_icon, n["season"], n["week"]]
+		var unread_dot = " ●" if not n["read"] else "  "
+		var header = Label.new()
+		header.text = "%s%s  S%d W%d" % [priority_icon, unread_dot, n["season"], n["week"]]
 		header.add_theme_font_size_override("font_size", 11)
-		header.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
-		vbox.add_child(header)
+		header.add_theme_color_override("font_color",
+			Color(1.0, 1.0, 1.0) if not n["read"] else Color(0.5, 0.5, 0.5))
+		header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		header_row.add_child(header)
 
 		var msg = Label.new()
 		msg.text = n["message"]
 		msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		msg.custom_minimum_size = Vector2(380, 0)
-		var color = Color(1.0, 0.4, 0.4) if n["priority"] == "Critical" else (Color(1.0, 0.7, 0.3) if n["priority"] == "High" else Color(0.6, 0.8, 1.0))
+		var color = (
+			Color(1.0, 0.4, 0.4) if n["priority"] == "Critical" else
+			(Color(1.0, 0.7, 0.3) if n["priority"] == "High" else Color(0.6, 0.8, 1.0))
+		)
+		if n["read"]:
+			color = color.darkened(0.4)
 		msg.add_theme_color_override("font_color", color)
 		vbox.add_child(msg)
 

@@ -165,7 +165,6 @@ func _build_card(building_id: String) -> PanelContainer:
 	action_btn.custom_minimum_size = Vector2(260, 35)
 
 	if not building["built"]:
-		# Can we afford it?
 		var can_afford = GameState.player_team.balance >= building["build_cost"]
 		action_btn.text = "Build — $%d (%d wks)" % [building["build_cost"], building["build_time"]]
 		action_btn.disabled = not can_afford
@@ -192,6 +191,15 @@ func _build_card(building_id: String) -> PanelContainer:
 		action_btn.pressed.connect(_on_upgrade_pressed.bind(building_id))
 
 	vbox.add_child(action_btn)
+
+	# Logistics Center gets an extra Open button
+	if building["name"] == "Logistics Center" and building["built"] and building["construction_weeks_remaining"] == 0:
+		var open_btn = Button.new()
+		open_btn.text = "📦 Open Logistics Center"
+		open_btn.custom_minimum_size = Vector2(260, 35)
+		open_btn.pressed.connect(_on_open_logistics)
+		vbox.add_child(open_btn)
+
 	return card
 
 func _on_build_pressed(building_id: String) -> void:
@@ -201,6 +209,9 @@ func _on_build_pressed(building_id: String) -> void:
 func _on_upgrade_pressed(building_id: String) -> void:
 	GameState.start_upgrade(building_id)
 	_build_campus()
+
+func _on_open_logistics() -> void:
+	get_tree().change_scene_to_file("res://scenes/Logistics.tscn")
 
 func _on_back_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/MainHub.tscn")
