@@ -28,6 +28,8 @@ var hall_of_fame: Array = []
 
 # Campus buildings state
 var campus_buildings: Dictionary = {}
+var active_sponsor: Dictionary = {}
+var sponsor_no_points_streak: int = 0
 
 # Campus zones - defines layout order
 var campus_zones: Dictionary = {
@@ -87,7 +89,7 @@ func _setup_campus() -> void:
 			"max_level": 89,
 			"construction_weeks_remaining": 0,
 			"weekly_maintenance": 1100,
-			"weekly_income": 1800,
+			"weekly_income": 3000,
 			"build_cost": 0,
 			"build_time": 0,
 			"upgrade_cost": 42000,
@@ -334,6 +336,90 @@ func _setup_campus() -> void:
 		},
 	}
 
+func _setup_sponsor() -> void:
+	var national_sponsors = [
+		{"id": "SP-006", "name": "Velocity Spark", "category": "Energy Drink"},
+		{"id": "SP-016", "name": "Precision Fluids", "category": "Lubricants"},
+		{"id": "SP-026", "name": "Velocity Parts", "category": "Auto Parts"},
+		{"id": "SP-033", "name": "Apex Finance", "category": "Finance"},
+		{"id": "SP-039", "name": "Atlas Bank", "category": "Finance"},
+		{"id": "SP-046", "name": "Precision Tech", "category": "Tech"},
+		{"id": "SP-049", "name": "Dynamic Systems", "category": "Tech"},
+		{"id": "SP-053", "name": "Apex Grip", "category": "Tires"},
+		{"id": "SP-059", "name": "Helix Tires", "category": "Tires"},
+		{"id": "SP-062", "name": "Velocity Style", "category": "Fashion"},
+		{"id": "SP-073", "name": "Legacy Shield", "category": "Insurance"},
+		{"id": "SP-083", "name": "Stellar Connect", "category": "Telecom"},
+		{"id": "SP-089", "name": "Helix Mobile", "category": "Telecom"},
+		{"id": "SP-095", "name": "Core Distillery", "category": "Beverage"},
+		{"id": "SP-098", "name": "Dynamic Spirits", "category": "Beverage"},
+	]
+	var picked = national_sponsors[randi() % national_sponsors.size()]
+	active_sponsor = {
+		"id": picked["id"],
+		"name": picked["name"],
+		"category": picked["category"],
+		"base_weekly": 1000,
+		"current_weekly": 1000,
+		"performance_bonus": 500,
+		"seasons_remaining": 1,
+	}
+	add_log("📋 Sponsor signed: %s — $1,000/week" % picked["name"])
+
+func _apply_sponsor_income() -> void:
+	if active_sponsor.is_empty():
+		return
+	var payment = active_sponsor["current_weekly"]
+	player_team.balance += payment
+	add_log("💼 %s: +$%d" % [active_sponsor["name"], payment])
+
+func _update_sponsor_performance(race_results: Array) -> void:
+	if active_sponsor.is_empty():
+		return
+
+	var player_scored = false
+	var player_top5 = false
+
+	for i in range(race_results.size()):
+		var result = race_results[i]
+		var driver = result["driver"]
+		if driver.id in player_team.drivers:
+			if result["points"] > 0:
+				player_scored = true
+			if i < 5:
+				player_top5 = true
+
+	if player_top5:
+		active_sponsor["current_weekly"] = active_sponsor["base_weekly"] + active_sponsor["performance_bonus"]
+		sponsor_no_points_streak = 0
+		add_log("🌟 %s bonus: +$%d this week!" % [active_sponsor["name"], active_sponsor["current_weekly"]])
+	elif player_scored:
+		active_sponsor["current_weekly"] = active_sponsor["base_weekly"]
+		sponsor_no_points_streak = 0
+	else:
+		sponsor_no_points_streak += 1
+		if sponsor_no_points_streak >= 3:
+			active_sponsor["current_weekly"] = 500
+			add_log("⚠ %s unhappy — reduced to $500/week (no points in 3 races)" % active_sponsor["name"])
+
+func _apply_weekly_expenses() -> void:
+	# Player team — full staff costs
+	var player_expenses = 0
+	player_expenses += player_team.drivers.size() * 50        # Driver salaries
+	player_expenses += 350                                     # Team Principal
+	player_expenses += 300                                     # CFO
+	player_expenses += player_team.drivers.size() * 250       # Race mechanics
+	player_team.balance -= player_expenses
+	add_log("Weekly expenses paid: -$%d" % player_expenses)
+
+	# AI teams — simple salary model
+	for team in all_teams:
+		if team.is_player_team:
+			continue
+		var driver_count = team.drivers.size()
+		var ai_expenses = (team.weekly_driver_salary * driver_count) + team.weekly_mechanic_salary
+		team.balance -= ai_expenses
+
 func get_building(building_id: String) -> Dictionary:
 	return campus_buildings.get(building_id, {})
 
@@ -409,6 +495,7 @@ func setup_new_game() -> void:
 	_generate_drivers()
 	_generate_ai_teams()
 	_setup_campus()
+	_setup_sponsor()
 	add_log("Welcome to Automotive Empire!")
 	add_log("Season %d — GK Regional Championship" % current_season)
 
@@ -545,16 +632,20 @@ func advance_week() -> void:
 
 	# Campus income and maintenance
 	_apply_campus_income()
+	
+	# Sponsor income
+	_apply_sponsor_income()
+
+	# Full staff expenses
+	_apply_weekly_expenses()
 
 	# Check for race this week
 	var next_race = active_championship.get_next_race()
 	if next_race and next_race["week"] == current_week:
 		_simulate_race(next_race)
+		_update_sponsor_performance(last_race_results)
 		active_championship.current_round += 1
 		return
-
-	# Apply weekly expenses
-	_apply_weekly_expenses()
 
 	# Check season end
 	if active_championship.is_season_finished() or current_week > max_weeks:
@@ -569,15 +660,6 @@ func _apply_weekly_fitness_recovery() -> void:
 	for driver_id in all_drivers:
 		var driver = all_drivers[driver_id]
 		driver.fitness = min(100.0, driver.fitness + 8.0)
-
-func _apply_weekly_expenses() -> void:
-	for team in all_teams:
-		# Expenses scale with number of drivers
-		var driver_count = team.drivers.size()
-		var expenses = (team.weekly_driver_salary * driver_count) + team.weekly_mechanic_salary
-		team.balance -= expenses
-		if team.is_player_team:
-			add_log("Weekly expenses paid: -$%.0f" % expenses)
 
 func _simulate_race(race_data: Dictionary) -> void:
 	add_log("=== RACE %d: %s ===" % [active_championship.current_round + 1, race_data["name"]])
@@ -646,9 +728,6 @@ func _simulate_race(race_data: Dictionary) -> void:
 
 		# Update driver stats
 		_update_driver_stats_after_race(driver, standing_position, race_data["laps"], is_wet)
-
-	# Apply weekly expenses
-	_apply_weekly_expenses()
 
 	# Store last race data
 	last_race_round = active_championship.current_round + 1
@@ -813,6 +892,173 @@ func _process_off_season() -> void:
 		for new_driver in drivers_to_add:
 			all_drivers[new_driver.id] = new_driver
 			team.drivers.append(new_driver.id)
+
+func save_game() -> void:
+	var save_data = {
+		"version": 1,
+		"current_week": current_week,
+		"current_season": current_season,
+		"weekly_log": weekly_log,
+		"hall_of_fame": hall_of_fame,
+		"sponsor_no_points_streak": sponsor_no_points_streak,
+		"active_sponsor": active_sponsor,
+		"player_team": {
+			"id": player_team.id,
+			"team_name": player_team.team_name,
+			"balance": player_team.balance,
+			"reputation": player_team.reputation,
+			"drivers": player_team.drivers,
+		},
+		"all_teams": [],
+		"all_drivers": {},
+		"championship": {
+			"current_round": active_championship.current_round,
+			"standings": active_championship.standings,
+			"team_standings": active_championship.team_standings,
+		},
+		"campus_buildings": campus_buildings,
+	}
+
+	# Save all teams
+	for team in all_teams:
+		save_data["all_teams"].append({
+			"id": team.id,
+			"team_name": team.team_name,
+			"nationality": team.nationality if "nationality" in team else "British",
+			"is_player_team": team.is_player_team,
+			"balance": team.balance,
+			"reputation": team.reputation,
+			"drivers": team.drivers,
+			"weekly_driver_salary": team.weekly_driver_salary,
+			"weekly_mechanic_salary": team.weekly_mechanic_salary,
+		})
+
+	# Save all drivers
+	for driver_id in all_drivers:
+		var d = all_drivers[driver_id]
+		save_data["all_drivers"][driver_id] = {
+			"id": d.id,
+			"first_name": d.first_name,
+			"last_name": d.last_name,
+			"nationality": d.nationality,
+			"age": d.age,
+			"sex": d.sex,
+			"contract_team": d.contract_team,
+			"active_discipline": d.active_discipline,
+			"discipline_change_season": d.discipline_change_season,
+			"pace": d.pace,
+			"wet": d.wet,
+			"focus": d.focus,
+			"race_craft": d.race_craft,
+			"fitness": d.fitness,
+			"potential": d.potential,
+			"aggression": d.aggression,
+			"experience": d.experience,
+			"morale": d.morale,
+			"seasons_without_contract": d.seasons_without_contract,
+			"discipline_adaptation": d.discipline_adaptation,
+			"peak_adaptation": d.peak_adaptation,
+		}
+
+	# Write to file
+	var file = FileAccess.open("user://save_game.json", FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify(save_data, "\t"))
+		file.close()
+		print("[Save] Game saved successfully")
+	else:
+		push_error("[Save] Could not open save file for writing")
+
+func load_game() -> void:
+	if not FileAccess.file_exists("user://save_game.json"):
+		add_log("No save file found.")
+		return
+
+	var file = FileAccess.open("user://save_game.json", FileAccess.READ)
+	if not file:
+		push_error("[Load] Could not open save file")
+		return
+
+	var json_string = file.get_as_text()
+	file.close()
+
+	var json = JSON.new()
+	var error = json.parse(json_string)
+	if error != OK:
+		push_error("[Load] JSON parse error: %s" % json.get_error_message())
+		return
+
+	var data = json.get_data()
+
+	# Restore basic state
+	current_week = data["current_week"]
+	current_season = data["current_season"]
+	weekly_log.clear()
+	for entry in data["weekly_log"]:
+		weekly_log.append(str(entry))
+	hall_of_fame = data["hall_of_fame"]
+	sponsor_no_points_streak = data["sponsor_no_points_streak"]
+	active_sponsor = data["active_sponsor"]
+	campus_buildings = data["campus_buildings"]
+
+	# Restore championship
+	_setup_championship()
+	active_championship.current_round = data["championship"]["current_round"]
+	active_championship.standings = data["championship"]["standings"]
+	active_championship.team_standings = data["championship"]["team_standings"]
+
+	# Restore teams
+	all_teams = []
+	all_drivers = {}
+	player_team = null
+
+	for team_data in data["all_teams"]:
+		var team = Team.new()
+		team.id = team_data["id"]
+		team.team_name = team_data["team_name"]
+		team.nationality = team_data["nationality"]
+		team.is_player_team = team_data["is_player_team"]
+		team.balance = team_data["balance"]
+		team.reputation = team_data["reputation"]
+		team.drivers.clear()
+		for d in team_data["drivers"]:
+			team.drivers.append(str(d))
+		team.weekly_driver_salary = team_data["weekly_driver_salary"]
+		team.weekly_mechanic_salary = team_data["weekly_mechanic_salary"]
+		all_teams.append(team)
+		if team.is_player_team:
+			player_team = team
+
+	# Restore drivers
+	for driver_id in data["all_drivers"]:
+		var dd = data["all_drivers"][driver_id]
+		var d = Driver.new()
+		d.id = dd["id"]
+		d.first_name = dd["first_name"]
+		d.last_name = dd["last_name"]
+		d.nationality = dd["nationality"]
+		d.age = dd["age"]
+		d.sex = dd["sex"]
+		d.contract_team = dd["contract_team"]
+		d.active_discipline = dd["active_discipline"]
+		d.discipline_change_season = dd["discipline_change_season"]
+		d.pace = dd["pace"]
+		d.wet = dd["wet"]
+		d.focus = dd["focus"]
+		d.race_craft = dd["race_craft"]
+		d.fitness = dd["fitness"]
+		d.potential = dd["potential"]
+		d.aggression = dd["aggression"]
+		d.experience = dd["experience"]
+		d.morale = dd["morale"]
+		d.seasons_without_contract = dd["seasons_without_contract"]
+		d.discipline_adaptation = dd["discipline_adaptation"]
+		d.peak_adaptation = dd["peak_adaptation"]
+		all_drivers[driver_id] = d
+
+	print("[Load] Game loaded successfully — Season %d Week %d" % [current_season, current_week])
+	emit_signal("week_advanced", current_week)
+	emit_signal("log_updated")
 
 func add_log(message: String) -> void:
 	weekly_log.append(message)

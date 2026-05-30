@@ -15,7 +15,7 @@ extends Control
 @onready var teams_box = $Layout/MainArea/SidePanel/TeamsPanel/TeamsBox
 @onready var driver_panel = $Layout/MainArea/SidePanel/DriverPanel
 @onready var driver_stats_label = $Layout/MainArea/SidePanel/DriverPanel/DriverStatsLabel
-@onready var top_bar = $Layout/TopBar
+@onready var nav_bar = $Layout/TopBar
 
 var tab_drivers_btn: Button
 var tab_teams_btn: Button
@@ -30,12 +30,36 @@ func _ready() -> void:
 	title_label.add_theme_font_size_override("font_size", 28)
 	title_label.add_theme_color_override("font_color", Color.WHITE)
 
-	# Top bar - navigation buttons
+# Top navigation bar
+	nav_bar.add_theme_constant_override("separation", 10)
+
 	var campus_btn = Button.new()
 	campus_btn.text = "🏗 Campus"
 	campus_btn.custom_minimum_size = Vector2(130, 35)
 	campus_btn.pressed.connect(_on_campus_pressed)
-	top_bar.add_child(campus_btn)
+	nav_bar.add_child(campus_btn)
+
+	var spacer = Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	nav_bar.add_child(spacer)
+
+	var save_btn = Button.new()
+	save_btn.text = "💾 Save"
+	save_btn.custom_minimum_size = Vector2(100, 35)
+	save_btn.pressed.connect(_on_save_pressed)
+	nav_bar.add_child(save_btn)
+
+	var load_btn = Button.new()
+	load_btn.text = "📂 Load"
+	load_btn.custom_minimum_size = Vector2(100, 35)
+	load_btn.pressed.connect(_on_load_pressed)
+	nav_bar.add_child(load_btn)
+
+	var quit_btn = Button.new()
+	quit_btn.text = "❌ Quit"
+	quit_btn.custom_minimum_size = Vector2(100, 35)
+	quit_btn.pressed.connect(_on_quit_pressed)
+	nav_bar.add_child(quit_btn)
 
 	# MainArea
 	var main_area = $Layout/MainArea
@@ -125,7 +149,10 @@ func _update_display() -> void:
 	week_label.text = "Season %d   —   Week %d / 52" % [GameState.current_season, GameState.current_week]
 	week_label.add_theme_color_override("font_color", Color.WHITE)
 	balance_label.text = "💰 Balance: $%.0f" % GameState.player_team.balance
-	balance_label.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
+	if GameState.player_team.balance >= 0:
+		balance_label.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
+	else:
+		balance_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
 	var next_race = GameState.active_championship.get_next_race()
 	if next_race:
 		next_race_label.text = "🏎 Next Race: Round %d — %s   (Week %d)" % [
@@ -370,3 +397,46 @@ func _input(event: InputEvent) -> void:
 			var path = "user://screenshot_%s.png" % timestamp
 			screenshot.save_png(path)
 			print("Screenshot saved: " + path)
+
+func _on_save_pressed() -> void:
+	GameState.save_game()
+	_show_notification("✅ Game saved successfully!")
+
+func _on_load_pressed() -> void:
+	_show_confirmation(
+		"Load saved game?\nAll unsaved progress will be lost.",
+		func():
+			GameState.load_game()
+			_update_display()
+			_refresh_log()
+			_show_tab("drivers")
+	)
+
+func _on_quit_pressed() -> void:
+	_show_confirmation(
+		"Quit to desktop?\nAll unsaved progress will be lost.",
+		func():
+			get_tree().quit()
+	)
+
+func _show_notification(message: String) -> void:
+	var dialog = AcceptDialog.new()
+	dialog.title = "Automotive Empire"
+	dialog.dialog_text = message
+	add_child(dialog)
+	dialog.popup_centered()
+	dialog.confirmed.connect(func(): dialog.queue_free())
+
+func _show_confirmation(message: String, on_confirm: Callable) -> void:
+	var dialog = ConfirmationDialog.new()
+	dialog.title = "Automotive Empire"
+	dialog.dialog_text = message
+	dialog.ok_button_text = "Confirm"
+	dialog.cancel_button_text = "Cancel"
+	add_child(dialog)
+	dialog.popup_centered()
+	dialog.confirmed.connect(func():
+		on_confirm.call()
+		dialog.queue_free()
+	)
+	dialog.canceled.connect(dialog.queue_free)
