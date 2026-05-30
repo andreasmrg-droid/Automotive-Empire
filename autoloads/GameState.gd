@@ -34,6 +34,16 @@ var campus_buildings: Dictionary = {}
 var active_sponsor: Dictionary = {}
 var sponsor_no_points_streak: int = 0
 
+# Resources
+var research_points: float = 0.0
+var spare_parts: int = 240        # units, starts with 2 races worth
+var fuel_kg: float = 60.0         # kg, starts with 2 races worth
+
+# Notifications
+var notifications: Array = []
+var unread_notification_count: int = 0
+signal notifications_updated()
+
 # Campus zones - defines layout order
 var campus_zones: Dictionary = {
 	"Command": ["Headquarters", "Logistics Center", "Garage", "Racing Department"],
@@ -369,6 +379,29 @@ func _setup_sponsor() -> void:
 	}
 	add_log("📋 Sponsor signed: %s — $1,000/week" % picked["name"])
 
+func add_notification(priority: String, message: String) -> void:
+	# priority: "Critical", "High", "Normal"
+	notifications.append({
+		"priority": priority,
+		"message": message,
+		"week": current_week,
+		"season": current_season,
+		"read": false,
+	})
+	unread_notification_count += 1
+	emit_signal("notifications_updated")
+	# Also log critical ones
+	if priority == "Critical":
+		add_log("🔴 CRITICAL: %s" % message)
+	elif priority == "High":
+		add_log("🟠 %s" % message)
+
+func mark_all_notifications_read() -> void:
+	for n in notifications:
+		n["read"] = true
+	unread_notification_count = 0
+	emit_signal("notifications_updated")
+
 func _apply_sponsor_income() -> void:
 	if active_sponsor.is_empty():
 		return
@@ -422,6 +455,72 @@ func _apply_weekly_expenses() -> void:
 		var driver_count = team.drivers.size()
 		var ai_expenses = (team.weekly_driver_salary * driver_count) + team.weekly_mechanic_salary
 		team.balance -= ai_expenses
+
+func _consume_race_resources() -> void:
+	# SP: base cost per race
+	var sp_base = 120  # GK Regional default
+	var sp_used = sp_base
+	spare_parts -= sp_used
+	spare_parts = max(spare_parts, 0)
+	add_log("🔧 Spare parts used: %d units (stock: %d)" % [sp_used, spare_parts])
+
+	# Fuel: per car per race
+	var fuel_per_car = 15.0  # GK Regional default
+	var cars = player_team.drivers.size()
+	var fuel_used = fuel_per_car * cars
+	fuel_kg -= fuel_used
+	fuel_kg = max(fuel_kg, 0.0)
+	add_log("⛽ Fuel used: %.1f kg (stock: %.1f kg)" % [fuel_used, fuel_kg])
+
+	# Check warnings
+	_check_resource_notifications()
+
+func _earn_race_rp(laps: int) -> void:
+	var rp_gained = laps * 0.5
+	research_points += rp_gained
+	add_log("🔬 RP gained: %.0f (total: %.0f)" % [rp_gained, research_points])
+
+func _check_resource_notifications() -> void:
+	# SP warnings
+	if spare_parts <= 0:
+		add_notification("Critical", "No spare parts remaining! Buy more at the Logistics Center before next race.")
+	elif spare_parts < 120:
+		add_notification("High", "Spare parts running low (%d units). Less than 1 race worth remaining." % spare_parts)
+
+	# Fuel warnings
+	if fuel_kg <= 0.0:
+		add_notification("Critical", "No fuel remaining! Buy more at the Logistics Center before next race.")
+	elif fuel_kg < 15.0:
+		add_notification("High", "Fuel running low (%.1f kg). Less than 1 race worth remaining." % fuel_kg)
+
+	# Bankruptcy warning (less than 2 weeks of expenses)
+	var weekly_expenses = 1250  # approximate
+	if player_team.balance < 0:
+		add_notification("Critical", "BANKRUPTCY RISK: Balance is negative ($%.0f)!" % player_team.balance)
+	elif player_team.balance < weekly_expenses * 2:
+		add_notification("High", "Low funds warning: Less than 2 weeks of expenses remaining.")
+
+func buy_spare_parts(units: int) -> bool:
+	var cost_per_unit = 1  # $1 per unit for GK Regional (120 units = $120/race)
+	var total_cost = units * cost_per_unit
+	if player_team.balance < total_cost:
+		add_notification("High", "Not enough credits to buy spare parts.")
+		return false
+	player_team.balance -= total_cost
+	spare_parts += units
+	add_log("🛒 Bought %d spare parts for $%d (stock: %d)" % [units, total_cost, spare_parts])
+	return true
+
+func buy_fuel(kg: float) -> bool:
+	var cost_per_kg = 2.0  # placeholder price
+	var total_cost = kg * cost_per_kg
+	if player_team.balance < total_cost:
+		add_notification("High", "Not enough credits to buy fuel.")
+		return false
+	player_team.balance -= total_cost
+	fuel_kg += kg
+	add_log("🛒 Bought %.1f kg fuel for $%.0f (stock: %.1f kg)" % [kg, total_cost, fuel_kg])
+	return true
 
 func get_building(building_id: String) -> Dictionary:
 	return campus_buildings.get(building_id, {})
@@ -760,8 +859,14 @@ func _simulate_race(race_data: Dictionary) -> void:
 
 	# Check season end
 	if active_championship.is_season_finished() or current_week >= max_weeks:
+		_consume_race_resources()
+		_earn_race_rp(race_data["laps"])
 		_end_season()
 		return
+
+# Consume resources and earn RP
+	_consume_race_resources()
+	_earn_race_rp(race_data["laps"])
 
 	# Switch to race results scene
 	get_tree().change_scene_to_file("res://scenes/RaceResults.tscn")

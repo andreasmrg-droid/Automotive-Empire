@@ -15,12 +15,22 @@ extends Control
 @onready var teams_box = $Layout/MainArea/SidePanel/TeamsPanel/TeamsBox
 @onready var driver_panel = $Layout/MainArea/SidePanel/DriverPanel
 @onready var driver_stats_label = $Layout/MainArea/SidePanel/DriverPanel/DriverStatsLabel
-@onready var nav_bar = $Layout/TopBar
+
+var top_bar: HBoxContainer
 
 var tab_drivers_btn: Button
 var tab_teams_btn: Button
 var tab_driver_btn: Button
 var current_tab: String = "drivers"
+var resource_bar: HBoxContainer
+var cr_label: Label
+var rp_label: Label
+var sp_label: Label
+var fu_label: Label
+var notif_button: Button
+var notif_panel: PanelContainer
+var notif_box: VBoxContainer
+var notif_visible: bool = false
 
 func _ready() -> void:
 	# Layout fills screen
@@ -31,35 +41,103 @@ func _ready() -> void:
 	title_label.add_theme_color_override("font_color", Color.WHITE)
 
 # Top navigation bar
-	nav_bar.add_theme_constant_override("separation", 10)
+	top_bar = $Layout/TopBar
 
+# ── TOP BAR ──────────────────────────────────────────────────────
 	var campus_btn = Button.new()
-	campus_btn.text = "🏗 Campus"
+	campus_btn.text = "🏛 Campus"
 	campus_btn.custom_minimum_size = Vector2(130, 35)
 	campus_btn.pressed.connect(_on_campus_pressed)
-	nav_bar.add_child(campus_btn)
+	top_bar.add_child(campus_btn)
 
-	var spacer = Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	nav_bar.add_child(spacer)
+	# Resource bar
+	resource_bar = HBoxContainer.new()
+	resource_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	resource_bar.alignment = BoxContainer.ALIGNMENT_CENTER
+	resource_bar.add_theme_constant_override("separation", 30)
+	top_bar.add_child(resource_bar)
 
+	cr_label = _make_resource_label("💰 CR", Color(0.4, 0.9, 0.4))
+	rp_label = _make_resource_label("🔬 RP", Color(0.5, 0.7, 1.0))
+	sp_label = _make_resource_label("🔧 SP", Color(1.0, 0.8, 0.4))
+	fu_label = _make_resource_label("⛽ FU", Color(1.0, 0.5, 0.3))
+	resource_bar.add_child(cr_label)
+	resource_bar.add_child(rp_label)
+	resource_bar.add_child(sp_label)
+	resource_bar.add_child(fu_label)
+
+	# Notification bell
+	notif_button = Button.new()
+	notif_button.text = "🔔 0"
+	notif_button.custom_minimum_size = Vector2(70, 35)
+	notif_button.pressed.connect(_on_notif_pressed)
+	top_bar.add_child(notif_button)
+
+	# Save / Load / Quit buttons (right side)
 	var save_btn = Button.new()
 	save_btn.text = "💾 Save"
-	save_btn.custom_minimum_size = Vector2(100, 35)
+	save_btn.custom_minimum_size = Vector2(90, 35)
 	save_btn.pressed.connect(_on_save_pressed)
-	nav_bar.add_child(save_btn)
+	top_bar.add_child(save_btn)
 
 	var load_btn = Button.new()
 	load_btn.text = "📂 Load"
-	load_btn.custom_minimum_size = Vector2(100, 35)
+	load_btn.custom_minimum_size = Vector2(90, 35)
 	load_btn.pressed.connect(_on_load_pressed)
-	nav_bar.add_child(load_btn)
+	top_bar.add_child(load_btn)
 
 	var quit_btn = Button.new()
 	quit_btn.text = "❌ Quit"
-	quit_btn.custom_minimum_size = Vector2(100, 35)
+	quit_btn.custom_minimum_size = Vector2(90, 35)
 	quit_btn.pressed.connect(_on_quit_pressed)
-	nav_bar.add_child(quit_btn)
+	top_bar.add_child(quit_btn)
+
+	# ── NOTIFICATION PANEL (hidden by default) ────────────────────────
+	notif_panel = PanelContainer.new()
+	notif_panel.visible = false
+	notif_panel.custom_minimum_size = Vector2(420, 0)
+	notif_panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	# Position it as overlay — add to root Control, not layout
+	notif_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	notif_panel.offset_left = -440
+	notif_panel.offset_top = 50
+	notif_panel.offset_right = -10
+	notif_panel.offset_bottom = 600
+	add_child(notif_panel)
+
+	var notif_vbox = VBoxContainer.new()
+	notif_vbox.add_theme_constant_override("separation", 6)
+	notif_panel.add_child(notif_vbox)
+
+	var notif_header = HBoxContainer.new()
+	notif_vbox.add_child(notif_header)
+
+	var notif_title = Label.new()
+	notif_title.text = "🔔 NOTIFICATIONS"
+	notif_title.add_theme_font_size_override("font_size", 16)
+	notif_title.add_theme_color_override("font_color", Color.WHITE)
+	notif_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	notif_header.add_child(notif_title)
+
+	var clear_btn = Button.new()
+	clear_btn.text = "Mark all read"
+	clear_btn.custom_minimum_size = Vector2(110, 30)
+	clear_btn.pressed.connect(_on_clear_notifs_pressed)
+	notif_header.add_child(clear_btn)
+
+	var notif_scroll = ScrollContainer.new()
+	notif_scroll.custom_minimum_size = Vector2(400, 0)
+	notif_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	notif_vbox.add_child(notif_scroll)
+
+	notif_box = VBoxContainer.new()
+	notif_box.custom_minimum_size = Vector2(400, 0)
+	notif_box.add_theme_constant_override("separation", 6)
+	notif_scroll.add_child(notif_box)
+
+	var spacer = Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_bar.add_child(spacer)
 
 	# MainArea
 	var main_area = $Layout/MainArea
@@ -109,6 +187,8 @@ func _ready() -> void:
 	_update_display()
 	_refresh_log()
 	_show_tab("drivers")
+
+	balance_label.visible = false
 
 func _build_tabs() -> void:
 	tab_row.add_theme_constant_override("separation", 2)
@@ -161,6 +241,92 @@ func _update_display() -> void:
 	else:
 		next_race_label.text = "✅ No more races this season"
 	next_race_label.add_theme_color_override("font_color", Color.WHITE)
+	# Resources
+	cr_label.text = "💰 CR  $%s" % _format_number(GameState.player_team.balance)
+	if GameState.player_team.balance >= 0:
+		cr_label.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
+	else:
+		cr_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
+	rp_label.text = "🔬 RP  %.0f" % GameState.research_points
+	sp_label.text = "🔧 SP  %d" % GameState.spare_parts
+	fu_label.text = "⛽ FU  %.0f kg" % GameState.fuel_kg
+
+	# SP/FU warning colors
+	sp_label.add_theme_color_override("font_color",
+		Color(1.0, 0.3, 0.3) if GameState.spare_parts < 120 else Color(1.0, 0.8, 0.4))
+	fu_label.add_theme_color_override("font_color",
+		Color(1.0, 0.3, 0.3) if GameState.fuel_kg < 15.0 else Color(1.0, 0.5, 0.3))
+
+	# Notification bell
+	var unread = GameState.unread_notification_count
+	notif_button.text = "🔔 %d" % unread
+	if unread > 0:
+		notif_button.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
+	else:
+		notif_button.add_theme_color_override("font_color", Color.WHITE)
+
+	# Also remove the old balance label update since cr_label handles it now
+
+func _format_number(n: float) -> String:
+	if abs(n) >= 1000000:
+		return "%.1fM" % (n / 1000000.0)
+	elif abs(n) >= 1000:
+		return "%.1fK" % (n / 1000.0)
+	else:
+		return "%.0f" % n
+
+func _on_notif_pressed() -> void:
+	notif_visible = !notif_visible
+	notif_panel.visible = notif_visible
+	if notif_visible:
+		_refresh_notifications()
+		GameState.mark_all_notifications_read()
+		_update_display()
+
+func _on_clear_notifs_pressed() -> void:
+	GameState.mark_all_notifications_read()
+	_refresh_notifications()
+	_update_display()
+
+func _refresh_notifications() -> void:
+	for child in notif_box.get_children():
+		child.queue_free()
+
+	var notifs = GameState.notifications
+	if notifs.is_empty():
+		var empty = Label.new()
+		empty.text = "No notifications"
+		empty.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+		notif_box.add_child(empty)
+		return
+
+	# Show newest first
+	for i in range(notifs.size() - 1, -1, -1):
+		var n = notifs[i]
+		var card = PanelContainer.new()
+		var vbox = VBoxContainer.new()
+		vbox.add_theme_constant_override("separation", 2)
+		card.add_child(vbox)
+
+		var header = Label.new()
+		var priority_icon = "🔴" if n["priority"] == "Critical" else ("🟠" if n["priority"] == "High" else "🔵")
+		header.text = "%s  S%d W%d" % [priority_icon, n["season"], n["week"]]
+		header.add_theme_font_size_override("font_size", 11)
+		header.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+		vbox.add_child(header)
+
+		var msg = Label.new()
+		msg.text = n["message"]
+		msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		msg.custom_minimum_size = Vector2(380, 0)
+		var color = Color(1.0, 0.4, 0.4) if n["priority"] == "Critical" else (Color(1.0, 0.7, 0.3) if n["priority"] == "High" else Color(0.6, 0.8, 1.0))
+		msg.add_theme_color_override("font_color", color)
+		vbox.add_child(msg)
+
+		notif_box.add_child(card)
+
+		var sep = HSeparator.new()
+		notif_box.add_child(sep)
 
 func _refresh_driver_standings() -> void:
 	for child in drivers_box.get_children():
@@ -426,6 +592,13 @@ func _show_notification(message: String) -> void:
 	add_child(dialog)
 	dialog.popup_centered()
 	dialog.confirmed.connect(func(): dialog.queue_free())
+
+func _make_resource_label(_prefix: String, color: Color) -> Label:
+	var label = Label.new()
+	label.add_theme_font_size_override("font_size", 15)
+	label.add_theme_color_override("font_color", color)
+	label.custom_minimum_size = Vector2(130, 0)
+	return label
 
 func _show_confirmation(message: String, on_confirm: Callable) -> void:
 	var dialog = ConfirmationDialog.new()
