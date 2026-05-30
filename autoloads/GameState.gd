@@ -7,6 +7,9 @@ var max_weeks: int = 52
 
 # Player team
 var player_team: Team = null
+var player_name: String = "Andreas"
+var player_team_name: String = "My Racing Team"
+var player_team_nationality: String = "British"
 
 # All teams in the player's championship
 var all_teams: Array = []
@@ -50,7 +53,7 @@ signal season_ended(season: int)
 signal log_updated()
 
 func _ready() -> void:
-	setup_new_game()
+	pass
 
 func _setup_campus() -> void:
 	campus_buildings = {
@@ -482,7 +485,7 @@ func _apply_campus_income() -> void:
 	if total_income > 0 or total_maintenance > 0:
 		add_log("🏗 Campus: +$%d income / -$%d maintenance" % [total_income, total_maintenance])
 
-func setup_new_game() -> void:
+func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: String) -> void:
 	current_week = 1
 	current_season = 1
 	weekly_log = []
@@ -491,6 +494,9 @@ func setup_new_game() -> void:
 	all_teams = []
 	all_drivers = {}
 	_setup_championship()
+	player_name = p_player_name
+	player_team_name = p_team_name
+	player_team_nationality = p_nationality
 	_setup_player_team()
 	_generate_drivers()
 	_generate_ai_teams()
@@ -524,7 +530,7 @@ func _setup_championship() -> void:
 func _setup_player_team() -> void:
 	player_team = Team.new()
 	player_team.id = "T-PLAYER"
-	player_team.team_name = "My Racing Team"
+	player_team.team_name = player_team_name
 	player_team.is_player_team = true
 	player_team.balance = 50000.0
 	player_team.reputation = 15.0
@@ -534,9 +540,10 @@ func _setup_player_team() -> void:
 	active_championship.team_standings[player_team.id] = 0
 
 func _generate_drivers() -> void:
-	var d1 = _create_driver("D-P001", "Alex", "Rivera", "Spanish", 10, "Male", "T-PLAYER")
-	var d2_name = NameGenerator.get_full_name("Spanish", "Female")
-	var d2 = _create_driver("D-P002", d2_name["first"], d2_name["last"], "Spanish", 12, "Female", "T-PLAYER")
+	var d1_name = NameGenerator.get_full_name(player_team_nationality, "Male")
+	var d2_name = NameGenerator.get_full_name(player_team_nationality, "Female")
+	var d1 = _create_driver("D-P001", d1_name["first"], d1_name["last"], player_team_nationality, 10, "Male", "T-PLAYER")
+	var d2 = _create_driver("D-P002", d2_name["first"], d2_name["last"], player_team_nationality, 12, "Female", "T-PLAYER")
 	all_drivers[d1.id] = d1
 	all_drivers[d2.id] = d2
 	player_team.drivers.append(d1.id)
