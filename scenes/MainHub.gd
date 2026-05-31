@@ -31,6 +31,10 @@ var notif_button: Button
 var notif_panel: PanelContainer
 var notif_box: VBoxContainer
 var notif_visible: bool = false
+var tab_cars_btn: Button
+var cars_panel: ScrollContainer
+var cars_box: VBoxContainer
+
 
 func _ready() -> void:
 	# Layout fills screen
@@ -210,19 +214,40 @@ func _build_tabs() -> void:
 	tab_driver_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tab_driver_btn.pressed.connect(func(): _show_tab("mydriver"))
 	tab_row.add_child(tab_driver_btn)
+	tab_cars_btn = Button.new()
+	tab_cars_btn.text = "🔩 Cars"
+	tab_cars_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tab_cars_btn.pressed.connect(func(): _show_tab("cars"))
+	tab_row.add_child(tab_cars_btn)
+
+	# Cars panel — ScrollContainer so it handles many cars gracefully
+	cars_panel = ScrollContainer.new()
+	cars_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	cars_panel.visible = false
+	side_panel.add_child(cars_panel)
+
+	cars_box = VBoxContainer.new()
+	cars_box.add_theme_constant_override("separation", 10)
+	cars_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cars_panel.add_child(cars_box)
 
 func _show_tab(tab: String) -> void:
 	current_tab = tab
 	drivers_panel.visible = (tab == "drivers")
-	teams_panel.visible = (tab == "teams")
-	driver_panel.visible = (tab == "mydriver")
+	teams_panel.visible   = (tab == "teams")
+	driver_panel.visible  = (tab == "mydriver")
+	cars_panel.visible    = (tab == "cars")
+
 	tab_drivers_btn.flat = (tab != "drivers")
-	tab_teams_btn.flat = (tab != "teams")
-	tab_driver_btn.flat = (tab != "mydriver")
+	tab_teams_btn.flat   = (tab != "teams")
+	tab_driver_btn.flat  = (tab != "mydriver")
+	tab_cars_btn.flat    = (tab != "cars")
+
 	match tab:
-		"drivers": _refresh_driver_standings()
-		"teams": _refresh_team_standings()
+		"drivers":  _refresh_driver_standings()
+		"teams":    _refresh_team_standings()
 		"mydriver": _refresh_driver_stats()
+		"cars":     _refresh_cars()
 
 func _update_display() -> void:
 	title_label.text = "🏁 AUTOMOTIVE EMPIRE"
@@ -648,3 +673,234 @@ func _show_confirmation(message: String, on_confirm: Callable) -> void:
 		dialog.queue_free()
 	)
 	dialog.canceled.connect(dialog.queue_free)
+
+func _refresh_cars() -> void:
+	for child in cars_box.get_children():
+		child.queue_free()
+
+	# ── Header ──────────────────────────────────────────────
+	var title = Label.new()
+	title.text = "🔩 MY CARS"
+	title.add_theme_font_size_override("font_size", 15)
+	title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
+	cars_box.add_child(title)
+
+	var sep = HSeparator.new()
+	cars_box.add_child(sep)
+
+	# ── Resource summary row ─────────────────────────────────
+	var res_label = Label.new()
+	var sp_color = "🟢" if GameState.spare_parts >= 120 else ("🟠" if GameState.spare_parts >= 60 else "🔴")
+	var fu_color  = "🟢" if GameState.fuel_kg >= 15.0 else "🔴"
+	res_label.text = "%s SP: %d units   %s FU: %.0f kg" % [
+		sp_color, GameState.spare_parts,
+		fu_color, GameState.fuel_kg
+	]
+	res_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
+	res_label.add_theme_font_size_override("font_size", 13)
+	cars_box.add_child(res_label)
+
+	# Fuel warning line
+	if GameState.fuel_kg < 15.0:
+		var warn = Label.new()
+		warn.text = "⛽ WARNING: Fuel below 15 kg — car will DNS if not refuelled!"
+		warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		warn.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
+		warn.add_theme_font_size_override("font_size", 12)
+		cars_box.add_child(warn)
+
+	var sep2 = HSeparator.new()
+	cars_box.add_child(sep2)
+
+	# ── One card per player car ──────────────────────────────
+	if GameState.player_team.drivers.is_empty():
+		var no_car = Label.new()
+		no_car.text = "No cars assigned yet."
+		no_car.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+		cars_box.add_child(no_car)
+		return
+
+	var car_number = 1
+	for driver_id in GameState.player_team.drivers:
+		var driver = GameState.all_drivers.get(driver_id)
+		if not driver:
+			continue
+
+		var condition = GameState.get_car_condition(driver_id)
+		var damage    = 100.0 - condition
+
+		# ── Car card container ───────────────────────────────
+		var card = PanelContainer.new()
+		var card_style = StyleBoxFlat.new()
+		card_style.bg_color = Color(0.13, 0.13, 0.16, 1.0)
+		card_style.border_width_left   = 3
+		card_style.border_width_right  = 0
+		card_style.border_width_top    = 0
+		card_style.border_width_bottom = 0
+		card_style.corner_radius_top_left     = 4
+		card_style.corner_radius_bottom_left  = 4
+		card_style.set_content_margin_all(10)
+		# Border colour = condition health
+		if condition >= 70.0:
+			card_style.border_color = Color(0.2, 0.85, 0.2)
+		elif condition >= 40.0:
+			card_style.border_color = Color(1.0, 0.7, 0.1)
+		else:
+			card_style.border_color = Color(1.0, 0.25, 0.25)
+		card.add_theme_stylebox_override("panel", card_style)
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		cars_box.add_child(card)
+
+		var card_vbox = VBoxContainer.new()
+		card_vbox.add_theme_constant_override("separation", 6)
+		card_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card.add_child(card_vbox)
+
+		# ── Car name row ─────────────────────────────────────
+		var name_row = HBoxContainer.new()
+		card_vbox.add_child(name_row)
+
+		var car_label = Label.new()
+		car_label.text = "🏎  Car %d" % car_number
+		car_label.add_theme_font_size_override("font_size", 14)
+		car_label.add_theme_color_override("font_color", Color.WHITE)
+		car_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_row.add_child(car_label)
+
+		var driver_label = Label.new()
+		driver_label.text = driver.full_name()
+		driver_label.add_theme_font_size_override("font_size", 13)
+		driver_label.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
+		name_row.add_child(driver_label)
+
+		# ── Condition bar ────────────────────────────────────
+		var cond_row = HBoxContainer.new()
+		cond_row.add_theme_constant_override("separation", 8)
+		card_vbox.add_child(cond_row)
+
+		var cond_title = Label.new()
+		cond_title.text = "Condition:"
+		cond_title.add_theme_font_size_override("font_size", 12)
+		cond_title.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+		cond_title.custom_minimum_size = Vector2(80, 0)
+		cond_row.add_child(cond_title)
+
+		# Progress bar
+		var bar = ProgressBar.new()
+		bar.min_value = 0
+		bar.max_value = 100
+		bar.value = condition
+		bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		bar.custom_minimum_size = Vector2(0, 18)
+		bar.show_percentage = false
+		# Tint the fill according to health
+		var bar_style = StyleBoxFlat.new()
+		if condition >= 70.0:
+			bar_style.bg_color = Color(0.15, 0.75, 0.15)
+		elif condition >= 40.0:
+			bar_style.bg_color = Color(0.85, 0.55, 0.05)
+		else:
+			bar_style.bg_color = Color(0.85, 0.15, 0.15)
+		bar.add_theme_stylebox_override("fill", bar_style)
+		cond_row.add_child(bar)
+
+		var pct_label = Label.new()
+		pct_label.text = "%.0f%%" % condition
+		pct_label.add_theme_font_size_override("font_size", 13)
+		pct_label.custom_minimum_size = Vector2(40, 0)
+		if condition >= 70.0:
+			pct_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
+		elif condition >= 40.0:
+			pct_label.add_theme_color_override("font_color", Color(1.0, 0.75, 0.2))
+		else:
+			pct_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
+		cond_row.add_child(pct_label)
+
+		# ── Fuel status ──────────────────────────────────────
+		var fuel_row = HBoxContainer.new()
+		card_vbox.add_child(fuel_row)
+
+		var fuel_title = Label.new()
+		fuel_title.text = "Fuel:"
+		fuel_title.add_theme_font_size_override("font_size", 12)
+		fuel_title.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+		fuel_title.custom_minimum_size = Vector2(80, 0)
+		fuel_row.add_child(fuel_title)
+
+		var fuel_val = Label.new()
+		var fuel_ok = GameState.fuel_kg >= 15.0
+		fuel_val.text = "%.0f kg available  (need 15 kg)  %s" % [
+			GameState.fuel_kg,
+			"✅ OK" if fuel_ok else "🚫 DNS RISK"
+		]
+		fuel_val.add_theme_font_size_override("font_size", 12)
+		fuel_val.add_theme_color_override("font_color",
+			Color(0.3, 1.0, 0.3) if fuel_ok else Color(1.0, 0.3, 0.3))
+		fuel_row.add_child(fuel_val)
+
+		# ── SP cost preview ──────────────────────────────────
+		if damage > 0.0:
+			var sp_for_full = int(ceil(damage / 10.0) * 120)
+			var sp_preview = Label.new()
+			sp_preview.text = "Full repair cost: %d SP  (have: %d SP)" % [
+				sp_for_full, GameState.spare_parts]
+			sp_preview.add_theme_font_size_override("font_size", 12)
+			sp_preview.add_theme_color_override("font_color",
+				Color(0.6, 0.9, 1.0) if GameState.spare_parts >= sp_for_full
+				else Color(1.0, 0.5, 0.3))
+			card_vbox.add_child(sp_preview)
+
+		# ── Repair buttons ───────────────────────────────────
+		var btn_row = HBoxContainer.new()
+		btn_row.add_theme_constant_override("separation", 6)
+		card_vbox.add_child(btn_row)
+
+		# Repair 10% button
+		var repair10_btn = Button.new()
+		repair10_btn.text = "Fix 10%  (-120 SP)"
+		repair10_btn.custom_minimum_size = Vector2(130, 30)
+		repair10_btn.disabled = (damage <= 0.0 or GameState.spare_parts < 120)
+		var _d_id_10 = driver_id   # capture for lambda
+		repair10_btn.pressed.connect(func():
+			if GameState.repair_car(_d_id_10, 10.0):
+				_refresh_cars()
+				_update_display()
+		)
+		btn_row.add_child(repair10_btn)
+
+		# Repair 50% button
+		var repair50_btn = Button.new()
+		repair50_btn.text = "Fix 50%  (-600 SP)"
+		repair50_btn.custom_minimum_size = Vector2(130, 30)
+		repair50_btn.disabled = (damage <= 0.0 or GameState.spare_parts < 600)
+		var _d_id_50 = driver_id
+		repair50_btn.pressed.connect(func():
+			if GameState.repair_car(_d_id_50, 50.0):
+				_refresh_cars()
+				_update_display()
+		)
+		btn_row.add_child(repair50_btn)
+
+		# Full repair button
+		var full_repair_btn = Button.new()
+		full_repair_btn.text = "Full Repair"
+		full_repair_btn.custom_minimum_size = Vector2(110, 30)
+		var sp_needed_full = int(ceil(damage / 10.0) * 120)
+		full_repair_btn.disabled = (damage <= 0.0 or GameState.spare_parts < sp_needed_full)
+		var _d_id_full = driver_id
+		full_repair_btn.pressed.connect(func():
+			if GameState.repair_car_full(_d_id_full):
+				_refresh_cars()
+				_update_display()
+		)
+		btn_row.add_child(full_repair_btn)
+
+		car_number += 1
+
+	# ── Bottom hint ──────────────────────────────────────────
+	var hint = Label.new()
+	hint.text = "Buy SP and FU at the Logistics Center on Campus."
+	hint.add_theme_font_size_override("font_size", 11)
+	hint.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	cars_box.add_child(hint)

@@ -38,6 +38,7 @@ var sponsor_no_points_streak: int = 0
 var research_points: float = 0.0
 var spare_parts: int = 240        # units, starts with 2 races worth
 var fuel_kg: float = 30.0         # kg, starts with 2 races worth
+var car_conditions: Dictionary = {}
 
 # Notifications
 var notifications: Array = []
@@ -56,6 +57,10 @@ var campus_zones: Dictionary = {
 
 # Weekly log
 var weekly_log: Array[String] = []
+
+const CAR_CONDITION_DEGRADATION_PER_RACE: float = 15.0
+const CAR_CONDITION_SP_PER_10_PCT: int = 120
+const FUEL_PER_CAR_PER_RACE: float = 15.0
 
 # Signals
 signal week_advanced(week: int)
@@ -459,18 +464,19 @@ func _apply_weekly_expenses() -> void:
 func _consume_race_resources() -> void:
 	# SP: base cost per race
 	var sp_base = 120  # GK Regional default
-	var sp_used = sp_base
-	spare_parts -= sp_used
+	spare_parts -= sp_base
 	spare_parts = max(spare_parts, 0)
-	add_log("🔧 Spare parts used: %d units (stock: %d)" % [sp_used, spare_parts])
+	add_log("🔧 Spare parts used: %d units (stock: %d)" % [sp_base, spare_parts])
 
 	# Fuel: per car per race
-	var fuel_per_car = 15.0  # GK Regional default
 	var cars = player_team.drivers.size()
-	var fuel_used = fuel_per_car * cars
+	var fuel_used = FUEL_PER_CAR_PER_RACE * cars
 	fuel_kg -= fuel_used
 	fuel_kg = max(fuel_kg, 0.0)
 	add_log("⛽ Fuel used: %.1f kg (stock: %.1f kg)" % [fuel_used, fuel_kg])
+
+	# Degrade car conditions
+	_degrade_car_conditions()
 
 	# Check warnings
 	_check_resource_notifications()
@@ -520,6 +526,89 @@ func buy_fuel(kg: float) -> bool:
 	player_team.balance -= total_cost
 	fuel_kg += kg
 	add_log("🛒 Bought %.1f kg fuel for $%.0f (stock: %.1f kg)" % [kg, total_cost, fuel_kg])
+	return true
+
+## Initialise condition for every driver in player_team.
+## Call this from setup_new_game() — see BLOCK 5.
+func _setup_car_conditions() -> void:
+	car_conditions.clear()
+	for driver_id in player_team.drivers:
+		car_conditions[driver_id] = 100.0
+
+
+## Returns the condition for a specific car (by driver_id).
+## Safe to call even if the key is missing — returns 100.
+func get_car_condition(driver_id: String) -> float:
+	return car_conditions.get(driver_id, 100.0)
+
+
+## Repair a car by `repair_pct` percentage points (e.g. 10 = repair 10%).
+## Costs CAR_CONDITION_SP_PER_10_PCT SP per 10 pct block (pro-rated).
+## Returns true if repair was applied, false if not enough SP.
+func repair_car(driver_id: String, repair_pct: float) -> bool:
+	if not driver_id in car_conditions:
+		return false
+	var current = car_conditions[driver_id]
+	# Clamp repair so we don't overshoot 100
+	var actual_repair = min(repair_pct, 100.0 - current)
+	if actual_repair <= 0.0:
+		add_notification("Normal", "Car is already at full condition.")
+		return false
+	# Calculate SP cost (pro-rated: 120 SP per 10%)
+	var sp_cost = int(ceil(actual_repair / 10.0 * CAR_CONDITION_SP_PER_10_PCT))
+	if spare_parts < sp_cost:
+		add_notification("High",
+			"Not enough SP to repair car. Need %d SP, have %d." % [sp_cost, spare_parts])
+		return false
+	spare_parts -= sp_cost
+	car_conditions[driver_id] = min(100.0, current + actual_repair)
+	add_log("🔧 Car repaired +%.0f%% → %.0f%% condition (-%d SP, %d remaining)" % [
+		actual_repair, car_conditions[driver_id], sp_cost, spare_parts])
+	emit_signal("log_updated")
+	return true
+
+
+## Convenience: repair a car to full condition in one click.
+func repair_car_full(driver_id: String) -> bool:
+	var current = get_car_condition(driver_id)
+	var damage = 100.0 - current
+	if damage <= 0.0:
+		add_notification("Normal", "Car is already at full condition.")
+		return false
+	return repair_car(driver_id, damage)
+
+
+## Degrade all player cars after a race.
+## Called internally from _consume_race_resources().
+func _degrade_car_conditions() -> void:
+	for driver_id in player_team.drivers:
+		if not driver_id in car_conditions:
+			car_conditions[driver_id] = 100.0
+		car_conditions[driver_id] = max(
+			0.0,
+			car_conditions[driver_id] - CAR_CONDITION_DEGRADATION_PER_RACE
+		)
+		var cond = car_conditions[driver_id]
+		add_log("🔩 Car condition after race: %.0f%%" % cond)
+		if cond <= 20.0:
+			add_notification("Critical",
+				"Car condition critical (%.0f%%)! Repair before next race." % cond)
+		elif cond <= 50.0:
+			add_notification("High",
+				"Car condition low (%.0f%%). Consider repairs." % cond)
+
+
+## DNS check — call this at the start of _simulate_race().
+## Returns true if the car CAN race, false if it is DNS.
+func _can_car_race(driver_id: String) -> bool:
+	# DNS: fuel below threshold
+	if fuel_kg < FUEL_PER_CAR_PER_RACE:
+		add_notification("Critical",
+			"DNS: Not enough fuel (%.1f kg). Need %.1f kg. Buy fuel at Logistics Center." % [
+				fuel_kg, FUEL_PER_CAR_PER_RACE])
+		add_log("🚫 DNS — Insufficient fuel for race start.")
+		return false
+	# Could add condition-based DNS here in future (e.g. condition == 0)
 	return true
 
 func get_building(building_id: String) -> Dictionary:
@@ -601,6 +690,7 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 	_generate_ai_teams()
 	_setup_campus()
 	_setup_sponsor()
+	_setup_car_conditions()
 	add_log("Welcome to Automotive Empire!")
 	add_log("Season %d — GK Regional Championship" % current_season)
 
@@ -765,16 +855,23 @@ func _apply_weekly_fitness_recovery() -> void:
 
 func _simulate_race(race_data: Dictionary) -> void:
 	add_log("=== RACE %d: %s ===" % [active_championship.current_round + 1, race_data["name"]])
-
-	# Collect all drivers
+ 
+	# ── DNS check: player cars need enough fuel to start ──────
+	var dns_driver_ids: Array = []
+	if player_team.drivers.size() > 0:
+		if not _can_car_race(player_team.drivers[0]):
+			for d_id in player_team.drivers:
+				dns_driver_ids.append(d_id)
+ 
+	# ── Collect all drivers, skipping DNS cars ────────────────
 	var race_drivers = []
 	for driver_id in active_championship.standings:
-		if driver_id in all_drivers:
+		if driver_id in all_drivers and not driver_id in dns_driver_ids:
 			race_drivers.append(all_drivers[driver_id])
-
+ 
 	# Determine weather
 	var is_wet = randf() * 100.0 < race_data["rain_probability"]
-
+ 
 	# Calculate lap times
 	var driver_times = []
 	for driver in race_drivers:
@@ -782,7 +879,7 @@ func _simulate_race(race_data: Dictionary) -> void:
 		var effective_pace = driver.get_effective_pace()
 		var effective_wet = driver.get_effective_wet()
 		var effective_focus = driver.get_effective_focus()
-
+ 
 		var pace_factor = 1.0 - (effective_pace / 1000.0)
 		var wet_factor = 1.0
 		if is_wet:
@@ -797,10 +894,10 @@ func _simulate_race(race_data: Dictionary) -> void:
 			"total_time": lap_time * race_data["laps"],
 			"points": 0
 		})
-
+ 
 	# Sort by total time
 	driver_times.sort_custom(func(a, b): return a["total_time"] < b["total_time"])
-
+ 
 	# Award points and prizes
 	var points_system = active_championship.points_system
 	for i in range(driver_times.size()):
@@ -808,12 +905,12 @@ func _simulate_race(race_data: Dictionary) -> void:
 		var driver = entry["driver"]
 		var standing_position = i + 1
 		var pts = 0
-
+ 
 		if i < points_system.size():
 			pts = points_system[i]
 			active_championship.add_points(driver.id, pts)
 			driver_times[i]["points"] = pts
-
+ 
 		# Find team and award team points + prize money
 		for team in all_teams:
 			if driver.id in team.drivers:
@@ -827,43 +924,60 @@ func _simulate_race(race_data: Dictionary) -> void:
 					prize = active_championship.prize_3rd
 				team.balance += prize
 				break
-
+ 
 		# Update driver stats
 		_update_driver_stats_after_race(driver, standing_position, race_data["laps"], is_wet)
-
+ 
+	# ── DNS entries: add to last_race_results with 0 pts ─────
+	# This ensures they appear in the Results screen (last place, DNS label)
+	for d_id in dns_driver_ids:
+		var driver = all_drivers.get(d_id)
+		if driver:
+			driver_times.append({
+				"driver": driver,
+				"lap_time": 0.0,
+				"total_time": 0.0,
+				"points": 0,
+				"dns": true
+			})
+ 
 	# Store last race data
 	last_race_round = active_championship.current_round + 1
 	last_race_name = race_data["name"]
 	last_race_wet = is_wet
 	last_race_results = driver_times
-
-	# Hall of fame
+ 
+	# Hall of fame (only if at least one car finished)
 	if driver_times.size() > 0:
-		var winner = driver_times[0]["driver"]
-		var winner_team = "Unknown"
-		for team in all_teams:
-			if winner.id in team.drivers:
-				winner_team = team.team_name
+		# Find first non-DNS entry
+		var winner = null
+		for entry in driver_times:
+			if not entry.get("dns", false):
+				winner = entry["driver"]
 				break
-		hall_of_fame.append({
-			"season": current_season,
-			"round": last_race_round,
-			"track": race_data["name"],
-			"winner": winner.full_name(),
-			"team": winner_team
-		})
-
-	# Check season end
-	if active_championship.is_season_finished() or current_week >= max_weeks:
-		_consume_race_resources()
-		_earn_race_rp(race_data["laps"])
-		_end_season()
-		return
-
-# Consume resources and earn RP
+		if winner:
+			var winner_team = "Unknown"
+			for team in all_teams:
+				if winner.id in team.drivers:
+					winner_team = team.team_name
+					break
+			hall_of_fame.append({
+				"season": current_season,
+				"round": last_race_round,
+				"track": race_data["name"],
+				"winner": winner.full_name(),
+				"team": winner_team
+			})
+ 
+	# Consume resources and earn RP (always happens, DNS or not)
 	_consume_race_resources()
 	_earn_race_rp(race_data["laps"])
-
+ 
+	# Check season end
+	if active_championship.is_season_finished() or current_week >= max_weeks:
+		_end_season()
+		return
+ 
 	# Switch to race results scene
 	get_tree().change_scene_to_file("res://scenes/RaceResults.tscn")
 
@@ -1025,6 +1139,7 @@ func save_game() -> void:
 			"team_standings": active_championship.team_standings,
 		},
 		"campus_buildings": campus_buildings,
+		"car_conditions": car_conditions,
 	}
 
 	# Save all teams
@@ -1108,6 +1223,10 @@ func load_game() -> void:
 	sponsor_no_points_streak = data["sponsor_no_points_streak"]
 	active_sponsor = data["active_sponsor"]
 	campus_buildings = data["campus_buildings"]
+	if "car_conditions" in data:
+		car_conditions = data["car_conditions"]
+	else:
+		_setup_car_conditions()   # backwards-compat for old saves
 
 	# Restore championship
 	_setup_championship()

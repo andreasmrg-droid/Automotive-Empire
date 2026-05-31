@@ -192,8 +192,8 @@ func _build_card(building_id: String) -> PanelContainer:
 
 	vbox.add_child(action_btn)
 
-	# Logistics Center gets an extra Open button
-	if building["name"] == "Logistics Center" and building["built"] and building["construction_weeks_remaining"] == 0:
+# Logistics Center gets an extra Open button (always available once built, even during upgrade)
+	if building["name"] == "Logistics Center" and building["built"] and building["level"] >= 1:
 		var open_btn = Button.new()
 		open_btn.text = "📦 Open Logistics Center"
 		open_btn.custom_minimum_size = Vector2(260, 35)

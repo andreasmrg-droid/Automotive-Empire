@@ -6,13 +6,7 @@ extends Control
 @onready var results_box = $Layout/ResultsContainer/ResultsBox
 @onready var continue_button = $Layout/ContinueButton
 
-# Data passed from GameState
-var race_data: Dictionary = {}
-var results: Array = []
-var is_wet: bool = false
-
 func _ready() -> void:
-	# Fill screen
 	anchor_right = 1.0
 	anchor_bottom = 1.0
 
@@ -24,24 +18,19 @@ func _ready() -> void:
 	layout.offset_right = -20
 	layout.offset_bottom = -20
 
-	# Header styling
 	header_label.add_theme_font_size_override("font_size", 28)
 	header_label.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
 
-	# Results container expands
 	var results_container = $Layout/ResultsContainer
 	results_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
-	# ResultsBox minimum width
 	results_box.custom_minimum_size = Vector2(800, 0)
 
-	# Continue button
 	continue_button.custom_minimum_size = Vector2(200, 50)
 	continue_button.add_theme_font_size_override("font_size", 18)
 	continue_button.text = "Continue ▶"
 	continue_button.pressed.connect(_on_continue_pressed)
 
-	# Load data from GameState
 	_display_results()
 
 func _display_results() -> void:
@@ -58,11 +47,10 @@ func _display_results() -> void:
 		weather_label.text = "☀ Dry Conditions"
 		weather_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.5))
 
-	# Clear results box
 	for child in results_box.get_children():
 		child.queue_free()
 
-	# Column headers using HBoxContainer
+	# Column headers
 	var header_row = HBoxContainer.new()
 	header_row.custom_minimum_size = Vector2(900, 0)
 	results_box.add_child(header_row)
@@ -78,33 +66,29 @@ func _display_results() -> void:
 	var sep = HSeparator.new()
 	results_box.add_child(sep)
 
+	# Leader time comes from first non-DNS entry
 	var leader_time = 0.0
-	if GameState.last_race_results.size() > 0:
-		leader_time = GameState.last_race_results[0]["total_time"]
+	for entry in GameState.last_race_results:
+		if not entry.get("dns", false):
+			leader_time = entry["total_time"]
+			break
 
 	var player_ids = GameState.player_team.drivers
 
 	for i in range(GameState.last_race_results.size()):
 		var entry = GameState.last_race_results[i]
 		var driver = entry["driver"]
-		var standing_position = i + 1
 		var total_time = entry["total_time"]
 		var points = entry["points"]
+		var is_dns = entry.get("dns", false)
+		var is_player = driver.id in player_ids
 
-		var gap_text = ""
-		if standing_position == 1:
-			gap_text = "LEADER"
-		else:
-			gap_text = "+%.3fs" % (total_time - leader_time)
-
-		var team_name = "Unknown"
-		for team in GameState.all_teams:
-			if driver.id in team.drivers:
-				team_name = team.team_name
-				break
-
+		# Position text
+		var standing_position = i + 1
 		var pos_text = ""
-		if standing_position == 1:
+		if is_dns:
+			pos_text = "DNS"
+		elif standing_position == 1:
 			pos_text = "🥇"
 		elif standing_position == 2:
 			pos_text = "🥈"
@@ -113,13 +97,27 @@ func _display_results() -> void:
 		else:
 			pos_text = "P%d" % standing_position
 
-		var is_player = driver.id in player_ids
+		# Gap text
+		var gap_text = ""
+		if is_dns:
+			gap_text = "—"
+		elif standing_position == 1:
+			gap_text = "LEADER"
+		else:
+			gap_text = "+%.3fs" % (total_time - leader_time)
 
-		var row = HBoxContainer.new()
-		row.custom_minimum_size = Vector2(900, 0)
+		# Team name
+		var team_name = "Unknown"
+		for team in GameState.all_teams:
+			if driver.id in team.drivers:
+				team_name = team.team_name
+				break
 
+		# Row colour
 		var color = Color.WHITE
-		if is_player:
+		if is_dns:
+			color = Color(0.5, 0.5, 0.5)
+		elif is_player:
 			color = Color(0.4, 0.8, 1.0)
 		elif standing_position == 1:
 			color = Color(1.0, 0.84, 0.0)
@@ -128,13 +126,16 @@ func _display_results() -> void:
 		elif standing_position == 3:
 			color = Color(0.8, 0.5, 0.2)
 
+		var row = HBoxContainer.new()
+		row.custom_minimum_size = Vector2(900, 0)
+
 		for col in [
 			[pos_text, 80],
 			[driver.full_name(), 200],
 			[team_name, 180],
-			[_format_race_time(total_time), 120],
+			["DNS" if is_dns else _format_race_time(total_time), 120],
 			[gap_text, 120],
-			["%d pts" % points, 60]
+			["—" if is_dns else "%d pts" % points, 60]
 		]:
 			var lbl = Label.new()
 			lbl.text = col[0]
