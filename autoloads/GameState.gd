@@ -37,7 +37,7 @@ var sponsor_no_points_streak: int = 0
 # Resources
 var research_points: float = 0.0
 var spare_parts: int = 240        # units, starts with 2 races worth
-var fuel_kg: float = 60.0         # kg, starts with 2 races worth
+var fuel_kg: float = 30.0         # kg, starts with 2 races worth
 
 # Notifications
 var notifications: Array = []
@@ -640,15 +640,10 @@ func _setup_player_team() -> void:
 
 func _generate_drivers() -> void:
 	var d1_name = NameGenerator.get_full_name(player_team_nationality, "Male")
-	var d2_name = NameGenerator.get_full_name(player_team_nationality, "Female")
 	var d1 = _create_driver("D-P001", d1_name["first"], d1_name["last"], player_team_nationality, 10, "Male", "T-PLAYER")
-	var d2 = _create_driver("D-P002", d2_name["first"], d2_name["last"], player_team_nationality, 12, "Female", "T-PLAYER")
 	all_drivers[d1.id] = d1
-	all_drivers[d2.id] = d2
 	player_team.drivers.append(d1.id)
-	player_team.drivers.append(d2.id)
 	active_championship.standings[d1.id] = 0
-	active_championship.standings[d2.id] = 0
 
 func _create_driver(id: String, first: String, last: String, nationality: String, age: int, sex: String, team_id: String) -> Driver:
 	var d = Driver.new()
@@ -707,7 +702,8 @@ func _generate_ai_teams() -> void:
 		all_teams.append(team)
 		active_championship.team_standings[team.id] = 0
 
-		for j in range(2):
+		var driver_count = 3 if i == 0 else 2
+		for j in range(driver_count):
 			var driver_id = "D-AI-%02d-%d" % [i, j]
 			var nat = NameGenerator.get_nationality_for_team(ai_data[i]["nationality"])
 			var sex = "Male" if randf() > 0.3 else "Female"

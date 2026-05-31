@@ -62,28 +62,27 @@ func _display_results() -> void:
 	for child in results_box.get_children():
 		child.queue_free()
 
-	# Column header
-	var header = Label.new()
-	header.text = "%-4s  %-25s  %-20s  %-12s  %-8s  %s" % [
-		"POS", "DRIVER", "TEAM", "TIME", "GAP", "PTS"
-	]
-	header.add_theme_font_size_override("font_size", 14)
-	header.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
-	header.custom_minimum_size = Vector2(800, 0)
-	results_box.add_child(header)
+	# Column headers using HBoxContainer
+	var header_row = HBoxContainer.new()
+	header_row.custom_minimum_size = Vector2(900, 0)
+	results_box.add_child(header_row)
 
-	# Separator line
+	for col in [["POS", 80], ["DRIVER", 200], ["TEAM", 180], ["TIME", 120], ["GAP", 120], ["PTS", 60]]:
+		var lbl = Label.new()
+		lbl.text = col[0]
+		lbl.custom_minimum_size = Vector2(col[1], 0)
+		lbl.add_theme_font_size_override("font_size", 13)
+		lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+		header_row.add_child(lbl)
+
 	var sep = HSeparator.new()
 	results_box.add_child(sep)
 
-	# Results rows
 	var leader_time = 0.0
 	if GameState.last_race_results.size() > 0:
 		leader_time = GameState.last_race_results[0]["total_time"]
 
-	var player_driver_id = ""
-	if GameState.player_team.drivers.size() > 0:
-		player_driver_id = GameState.player_team.drivers[0]
+	var player_ids = GameState.player_team.drivers
 
 	for i in range(GameState.last_race_results.size()):
 		var entry = GameState.last_race_results[i]
@@ -92,21 +91,18 @@ func _display_results() -> void:
 		var total_time = entry["total_time"]
 		var points = entry["points"]
 
-		# Gap to leader
 		var gap_text = ""
 		if standing_position == 1:
-			gap_text = "%.2fs" % total_time
+			gap_text = "LEADER"
 		else:
-			gap_text = "+%.2fs" % (total_time - leader_time)
+			gap_text = "+%.3fs" % (total_time - leader_time)
 
-		# Find team name
 		var team_name = "Unknown"
 		for team in GameState.all_teams:
 			if driver.id in team.drivers:
 				team_name = team.team_name
 				break
 
-		# Position medal/number
 		var pos_text = ""
 		if standing_position == 1:
 			pos_text = "🥇"
@@ -115,35 +111,52 @@ func _display_results() -> void:
 		elif standing_position == 3:
 			pos_text = "🥉"
 		else:
-			pos_text = "P%-2d" % standing_position
+			pos_text = "P%d" % standing_position
 
-		var row = Label.new()
-		row.text = "%-4s  %-25s  %-20s  %-12s  %-8s  %s pts" % [
-			pos_text,
-			driver.full_name(),
-			team_name,
-			"%.2fs" % total_time,
-			gap_text,
-			str(points)
-		]
-		row.custom_minimum_size = Vector2(800, 0)
-		row.add_theme_font_size_override("font_size", 13)
+		var is_player = driver.id in player_ids
 
-		# Color coding
-		var is_player = driver.id == player_driver_id
+		var row = HBoxContainer.new()
+		row.custom_minimum_size = Vector2(900, 0)
+
+		var color = Color.WHITE
 		if is_player:
-			row.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
+			color = Color(0.4, 0.8, 1.0)
 		elif standing_position == 1:
-			row.add_theme_color_override("font_color", Color(1.0, 0.84, 0.0))
+			color = Color(1.0, 0.84, 0.0)
 		elif standing_position == 2:
-			row.add_theme_color_override("font_color", Color(0.75, 0.75, 0.75))
+			color = Color(0.75, 0.75, 0.75)
 		elif standing_position == 3:
-			row.add_theme_color_override("font_color", Color(0.8, 0.5, 0.2))
+			color = Color(0.8, 0.5, 0.2)
+
+		for col in [
+			[pos_text, 80],
+			[driver.full_name(), 200],
+			[team_name, 180],
+			[_format_race_time(total_time), 120],
+			[gap_text, 120],
+			["%d pts" % points, 60]
+		]:
+			var lbl = Label.new()
+			lbl.text = col[0]
+			lbl.custom_minimum_size = Vector2(col[1], 0)
+			lbl.add_theme_font_size_override("font_size", 13)
+			lbl.add_theme_color_override("font_color", color)
+			row.add_child(lbl)
 
 		results_box.add_child(row)
 
 func _on_continue_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/MainHub.tscn")
+
+func _format_race_time(seconds: float) -> String:
+	var h = int(seconds / 3600)
+	var m = int(fmod(seconds, 3600) / 60)
+	var s = int(fmod(seconds, 60))
+	var ms = int(fmod(seconds, 1) * 1000)
+	if h > 0:
+		return "%d:%02d:%02d.%03d" % [h, m, s, ms]
+	else:
+		return "%d:%02d.%03d" % [m, s, ms]
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:

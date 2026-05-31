@@ -279,9 +279,9 @@ func _on_notif_pressed() -> void:
 	notif_visible = !notif_visible
 	notif_panel.visible = notif_visible
 	if notif_visible:
-		GameState.mark_all_notifications_read()
 		_refresh_notifications()
 		_update_display()
+		GameState.mark_all_notifications_read()
 
 func _on_clear_notifs_pressed() -> void:
 	GameState.mark_all_notifications_read()
@@ -329,23 +329,30 @@ func _refresh_notifications() -> void:
 		vbox.add_child(header_row)
 
 		var priority_icon = "🔴" if n["priority"] == "Critical" else ("🟠" if n["priority"] == "High" else "🔵")
-		var unread_dot = " ●" if not n["read"] else "  "
 		var header = Label.new()
-		header.text = "%s%s  S%d W%d" % [priority_icon, unread_dot, n["season"], n["week"]]
+		header.text = "%s  S%d W%d" % [priority_icon, n["season"], n["week"]]
 		header.add_theme_font_size_override("font_size", 11)
 		header.add_theme_color_override("font_color",
 			Color(1.0, 1.0, 1.0) if not n["read"] else Color(0.5, 0.5, 0.5))
 		header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		header_row.add_child(header)
 
+		if not n["read"]:
+			var new_badge = Label.new()
+			new_badge.text = " ● NEW"
+			new_badge.add_theme_font_size_override("font_size", 11)
+			new_badge.add_theme_color_override("font_color", Color(1.0, 1.0, 0.3))
+			header_row.add_child(new_badge)
+
 		var msg = Label.new()
-		msg.text = n["message"]
 		msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		msg.custom_minimum_size = Vector2(380, 0)
 		var color = (
 			Color(1.0, 0.4, 0.4) if n["priority"] == "Critical" else
 			(Color(1.0, 0.7, 0.3) if n["priority"] == "High" else Color(0.6, 0.8, 1.0))
 		)
+
+		msg.text = n["message"]
 		if n["read"]:
 			color = color.darkened(0.4)
 		msg.add_theme_color_override("font_color", color)
