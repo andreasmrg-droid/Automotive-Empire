@@ -36,8 +36,8 @@ var sponsor_no_points_streak: int = 0
 
 # Resources
 var research_points: float = 0.0
-var spare_parts: int = 240        # units, starts with 2 races worth
-var fuel_kg: float = 30.0         # kg, starts with 2 races worth
+var spare_parts: int = 300        # units — used for repairs only, not auto-deducted per race
+var fuel_kg: float = 30.0         # kg, starts with 2 races worth (15 kg × 1 car × 2)
 var car_conditions: Dictionary = {}
 
 # Notifications
@@ -58,9 +58,10 @@ var campus_zones: Dictionary = {
 # Weekly log
 var weekly_log: Array[String] = []
 
-const CAR_CONDITION_DEGRADATION_PER_RACE: float = 15.0
-const CAR_CONDITION_SP_PER_10_PCT: int = 120
-const FUEL_PER_CAR_PER_RACE: float = 15.0
+# Note: CAR_CONDITION_DEGRADATION_PER_RACE removed — degradation is now per-lap,
+# stored on Championship as condition_loss_per_lap.
+# Note: FUEL_PER_CAR_PER_RACE removed — stored on Championship as fuel_per_car_per_race.
+# Note: CAR_CONDITION_SP_PER_10_PCT removed — stored on Championship as sp_per_10_pct_damage.
 
 # Signals
 signal week_advanced(week: int)
@@ -72,6 +73,9 @@ func _ready() -> void:
 
 func _setup_campus() -> void:
 	campus_buildings = {
+		# ── COMMAND ZONE ─────────────────────────────────────────────────────
+		# HQ: pre-built, Level 1. Upgrade cost reflects expanding admin infrastructure.
+		# Real small motorsport HQ renovation: $40K-$150K per phase.
 		"Headquarters": {
 			"name": "Headquarters",
 			"built": true,
@@ -82,10 +86,12 @@ func _setup_campus() -> void:
 			"weekly_income": 0,
 			"build_cost": 0,
 			"build_time": 0,
-			"upgrade_cost": 45000,
-			"upgrade_time": 8,
+			"upgrade_cost": 18000,
+			"upgrade_time": 6,
 			"effects": "+1% Marketability per level\n+1 Sponsor Slot every 2 levels"
 		},
+		# Logistics Center: pre-built. Upgrade = better warehouse/inventory systems.
+		# Real small logistics depot fit-out: $15K-$60K.
 		"Logistics Center": {
 			"name": "Logistics Center",
 			"built": true,
@@ -96,10 +102,12 @@ func _setup_campus() -> void:
 			"weekly_income": 0,
 			"build_cost": 0,
 			"build_time": 0,
-			"upgrade_cost": 38000,
-			"upgrade_time": 6,
+			"upgrade_cost": 12000,
+			"upgrade_time": 4,
 			"effects": "+1% reduced price of spare parts per level"
 		},
+		# Garage: pre-built, earns repair income. Upgrade = more bays, better tools.
+		# Real motorsport garage bay fit-out: $20K-$80K per expansion.
 		"Garage": {
 			"name": "Garage",
 			"built": true,
@@ -110,10 +118,12 @@ func _setup_campus() -> void:
 			"weekly_income": 3000,
 			"build_cost": 0,
 			"build_time": 0,
-			"upgrade_cost": 42000,
-			"upgrade_time": 6,
+			"upgrade_cost": 15000,
+			"upgrade_time": 4,
 			"effects": "+$1800 weekly repair profit\n+$450 per level"
 		},
+		# Racing Dept: pre-built. Upgrade = strategy tools, data systems, staff desks.
+		# Real motorsport operations room setup: $15K-$50K.
 		"Racing Department": {
 			"name": "Racing Department",
 			"built": true,
@@ -124,10 +134,13 @@ func _setup_campus() -> void:
 			"weekly_income": 0,
 			"build_cost": 0,
 			"build_time": 0,
-			"upgrade_cost": 30000,
-			"upgrade_time": 5,
+			"upgrade_cost": 12000,
+			"upgrade_time": 4,
 			"effects": "+10% Driver Morale & Focus\n+5% per level"
 		},
+		# ── ENGINEERING ZONE ─────────────────────────────────────────────────
+		# R&D Studio: first major investment. Custom CAD/simulation room build-out.
+		# Real small engineering design studio: $80K-$200K. Mid-game goal.
 		"R&D Design Studio": {
 			"name": "R&D Design Studio",
 			"built": false,
@@ -136,12 +149,14 @@ func _setup_campus() -> void:
 			"construction_weeks_remaining": 0,
 			"weekly_maintenance": 1600,
 			"weekly_income": 0,
-			"build_cost": 120000,
-			"build_time": 40,
-			"upgrade_cost": 65000,
-			"upgrade_time": 12,
+			"build_cost": 85000,
+			"build_time": 20,
+			"upgrade_cost": 28000,
+			"upgrade_time": 8,
 			"effects": "Unlocks R&D (800 RP storage)\n+400 RP & +1% R&D speed per level"
 		},
+		# CNC Plant: serious manufacturing investment. Real small CNC shop: $150K-$400K.
+		# Late mid-game. Requires significant financial commitment.
 		"CNC Parts Plant": {
 			"name": "CNC Parts Plant",
 			"built": false,
@@ -150,12 +165,15 @@ func _setup_campus() -> void:
 			"construction_weeks_remaining": 0,
 			"weekly_maintenance": 2200,
 			"weekly_income": 0,
-			"build_cost": 150000,
-			"build_time": 52,
-			"upgrade_cost": 85000,
-			"upgrade_time": 16,
+			"build_cost": 220000,
+			"build_time": 34,
+			"upgrade_cost": 55000,
+			"upgrade_time": 12,
 			"effects": "Unlocks CNC production\n+4% speed & -1% material cost per level"
 		},
+		# ── SIMULATION ZONE ──────────────────────────────────────────────────
+		# Ops Sim: simulator rigs + telemetry servers. Real setup: $60K-$180K.
+		# Early mid-game, reachable after a good first season.
 		"Ops Sim & Telemetry": {
 			"name": "Ops Sim & Telemetry",
 			"built": false,
@@ -164,68 +182,80 @@ func _setup_campus() -> void:
 			"construction_weeks_remaining": 0,
 			"weekly_maintenance": 1350,
 			"weekly_income": 0,
-			"build_cost": 95000,
-			"build_time": 24,
-			"upgrade_cost": 52000,
-			"upgrade_time": 10,
+			"build_cost": 65000,
+			"build_time": 16,
+			"upgrade_cost": 22000,
+			"upgrade_time": 7,
 			"effects": "+25% baseline Track Knowledge\n+1% Track Knowledge gain per level"
 		},
+		# Wind Tunnel: endgame prestige facility. Real F1-grade: $20M-$80M.
+		# Scaled down but still a major late-game milestone. $800K feels right
+		# for a small-scale tunnel — think GP2/GP3 team level.
 		"Aerodynamic Wind Tunnel": {
 			"name": "Aerodynamic Wind Tunnel",
 			"built": false,
 			"level": 0,
 			"max_level": 9,
 			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 1750,
+			"weekly_maintenance": 8500,
 			"weekly_income": 0,
-			"build_cost": 140000,
+			"build_cost": 800000,
 			"build_time": 78,
-			"upgrade_cost": 72000,
-			"upgrade_time": 20,
+			"upgrade_cost": 180000,
+			"upgrade_time": 26,
 			"effects": "+10% Aero efficiency\n+5% per level"
 		},
+		# ── COMMERCIAL ZONE ──────────────────────────────────────────────────
+		# Vehicle Assembly Factory: major commercial venture. Real small auto factory:
+		# $2M-$10M. This is a true endgame building — long save goal.
 		"Vehicle Assembly Factory": {
 			"name": "Vehicle Assembly Factory",
 			"built": false,
 			"level": 0,
 			"max_level": 12,
 			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 2400,
+			"weekly_maintenance": 6500,
 			"weekly_income": 0,
-			"build_cost": 220000,
-			"build_time": 65,
-			"upgrade_cost": 95000,
-			"upgrade_time": 24,
+			"build_cost": 1200000,
+			"build_time": 78,
+			"upgrade_cost": 250000,
+			"upgrade_time": 26,
 			"effects": "Unlocks commercial car production\n+250 units/wk & +3% margin per level"
 		},
+		# Museum: motorsport heritage display. Real small museum fit-out: $80K-$250K.
+		# Good early income investment once you have some history.
 		"Museum": {
 			"name": "Museum",
 			"built": false,
 			"level": 0,
 			"max_level": 5,
 			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 750,
+			"weekly_maintenance": 900,
 			"weekly_income": 2400,
-			"build_cost": 50000,
-			"build_time": 18,
-			"upgrade_cost": 28000,
+			"build_cost": 90000,
+			"build_time": 16,
+			"upgrade_cost": 35000,
 			"upgrade_time": 6,
 			"effects": "+$2400 weekly passive income\n+$380 per level"
 		},
+		# Theme Park: major entertainment complex. Real small motorsport theme park:
+		# $2M-$15M. Scaled to be a late-game passive income machine.
 		"Theme Park": {
 			"name": "Theme Park",
 			"built": false,
 			"level": 0,
 			"max_level": 5,
 			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 1100,
-			"weekly_income": 5000,
-			"build_cost": 180000,
+			"weekly_maintenance": 4500,
+			"weekly_income": 12000,
+			"build_cost": 950000,
 			"build_time": 104,
-			"upgrade_cost": 78000,
+			"upgrade_cost": 200000,
 			"upgrade_time": 26,
-			"effects": "+$5000 weekly passive income\n+$650 per level"
+			"effects": "+$12000 weekly passive income\n+$1500 per level"
 		},
+		# Public Racing Club: track day/member club. Real club setup: $40K-$120K.
+		# Accessible mid-game income stream.
 		"Public Racing Club": {
 			"name": "Public Racing Club",
 			"built": false,
@@ -233,13 +263,15 @@ func _setup_campus() -> void:
 			"max_level": 7,
 			"construction_weeks_remaining": 0,
 			"weekly_maintenance": 850,
-			"weekly_income": 1600,
-			"build_cost": 60000,
-			"build_time": 14,
-			"upgrade_cost": 32000,
-			"upgrade_time": 8,
-			"effects": "+$1600 weekly passive income\n+$280 per level"
+			"weekly_income": 2200,
+			"build_cost": 55000,
+			"build_time": 12,
+			"upgrade_cost": 18000,
+			"upgrade_time": 6,
+			"effects": "+$2200 weekly passive income\n+$350 per level"
 		},
+		# Merchandise Store: team shop. Real small branded retail fit-out: $20K-$60K.
+		# Cheapest income building — first thing a player should consider building.
 		"Merchandise Store": {
 			"name": "Merchandise Store",
 			"built": false,
@@ -247,13 +279,15 @@ func _setup_campus() -> void:
 			"max_level": 5,
 			"construction_weeks_remaining": 0,
 			"weekly_maintenance": 650,
-			"weekly_income": 3000,
-			"build_cost": 40000,
-			"build_time": 10,
-			"upgrade_cost": 22000,
-			"upgrade_time": 5,
-			"effects": "+$3000 weekly passive income\n+$420 per level"
+			"weekly_income": 1800,
+			"build_cost": 22000,
+			"build_time": 6,
+			"upgrade_cost": 10000,
+			"upgrade_time": 3,
+			"effects": "+$1800 weekly passive income\n+$280 per level"
 		},
+		# ── HUMAN PERFORMANCE ZONE ───────────────────────────────────────────
+		# Fitness Clinic: driver/crew gym and physio suite. Real sports clinic: $80K-$200K.
 		"Fitness Clinic": {
 			"name": "Fitness Clinic",
 			"built": false,
@@ -262,12 +296,14 @@ func _setup_campus() -> void:
 			"construction_weeks_remaining": 0,
 			"weekly_maintenance": 980,
 			"weekly_income": 0,
-			"build_cost": 70000,
-			"build_time": 16,
-			"upgrade_cost": 35000,
-			"upgrade_time": 8,
+			"build_cost": 75000,
+			"build_time": 14,
+			"upgrade_cost": 18000,
+			"upgrade_time": 6,
 			"effects": "-10% Driver & Crew fatigue\n-0.5% per level"
 		},
+		# Pit Crew Arena: dedicated pit stop practice rig. Real setup: $30K-$150K.
+		# Tangible race performance investment — mid-game priority.
 		"Pit Crew Arena": {
 			"name": "Pit Crew Arena",
 			"built": false,
@@ -276,81 +312,91 @@ func _setup_campus() -> void:
 			"construction_weeks_remaining": 0,
 			"weekly_maintenance": 1150,
 			"weekly_income": 0,
-			"build_cost": 90000,
-			"build_time": 20,
-			"upgrade_cost": 45000,
-			"upgrade_time": 10,
+			"build_cost": 55000,
+			"build_time": 14,
+			"upgrade_cost": 22000,
+			"upgrade_time": 8,
 			"effects": "-0.1s pit stop time\n-1% pit stop time per level"
 		},
+		# Academy: driver development program facility. Real junior academy setup:
+		# $100K-$300K including simulators, coaching infrastructure.
 		"Academy": {
 			"name": "Academy",
 			"built": false,
 			"level": 0,
 			"max_level": 4,
 			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 980,
+			"weekly_maintenance": 1800,
 			"weekly_income": 0,
-			"build_cost": 85000,
-			"build_time": 22,
-			"upgrade_cost": 42000,
+			"build_cost": 120000,
+			"build_time": 20,
+			"upgrade_cost": 45000,
 			"upgrade_time": 10,
 			"effects": "Unlocks 5 cadet slots\n+1 cadet slot & +3% rookie quality per level"
 		},
+		# ── TEST TRACKS ZONE ─────────────────────────────────────────────────
+		# Karting Track: real outdoor kart circuit construction: $150K-$600K.
+		# Includes safety barriers, pit lane, timing, surface. Early-mid game.
 		"Karting Track": {
 			"name": "Karting Track",
 			"built": false,
 			"level": 0,
 			"max_level": 3,
 			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 480,
-			"weekly_income": 800,
-			"build_cost": 28000,
-			"build_time": 12,
-			"upgrade_cost": 15000,
-			"upgrade_time": 4,
-			"effects": "+5% Go-Kart performance\n+$800 weekly income"
+			"weekly_maintenance": 1200,
+			"weekly_income": 2500,
+			"build_cost": 160000,
+			"build_time": 20,
+			"upgrade_cost": 55000,
+			"upgrade_time": 8,
+			"effects": "+5% Go-Kart performance\n+$2500 weekly income"
 		},
+		# Gravel Track: rally stage with gravel surface, spectator areas, safety zones.
+		# Real rally stage construction: $200K-$800K.
 		"Gravel Track": {
 			"name": "Gravel Track",
 			"built": false,
 			"level": 0,
 			"max_level": 3,
 			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 620,
-			"weekly_income": 700,
-			"build_cost": 42000,
-			"build_time": 14,
-			"upgrade_cost": 22000,
-			"upgrade_time": 6,
-			"effects": "+5% Rally performance\n+$700 weekly income"
+			"weekly_maintenance": 1400,
+			"weekly_income": 2200,
+			"build_cost": 200000,
+			"build_time": 22,
+			"upgrade_cost": 65000,
+			"upgrade_time": 10,
+			"effects": "+5% Rally performance\n+$2200 weekly income"
 		},
+		# Oval Track: banked oval with concrete surface. Real small oval: $400K-$1.5M.
 		"Oval Track": {
 			"name": "Oval Track",
 			"built": false,
 			"level": 0,
 			"max_level": 3,
 			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 680,
-			"weekly_income": 850,
-			"build_cost": 55000,
-			"build_time": 16,
-			"upgrade_cost": 28000,
-			"upgrade_time": 6,
-			"effects": "+5% Oval performance\n+$850 weekly income"
+			"weekly_maintenance": 1800,
+			"weekly_income": 3000,
+			"build_cost": 380000,
+			"build_time": 30,
+			"upgrade_cost": 95000,
+			"upgrade_time": 12,
+			"effects": "+5% Oval performance\n+$3000 weekly income"
 		},
+		# Race Track: full tarmac road course with pit lane, marshal posts, timing.
+		# Real small circuit (2-3km): $1.5M-$8M. Major endgame investment.
 		"Race Track": {
 			"name": "Race Track",
 			"built": false,
 			"level": 0,
 			"max_level": 4,
 			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 1250,
-			"weekly_income": 1300,
-			"build_cost": 95000,
-			"build_time": 52,
-			"upgrade_cost": 48000,
-			"upgrade_time": 12,
-			"effects": "+3% Road course performance\n+$1300 weekly income"
+			"weekly_maintenance": 4500,
+			"weekly_income": 8500,
+			"build_cost": 1500000,
+			"build_time": 78,
+			"upgrade_cost": 320000,
+			"upgrade_time": 20,
+			"effects": "+3% Road course performance\n+$8500 weekly income"
 		},
 	}
 
@@ -462,23 +508,17 @@ func _apply_weekly_expenses() -> void:
 		team.balance -= ai_expenses
 
 func _consume_race_resources() -> void:
-	# SP: base cost per race
-	var sp_base = 120  # GK Regional default
-	spare_parts -= sp_base
-	spare_parts = max(spare_parts, 0)
-	add_log("🔧 Spare parts used: %d units (stock: %d)" % [sp_base, spare_parts])
-
-	# Fuel: per car per race
+	# Fuel: per car per race — championship-specific rate
 	var cars = player_team.drivers.size()
-	var fuel_used = FUEL_PER_CAR_PER_RACE * cars
+	var fuel_used = active_championship.fuel_per_car_per_race * cars
 	fuel_kg -= fuel_used
 	fuel_kg = max(fuel_kg, 0.0)
 	add_log("⛽ Fuel used: %.1f kg (stock: %.1f kg)" % [fuel_used, fuel_kg])
 
-	# Degrade car conditions
-	_degrade_car_conditions()
+	# SP is NOT auto-deducted per race.
+	# SP is spent only on repairs — see _auto_repair_cars_post_race() below.
 
-	# Check warnings
+	# Check resource warnings
 	_check_resource_notifications()
 
 func _earn_race_rp(laps: int) -> void:
@@ -487,20 +527,21 @@ func _earn_race_rp(laps: int) -> void:
 	add_log("🔬 RP gained: %.0f (total: %.0f)" % [rp_gained, research_points])
 
 func _check_resource_notifications() -> void:
-	# SP warnings
+	# SP warnings — SP is for repairs only
 	if spare_parts <= 0:
-		add_notification("Critical", "No spare parts remaining! Buy more at the Logistics Center before next race.")
-	elif spare_parts < 120:
-		add_notification("High", "Spare parts running low (%d units). Less than 1 race worth remaining." % spare_parts)
+		add_notification("Critical", "No spare parts remaining! Buy more at the Logistics Center to repair your car.")
+	elif spare_parts < active_championship.sp_per_10_pct_damage:
+		add_notification("High", "Spare parts low (%d units). Not enough to repair 10%% damage." % spare_parts)
 
-	# Fuel warnings
+	# Fuel warnings — championship-specific threshold
+	var fuel_needed = active_championship.fuel_per_car_per_race
 	if fuel_kg <= 0.0:
 		add_notification("Critical", "No fuel remaining! Buy more at the Logistics Center before next race.")
-	elif fuel_kg < 15.0:
+	elif fuel_kg < fuel_needed:
 		add_notification("High", "Fuel running low (%.1f kg). Less than 1 race worth remaining." % fuel_kg)
 
-	# Bankruptcy warning (less than 2 weeks of expenses)
-	var weekly_expenses = 1250  # approximate
+	# Bankruptcy warning
+	var weekly_expenses = 1250
 	if player_team.balance < 0:
 		add_notification("Critical", "BANKRUPTCY RISK: Balance is negative ($%.0f)!" % player_team.balance)
 	elif player_team.balance < weekly_expenses * 2:
@@ -528,47 +569,122 @@ func buy_fuel(kg: float) -> bool:
 	add_log("🛒 Bought %.1f kg fuel for $%.0f (stock: %.1f kg)" % [kg, total_cost, fuel_kg])
 	return true
 
-## Initialise condition for every driver in player_team.
-## Call this from setup_new_game() — see BLOCK 5.
+## Initialise condition for every driver in player_team. Call from setup_new_game().
 func _setup_car_conditions() -> void:
 	car_conditions.clear()
 	for driver_id in player_team.drivers:
 		car_conditions[driver_id] = 100.0
 
 
-## Returns the condition for a specific car (by driver_id).
-## Safe to call even if the key is missing — returns 100.
+## Returns the condition for a specific car (by driver_id). Safe — returns 100 if missing.
 func get_car_condition(driver_id: String) -> float:
 	return car_conditions.get(driver_id, 100.0)
 
 
-## Repair a car by `repair_pct` percentage points (e.g. 10 = repair 10%).
-## Costs CAR_CONDITION_SP_PER_10_PCT SP per 10 pct block (pro-rated).
-## Returns true if repair was applied, false if not enough SP.
+## Degrade all player cars based on laps raced.
+## Called from _simulate_race() immediately after the race loop completes.
+## Uses championship condition_loss_per_lap — no flat constant.
+func _degrade_car_conditions(laps: int) -> void:
+	var loss = active_championship.condition_loss_per_lap * float(laps)
+	for driver_id in player_team.drivers:
+		if not driver_id in car_conditions:
+			car_conditions[driver_id] = 100.0
+		car_conditions[driver_id] = max(0.0, car_conditions[driver_id] - loss)
+		add_log("🔩 Car condition after race: %.0f%% (-%0.1f%% over %d laps)" % [
+			car_conditions[driver_id], loss, laps])
+
+
+## Auto-repair all player cars after a race, silently, using championship SP rate.
+## Sorts cars by soonest next race (most urgent first).
+## Fires notifications only when SP is insufficient — player does not need to act otherwise.
+## Called from _simulate_race() after _degrade_car_conditions().
+func _auto_repair_cars_post_race() -> void:
+	if player_team.drivers.is_empty():
+		return
+
+	# Sort cars by soonest next race round
+	# For now with 1 car this is trivial; with 2 cars it picks the one racing soonest
+	var cars_sorted = player_team.drivers.duplicate()
+	# Future: sort by next race week when multi-championship is implemented
+
+	var sp_rate = active_championship.sp_per_10_pct_damage  # SP per 10% damage
+	var any_failed = false
+	var failed_cars: Array = []
+
+	for driver_id in cars_sorted:
+		var condition = get_car_condition(driver_id)
+		var damage = 100.0 - condition
+		if damage <= 0.0:
+			continue  # already at 100%, nothing to do
+
+		var sp_needed = int(ceil(damage / 10.0) * sp_rate)
+
+		if spare_parts >= sp_needed:
+			# Silent full repair
+			spare_parts -= sp_needed
+			car_conditions[driver_id] = 100.0
+			add_log("🔧 Auto-repair: Car fully restored to 100%% (-%d SP, %d remaining)" % [
+				sp_needed, spare_parts])
+		elif spare_parts > 0:
+			# Partial repair — use all remaining SP
+			var sp_available = spare_parts
+			var repair_pct = float(sp_available) / float(sp_rate) * 10.0
+			car_conditions[driver_id] = min(100.0, condition + repair_pct)
+			spare_parts = 0
+			add_log("🔧 Partial repair: Car at %.0f%% (SP exhausted)" % car_conditions[driver_id])
+			any_failed = true
+			failed_cars.append(driver_id)
+		else:
+			# No SP at all
+			any_failed = true
+			failed_cars.append(driver_id)
+
+	if any_failed:
+		var driver_names = []
+		for d_id in failed_cars:
+			var d = all_drivers.get(d_id)
+			if d:
+				driver_names.append(d.full_name())
+		var names_str = ", ".join(driver_names)
+		var sp_for_full = 0
+		for d_id in failed_cars:
+			var dmg = 100.0 - get_car_condition(d_id)
+			sp_for_full += int(ceil(dmg / 10.0) * sp_rate)
+
+		if spare_parts == 0:
+			add_notification("Critical",
+				"Not enough SP to repair %s's car. Need %d SP — buy more at Logistics Center." % [
+					names_str, sp_for_full])
+		else:
+			add_notification("High",
+				"SP insufficient for full repair of %s's car (%.0f%% condition). Buy more SP." % [
+					names_str, get_car_condition(failed_cars[0])])
+
+## Manual repair: repair a car by repair_pct points using SP.
+## Called from the Cars tab repair buttons. Returns true if repair was applied.
 func repair_car(driver_id: String, repair_pct: float) -> bool:
 	if not driver_id in car_conditions:
 		return false
 	var current = car_conditions[driver_id]
-	# Clamp repair so we don't overshoot 100
 	var actual_repair = min(repair_pct, 100.0 - current)
 	if actual_repair <= 0.0:
 		add_notification("Normal", "Car is already at full condition.")
 		return false
-	# Calculate SP cost (pro-rated: 120 SP per 10%)
-	var sp_cost = int(ceil(actual_repair / 10.0 * CAR_CONDITION_SP_PER_10_PCT))
+	var sp_rate = active_championship.sp_per_10_pct_damage
+	var sp_cost = int(ceil(actual_repair / 10.0) * sp_rate)
 	if spare_parts < sp_cost:
 		add_notification("High",
 			"Not enough SP to repair car. Need %d SP, have %d." % [sp_cost, spare_parts])
 		return false
 	spare_parts -= sp_cost
 	car_conditions[driver_id] = min(100.0, current + actual_repair)
-	add_log("🔧 Car repaired +%.0f%% → %.0f%% condition (-%d SP, %d remaining)" % [
+	add_log("🔧 Manual repair +%.0f%% → %.0f%% condition (-%d SP, %d remaining)" % [
 		actual_repair, car_conditions[driver_id], sp_cost, spare_parts])
 	emit_signal("log_updated")
 	return true
 
 
-## Convenience: repair a car to full condition in one click.
+## Convenience: repair a car to full condition in one click (Cars tab).
 func repair_car_full(driver_id: String) -> bool:
 	var current = get_car_condition(driver_id)
 	var damage = 100.0 - current
@@ -578,37 +694,30 @@ func repair_car_full(driver_id: String) -> bool:
 	return repair_car(driver_id, damage)
 
 
-## Degrade all player cars after a race.
-## Called internally from _consume_race_resources().
-func _degrade_car_conditions() -> void:
-	for driver_id in player_team.drivers:
-		if not driver_id in car_conditions:
-			car_conditions[driver_id] = 100.0
-		car_conditions[driver_id] = max(
-			0.0,
-			car_conditions[driver_id] - CAR_CONDITION_DEGRADATION_PER_RACE
-		)
-		var cond = car_conditions[driver_id]
-		add_log("🔩 Car condition after race: %.0f%%" % cond)
-		if cond <= 20.0:
-			add_notification("Critical",
-				"Car condition critical (%.0f%%)! Repair before next race." % cond)
-		elif cond <= 50.0:
-			add_notification("High",
-				"Car condition low (%.0f%%). Consider repairs." % cond)
+## Repair efficiency multiplier (0.0–1.0).
+## Returns 1.0 until the staff hiring system is implemented.
+## Will be wired to Race Mechanic + Pit Crew attributes when staff is built.
+func _get_repair_efficiency() -> float:
+	return 1.0
 
 
-## DNS check — call this at the start of _simulate_race().
-## Returns true if the car CAN race, false if it is DNS.
+## Reserved hook for mid-race pit stop repairs (TC, SC, EPC).
+## Currently empty — will be called from race simulation when pit stop system is built.
+## stop_duration: seconds available for repairs in this pit stop.
+func apply_pitstop_repair(_car_driver_id: String, _stop_duration: float) -> void:
+	pass  # TODO: implement when pit stop system is designed
+
+
+## DNS check — returns true if the car CAN race, false if DNS.
+## A car is DNS if there is not enough fuel for one race.
 func _can_car_race(driver_id: String) -> bool:
-	# DNS: fuel below threshold
-	if fuel_kg < FUEL_PER_CAR_PER_RACE:
+	var fuel_needed = active_championship.fuel_per_car_per_race
+	if fuel_kg < fuel_needed:
 		add_notification("Critical",
 			"DNS: Not enough fuel (%.1f kg). Need %.1f kg. Buy fuel at Logistics Center." % [
-				fuel_kg, FUEL_PER_CAR_PER_RACE])
+				fuel_kg, fuel_needed])
 		add_log("🚫 DNS — Insufficient fuel for race start.")
 		return false
-	# Could add condition-based DNS here in future (e.g. condition == 0)
 	return true
 
 func get_building(building_id: String) -> Dictionary:
@@ -698,6 +807,7 @@ func _setup_championship() -> void:
 	active_championship = Championship.new()
 	active_championship.id = "C-001"
 	active_championship.championship_name = "GK Regional Championship"
+	active_championship.discipline = "GK"
 	active_championship.tier = 1
 	active_championship.min_age = 8
 	active_championship.max_age = 16
@@ -707,6 +817,21 @@ func _setup_championship() -> void:
 	active_championship.prize_1st = 300.0
 	active_championship.prize_2nd = 150.0
 	active_championship.prize_3rd = 75.0
+
+	# Resources — from Excel Variables Map, Championships sheet
+	active_championship.sp_per_10_pct_damage = 100
+	active_championship.fuel_per_car_per_race = 15.0
+
+	# Car condition — GK: smooth tarmac, light kart, 0.5% per lap
+	active_championship.condition_loss_per_lap = 0.5
+	active_championship.condition_loss_per_stage = 0.0
+
+	# Repair — GK: post-race only, no timed windows, mechanic only
+	active_championship.repair_time_per_1pct = 0.0
+	active_championship.has_mid_race_repairs = false
+	active_championship.service_park_every_n_stages = 0
+	active_championship.pit_stop_repair_pct = 0.0
+
 	active_championship.calendar = [
 		{"round": 1, "name": "Super Karting Raceway", "week": 6,  "rain_probability": 0,   "laps": 20, "lap_km": 0.42, "audience": 120},
 		{"round": 2, "name": "Riverside Kart Park",   "week": 12, "rain_probability": 20,  "laps": 20, "lap_km": 0.51, "audience": 95},
@@ -969,15 +1094,19 @@ func _simulate_race(race_data: Dictionary) -> void:
 				"team": winner_team
 			})
  
-	# Consume resources and earn RP (always happens, DNS or not)
+	# ── Car condition: degrade based on laps raced, then auto-repair ─────────
+	_degrade_car_conditions(race_data["laps"])
+	_auto_repair_cars_post_race()
+
+	# Consume fuel and earn RP (always happens, DNS or not)
 	_consume_race_resources()
 	_earn_race_rp(race_data["laps"])
- 
+
 	# Check season end
 	if active_championship.is_season_finished() or current_week >= max_weeks:
 		_end_season()
 		return
- 
+
 	# Switch to race results scene
 	get_tree().change_scene_to_file("res://scenes/RaceResults.tscn")
 

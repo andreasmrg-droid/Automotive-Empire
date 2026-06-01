@@ -4,7 +4,7 @@ extends Resource
 # Identity
 @export var id: String = "C-001"
 @export var championship_name: String = "GK Regional Championship"
-@export var discipline: String = "Go-Karting"
+@export var discipline: String = "GK"  # Short codes: GK, Rally, TC, OWC, SC, EPC, GP
 @export var tier: int = 1
 
 # Rules
@@ -25,13 +25,57 @@ extends Resource
 @export var prize_2nd: float = 150.0
 @export var prize_3rd: float = 75.0
 
-# Calendar
+# ── Resources ─────────────────────────────────────────────────────────────────
+# SP cost to repair 10% car damage.
+# Source: Excel Variables Map, Championships sheet,
+#         column "Spares_per_Race_Weekend_Per_10_percent_damage"
+@export var sp_per_10_pct_damage: int = 100
+
+# Fuel consumed per car per race weekend (kg).
+# Source: Excel Variables Map, Championships sheet, column "Fuel per Weekend_per_Car"
+@export var fuel_per_car_per_race: float = 15.0
+
+# ── Car condition degradation ──────────────────────────────────────────────────
+# % condition lost per lap under normal racing (no incidents).
+# Applies to: GK, GP, OWC, TC, SC, EPC.
+# Tuning values (to be refined during race testing):
+#   GK=0.5, GP=0.6, OWC=0.6, TC=0.8, SC=0.9, EPC=0.4
+@export var condition_loss_per_lap: float = 0.5
+
+# % condition lost per rally stage (Rally only; 0.0 for all other disciplines).
+# Tuning value: Rally=1.5
+@export var condition_loss_per_stage: float = 0.0
+
+# ── Repair ─────────────────────────────────────────────────────────────────────
+# Seconds to repair 1% damage during a timed repair window.
+# Used for: TC (14s), SC (16s), EPC (13s), Rally (18s).
+# 0.0 for GK, GP, OWC — no time-pressured repair windows for these disciplines.
+@export var repair_time_per_1pct: float = 0.0
+
+# Whether this championship has mid-race repair windows (pit stops or service parks).
+# true:  TC, SC, EPC, Rally
+# false: GK, GP, OWC
+@export var has_mid_race_repairs: bool = false
+
+# Rally only: a service park occurs every N completed stages.
+# Example: 5 means a 30-min service park after stages 5, 10, 15, etc.
+# 0 for all non-Rally disciplines.
+@export var service_park_every_n_stages: int = 0
+
+# % condition restored per pit stop for TC / SC / EPC.
+# Calculated at runtime: repair_time_per_1pct drives how much fits in the stop duration.
+# Stored here as a pre-calculated cap for the current championship's standard stop length.
+# 0.0 for GK, GP, OWC (no bodywork repairs during pit stops).
+# 0.0 for Rally (uses service park system instead).
+@export var pit_stop_repair_pct: float = 0.0
+
+# ── Calendar ───────────────────────────────────────────────────────────────────
 @export var calendar: Array[Dictionary] = []
 
-# Driver standings - driver_id : points
+# Driver standings  — driver_id : points
 @export var standings: Dictionary = {}
 
-# Team standings - team_id : points
+# Team standings — team_id : points
 @export var team_standings: Dictionary = {}
 
 # Results per round
@@ -39,6 +83,8 @@ extends Resource
 
 @export var current_round: int = 0
 @export var season: int = 1
+
+# ── Methods ────────────────────────────────────────────────────────────────────
 
 func get_next_race() -> Dictionary:
 	if current_round < calendar.size():

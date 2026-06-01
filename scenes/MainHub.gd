@@ -129,6 +129,12 @@ func _ready() -> void:
 	clear_btn.pressed.connect(_on_clear_notifs_pressed)
 	notif_header.add_child(clear_btn)
 
+	var close_btn = Button.new()
+	close_btn.text = "✕ Close"
+	close_btn.custom_minimum_size = Vector2(75, 30)
+	close_btn.pressed.connect(_on_close_notif_panel)
+	notif_header.add_child(close_btn)
+
 	var notif_scroll = ScrollContainer.new()
 	notif_scroll.custom_minimum_size = Vector2(400, 0)
 	notif_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -312,6 +318,10 @@ func _on_clear_notifs_pressed() -> void:
 	GameState.mark_all_notifications_read()
 	_refresh_notifications()
 	_update_display()
+
+func _on_close_notif_panel() -> void:
+	notif_visible = false
+	notif_panel.visible = false
 	
 func _refresh_notifications() -> void:
 	for child in notif_box.get_children():
