@@ -16,6 +16,7 @@ extends Control
 @onready var driver_panel = $Layout/MainArea/SidePanel/DriverPanel
 @onready var driver_stats_label = $Layout/MainArea/SidePanel/DriverPanel/DriverStatsLabel
 
+var advance_to_race_button: Button
 var top_bar: HBoxContainer
 
 var tab_drivers_btn: Button
@@ -45,10 +46,10 @@ func _ready() -> void:
 	title_label.add_theme_font_size_override("font_size", 28)
 	title_label.add_theme_color_override("font_color", Color.WHITE)
 
-# Top navigation bar
+	# Top navigation bar
 	top_bar = $Layout/TopBar
 
-# ── TOP BAR ──────────────────────────────────────────────────────
+	# ── TOP BAR ──────────────────────────────────────────────────────
 	var campus_btn = Button.new()
 	campus_btn.text = "🏛 Campus"
 	campus_btn.custom_minimum_size = Vector2(130, 35)
@@ -176,7 +177,7 @@ func _ready() -> void:
 	log_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	log_box.custom_minimum_size = Vector2(400, 0)
 
-# Side panel sizing
+	# Side panel sizing
 	side_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	side_panel.size_flags_stretch_ratio = 0.4
 	side_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -204,6 +205,14 @@ func _ready() -> void:
 	advance_button.add_theme_font_size_override("font_size", 18)
 	advance_button.text = "Advance Week ▶"
 	advance_button.pressed.connect(_on_advance_pressed)
+
+	# Next Race button — sits next to Advance Week in the same parent
+	advance_to_race_button = Button.new()
+	advance_to_race_button.custom_minimum_size = Vector2(200, 50)
+	advance_to_race_button.add_theme_font_size_override("font_size", 18)
+	advance_to_race_button.text = "⏭ Next Race"
+	advance_to_race_button.pressed.connect(_on_advance_to_race_pressed)
+	advance_button.get_parent().add_child(advance_to_race_button)
 
 	# Connect signals
 	GameState.week_advanced.connect(_on_week_advanced)
@@ -285,8 +294,22 @@ func _update_display() -> void:
 		next_race_label.text = "🏎 Next Race: Round %d — %s   (Week %d)" % [
 			next_race["round"], next_race["name"], next_race["week"]
 		]
+		var weeks_away = next_race["week"] - GameState.current_week
+		if advance_to_race_button:
+			if weeks_away > 1:
+				advance_to_race_button.text = "⏭ Next Race  (%d wks)" % weeks_away
+				advance_to_race_button.disabled = false
+			elif weeks_away == 1:
+				advance_to_race_button.text = "⏭ Next Race  (1 wk)"
+				advance_to_race_button.disabled = false
+			else:
+				advance_to_race_button.text = "⏭ Race Week!"
+				advance_to_race_button.disabled = true  # already on race week
 	else:
 		next_race_label.text = "✅ No more races this season"
+		if advance_to_race_button:
+			advance_to_race_button.text = "⏭ Next Race"
+			advance_to_race_button.disabled = true
 	next_race_label.add_theme_color_override("font_color", Color.WHITE)
 	# Resources
 	cr_label.text = "💰 CR  $%s" % _format_number(GameState.player_team.balance)
@@ -508,85 +531,60 @@ func _refresh_team_standings() -> void:
 
 func _refresh_driver_stats() -> void:
 	if GameState.player_team.drivers.size() == 0:
+		driver_stats_label.text = "No drivers signed.\nGo to the Drivers screen to hire a driver."
+		driver_stats_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 		return
-	var driver_id = GameState.player_team.drivers[0]
-	var driver = GameState.all_drivers.get(driver_id)
-	if not driver:
-		return
-	var sorted = GameState.active_championship.get_standings_sorted()
-	var player_position = 0
-	var player_points = 0
-	for i in range(sorted.size()):
-		if sorted[i]["driver_id"] == driver_id:
-			player_position = i + 1
-			player_points = sorted[i]["points"]
-			break
-	var active_adapt = driver.get_active_adaptation()
-	var lines = []
-	lines.append("👤 YOUR DRIVER")
-	lines.append("━━━━━━━━━━━━━━━━━━━")
-	lines.append("%s | Age: %d | %s" % [driver.full_name(), driver.age, driver.nationality])
-	lines.append("")
-	lines.append("Championship: P%d — %d pts" % [player_position, player_points])
-	lines.append("")
-	lines.append("ATTRIBUTES")
-	lines.append("━━━━━━━━━━━━━━━━━━━")
-	lines.append("🚀 Pace:             %.1f  (eff: %.1f)" % [driver.pace, driver.get_effective_pace()])
-	lines.append("🌧 Wet:              %.1f  (eff: %.1f)" % [driver.wet, driver.get_effective_wet()])
-	lines.append("🎯 Focus:            %.1f  (eff: %.1f)" % [driver.focus, driver.get_effective_focus()])
-	lines.append("⚔ Race Craft:       %.1f  (eff: %.1f)" % [driver.race_craft, driver.get_effective_race_craft()])
-	lines.append("💪 Fitness:          %.1f" % driver.fitness)
-	lines.append("")
-	lines.append("🔄 %s Adapt:        %.1f / 100" % [driver.active_discipline, active_adapt])
-	lines.append("")
-	lines.append("HIDDEN")
-	lines.append("━━━━━━━━━━━━━━━━━━━")
-	lines.append("⭐ Potential:        %.1f" % driver.potential)
-	lines.append("😤 Aggression:       %.1f" % driver.aggression)
-	lines.append("📚 Experience:       %.1f" % driver.experience)
-	lines.append("")
-	lines.append("STATUS")
-	lines.append("━━━━━━━━━━━━━━━━━━━")
-	lines.append("😊 Morale:           %.1f" % driver.morale)
 
-	if GameState.player_team.drivers.size() > 1:
-		var driver_id2 = GameState.player_team.drivers[1]
-		var driver2 = GameState.all_drivers.get(driver_id2)
-		if driver2:
-			var pos2 = 0
-			var pts2 = 0
-			for i in range(sorted.size()):
-				if sorted[i]["driver_id"] == driver_id2:
-					pos2 = i + 1
-					pts2 = sorted[i]["points"]
-					break
+	var lines = []
+	var sorted = GameState.active_championship.get_standings_sorted()
+
+	for idx in range(GameState.player_team.drivers.size()):
+		var driver_id = GameState.player_team.drivers[idx]
+		var driver = GameState.all_drivers.get(driver_id)
+		if not driver:
+			continue
+
+		var player_position = 0
+		var player_points = 0
+		for i in range(sorted.size()):
+			if sorted[i]["driver_id"] == driver_id:
+				player_position = i + 1
+				player_points = sorted[i]["points"]
+				break
+
+		var car = GameState.get_car_for_driver(driver_id)
+		var active_adapt = driver.get_active_adaptation()
+
+		if idx > 0:
 			lines.append("")
 			lines.append("")
-			lines.append("👤 DRIVER 2")
-			lines.append("━━━━━━━━━━━━━━━━━━━")
-			lines.append("%s | Age: %d | %s" % [driver2.full_name(), driver2.age, driver2.nationality])
-			lines.append("")
-			lines.append("Championship: P%d — %d pts" % [pos2, pts2])
-			lines.append("")
-			lines.append("ATTRIBUTES")
-			lines.append("━━━━━━━━━━━━━━━━━━━")
-			lines.append("🚀 Pace:             %.1f  (eff: %.1f)" % [driver2.pace, driver2.get_effective_pace()])
-			lines.append("🌧 Wet:              %.1f  (eff: %.1f)" % [driver2.wet, driver2.get_effective_wet()])
-			lines.append("🎯 Focus:            %.1f  (eff: %.1f)" % [driver2.focus, driver2.get_effective_focus()])
-			lines.append("⚔ Race Craft:       %.1f  (eff: %.1f)" % [driver2.race_craft, driver2.get_effective_race_craft()])
-			lines.append("💪 Fitness:          %.1f" % driver2.fitness)
-			lines.append("")
-			lines.append("🔄 %s Adapt:        %.1f / 100" % [driver2.active_discipline, driver2.get_active_adaptation()])
-			lines.append("")
-			lines.append("HIDDEN")
-			lines.append("━━━━━━━━━━━━━━━━━━━")
-			lines.append("⭐ Potential:        %.1f" % driver2.potential)
-			lines.append("😤 Aggression:       %.1f" % driver2.aggression)
-			lines.append("📚 Experience:       %.1f" % driver2.experience)
-			lines.append("")
-			lines.append("STATUS")
-			lines.append("━━━━━━━━━━━━━━━━━━━")
-			lines.append("😊 Morale:           %.1f" % driver2.morale)
+
+		lines.append("👤 %s" % ("YOUR DRIVER" if idx == 0 else "DRIVER %d" % (idx + 1)))
+		lines.append("━━━━━━━━━━━━━━━━━━━")
+		lines.append("%s | Age: %d | %s | %s" % [
+			driver.full_name(), driver.age, driver.nationality, driver.sex])
+		lines.append("Car: %s" % ("Car %d" % car.car_number if car else "⚠ Unassigned"))
+		lines.append("")
+		lines.append("Championship: %s" % (
+			"P%d — %d pts" % [player_position, player_points] if player_position > 0 else "Not registered"))
+		lines.append("")
+		lines.append("RACING ATTRIBUTES")
+		lines.append("━━━━━━━━━━━━━━━━━━━")
+		lines.append("🚀 Pace:             %.1f  (eff: %.1f)" % [driver.pace, driver.get_effective_pace()])
+		lines.append("🌧 Wet / Traction:   %.1f  (eff: %.1f)" % [driver.wet, driver.get_effective_wet()])
+		lines.append("🎯 Focus:            %.1f  (eff: %.1f)" % [driver.focus, driver.get_effective_focus()])
+		lines.append("⚔ Race Craft:       %.1f  (eff: %.1f)" % [driver.race_craft, driver.get_effective_race_craft()])
+		lines.append("🔄 Consistency:      %.1f  (eff: %.1f)" % [driver.consistency, driver.get_effective_consistency()])
+		lines.append("💬 Feedback:         %.1f" % driver.feedback)
+		lines.append("")
+		lines.append("🔄 %s Adapt:        %.1f / 100" % [driver.active_discipline, active_adapt])
+		lines.append("")
+		lines.append("STATUS")
+		lines.append("━━━━━━━━━━━━━━━━━━━")
+		lines.append("💪 Fitness:          %.1f" % driver.fitness)
+		lines.append("😊 Morale:           %.1f" % driver.morale)
+		lines.append("📣 Marketability:    %.1f" % driver.marketability)
+		lines.append("⭐ Overall:          %.1f" % driver.get_overall_skill())
 
 	driver_stats_label.text = "\n".join(lines)
 	driver_stats_label.add_theme_color_override("font_color", Color.WHITE)
@@ -637,6 +635,45 @@ func _on_advance_pressed() -> void:
 		_show_tab(current_tab)
 	else:
 		_show_pending_tasks_dialog(tasks)
+
+func _on_advance_to_race_pressed() -> void:
+	var next_race = GameState.active_championship.get_next_race()
+	if not next_race:
+		_show_notification("No more races this season.")
+		return
+	var weeks_to_skip = next_race["week"] - GameState.current_week
+	if weeks_to_skip <= 0:
+		# Already on race week — just advance normally
+		_on_advance_pressed()
+		return
+	# Only block on DNS-critical issues, not advisory warnings
+	var blocking = GameState.get_race_blocking_tasks()
+	if not blocking.is_empty():
+		_show_modal(
+			"🚫 RACE BLOCKED",
+			"These issues will prevent your car from racing:",
+			blocking,
+			"Advance Anyway",
+			"Go Back and Fix",
+			func():
+				for i in range(weeks_to_skip - 1):
+					GameState.advance_week()
+					if GameState.active_championship.is_season_finished():
+						break
+				_update_display()
+				_refresh_log()
+				_show_tab(current_tab),
+			null
+		)
+		return
+	# No blocking issues — skip weeks silently, stop week before race
+	for i in range(weeks_to_skip - 1):
+		GameState.advance_week()
+		if GameState.active_championship.is_season_finished():
+			break
+	_update_display()
+	_refresh_log()
+	_show_tab(current_tab)
 
 func _show_pending_tasks_dialog(tasks: Array) -> void:
 	_show_modal(
@@ -820,6 +857,8 @@ func _on_season_ended(_season: int) -> void:
 	advance_button.disabled = false
 	advance_button.pressed.disconnect(_on_advance_pressed)
 	advance_button.pressed.connect(_on_new_season_pressed)
+	advance_to_race_button.disabled = true
+	advance_to_race_button.text = "⏭ Next Race"
 	_update_display()
 	_refresh_log()
 	_show_tab(current_tab)
@@ -829,6 +868,7 @@ func _on_new_season_pressed() -> void:
 	advance_button.text = "Advance Week ▶"
 	advance_button.pressed.disconnect(_on_new_season_pressed)
 	advance_button.pressed.connect(_on_advance_pressed)
+	advance_to_race_button.disabled = false
 	_update_display()
 	_refresh_log()
 	_show_tab("drivers")

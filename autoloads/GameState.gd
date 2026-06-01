@@ -619,32 +619,9 @@ const CAR_TELEMETRY = {
 }
 
 func _setup_cars() -> void:
+	## Cars are created dynamically when drivers are hired (via _add_car_for_driver).
+	## At game start, player has no driver so no cars are created here.
 	player_team_cars = []
-	var car_type = "A_01"  # GK Regional kart
-	var telemetry = CAR_TELEMETRY.get(car_type, {})
-	var car_number = 1
-	for driver_id in player_team.drivers:
-		var car = Car.new()
-		car.id = "CAR-P%03d" % car_number
-		car.car_type_id = car_type
-		car.championship_id = active_championship.id
-		car.car_number = car_number
-		car.driver_id = driver_id
-		car.mechanic_id = ""
-		car.pit_crew_id = "N/A"  # GK doesn't use pit crew
-		car.condition = 100.0
-		car.part_conditions = {"Aero": 100.0, "Engine": 100.0, "Gearbox": 100.0,
-			"Suspension": 100.0, "Brakes": 100.0, "Chassis": 100.0}
-		if not telemetry.is_empty():
-			car.top_speed = telemetry["top_speed"]
-			car.acceleration = telemetry["acceleration"]
-			car.deceleration = telemetry["deceleration"]
-			car.cornering_grip = telemetry["cornering_grip"]
-			car.fuel_consumption_per_km = telemetry["fuel_per_km"]
-			car.tire_wear_rate = telemetry["tire_wear"]
-			car.baseline_performance_index = telemetry["perf_index"]
-		player_team_cars.append(car)
-		car_number += 1
 
 func get_car_for_driver(driver_id: String) -> Car:
 	for car in player_team_cars:
@@ -935,10 +912,11 @@ func hire_driver(driver_id: String) -> bool:
 	driver.contract_seasons_remaining = 5
 	player_team.drivers.append(driver_id)
 	active_championship.standings[driver_id] = 0
-	# Create a car slot for this driver
+	# Create a car slot for this driver (unassigned — player assigns separately)
 	_add_car_for_driver(driver_id)
-	add_log("✅ Signed %s — %d seasons" % [driver.full_name(), 5])
-	add_notification("Normal", "%s joined your team." % driver.full_name())
+	add_log("✅ Signed %s — contract: 5 seasons. Assign them to Car %d in the Drivers screen." % [
+		driver.full_name(), player_team_cars.size()])
+	add_notification("Normal", "%s signed. Assign a Race Mechanic before racing." % driver.full_name())
 	emit_signal("log_updated")
 	return true
 
@@ -987,13 +965,15 @@ func assign_driver_to_car(driver_id: String, car_id: String) -> void:
 
 ## Adds a new Car object when a driver is hired.
 func _add_car_for_driver(driver_id: String) -> void:
+	## Creates a new empty car slot when a driver is hired.
+	## The car starts with NO driver assigned — player assigns via Drivers screen.
 	var car_number = player_team_cars.size() + 1
 	var car = Car.new()
 	car.id = "CAR-P%03d" % car_number
 	car.car_type_id = "A_01"
 	car.championship_id = active_championship.id
 	car.car_number = car_number
-	car.driver_id = driver_id
+	car.driver_id = ""        # empty — player assigns manually
 	car.mechanic_id = ""
 	car.pit_crew_id = "N/A" if active_championship.discipline == "GK" else ""
 	car.condition = 100.0
@@ -1009,13 +989,22 @@ func _add_car_for_driver(driver_id: String) -> void:
 		car.tire_wear_rate = telemetry["tire_wear"]
 		car.baseline_performance_index = telemetry["perf_index"]
 	player_team_cars.append(car)
+	add_log("🏎 Car %d slot created — assign %s via the Drivers screen." % [
+		car_number, all_drivers[driver_id].full_name() if driver_id in all_drivers else "driver"])
 
-## Removes a Car object when a driver is released.
 func _remove_car_for_driver(driver_id: String) -> void:
+	## Remove the car associated with this driver.
+	## First look for a car with this driver assigned.
+	## If none found (driver was never assigned to a car), remove the last car slot.
+	var found = false
 	for i in range(player_team_cars.size() - 1, -1, -1):
 		if player_team_cars[i].driver_id == driver_id:
 			player_team_cars.remove_at(i)
+			found = true
 			break
+	if not found and player_team_cars.size() > 0:
+		# Remove last car slot — was the empty slot created for this driver
+		player_team_cars.remove_at(player_team_cars.size() - 1)
 	# Re-number remaining cars
 	for i in range(player_team_cars.size()):
 		player_team_cars[i].car_number = i + 1
@@ -1096,7 +1085,35 @@ func get_cfo() -> Staff:
 	var cfos = get_player_staff_by_role("CFO")
 	return cfos[0] if cfos.size() > 0 else null
 
-## Returns repair efficiency multiplier based on assigned mechanic's car_setup skill.
+## Returns only tasks that would cause a DNS or prevent racing entirely.
+## Used by the Next Race skip button — advisory warnings don't block the skip.
+func get_race_blocking_tasks() -> Array[String]:
+	var tasks: Array[String] = []
+	var next_race = active_championship.get_next_race()
+	if not next_race:
+		return tasks
+
+	# No drivers at all
+	if player_team.drivers.is_empty():
+		tasks.append("👤 No drivers signed — cannot race.")
+		return tasks
+
+	# Cars with DNS conditions
+	for car in player_team_cars:
+		if car.driver_id == "":
+			tasks.append("🏎 Car %d has no driver — will DNS." % car.car_number)
+		if car.mechanic_id == "":
+			tasks.append("🔧 Car %d has no Race Mechanic — will DNS." % car.car_number)
+
+	# No fuel
+	if fuel_kg < active_championship.fuel_per_car_per_race:
+		tasks.append("⛽ Not enough fuel (%.0f kg) — car will DNS." % fuel_kg)
+
+	# Negative balance — can't pay entry fees
+	if player_team.balance < 0:
+		tasks.append("💸 Negative balance — cannot pay race entry fees.")
+
+	return tasks
 ## 1.0 if no mechanic (still repairs, just at base rate — staff gate comes later).
 func _get_repair_efficiency() -> float:
 	# For now, find the first hired mechanic assigned to any player car
@@ -1135,10 +1152,14 @@ func get_pending_tasks() -> Array[String]:
 		if car.driver_id == "":
 			tasks.append("🏎 Car %d has no driver assigned." % car.car_number)
 
-	# Cars with no mechanic
+	# Cars with no mechanic — this causes DNS and blocks repairs
 	for car in player_team_cars:
 		if car.mechanic_id == "":
-			tasks.append("🔧 Car %d has no Race Mechanic assigned." % car.car_number)
+			tasks.append("🔧 Car %d has no Race Mechanic — DNS risk and repairs blocked!" % car.car_number)
+
+	# No drivers hired at all
+	if player_team.drivers.is_empty():
+		tasks.append("👤 No drivers signed — hire a driver from the Drivers screen before racing.")
 
 	# Low fuel — next race approaching
 	var next_race = active_championship.get_next_race()
@@ -1192,9 +1213,12 @@ func _setup_car_conditions() -> void:
 	## Kept to avoid breaking any remaining references during transition.
 	pass
 
-func _degrade_car_conditions(laps: int) -> void:
+func _degrade_car_conditions(laps: int, dns_driver_ids: Array = []) -> void:
 	var loss = active_championship.condition_loss_per_lap * float(laps)
 	for car in player_team_cars:
+		if car.driver_id in dns_driver_ids:
+			add_log("🔩 Car %d condition unchanged (DNS)" % car.car_number)
+			continue
 		car.condition = max(0.0, car.condition - loss)
 		add_log("🔩 Car %d condition after race: %.0f%% (-%0.1f%% over %d laps)" % [
 			car.car_number, car.condition, loss, laps])
@@ -1210,6 +1234,14 @@ func _auto_repair_cars_post_race() -> void:
 	for car in player_team_cars:
 		var damage = 100.0 - car.condition
 		if damage <= 0.0:
+			continue
+
+		# No mechanic = no repair
+		if car.mechanic_id == "":
+			add_notification("High",
+				"Car %d cannot be repaired — no Race Mechanic assigned!" % car.car_number)
+			any_failed = true
+			failed_car_names.append("Car %d (no mechanic)" % car.car_number)
 			continue
 
 		var sp_needed = int(ceil(damage / 10.0) * sp_rate)
@@ -1235,8 +1267,8 @@ func _auto_repair_cars_post_race() -> void:
 		var names = ", ".join(failed_car_names)
 		add_notification("Critical" if spare_parts == 0 else "High",
 			"SP insufficient to fully repair %s. Buy more SP at Logistics Center." % names)
-
-	_check_resource_notifications()
+	# Resource warning notifications are fired by _consume_race_resources()
+	# which always runs after this function — no need to call here.
 
 func repair_car(driver_id: String, repair_pct: float) -> bool:
 	var car = get_car_for_driver(driver_id)
@@ -1272,14 +1304,21 @@ func repair_car_full(driver_id: String) -> bool:
 
 
 ## DNS check — returns true if the car CAN race, false if DNS.
-## A car is DNS if there is not enough fuel for one race.
 func _can_car_race(driver_id: String) -> bool:
+	# DNS: no fuel
 	var fuel_needed = active_championship.fuel_per_car_per_race
 	if fuel_kg < fuel_needed:
 		add_notification("Critical",
 			"DNS: Not enough fuel (%.1f kg). Need %.1f kg. Buy fuel at Logistics Center." % [
 				fuel_kg, fuel_needed])
 		add_log("🚫 DNS — Insufficient fuel for race start.")
+		return false
+	# DNS: no race mechanic assigned to car
+	var car = get_car_for_driver(driver_id)
+	if car and car.mechanic_id == "":
+		add_notification("Critical",
+			"DNS: Car %d has no Race Mechanic assigned! Hire and assign a mechanic before racing." % car.car_number)
+		add_log("🚫 DNS — No Race Mechanic assigned to Car %d." % car.car_number)
 		return false
 	return true
 
@@ -1345,7 +1384,7 @@ func _apply_campus_income() -> void:
 	if total_income > 0 or total_maintenance > 0:
 		add_log("🏗 Campus: +$%d income / -$%d maintenance" % [total_income, total_maintenance])
 
-func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: String) -> void:
+func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: String, p_starting_budget: int = 50000) -> void:
 	current_week = 1
 	current_season = 1
 	weekly_log = []
@@ -1359,6 +1398,7 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 	player_team_name = p_team_name
 	player_team_nationality = p_nationality
 	_setup_player_team()
+	player_team.balance = float(p_starting_budget)
 	_generate_drivers()
 	_generate_ai_teams()
 	_setup_campus()
@@ -1420,11 +1460,21 @@ func _setup_player_team() -> void:
 	active_championship.team_standings[player_team.id] = 0
 
 func _generate_drivers() -> void:
-	var d1_name = NameGenerator.get_full_name(player_team_nationality, "Male")
-	var d1 = _create_driver("D-P001", d1_name["first"], d1_name["last"], player_team_nationality, 10, "Male", "T-PLAYER")
-	all_drivers[d1.id] = d1
-	player_team.drivers.append(d1.id)
-	active_championship.standings[d1.id] = 0
+	## Player starts with NO driver — they must hire from the free agent pool.
+	## Generate 8 young free agent drivers (ages 8-12) for the player to choose from.
+	## They are NOT added to championship standings — only contracted drivers race.
+	var nationalities = ["British", "Italian", "German", "French", "Spanish",
+		"Finnish", "Brazilian", "Japanese", "American", "Australian"]
+	for i in range(8):
+		var nat = nationalities[randi() % nationalities.size()]
+		var sex = "Male" if randf() > 0.3 else "Female"
+		var age = randi_range(8, 12)
+		var name_data = NameGenerator.get_full_name(nat, sex)
+		var driver_id = "D-FA-%03d" % i
+		var driver = _create_driver(driver_id, name_data["first"], name_data["last"],
+			nat, age, sex, "")  # contract_team = "" = free agent, not racing
+		all_drivers[driver_id] = driver
+		# NOT added to active_championship.standings — free agents don't race
 
 func _create_driver(id: String, first: String, last: String, nationality: String, age: int, sex: String, team_id: String) -> Driver:
 	var d = Driver.new()
@@ -1540,8 +1590,10 @@ func advance_week() -> void:
 		active_championship.current_round += 1
 		return
 
-	# Check season end
-	if active_championship.is_season_finished() or current_week > max_weeks:
+	# Season ends only at week 52 — NOT when last race is done.
+	# After the last race, the season continues until week 52 (off-season activities).
+	# _simulate_race() handles end-of-season internally only when week >= max_weeks.
+	if current_week >= max_weeks:
 		_end_season()
 		return
 
@@ -1672,16 +1724,17 @@ func _simulate_race(race_data: Dictionary) -> void:
 				"team": winner_team
 			})
  
-	# ── Car condition: degrade based on laps raced, then auto-repair ─────────
-	_degrade_car_conditions(race_data["laps"])
+	# ── Car condition: degrade only cars that raced, skip DNS ────────────────
+	_degrade_car_conditions(race_data["laps"], dns_driver_ids)
 	_auto_repair_cars_post_race()
 
 	# Consume fuel and earn RP (always happens, DNS or not)
 	_consume_race_resources()
 	_earn_race_rp(race_data["laps"])
 
-	# Check season end
-	if active_championship.is_season_finished() or current_week >= max_weeks:
+	# Season ends at week 52 regardless. After the last race the game
+	# continues to week 52 for off-season management.
+	if current_week >= max_weeks:
 		_end_season()
 		return
 

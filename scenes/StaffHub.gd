@@ -201,17 +201,20 @@ func _make_my_staff_row(staff) -> PanelContainer:
 	_add_col(row1, "%s %.0f" % [staff.get_primary_skill_label(), staff.get_primary_skill()], 100,
 		_skill_color(staff.get_primary_skill()))
 
-	# Assignment
+	# Assignment status
 	var assign_text = ""
-	if staff.assigned_car_id != "":
+	if staff.role == "CFO" or staff.role == "Designer":
+		assign_text = "Team Level"
+	elif staff.assigned_car_id != "":
 		var car = GameState.get_car_by_id(staff.assigned_car_id)
 		assign_text = "Car %d" % car.car_number if car else "Car ?"
 	elif staff.assigned_championship != "":
 		assign_text = GameState.active_championship.championship_name
 	else:
 		assign_text = "⚠ Unassigned"
-	var assign_color = Color(0.4, 0.9, 0.4) if assign_text != "⚠ Unassigned" \
-		else Color(1.0, 0.6, 0.2)
+	var assign_color = Color(0.6, 0.6, 0.6) if assign_text == "Team Level" \
+		else (Color(0.4, 0.9, 0.4) if assign_text != "⚠ Unassigned" \
+		else Color(1.0, 0.6, 0.2))
 	_add_col(row1, assign_text, 130, assign_color)
 
 	# Contract
@@ -233,11 +236,13 @@ func _make_my_staff_row(staff) -> PanelContainer:
 	view_btn.pressed.connect(func(): _show_staff_card(s_id))
 	btn_row.add_child(view_btn)
 
-	var assign_btn = Button.new()
-	assign_btn.text = "📌 Assign"
-	assign_btn.custom_minimum_size = Vector2(85, 28)
-	assign_btn.pressed.connect(func(): _show_assign_popup(s_id))
-	btn_row.add_child(assign_btn)
+	# Assign button — not shown for CFO (team-level role, no assignment needed)
+	if staff.role != "CFO":
+		var assign_btn = Button.new()
+		assign_btn.text = "📌 Assign"
+		assign_btn.custom_minimum_size = Vector2(85, 28)
+		assign_btn.pressed.connect(func(): _show_assign_popup(s_id))
+		btn_row.add_child(assign_btn)
 
 	var renew_btn = Button.new()
 	renew_btn.text = "📋 Renew (5 seasons)"
@@ -386,7 +391,9 @@ func _show_staff_card(staff_id: String) -> void:
 		Color(1.0, 0.4, 0.4) if staff.contract_seasons_remaining <= 1 else Color.WHITE)
 
 	var assign_text = "Unassigned"
-	if staff.assigned_car_id != "":
+	if staff.role == "CFO" or staff.role == "Designer":
+		assign_text = "Team Level (no assignment needed)"
+	elif staff.assigned_car_id != "":
 		var car = GameState.get_car_by_id(staff.assigned_car_id)
 		assign_text = "Car %d" % car.car_number if car else "Car ?"
 	elif staff.assigned_championship != "":
@@ -721,16 +728,23 @@ func _get_slot_message(role: String) -> String:
 			if GameState.get_player_staff_by_role("Race Strategist").size() >= 1:
 				return "You already have a Race Strategist for this championship."
 		"Race Mechanic":
-			# 1 per car
-			var car_count = GameState.player_team_cars.size()
-			if GameState.get_player_staff_by_role("Race Mechanic").size() >= car_count:
-				return "All cars have a Race Mechanic assigned. Add another car first."
+			# Slot limit = max cars allowed = garage level (min 1 if built)
+			# Allow hiring even during upgrade — building still operational
+			var garage = GameState.get_building("Garage")
+			var max_mechanics = max(1, garage.get("level", 1))
+			if GameState.get_player_staff_by_role("Race Mechanic").size() >= max_mechanics:
+				return "Mechanic slots full (Garage Lv%d = %d slot%s). Upgrade Garage for more." % [
+					max_mechanics, max_mechanics, "s" if max_mechanics != 1 else ""]
 		"Pit Crew":
 			if GameState.active_championship.discipline == "GK":
 				return "Pit Crew not required for GK championships."
-			var car_count = GameState.player_team_cars.size()
-			if GameState.get_player_staff_by_role("Pit Crew").size() >= car_count:
-				return "All cars have a Pit Crew assigned. Add another car first."
+			var arena = GameState.get_building("Pit Crew Arena")
+			if not arena.get("built", false) or arena.get("level", 0) < 1:
+				return "Build the Pit Crew Arena first to hire Pit Crew."
+			var max_crews = max(1, arena.get("level", 1))
+			if GameState.get_player_staff_by_role("Pit Crew").size() >= max_crews:
+				return "Pit Crew slots full (Arena Lv%d = %d slot%s). Upgrade Arena for more." % [
+					max_crews, max_crews, "s" if max_crews != 1 else ""]
 		"Designer":
 			# Slot limited by R&D Studio level. If not built, 0 slots.
 			var rnd = GameState.get_building("R&D Design Studio")

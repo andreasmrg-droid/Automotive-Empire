@@ -3,6 +3,7 @@ extends Control
 var team_name_input: LineEdit
 var player_name_input: LineEdit
 var nationality_option: OptionButton
+var budget_input: LineEdit
 var start_button: Button
 var preview_label: Label
 
@@ -86,6 +87,36 @@ func _ready() -> void:
 	nationality_option.add_theme_font_size_override("font_size", 16)
 	form_box.add_child(nationality_option)
 
+	# Starting budget
+	var budget_label = Label.new()
+	budget_label.text = "💰  Starting Budget (CR)"
+	budget_label.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
+	form_box.add_child(budget_label)
+
+	var budget_row = HBoxContainer.new()
+	budget_row.add_theme_constant_override("separation", 8)
+	form_box.add_child(budget_row)
+
+	budget_input = LineEdit.new()
+	budget_input.placeholder_text = "50000"
+	budget_input.text = "50000"
+	budget_input.custom_minimum_size = Vector2(300, 45)
+	budget_input.add_theme_font_size_override("font_size", 18)
+	budget_input.text_changed.connect(_on_input_changed)
+	budget_row.add_child(budget_input)
+
+	# Quick preset buttons
+	for amount in [50000, 100000, 250000, 500000]:
+		var preset_btn = Button.new()
+		preset_btn.text = "$%s" % _fmt_budget(amount)
+		preset_btn.custom_minimum_size = Vector2(0, 45)
+		var _a = amount
+		preset_btn.pressed.connect(func():
+			budget_input.text = str(_a)
+			_update_preview()
+		)
+		budget_row.add_child(preset_btn)
+
 	# Populate nationalities
 	var nats = NameData.data.keys()
 	nats.sort()
@@ -153,22 +184,19 @@ func _on_nationality_changed(_index: int) -> void:
 	_update_preview()
 
 func _update_preview() -> void:
-	var nat = nationality_option.get_item_text(nationality_option.selected)
-	var d1 = NameGenerator.get_full_name(nat, "Male")
-	var d2 = NameGenerator.get_full_name(nat, "Female")
-	NameGenerator.release_name(d1["full"])
-	NameGenerator.release_name(d2["full"])
-
 	var team = team_name_input.text.strip_edges()
 	if team == "":
 		team = "Your Team"
 	var ceo = player_name_input.text.strip_edges()
 	if ceo == "":
 		ceo = "CEO"
+	var nat = nationality_option.get_item_text(nationality_option.selected)
 
-	preview_label.text = "Team:      %s\nCEO:       %s\n\nDriver 1:  %s\nDriver 2:  %s\n\nStarting:  GK Regional Championship" % [
-		team, ceo, d1["full"], d2["full"]
-	]
+	var budget_text = budget_input.text.strip_edges()
+	var budget = int(budget_text) if budget_text.is_valid_int() and int(budget_text) > 0 else 50000
+
+	preview_label.text = "Team:      %s\nCEO:       %s (%s)\n\nStarting Budget:  $%s\n\nChampionship:  GK Regional\n\n🔔 You start with no driver — hire one\n    from the free agent pool." % [
+		team, ceo, nat, _fmt_budget(budget)]
 
 func _on_start_pressed() -> void:
 	var team_name = team_name_input.text.strip_edges()
@@ -180,5 +208,16 @@ func _on_start_pressed() -> void:
 	if player_name == "":
 		player_name = "CEO"
 
-	GameState.setup_new_game(team_name, nat, player_name)
+	var budget_text = budget_input.text.strip_edges()
+	var budget = int(budget_text) if budget_text.is_valid_int() and int(budget_text) > 0 else 50000
+
+	GameState.setup_new_game(team_name, nat, player_name, budget)
 	get_tree().change_scene_to_file("res://scenes/MainHub.tscn")
+
+func _fmt_budget(n: int) -> String:
+	if n >= 1000000:
+		return "%.1fM" % (n / 1000000.0)
+	elif n >= 1000:
+		return "%.0fK" % (n / 1000.0)
+	else:
+		return str(n)
