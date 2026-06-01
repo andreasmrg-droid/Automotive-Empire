@@ -38,7 +38,25 @@ var sponsor_no_points_streak: int = 0
 var research_points: float = 0.0
 var spare_parts: int = 300        # units — used for repairs only, not auto-deducted per race
 var fuel_kg: float = 30.0         # kg, starts with 2 races worth (15 kg × 1 car × 2)
-var car_conditions: Dictionary = {}
+
+# Car objects — replaces car_conditions dictionary
+var player_team_cars: Array = []  # Array of Car objects
+
+# Staff pool — all staff in the game world (hired + available)
+var all_staff: Dictionary = {}    # staff_id → Staff
+
+# Part inventory — stock of major car parts
+# Keyed by championship_id then part name
+# e.g. part_inventory["C-001"]["Aero"] = 3
+var part_inventory: Dictionary = {}
+
+# Part costs per championship (from CNC sheet — buy price per unit)
+const PART_COSTS = {
+	"C-001": {"Engine": 1950, "Aero": 1625, "Brakes": 487, "Suspension": 650, "Chassis": 1137, "Gearbox": 650},
+}
+
+const PARTS_LIST = ["Aero", "Engine", "Gearbox", "Suspension", "Brakes", "Chassis"]
+const CFO_PART_WARNING_THRESHOLD = 2  # CFO warns when any part stock ≤ this
 
 # Notifications
 var notifications: Array = []
@@ -490,22 +508,42 @@ func _update_sponsor_performance(race_results: Array) -> void:
 			add_log("⚠ %s unhappy — reduced to $500/week (no points in 3 races)" % active_sponsor["name"])
 
 func _apply_weekly_expenses() -> void:
-	# Player team — full staff costs
-	var player_expenses = 0
-	player_expenses += player_team.drivers.size() * 50        # Driver salaries
-	player_expenses += 350                                     # Team Principal
-	player_expenses += 300                                     # CFO
-	player_expenses += player_team.drivers.size() * 250       # Race mechanics
-	player_team.balance -= player_expenses
-	add_log("Weekly expenses paid: -$%d" % player_expenses)
+	var player_expenses = 0.0
 
-	# AI teams — simple salary model
+	# Driver salaries — from championship base salary
+	var driver_salary = _get_championship_driver_salary() if active_championship.id != "" else 50.0
+	player_expenses += player_team.drivers.size() * driver_salary
+
+	# Staff salaries — sum all hired staff
+	for staff_id in all_staff:
+		var staff = all_staff[staff_id]
+		if staff.contract_team == player_team.id:
+			player_expenses += staff.weekly_salary
+
+	player_team.balance -= player_expenses
+	add_log("Weekly expenses paid: -$%d (drivers: $%d + staff: $%d)" % [
+		int(player_expenses),
+		int(player_team.drivers.size() * driver_salary),
+		int(player_expenses - player_team.drivers.size() * driver_salary)
+	])
+
+	# AI teams — simple salary model (unchanged)
 	for team in all_teams:
 		if team.is_player_team:
 			continue
 		var driver_count = team.drivers.size()
 		var ai_expenses = (team.weekly_driver_salary * driver_count) + team.weekly_mechanic_salary
 		team.balance -= ai_expenses
+
+func _get_championship_driver_salary() -> float:
+	## Returns base driver salary for the active championship.
+	## GK Regional: $50/week. Will expand when multiple championships are added.
+	match active_championship.id:
+		"C-001": return 50.0
+		"C-002": return 180.0
+		"C-021": return 420.0
+		"C-024": return 2850.0
+	return 50.0
 
 func _consume_race_resources() -> void:
 	# Fuel: per car per race — championship-specific rate
@@ -569,103 +607,457 @@ func buy_fuel(kg: float) -> bool:
 	add_log("🛒 Bought %.1f kg fuel for $%.0f (stock: %.1f kg)" % [kg, total_cost, fuel_kg])
 	return true
 
-## Initialise condition for every driver in player_team. Call from setup_new_game().
-func _setup_car_conditions() -> void:
-	car_conditions.clear()
+## ═══════════════════════════════════════════════════════════════════════════
+## CAR SYSTEM
+## ═══════════════════════════════════════════════════════════════════════════
+
+## Car telemetry data keyed by car_type_id (from Excel Cars sheet)
+const CAR_TELEMETRY = {
+	"A_01": {"top_speed": 75.0,  "acceleration": 9.8,  "deceleration": 11.2, "cornering_grip": 2.9,  "fuel_per_km": 0.045, "tire_wear": 0.65, "perf_index": 1},
+	"A_02": {"top_speed": 115.0, "acceleration": 10.5, "deceleration": 12.1, "cornering_grip": 2.95, "fuel_per_km": 0.055, "tire_wear": 0.72, "perf_index": 10},
+	"A_21": {"top_speed": 315.0, "acceleration": 11.8, "deceleration": 12.7, "cornering_grip": 3.2,  "fuel_per_km": 0.32,  "tire_wear": 1.15, "perf_index": 50},
+}
+
+func _setup_cars() -> void:
+	player_team_cars = []
+	var car_type = "A_01"  # GK Regional kart
+	var telemetry = CAR_TELEMETRY.get(car_type, {})
+	var car_number = 1
 	for driver_id in player_team.drivers:
-		car_conditions[driver_id] = 100.0
+		var car = Car.new()
+		car.id = "CAR-P%03d" % car_number
+		car.car_type_id = car_type
+		car.championship_id = active_championship.id
+		car.car_number = car_number
+		car.driver_id = driver_id
+		car.mechanic_id = ""
+		car.pit_crew_id = "N/A"  # GK doesn't use pit crew
+		car.condition = 100.0
+		car.part_conditions = {"Aero": 100.0, "Engine": 100.0, "Gearbox": 100.0,
+			"Suspension": 100.0, "Brakes": 100.0, "Chassis": 100.0}
+		if not telemetry.is_empty():
+			car.top_speed = telemetry["top_speed"]
+			car.acceleration = telemetry["acceleration"]
+			car.deceleration = telemetry["deceleration"]
+			car.cornering_grip = telemetry["cornering_grip"]
+			car.fuel_consumption_per_km = telemetry["fuel_per_km"]
+			car.tire_wear_rate = telemetry["tire_wear"]
+			car.baseline_performance_index = telemetry["perf_index"]
+		player_team_cars.append(car)
+		car_number += 1
 
+func get_car_for_driver(driver_id: String) -> Car:
+	for car in player_team_cars:
+		if car.driver_id == driver_id:
+			return car
+	return null
 
-## Returns the condition for a specific car (by driver_id). Safe — returns 100 if missing.
+func get_car_by_id(car_id: String) -> Car:
+	for car in player_team_cars:
+		if car.id == car_id:
+			return car
+	return null
+
 func get_car_condition(driver_id: String) -> float:
-	return car_conditions.get(driver_id, 100.0)
+	var car = get_car_for_driver(driver_id)
+	return car.condition if car else 100.0
 
+## ═══════════════════════════════════════════════════════════════════════════
+## PART INVENTORY SYSTEM
+## ═══════════════════════════════════════════════════════════════════════════
 
-## Degrade all player cars based on laps raced.
-## Called from _simulate_race() immediately after the race loop completes.
-## Uses championship condition_loss_per_lap — no flat constant.
+func _setup_part_inventory() -> void:
+	part_inventory = {}
+	var champ_id = active_championship.id
+	part_inventory[champ_id] = {}
+	for part in PARTS_LIST:
+		part_inventory[champ_id][part] = 3  # Start with 3 of each
+
+func get_part_stock(part_name: String) -> int:
+	var champ_id = active_championship.id
+	if not champ_id in part_inventory:
+		return 0
+	return part_inventory[champ_id].get(part_name, 0)
+
+func buy_part(part_name: String, quantity: int) -> bool:
+	var champ_id = active_championship.id
+	var costs = PART_COSTS.get(champ_id, {})
+	if part_name not in costs:
+		add_notification("High", "No part cost data for %s in this championship." % part_name)
+		return false
+	var total_cost = costs[part_name] * quantity
+	if player_team.balance < total_cost:
+		add_notification("High", "Not enough credits to buy %d× %s (need $%d, have $%d)." % [
+			quantity, part_name, total_cost, int(player_team.balance)])
+		return false
+	player_team.balance -= total_cost
+	if not champ_id in part_inventory:
+		part_inventory[champ_id] = {}
+	part_inventory[champ_id][part_name] = part_inventory[champ_id].get(part_name, 0) + quantity
+	add_log("🔩 Bought %d× %s parts for $%d (stock: %d)" % [
+		quantity, part_name, total_cost, part_inventory[champ_id][part_name]])
+	return true
+
+func _check_part_inventory_notifications() -> void:
+	## CFO reminds player if any part stock is at or below warning threshold.
+	## Only fires if player has a CFO hired.
+	var has_cfo = get_player_staff_by_role("CFO").size() > 0
+	if not has_cfo:
+		return
+	var champ_id = active_championship.id
+	if not champ_id in part_inventory:
+		return
+	for part in PARTS_LIST:
+		var stock = part_inventory[champ_id].get(part, 0)
+		if stock <= CFO_PART_WARNING_THRESHOLD:
+			add_notification("High",
+				"💼 CFO: %s parts stock critically low (%d remaining). A part failure means DNF — buy replacements at Logistics Center." % [part, stock])
+
+## ═══════════════════════════════════════════════════════════════════════════
+## STAFF SYSTEM
+## ═══════════════════════════════════════════════════════════════════════════
+
+const STAFF_ROLES = ["Race Mechanic", "Pit Crew", "Team Principal", "CFO", "Designer", "Race Strategist"]
+
+## Salary ranges per role (weekly, in CR) — GK Regional tier
+const STAFF_BASE_SALARIES = {
+	"Race Mechanic":   {"min": 180.0,  "max": 450.0},
+	"Pit Crew":        {"min": 150.0,  "max": 380.0},
+	"Team Principal":  {"min": 280.0,  "max": 650.0},
+	"CFO":             {"min": 250.0,  "max": 580.0},
+	"Designer":        {"min": 350.0,  "max": 750.0},
+	"Race Strategist": {"min": 220.0,  "max": 520.0},
+}
+
+var _staff_id_counter: int = 0
+
+func _generate_available_staff(count: int) -> void:
+	## Generates `count` staff spread across all roles and nationalities.
+	## All start as available (contract_team = "").
+	var role_distribution = {
+		"Race Mechanic":   int(count * 0.25),  # 15
+		"Pit Crew":        int(count * 0.20),  # 12
+		"Team Principal":  int(count * 0.12),  # 7
+		"CFO":             int(count * 0.10),  # 6
+		"Designer":        int(count * 0.18),  # 11
+		"Race Strategist": int(count * 0.15),  # 9
+	}
+
+	var nationalities = ["British", "Italian", "German", "French", "Spanish",
+		"Finnish", "Brazilian", "Japanese", "American", "Australian",
+		"Dutch", "Belgian", "Swiss", "Austrian", "Swedish"]
+
+	for role in role_distribution:
+		var role_count = role_distribution[role]
+		for i in range(role_count):
+			var staff = _create_staff(role, nationalities[randi() % nationalities.size()])
+			all_staff[staff.id] = staff
+
+func _create_staff(role: String, nationality: String) -> Staff:
+	_staff_id_counter += 1
+	var staff = Staff.new()
+	staff.id = "ST-%04d" % _staff_id_counter
+	staff.nationality = nationality
+	staff.role = role
+	staff.age = randi_range(22, 58)
+	staff.sex = "Male" if randf() > 0.3 else "Female"
+	staff.contract_team = ""
+	staff.contract_seasons_remaining = 0
+
+	# Generate name
+	var name_data = NameGenerator.get_full_name(nationality, staff.sex)
+	staff.first_name = name_data["first"]
+	staff.last_name = name_data["last"]
+
+	# Talent — bell curve distribution
+	var raw_talent = randf_range(20.0, 95.0)
+	# Most staff cluster around 40-70, fewer at extremes
+	staff.talent = clamp((raw_talent + randf_range(20.0, 80.0)) / 2.0, 20.0, 95.0)
+
+	# Starting quality is ~65-85% of talent (from Excel: Overall_Quality_vs_Talent_Ratio ≈ 0.7)
+	var quality_ratio = randf_range(0.55, 0.85)
+	var base_quality = staff.talent * quality_ratio
+
+	# Reputation scales with quality
+	staff.reputation = clamp(base_quality * 0.8, 5.0, 90.0)
+	staff.morale = randf_range(70.0, 100.0)
+
+	# Salary — scales with talent
+	var salary_range = STAFF_BASE_SALARIES.get(role, {"min": 200.0, "max": 500.0})
+	var talent_factor = staff.talent / 100.0
+	staff.weekly_salary = salary_range["min"] + (salary_range["max"] - salary_range["min"]) * talent_factor
+
+	# Generate role-specific attributes
+	_generate_staff_attributes(staff, base_quality)
+
+	return staff
+
+func _generate_staff_attributes(staff: Staff, base_quality: float) -> void:
+	## Generates role-specific attributes around base_quality with variance.
+	var q = base_quality
+
+	match staff.role:
+		"Race Mechanic":
+			staff.car_setup      = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
+			staff.pit_stops      = clamp(q + randf_range(-20.0, 20.0), 5.0, 95.0)
+			staff.car_knowledge  = clamp(q + randf_range(-10.0, 10.0), 5.0, 95.0)
+			staff.track_knowledge = clamp(randf_range(5.0, 40.0), 5.0, 95.0) # Grows with events
+			staff.discipline_adaptation["GK"] = clamp(q * 0.5, 1.0, 100.0)
+
+		"Pit Crew":
+			staff.pit_stop_speed = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
+			staff.repair_skill   = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
+			staff.teamwork       = clamp(q + randf_range(-10.0, 10.0), 5.0, 95.0)
+			staff.fitness        = randf_range(70.0, 100.0)
+
+		"Team Principal":
+			staff.race_strategy        = clamp(q + randf_range(-10.0, 10.0), 5.0, 95.0)
+			staff.practice_management  = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
+			staff.qualifying_management = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
+			staff.race_pace_reading    = clamp(q + randf_range(-10.0, 10.0), 5.0, 95.0)
+			staff.car_setup_oversight  = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
+			staff.pit_stop_management  = clamp(q + randf_range(-20.0, 20.0), 5.0, 95.0)
+			staff.pr_skill             = clamp(q + randf_range(-20.0, 20.0), 5.0, 95.0)
+			staff.car_knowledge        = clamp(q + randf_range(-10.0, 10.0), 5.0, 95.0)
+			staff.track_knowledge      = clamp(randf_range(10.0, 50.0), 5.0, 95.0)
+
+		"CFO":
+			staff.loan_management     = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
+			staff.interest_rates      = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
+			staff.sales_skill         = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
+			staff.sponsor_negotiation = clamp(q + randf_range(-10.0, 10.0), 5.0, 95.0)
+			staff.resource_management = clamp(q + randf_range(-10.0, 10.0), 5.0, 95.0)
+			staff.budget_planning     = clamp(q + randf_range(-10.0, 10.0), 5.0, 95.0)
+
+		"Designer":
+			# Each designer has a specialisation — one stat is notably higher
+			var specialisms = ["engine", "aero", "brakes", "suspension", "chassis", "gearbox"]
+			var specialism = specialisms[randi() % specialisms.size()]
+			staff.engine     = clamp(q * 0.7 + randf_range(-10.0, 10.0), 5.0, 95.0)
+			staff.aero       = clamp(q * 0.7 + randf_range(-10.0, 10.0), 5.0, 95.0)
+			staff.brakes     = clamp(q * 0.7 + randf_range(-10.0, 10.0), 5.0, 95.0)
+			staff.suspension = clamp(q * 0.7 + randf_range(-10.0, 10.0), 5.0, 95.0)
+			staff.chassis    = clamp(q * 0.7 + randf_range(-10.0, 10.0), 5.0, 95.0)
+			staff.gearbox    = clamp(q * 0.7 + randf_range(-10.0, 10.0), 5.0, 95.0)
+			staff.reliability    = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
+			staff.parts_knowledge = clamp(q + randf_range(-10.0, 10.0), 5.0, 95.0)
+			staff.discipline_adaptation["GK"] = clamp(q * 0.4, 1.0, 100.0)
+			# Boost specialism by 15-25 points
+			match specialism:
+				"engine":     staff.engine     = min(95.0, staff.engine + randf_range(15.0, 25.0))
+				"aero":       staff.aero       = min(95.0, staff.aero + randf_range(15.0, 25.0))
+				"brakes":     staff.brakes     = min(95.0, staff.brakes + randf_range(15.0, 25.0))
+				"suspension": staff.suspension = min(95.0, staff.suspension + randf_range(15.0, 25.0))
+				"chassis":    staff.chassis    = min(95.0, staff.chassis + randf_range(15.0, 25.0))
+				"gearbox":    staff.gearbox    = min(95.0, staff.gearbox + randf_range(15.0, 25.0))
+
+		"Race Strategist":
+			staff.race_strategy       = clamp(q + randf_range(-10.0, 10.0), 5.0, 95.0)
+			staff.race_pace_reading   = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
+			staff.practice_scheduling = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
+			staff.qualifying_timing   = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
+			staff.track_knowledge     = clamp(randf_range(5.0, 35.0), 5.0, 95.0)
+			staff.discipline_adaptation["GK"] = clamp(q * 0.4, 1.0, 100.0)
+
+func hire_staff(staff_id: String) -> bool:
+	if not staff_id in all_staff:
+		return false
+	var staff = all_staff[staff_id]
+	if staff.is_hired():
+		return false
+	## One TP per team, one CFO per team — enforce limits
+	if staff.role == "Team Principal":
+		var existing_tp = get_player_staff_by_role("Team Principal")
+		if existing_tp.size() >= 1:
+			add_notification("High", "You already have a Team Principal. Release them first.")
+			return false
+	if staff.role == "CFO":
+		var existing_cfo = get_player_staff_by_role("CFO")
+		if existing_cfo.size() >= 1:
+			add_notification("High", "You already have a CFO. Release them first.")
+			return false
+	staff.contract_team = player_team.id
+	staff.contract_seasons_remaining = 5
+	add_log("✅ Hired %s (%s) — $%.0f/week" % [staff.full_name(), staff.role, staff.weekly_salary])
+	add_notification("Normal", "%s (%s) joined your team." % [staff.full_name(), staff.role])
+	emit_signal("log_updated")
+	return true
+
+func release_staff(staff_id: String) -> void:
+	if not staff_id in all_staff:
+		return
+	var staff = all_staff[staff_id]
+	staff.contract_team = ""
+	staff.assigned_championship = ""
+	staff.assigned_car_id = ""
+	staff.contract_seasons_remaining = 0
+	add_log("👋 Released %s (%s)" % [staff.full_name(), staff.role])
+	emit_signal("log_updated")
+
+func assign_staff_to_car(staff_id: String, car_id: String) -> void:
+	if not staff_id in all_staff:
+		return
+	var staff = all_staff[staff_id]
+	staff.assigned_car_id = car_id
+	staff.assigned_championship = active_championship.id
+	# Wire mechanic to car
+	var car = get_car_by_id(car_id)
+	if car:
+		if staff.role == "Race Mechanic":
+			car.mechanic_id = staff_id
+		elif staff.role == "Pit Crew":
+			car.pit_crew_id = staff_id
+	add_log("🔧 %s assigned to Car %s" % [staff.full_name(), car_id])
+
+func assign_staff_to_championship(staff_id: String, champ_id: String) -> void:
+	if not staff_id in all_staff:
+		return
+	var staff = all_staff[staff_id]
+	staff.assigned_championship = champ_id
+	add_log("📋 %s assigned to %s" % [staff.full_name(), active_championship.championship_name])
+
+func get_player_staff_by_role(role: String) -> Array:
+	var result = []
+	for staff_id in all_staff:
+		var staff = all_staff[staff_id]
+		if staff.contract_team == player_team.id and staff.role == role:
+			result.append(staff)
+	return result
+
+func get_available_staff_by_role(role: String) -> Array:
+	var result = []
+	for staff_id in all_staff:
+		var staff = all_staff[staff_id]
+		if staff.contract_team == "" and staff.role == role:
+			result.append(staff)
+	return result
+
+func get_all_available_staff() -> Array:
+	var result = []
+	for staff_id in all_staff:
+		var staff = all_staff[staff_id]
+		if staff.contract_team == "":
+			result.append(staff)
+	return result
+
+func get_all_player_staff() -> Array:
+	var result = []
+	for staff_id in all_staff:
+		var staff = all_staff[staff_id]
+		if staff.contract_team == player_team.id:
+			result.append(staff)
+	return result
+
+## Returns the mechanic assigned to a specific car, or null.
+func get_mechanic_for_car(car_id: String) -> Staff:
+	for staff_id in all_staff:
+		var staff = all_staff[staff_id]
+		if staff.role == "Race Mechanic" and staff.assigned_car_id == car_id \
+				and staff.contract_team == player_team.id:
+			return staff
+	return null
+
+## Returns the Team Principal assigned to active championship, or null.
+func get_team_principal() -> Staff:
+	var tps = get_player_staff_by_role("Team Principal")
+	for tp in tps:
+		if tp.assigned_championship == active_championship.id or tp.assigned_championship == "":
+			return tp
+	return null
+
+## Returns the CFO, or null.
+func get_cfo() -> Staff:
+	var cfos = get_player_staff_by_role("CFO")
+	return cfos[0] if cfos.size() > 0 else null
+
+## Returns repair efficiency multiplier based on assigned mechanic's car_setup skill.
+## 1.0 if no mechanic (still repairs, just at base rate — staff gate comes later).
+func _get_repair_efficiency() -> float:
+	# For now, find the first hired mechanic assigned to any player car
+	for car in player_team_cars:
+		var mechanic = get_mechanic_for_car(car.id)
+		if mechanic:
+			return mechanic.get_repair_efficiency()
+	return 1.0
+
+## Pre-race check — warns if TP is missing but does NOT block the race.
+func _check_race_requirements() -> void:
+	var tp = get_team_principal()
+	if tp == null:
+		add_notification("High",
+			"⚠ No Team Principal assigned! Your team will race without tactical oversight. Hire one at HQ.")
+	var has_cfo = get_cfo() != null
+	if not has_cfo:
+		add_notification("Normal",
+			"💼 No CFO on staff. Financial optimisation and part stock monitoring unavailable.")
+
+## Weekly pit crew fitness recovery.
+func _recover_pit_crew_fitness() -> void:
+	for staff_id in all_staff:
+		var staff = all_staff[staff_id]
+		if staff.role == "Pit Crew" and staff.contract_team == player_team.id:
+			staff.fitness = min(100.0, staff.fitness + 8.0)
+
+## ═══════════════════════════════════════════════════════════════════════════
+## CAR CONDITION SYSTEM (now Car-object based)
+## ═══════════════════════════════════════════════════════════════════════════
+
+func _setup_car_conditions() -> void:
+	## Legacy stub — car conditions now live on Car objects via _setup_cars().
+	## Kept to avoid breaking any remaining references during transition.
+	pass
+
 func _degrade_car_conditions(laps: int) -> void:
 	var loss = active_championship.condition_loss_per_lap * float(laps)
-	for driver_id in player_team.drivers:
-		if not driver_id in car_conditions:
-			car_conditions[driver_id] = 100.0
-		car_conditions[driver_id] = max(0.0, car_conditions[driver_id] - loss)
-		add_log("🔩 Car condition after race: %.0f%% (-%0.1f%% over %d laps)" % [
-			car_conditions[driver_id], loss, laps])
+	for car in player_team_cars:
+		car.condition = max(0.0, car.condition - loss)
+		add_log("🔩 Car %d condition after race: %.0f%% (-%0.1f%% over %d laps)" % [
+			car.car_number, car.condition, loss, laps])
 
-
-## Auto-repair all player cars after a race, silently, using championship SP rate.
-## Sorts cars by soonest next race (most urgent first).
-## Fires notifications only when SP is insufficient — player does not need to act otherwise.
-## Called from _simulate_race() after _degrade_car_conditions().
 func _auto_repair_cars_post_race() -> void:
-	if player_team.drivers.is_empty():
+	if player_team_cars.is_empty():
 		return
 
-	# Sort cars by soonest next race round
-	# For now with 1 car this is trivial; with 2 cars it picks the one racing soonest
-	var cars_sorted = player_team.drivers.duplicate()
-	# Future: sort by next race week when multi-championship is implemented
-
-	var sp_rate = active_championship.sp_per_10_pct_damage  # SP per 10% damage
+	var sp_rate = active_championship.sp_per_10_pct_damage
 	var any_failed = false
-	var failed_cars: Array = []
+	var failed_car_names: Array = []
 
-	for driver_id in cars_sorted:
-		var condition = get_car_condition(driver_id)
-		var damage = 100.0 - condition
+	for car in player_team_cars:
+		var damage = 100.0 - car.condition
 		if damage <= 0.0:
-			continue  # already at 100%, nothing to do
+			continue
 
 		var sp_needed = int(ceil(damage / 10.0) * sp_rate)
 
 		if spare_parts >= sp_needed:
-			# Silent full repair
 			spare_parts -= sp_needed
-			car_conditions[driver_id] = 100.0
-			add_log("🔧 Auto-repair: Car fully restored to 100%% (-%d SP, %d remaining)" % [
-				sp_needed, spare_parts])
+			car.condition = 100.0
+			add_log("🔧 Car %d auto-repaired to 100%% (-%d SP, %d remaining)" % [
+				car.car_number, sp_needed, spare_parts])
 		elif spare_parts > 0:
-			# Partial repair — use all remaining SP
-			var sp_available = spare_parts
-			var repair_pct = float(sp_available) / float(sp_rate) * 10.0
-			car_conditions[driver_id] = min(100.0, condition + repair_pct)
+			var repair_pct = float(spare_parts) / float(sp_rate) * 10.0
+			car.condition = min(100.0, car.condition + repair_pct)
+			add_log("🔧 Car %d partial repair: %.0f%% condition (SP exhausted)" % [
+				car.car_number, car.condition])
 			spare_parts = 0
-			add_log("🔧 Partial repair: Car at %.0f%% (SP exhausted)" % car_conditions[driver_id])
 			any_failed = true
-			failed_cars.append(driver_id)
+			failed_car_names.append("Car %d" % car.car_number)
 		else:
-			# No SP at all
 			any_failed = true
-			failed_cars.append(driver_id)
+			failed_car_names.append("Car %d" % car.car_number)
 
 	if any_failed:
-		var driver_names = []
-		for d_id in failed_cars:
-			var d = all_drivers.get(d_id)
-			if d:
-				driver_names.append(d.full_name())
-		var names_str = ", ".join(driver_names)
-		var sp_for_full = 0
-		for d_id in failed_cars:
-			var dmg = 100.0 - get_car_condition(d_id)
-			sp_for_full += int(ceil(dmg / 10.0) * sp_rate)
+		var names = ", ".join(failed_car_names)
+		add_notification("Critical" if spare_parts == 0 else "High",
+			"SP insufficient to fully repair %s. Buy more SP at Logistics Center." % names)
 
-		if spare_parts == 0:
-			add_notification("Critical",
-				"Not enough SP to repair %s's car. Need %d SP — buy more at Logistics Center." % [
-					names_str, sp_for_full])
-		else:
-			add_notification("High",
-				"SP insufficient for full repair of %s's car (%.0f%% condition). Buy more SP." % [
-					names_str, get_car_condition(failed_cars[0])])
+	_check_resource_notifications()
 
-## Manual repair: repair a car by repair_pct points using SP.
-## Called from the Cars tab repair buttons. Returns true if repair was applied.
 func repair_car(driver_id: String, repair_pct: float) -> bool:
-	if not driver_id in car_conditions:
+	var car = get_car_for_driver(driver_id)
+	if not car:
 		return false
-	var current = car_conditions[driver_id]
+	var current = car.condition
 	var actual_repair = min(repair_pct, 100.0 - current)
 	if actual_repair <= 0.0:
 		add_notification("Normal", "Car is already at full condition.")
@@ -677,35 +1069,21 @@ func repair_car(driver_id: String, repair_pct: float) -> bool:
 			"Not enough SP to repair car. Need %d SP, have %d." % [sp_cost, spare_parts])
 		return false
 	spare_parts -= sp_cost
-	car_conditions[driver_id] = min(100.0, current + actual_repair)
+	car.condition = min(100.0, current + actual_repair)
 	add_log("🔧 Manual repair +%.0f%% → %.0f%% condition (-%d SP, %d remaining)" % [
-		actual_repair, car_conditions[driver_id], sp_cost, spare_parts])
+		actual_repair, car.condition, sp_cost, spare_parts])
 	emit_signal("log_updated")
 	return true
 
-
-## Convenience: repair a car to full condition in one click (Cars tab).
 func repair_car_full(driver_id: String) -> bool:
-	var current = get_car_condition(driver_id)
-	var damage = 100.0 - current
+	var car = get_car_for_driver(driver_id)
+	if not car:
+		return false
+	var damage = 100.0 - car.condition
 	if damage <= 0.0:
 		add_notification("Normal", "Car is already at full condition.")
 		return false
 	return repair_car(driver_id, damage)
-
-
-## Repair efficiency multiplier (0.0–1.0).
-## Returns 1.0 until the staff hiring system is implemented.
-## Will be wired to Race Mechanic + Pit Crew attributes when staff is built.
-func _get_repair_efficiency() -> float:
-	return 1.0
-
-
-## Reserved hook for mid-race pit stop repairs (TC, SC, EPC).
-## Currently empty — will be called from race simulation when pit stop system is built.
-## stop_duration: seconds available for repairs in this pit stop.
-func apply_pitstop_repair(_car_driver_id: String, _stop_duration: float) -> void:
-	pass  # TODO: implement when pit stop system is designed
 
 
 ## DNS check — returns true if the car CAN race, false if DNS.
@@ -790,6 +1168,7 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 	hall_of_fame = []
 	all_teams = []
 	all_drivers = {}
+	all_staff = {}
 	_setup_championship()
 	player_name = p_player_name
 	player_team_name = p_team_name
@@ -799,7 +1178,9 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 	_generate_ai_teams()
 	_setup_campus()
 	_setup_sponsor()
-	_setup_car_conditions()
+	_setup_cars()
+	_setup_part_inventory()
+	_generate_available_staff(60)
 	add_log("Welcome to Automotive Empire!")
 	add_log("Season %d — GK Regional Championship" % current_season)
 
@@ -874,15 +1255,18 @@ func _create_driver(id: String, first: String, last: String, nationality: String
 	d.discipline_change_season = current_season
 
 	var age_factor = float(age - 8) / 8.0
-	d.pace = randf_range(20.0, 50.0) + age_factor * 25.0
-	d.wet = randf_range(15.0, 45.0) + age_factor * 20.0
-	d.focus = randf_range(20.0, 50.0) + age_factor * 20.0
-	d.race_craft = randf_range(15.0, 45.0) + age_factor * 25.0
-	d.fitness = randf_range(70.0, 100.0)
-	d.potential = randf_range(50.0, 95.0)
-	d.aggression = randf_range(20.0, 80.0)
-	d.experience = age_factor * 30.0
-	d.morale = 100.0
+	d.pace        = randf_range(20.0, 50.0) + age_factor * 25.0
+	d.wet         = randf_range(15.0, 45.0) + age_factor * 20.0
+	d.focus       = randf_range(20.0, 50.0) + age_factor * 20.0
+	d.race_craft  = randf_range(15.0, 45.0) + age_factor * 25.0
+	d.consistency = randf_range(15.0, 45.0) + age_factor * 20.0  # NEW
+	d.feedback    = randf_range(20.0, 60.0) + age_factor * 15.0  # NEW
+	d.marketability = randf_range(5.0, 25.0) + age_factor * 10.0 # NEW — low at start
+	d.fitness     = randf_range(70.0, 100.0)
+	d.potential   = randf_range(50.0, 95.0)
+	d.aggression  = randf_range(20.0, 80.0)
+	d.experience  = age_factor * 30.0
+	d.morale      = 100.0
 
 	var talent_factor = d.potential / 100.0
 	var starting_gk = 5.0 + (talent_factor * 10.0) + (age_factor * 5.0)
@@ -941,24 +1325,31 @@ func advance_week() -> void:
 	weekly_log = []
 	current_week += 1
 
-	# Weekly fitness recovery
+	# Weekly fitness recovery (drivers)
 	_apply_weekly_fitness_recovery()
+
+	# Weekly pit crew fitness recovery
+	_recover_pit_crew_fitness()
 
 	# Campus construction progress
 	_update_campus_construction()
 
 	# Campus income and maintenance
 	_apply_campus_income()
-	
+
 	# Sponsor income
 	_apply_sponsor_income()
 
 	# Full staff expenses
 	_apply_weekly_expenses()
 
+	# CFO part inventory check (weekly reminder if stock is low)
+	_check_part_inventory_notifications()
+
 	# Check for race this week
 	var next_race = active_championship.get_next_race()
 	if next_race and next_race["week"] == current_week:
+		_check_race_requirements()
 		_simulate_race(next_race)
 		_update_sponsor_performance(last_race_results)
 		active_championship.current_round += 1
@@ -1012,7 +1403,9 @@ func _simulate_race(race_data: Dictionary) -> void:
 		var focus_factor = 1.0 - (effective_focus / 2000.0)
 		var fitness_factor = driver.fitness_penalty()
 		var lap_time = base_time * pace_factor * wet_factor * focus_factor * (2.0 - fitness_factor)
-		lap_time += randf_range(-0.5, 0.5)
+		# Noise range based on consistency: high consistency = tight laps, low = erratic
+		var noise = driver.get_lap_noise_range()
+		lap_time += randf_range(-noise, noise)
 		driver_times.append({
 			"driver": driver,
 			"lap_time": lap_time,
@@ -1051,7 +1444,7 @@ func _simulate_race(race_data: Dictionary) -> void:
 				break
  
 		# Update driver stats
-		_update_driver_stats_after_race(driver, standing_position, race_data["laps"], is_wet)
+		_update_driver_stats_after_race(driver, standing_position, race_data["laps"], is_wet, race_drivers.size())
  
 	# ── DNS entries: add to last_race_results with 0 pts ─────
 	# This ensures they appear in the Results screen (last place, DNS label)
@@ -1110,7 +1503,7 @@ func _simulate_race(race_data: Dictionary) -> void:
 	# Switch to race results scene
 	get_tree().change_scene_to_file("res://scenes/RaceResults.tscn")
 
-func _update_driver_stats_after_race(driver: Driver, standing_position: int, laps: int, is_wet: bool) -> void:
+func _update_driver_stats_after_race(driver: Driver, standing_position: int, laps: int, is_wet: bool, grid_size: int) -> void:
 	# Fitness drops
 	var fitness_drop = laps * 0.4
 	driver.fitness = max(0.0, driver.fitness - fitness_drop)
@@ -1119,11 +1512,22 @@ func _update_driver_stats_after_race(driver: Driver, standing_position: int, lap
 	var exp_gain = randf_range(0.5, 1.5)
 	driver.experience = min(100.0, driver.experience + exp_gain)
 
+	# Consistency grows slowly with experience
+	if driver.consistency < driver.potential:
+		driver.consistency = min(driver.potential, driver.consistency + exp_gain * 0.15)
+
+	# Feedback improves slightly with experience
+	if driver.feedback < driver.potential:
+		driver.feedback = min(driver.potential, driver.feedback + exp_gain * 0.08)
+
+	# Marketability — affected by result
+	driver.update_marketability_after_race(standing_position, grid_size, false)
+
 	# Update discipline adaptation
 	var total_races = active_championship.num_races
 	driver.update_adaptation_after_race(current_season, total_races)
 
-	# Stats improve
+	# Core stats improve
 	var improvement = 0.1 + randf_range(0.0, 0.2)
 	if standing_position <= 3:
 		improvement += 0.1
@@ -1144,6 +1548,40 @@ func _update_driver_stats_after_race(driver: Driver, standing_position: int, lap
 		driver.morale = min(100.0, driver.morale + 5.0)
 	elif standing_position >= 8:
 		driver.morale = max(0.0, driver.morale - 5.0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 func _end_season() -> void:
 	add_log("=== SEASON %d COMPLETE ===" % current_season)
@@ -1268,7 +1706,9 @@ func save_game() -> void:
 			"team_standings": active_championship.team_standings,
 		},
 		"campus_buildings": campus_buildings,
-		"car_conditions": car_conditions,
+		"part_inventory": part_inventory,
+		"player_team_cars": _serialize_cars(),
+		"all_staff": _serialize_staff(),
 	}
 
 	# Save all teams
@@ -1302,6 +1742,9 @@ func save_game() -> void:
 			"wet": d.wet,
 			"focus": d.focus,
 			"race_craft": d.race_craft,
+			"consistency": d.consistency,
+			"feedback": d.feedback,
+			"marketability": d.marketability,
 			"fitness": d.fitness,
 			"potential": d.potential,
 			"aggression": d.aggression,
@@ -1352,10 +1795,6 @@ func load_game() -> void:
 	sponsor_no_points_streak = data["sponsor_no_points_streak"]
 	active_sponsor = data["active_sponsor"]
 	campus_buildings = data["campus_buildings"]
-	if "car_conditions" in data:
-		car_conditions = data["car_conditions"]
-	else:
-		_setup_car_conditions()   # backwards-compat for old saves
 
 	# Restore championship
 	_setup_championship()
@@ -1402,6 +1841,9 @@ func load_game() -> void:
 		d.wet = dd["wet"]
 		d.focus = dd["focus"]
 		d.race_craft = dd["race_craft"]
+		d.consistency = dd.get("consistency", 20.0)
+		d.feedback = dd.get("feedback", 20.0)
+		d.marketability = dd.get("marketability", 10.0)
 		d.fitness = dd["fitness"]
 		d.potential = dd["potential"]
 		d.aggression = dd["aggression"]
@@ -1412,9 +1854,164 @@ func load_game() -> void:
 		d.peak_adaptation = dd["peak_adaptation"]
 		all_drivers[driver_id] = d
 
+	# Restore cars
+	if "player_team_cars" in data:
+		_deserialize_cars(data["player_team_cars"])
+	else:
+		_setup_cars()  # backwards compat
+
+	# Restore staff
+	if "all_staff" in data:
+		_deserialize_staff(data["all_staff"])
+	else:
+		_generate_available_staff(60)  # backwards compat
+
+	# Restore part inventory
+	if "part_inventory" in data:
+		part_inventory = data["part_inventory"]
+	else:
+		_setup_part_inventory()  # backwards compat
+
 	print("[Load] Game loaded successfully — Season %d Week %d" % [current_season, current_week])
 	emit_signal("week_advanced", current_week)
 	emit_signal("log_updated")
+
+## ═══════════════════════════════════════════════════════════════════════════
+## SERIALIZATION HELPERS
+## ═══════════════════════════════════════════════════════════════════════════
+
+func _serialize_cars() -> Array:
+	var result = []
+	for car in player_team_cars:
+		result.append({
+			"id": car.id, "car_type_id": car.car_type_id,
+			"championship_id": car.championship_id, "car_number": car.car_number,
+			"driver_id": car.driver_id, "mechanic_id": car.mechanic_id,
+			"pit_crew_id": car.pit_crew_id, "condition": car.condition,
+			"part_conditions": car.part_conditions,
+			"top_speed": car.top_speed, "acceleration": car.acceleration,
+			"deceleration": car.deceleration, "cornering_grip": car.cornering_grip,
+			"fuel_consumption_per_km": car.fuel_consumption_per_km,
+			"tire_wear_rate": car.tire_wear_rate,
+			"baseline_performance_index": car.baseline_performance_index,
+		})
+	return result
+
+func _deserialize_cars(data_array: Array) -> void:
+	player_team_cars = []
+	for cd in data_array:
+		var car = Car.new()
+		car.id = cd["id"]
+		car.car_type_id = cd["car_type_id"]
+		car.championship_id = cd["championship_id"]
+		car.car_number = cd["car_number"]
+		car.driver_id = cd["driver_id"]
+		car.mechanic_id = cd["mechanic_id"]
+		car.pit_crew_id = cd["pit_crew_id"]
+		car.condition = cd["condition"]
+		car.part_conditions = cd["part_conditions"]
+		car.top_speed = cd["top_speed"]
+		car.acceleration = cd["acceleration"]
+		car.deceleration = cd["deceleration"]
+		car.cornering_grip = cd["cornering_grip"]
+		car.fuel_consumption_per_km = cd["fuel_consumption_per_km"]
+		car.tire_wear_rate = cd["tire_wear_rate"]
+		car.baseline_performance_index = cd["baseline_performance_index"]
+		player_team_cars.append(car)
+
+func _serialize_staff() -> Dictionary:
+	var result = {}
+	for staff_id in all_staff:
+		var s = all_staff[staff_id]
+		result[staff_id] = {
+			"id": s.id, "first_name": s.first_name, "last_name": s.last_name,
+			"nationality": s.nationality, "age": s.age, "sex": s.sex,
+			"role": s.role, "talent": s.talent, "reputation": s.reputation,
+			"morale": s.morale, "weekly_salary": s.weekly_salary,
+			"contract_seasons_remaining": s.contract_seasons_remaining,
+			"contract_team": s.contract_team,
+			"assigned_championship": s.assigned_championship,
+			"assigned_car_id": s.assigned_car_id,
+			"discipline_adaptation": s.discipline_adaptation,
+			# Role attributes
+			"car_setup": s.car_setup, "pit_stops": s.pit_stops,
+			"car_knowledge": s.car_knowledge, "track_knowledge": s.track_knowledge,
+			"pit_stop_speed": s.pit_stop_speed, "repair_skill": s.repair_skill,
+			"teamwork": s.teamwork, "fitness": s.fitness,
+			"race_strategy": s.race_strategy, "practice_management": s.practice_management,
+			"qualifying_management": s.qualifying_management,
+			"race_pace_reading": s.race_pace_reading,
+			"car_setup_oversight": s.car_setup_oversight,
+			"pit_stop_management": s.pit_stop_management, "pr_skill": s.pr_skill,
+			"loan_management": s.loan_management, "interest_rates": s.interest_rates,
+			"sales_skill": s.sales_skill, "sponsor_negotiation": s.sponsor_negotiation,
+			"resource_management": s.resource_management, "budget_planning": s.budget_planning,
+			"engine": s.engine, "aero": s.aero, "brakes": s.brakes,
+			"suspension": s.suspension, "chassis": s.chassis, "gearbox": s.gearbox,
+			"reliability": s.reliability, "parts_knowledge": s.parts_knowledge,
+			"practice_scheduling": s.practice_scheduling,
+			"qualifying_timing": s.qualifying_timing,
+		}
+	return result
+
+func _deserialize_staff(data_dict: Dictionary) -> void:
+	all_staff = {}
+	_staff_id_counter = 0
+	for staff_id in data_dict:
+		var sd = data_dict[staff_id]
+		var s = Staff.new()
+		s.id = sd["id"]
+		s.first_name = sd["first_name"]
+		s.last_name = sd["last_name"]
+		s.nationality = sd["nationality"]
+		s.age = sd["age"]
+		s.sex = sd["sex"]
+		s.role = sd["role"]
+		s.talent = sd["talent"]
+		s.reputation = sd["reputation"]
+		s.morale = sd["morale"]
+		s.weekly_salary = sd["weekly_salary"]
+		s.contract_seasons_remaining = sd["contract_seasons_remaining"]
+		s.contract_team = sd["contract_team"]
+		s.assigned_championship = sd["assigned_championship"]
+		s.assigned_car_id = sd["assigned_car_id"]
+		s.discipline_adaptation = sd["discipline_adaptation"]
+		s.car_setup = sd.get("car_setup", 0.0)
+		s.pit_stops = sd.get("pit_stops", 0.0)
+		s.car_knowledge = sd.get("car_knowledge", 0.0)
+		s.track_knowledge = sd.get("track_knowledge", 0.0)
+		s.pit_stop_speed = sd.get("pit_stop_speed", 0.0)
+		s.repair_skill = sd.get("repair_skill", 0.0)
+		s.teamwork = sd.get("teamwork", 0.0)
+		s.fitness = sd.get("fitness", 100.0)
+		s.race_strategy = sd.get("race_strategy", 0.0)
+		s.practice_management = sd.get("practice_management", 0.0)
+		s.qualifying_management = sd.get("qualifying_management", 0.0)
+		s.race_pace_reading = sd.get("race_pace_reading", 0.0)
+		s.car_setup_oversight = sd.get("car_setup_oversight", 0.0)
+		s.pit_stop_management = sd.get("pit_stop_management", 0.0)
+		s.pr_skill = sd.get("pr_skill", 0.0)
+		s.loan_management = sd.get("loan_management", 0.0)
+		s.interest_rates = sd.get("interest_rates", 0.0)
+		s.sales_skill = sd.get("sales_skill", 0.0)
+		s.sponsor_negotiation = sd.get("sponsor_negotiation", 0.0)
+		s.resource_management = sd.get("resource_management", 0.0)
+		s.budget_planning = sd.get("budget_planning", 0.0)
+		s.engine = sd.get("engine", 0.0)
+		s.aero = sd.get("aero", 0.0)
+		s.brakes = sd.get("brakes", 0.0)
+		s.suspension = sd.get("suspension", 0.0)
+		s.chassis = sd.get("chassis", 0.0)
+		s.gearbox = sd.get("gearbox", 0.0)
+		s.reliability = sd.get("reliability", 0.0)
+		s.parts_knowledge = sd.get("parts_knowledge", 0.0)
+		s.practice_scheduling = sd.get("practice_scheduling", 0.0)
+		s.qualifying_timing = sd.get("qualifying_timing", 0.0)
+		all_staff[staff_id] = s
+		# Track counter for future generation
+		var num_part = sd["id"].trim_prefix("ST-").to_int()
+		if num_part > _staff_id_counter:
+			_staff_id_counter = num_part
 
 func add_log(message: String) -> void:
 	weekly_log.append(message)

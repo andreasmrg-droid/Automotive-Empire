@@ -46,21 +46,26 @@ const ADAPTATION_CEILINGS = {
 	"GP":    {"GK": 85,  "Rally": 20, "TC": 50, "OWC": 75, "SC": 45, "EPC": 80, "GP": 100},
 }
 
-# Core stats (0-100)
-@export var pace: float = 0.0
-@export var wet: float = 0.0
-@export var focus: float = 0.0
-@export var race_craft: float = 0.0
-@export var fitness: float = 100.0
+# ── Core visible stats (0-100) ────────────────────────────────────────────────
+@export var pace: float = 0.0           # Raw speed over one lap
+@export var wet: float = 0.0            # Performance in low-traction conditions
+@export var focus: float = 0.0          # Mental concentration; drops with fatigue
+@export var race_craft: float = 0.0     # Racecraft: positioning, defending, overtaking
+@export var consistency: float = 0.0   # Technical lap-time repeatability; narrows noise
+@export var feedback: float = 0.0      # Quality of car communication to mechanic
+@export var marketability: float = 0.0 # Public appeal; shown, affected by results
+@export var fitness: float = 100.0     # Physical condition; drops after races
 
-# Hidden stats
-@export var potential: float = 0.0
-@export var aggression: float = 0.0
-@export var experience: float = 0.0
+# ── Hidden stats (never shown in UI) ─────────────────────────────────────────
+@export var potential: float = 0.0     # Growth ceiling — HIDDEN from player
+@export var aggression: float = 0.0    # Hidden racing style modifier
+@export var experience: float = 0.0    # Hidden: grows with races, improves consistency
 
-# Status
+# ── Status ────────────────────────────────────────────────────────────────────
 @export var morale: float = 100.0
 @export var seasons_without_contract: int = 0
+
+# ── Identity helpers ──────────────────────────────────────────────────────────
 
 func full_name() -> String:
 	return first_name + " " + last_name
@@ -68,8 +73,44 @@ func full_name() -> String:
 func is_eligible_for_gk_regional() -> bool:
 	return age >= 8 and age <= 16
 
+# ── Computed skill (not stored — for UI sorting only) ─────────────────────────
+## Average of all five visible racing attributes.
+## Use for sorting driver lists. Never save this value.
+func get_overall_skill() -> float:
+	return (pace + wet + focus + race_craft + consistency) / 5.0
+
+# ── Fitness ───────────────────────────────────────────────────────────────────
+
 func fitness_penalty() -> float:
 	return 0.85 + (fitness / 100.0) * 0.15
+
+# ── Consistency noise modifier ────────────────────────────────────────────────
+## Returns the max lap time noise range based on consistency.
+## High consistency (100) → ±0.1s noise. Low consistency (0) → ±0.8s noise.
+## Used in _simulate_race() to replace the flat randf_range(-0.5, 0.5).
+func get_lap_noise_range() -> float:
+	return 0.8 - (consistency / 100.0) * 0.7
+
+# ── Marketability ─────────────────────────────────────────────────────────────
+## Call after each race with the driver's finishing position and grid size.
+## last_25pct_threshold = ceil(grid_size * 0.75) — positions below this lose marketability.
+func update_marketability_after_race(position: int, grid_size: int, is_dns: bool) -> void:
+	if is_dns:
+		marketability = max(0.0, marketability - 2.0)
+		return
+	if position == 1:
+		marketability = min(100.0, marketability + 4.0)
+	elif position <= 3:
+		marketability = min(100.0, marketability + 2.0)
+	elif position <= grid_size / 2:
+		marketability = min(100.0, marketability + 0.5)
+	else:
+		var bottom_25_threshold = int(ceil(grid_size * 0.75))
+		if position > bottom_25_threshold:
+			marketability = max(0.0, marketability - 0.5)
+		# Positions between top half and bottom 25% are neutral — no change
+
+# ── Adaptation ────────────────────────────────────────────────────────────────
 
 func get_active_adaptation() -> float:
 	return discipline_adaptation.get(active_discipline, 1.0)
@@ -105,37 +146,29 @@ func update_adaptation_after_race(current_season: int, total_races_in_season: in
 		var floor_val = get_floor(discipline)
 
 		if discipline == active_discipline:
-			# Active discipline always grows
-			# season_target = 35 × (1 - current/ceiling) × talent
 			var season_target = 55.0 * (1.0 - current / ceiling) * talent_mult
 			var per_race_growth = season_target / float(total_races_in_season)
 			current = min(ceiling, current + per_race_growth)
 
 		elif current < ceiling:
-			# Passive growth toward ceiling for related disciplines
 			var synergy = ceiling / 100.0
 			var passive = (synergy * 0.3 * talent_mult) / float(total_races_in_season)
 			current = min(ceiling, current + passive)
 
 		elif current > ceiling:
-			# Decay toward ceiling - respect grace period
 			if in_grace_period:
-				# No decay during grace season
 				pass
 			else:
-				# Decay based on synergy distance
 				var synergy = ceiling / 100.0
 				var decay_mult = 1.2
 				if synergy > 0.6:
 					decay_mult = 0.6
 				elif synergy > 0.3:
 					decay_mult = 0.8
-
 				var season_decay = 25.0 * ((current - ceiling) / current) * decay_mult
 				var per_race_decay = season_decay / float(total_races_in_season)
 				current = max(max(floor_val, ceiling), current - per_race_decay)
 
-		# Update peak
 		if current > peak_adaptation.get(discipline, 1.0):
 			peak_adaptation[discipline] = current
 
@@ -144,6 +177,8 @@ func update_adaptation_after_race(current_season: int, total_races_in_season: in
 func change_discipline(new_discipline: String, current_season: int) -> void:
 	active_discipline = new_discipline
 	discipline_change_season = current_season
+
+# ── Effective stats (adaptation-adjusted) ────────────────────────────────────
 
 func get_effective_pace() -> float:
 	return pace * get_adaptation_multiplier()
@@ -156,3 +191,6 @@ func get_effective_focus() -> float:
 
 func get_effective_race_craft() -> float:
 	return race_craft * get_adaptation_multiplier()
+
+func get_effective_consistency() -> float:
+	return consistency * get_adaptation_multiplier()
