@@ -207,7 +207,7 @@ func _make_my_staff_row(staff) -> PanelContainer:
 		assign_text = "Team Level"
 	elif staff.assigned_car_id != "":
 		var car = GameState.get_car_by_id(staff.assigned_car_id)
-		assign_text = "Car %d" % car.car_number if car else "Car ?"
+		assign_text = _car_display_name(car) if car else "Car ?"
 	elif staff.assigned_championship != "":
 		assign_text = GameState.active_championship.championship_name
 	else:
@@ -221,7 +221,7 @@ func _make_my_staff_row(staff) -> PanelContainer:
 	var contract_color = Color(1.0, 0.4, 0.4) if staff.contract_seasons_remaining <= 1 \
 		else Color(0.7, 0.7, 0.7)
 	_add_col(row1, "%d seasons" % staff.contract_seasons_remaining, 80, contract_color)
-	_add_col(row1, "$%.0f/wk" % staff.weekly_salary, 75, Color(0.6, 0.6, 0.6))
+	_add_col(row1, "CR %.0f/wk" % staff.weekly_salary, 75, Color(0.6, 0.6, 0.6))
 
 	# Buttons
 	var btn_row = HBoxContainer.new()
@@ -293,7 +293,7 @@ func _make_available_staff_row(staff) -> PanelContainer:
 		Color(0.7, 0.85, 1.0))
 	_add_col(row1, "%s %.0f" % [staff.get_primary_skill_label(), staff.get_primary_skill()], 100,
 		_skill_color(staff.get_primary_skill()))
-	_add_col(row1, "$%.0f/wk" % staff.weekly_salary, 75, Color(0.6, 0.6, 0.6))
+	_add_col(row1, "CR %.0f/wk" % staff.weekly_salary, 75, Color(0.6, 0.6, 0.6))
 
 	var btn_row = HBoxContainer.new()
 	btn_row.add_theme_constant_override("separation", 6)
@@ -385,7 +385,7 @@ func _show_staff_card(staff_id: String) -> void:
 		"%d  |  %s  |  %s" % [staff.age, staff.sex, staff.nationality])
 	_card_row(vbox, "Reputation", "%.0f / 100" % staff.reputation,
 		_skill_color(staff.reputation))
-	_card_row(vbox, "Weekly Salary", "$%.0f" % staff.weekly_salary)
+	_card_row(vbox, "Weekly Salary", "CR %.0f" % staff.weekly_salary)
 	_card_row(vbox, "Contract",
 		"%d seasons remaining" % staff.contract_seasons_remaining,
 		Color(1.0, 0.4, 0.4) if staff.contract_seasons_remaining <= 1 else Color.WHITE)
@@ -395,7 +395,7 @@ func _show_staff_card(staff_id: String) -> void:
 		assign_text = "Team Level (no assignment needed)"
 	elif staff.assigned_car_id != "":
 		var car = GameState.get_car_by_id(staff.assigned_car_id)
-		assign_text = "Car %d" % car.car_number if car else "Car ?"
+		assign_text = _car_display_name(car) if car else "Car ?"
 	elif staff.assigned_championship != "":
 		assign_text = GameState.active_championship.championship_name
 	_card_row(vbox, "Assignment", assign_text)
@@ -548,7 +548,7 @@ func _show_assign_popup(staff_id: String) -> void:
 			elif staff.role == "Pit Crew" and car.pit_crew_id != "" and car.pit_crew_id != "N/A":
 				var p = GameState.all_staff.get(car.pit_crew_id)
 				current = "  (has: %s)" % p.full_name() if p else ""
-			btn.text = "Car %d%s" % [car.car_number, current]
+			btn.text = "%s%s" % [_car_display_name(car), current]
 			btn.custom_minimum_size = Vector2(340, 36)
 			var _car_id = car.id
 			btn.pressed.connect(func():
@@ -768,3 +768,8 @@ func _input(event: InputEvent) -> void:
 		var screenshot = get_viewport().get_texture().get_image()
 		var timestamp = Time.get_datetime_string_from_system().replace(":", "-")
 		screenshot.save_png("user://screenshot_%s.png" % timestamp)
+
+func _car_display_name(car) -> String:
+	if car.car_name != null and car.car_name != "":
+		return car.car_name
+	return "Car %d" % car.car_number

@@ -284,7 +284,7 @@ func _update_display() -> void:
 	title_label.text = "🏁 AUTOMOTIVE EMPIRE"
 	week_label.text = "Season %d   —   Week %d / 52" % [GameState.current_season, GameState.current_week]
 	week_label.add_theme_color_override("font_color", Color.WHITE)
-	balance_label.text = "💰 Balance: $%.0f" % GameState.player_team.balance
+	balance_label.text = "💰 Balance: CR %.0f" % GameState.player_team.balance
 	if GameState.player_team.balance >= 0:
 		balance_label.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
 	else:
@@ -312,7 +312,7 @@ func _update_display() -> void:
 			advance_to_race_button.disabled = true
 	next_race_label.add_theme_color_override("font_color", Color.WHITE)
 	# Resources
-	cr_label.text = "💰 CR  $%s" % _format_number(GameState.player_team.balance)
+	cr_label.text = "💰 CR  %s" % _format_number(GameState.player_team.balance)
 	if GameState.player_team.balance >= 0:
 		cr_label.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
 	else:

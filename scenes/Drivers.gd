@@ -160,7 +160,7 @@ func _make_my_driver_row(driver) -> PanelContainer:
 
 	# Car assignment
 	var car = GameState.get_car_for_driver(driver.id)
-	var car_text = "Car %d" % car.car_number if car else "⚠ No Car"
+	var car_text = (car.car_name if car.car_name != "" else "Car %d" % car.car_number) if car else "⚠ No Car"
 	_add_col(row1, car_text, 70,
 		Color(0.4, 0.9, 0.4) if car else Color(1.0, 0.6, 0.2))
 
@@ -400,7 +400,7 @@ func _show_driver_card(driver_id: String) -> void:
 	_card_row(vbox, "Contract",
 		"%d seasons remaining  |  Car: %s" % [
 			driver.contract_seasons_remaining,
-			"Car %d" % car.car_number if car else "Unassigned"])
+			(car.car_name if car.car_name != "" else "Car %d" % car.car_number) if car else "Unassigned"])
 
 	vbox.add_child(HSeparator.new())
 
@@ -553,7 +553,8 @@ func _show_assign_car_popup(driver_id: String) -> void:
 		var current_driver = GameState.all_drivers.get(car.driver_id)
 		var car_btn = Button.new()
 		var current_name = current_driver.full_name() if current_driver else "Empty"
-		car_btn.text = "Car %d  —  %s" % [car.car_number, current_name]
+		var car_display = car.car_name if car.car_name != "" else "Car %d" % car.car_number
+		car_btn.text = "%s  —  %s" % [car_display, current_name]
 		car_btn.custom_minimum_size = Vector2(320, 38)
 		if car.driver_id == driver_id:
 			car_btn.text += "  ✅ (current)"

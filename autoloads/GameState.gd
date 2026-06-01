@@ -34,6 +34,9 @@ var campus_buildings: Dictionary = {}
 var active_sponsor: Dictionary = {}
 var sponsor_no_points_streak: int = 0
 
+# UI navigation helpers — set before changing scene, read + cleared on arrival
+var pending_staff_filter: String = ""  # e.g. "Team Principal", "CFO" — StaffHub reads this on _ready
+
 # Resources
 var research_points: float = 0.0
 var spare_parts: int = 300        # units — used for repairs only, not auto-deducted per race
@@ -56,6 +59,66 @@ const PART_COSTS = {
 }
 
 const PARTS_LIST = ["Aero", "Engine", "Gearbox", "Suspension", "Brakes", "Chassis"]
+
+## CNC data per championship — Excel CNC sheet.
+## design_weeks  : weeks to design new season car. Entry deadline = 52 - design_weeks.
+## engine_weeks  : longest part build time (Engine). Car delivery = max(engine_weeks, race1-1).
+## base_total_cost: full car unit cost at Season 1 (scales +5%/season from providers).
+## sale_multiplier: recommended markup when player sells own-built cars.
+const CNC_DATA = {
+	"C-001": {"design_weeks":  2, "engine_weeks": 1, "base_total_cost":    6500, "sale_multiplier": 1.5},
+	"C-002": {"design_weeks":  2, "engine_weeks": 1, "base_total_cost":   12500, "sale_multiplier": 1.6},
+	"C-003": {"design_weeks":  2, "engine_weeks": 1, "base_total_cost":   16000, "sale_multiplier": 1.7},
+	"C-004": {"design_weeks":  3, "engine_weeks": 1, "base_total_cost":   24000, "sale_multiplier": 1.8},
+	"C-005": {"design_weeks":  8, "engine_weeks": 2, "base_total_cost":   85000, "sale_multiplier": 1.6},
+	"C-006": {"design_weeks":  8, "engine_weeks": 2, "base_total_cost":  125000, "sale_multiplier": 1.7},
+	"C-007": {"design_weeks": 12, "engine_weeks": 3, "base_total_cost":  340000, "sale_multiplier": 1.8},
+	"C-008": {"design_weeks": 24, "engine_weeks": 3, "base_total_cost": 1400000, "sale_multiplier": 2.0},
+	"C-009": {"design_weeks": 14, "engine_weeks": 3, "base_total_cost":  260000, "sale_multiplier": 1.8},
+	"C-010": {"design_weeks": 20, "engine_weeks": 4, "base_total_cost":  800000, "sale_multiplier": 1.9},
+	"C-011": {"design_weeks": 10, "engine_weeks": 2, "base_total_cost":  145000, "sale_multiplier": 1.6},
+	"C-012": {"design_weeks": 12, "engine_weeks": 3, "base_total_cost":  285000, "sale_multiplier": 1.7},
+	"C-013": {"design_weeks": 16, "engine_weeks": 4, "base_total_cost":  750000, "sale_multiplier": 1.8},
+	"C-014": {"design_weeks":  8, "engine_weeks": 2, "base_total_cost":  140000, "sale_multiplier": 1.5},
+	"C-015": {"design_weeks": 12, "engine_weeks": 3, "base_total_cost":  185000, "sale_multiplier": 1.6},
+	"C-016": {"design_weeks": 14, "engine_weeks": 3, "base_total_cost":  245000, "sale_multiplier": 1.7},
+	"C-017": {"design_weeks": 12, "engine_weeks": 3, "base_total_cost":  550000, "sale_multiplier": 1.7},
+	"C-018": {"design_weeks": 12, "engine_weeks": 3, "base_total_cost":  315000, "sale_multiplier": 1.7},
+	"C-019": {"design_weeks": 16, "engine_weeks": 4, "base_total_cost":  690000, "sale_multiplier": 1.9},
+	"C-020": {"design_weeks": 32, "engine_weeks": 8, "base_total_cost": 6000000, "sale_multiplier": 2.1},
+	"C-021": {"design_weeks":  8, "engine_weeks": 2, "base_total_cost":  110000, "sale_multiplier": 1.6},
+	"C-022": {"design_weeks": 10, "engine_weeks": 2, "base_total_cost":  165000, "sale_multiplier": 1.7},
+	"C-023": {"design_weeks": 16, "engine_weeks": 4, "base_total_cost":  650000, "sale_multiplier": 1.8},
+	"C-024": {"design_weeks": 40, "engine_weeks": 9, "base_total_cost":20000000, "sale_multiplier": 2.2},
+}
+
+## First race week per championship — from Excel Race Calendar sheet.
+const FIRST_RACE_WEEK = {
+	"C-001": 6,  "C-002": 6,  "C-003": 6,  "C-004": 6,
+	"C-005": 5,  "C-006": 5,  "C-007": 4,  "C-008": 5,
+	"C-009": 6,  "C-010": 6,
+	"C-011": 6,  "C-012": 6,  "C-013": 6,
+	"C-014": 7,  "C-015": 7,  "C-016": 6,  "C-017": 6,
+	"C-018": 6,  "C-019": 6,  "C-020": 6,
+	"C-021": 6,  "C-022": 6,  "C-023": 6,  "C-024": 10,
+}
+
+## Car delivery week = max(engine_weeks, race1_week - 1).
+func get_car_delivery_week(champ_id: String) -> int:
+	var cnc    = CNC_DATA.get(champ_id, {})
+	var eng_wk = cnc.get("engine_weeks", 1)
+	var race1  = FIRST_RACE_WEEK.get(champ_id, 6)
+	return max(eng_wk, race1 - 1)
+
+## Entry deadline week in the prior season = 52 - design_weeks.
+func get_entry_deadline_week(champ_id: String) -> int:
+	return 52 - CNC_DATA.get(champ_id, {}).get("design_weeks", 2)
+
+## Provider car cost scaled by season: base × 1.05^(season-1), rounded to CR 500.
+func get_provider_car_cost(champ_id: String) -> int:
+	var base   = CNC_DATA.get(champ_id, {}).get("base_total_cost", 10000)
+	var scaled = base * pow(1.05, current_season - 1)
+	return int(round(scaled / 500.0) * 500)
 const CFO_PART_WARNING_THRESHOLD = 2  # CFO warns when any part stock ≤ this
 
 # Notifications
@@ -93,7 +156,7 @@ func _setup_campus() -> void:
 	campus_buildings = {
 		# ── COMMAND ZONE ─────────────────────────────────────────────────────
 		# HQ: pre-built, Level 1. Upgrade cost reflects expanding admin infrastructure.
-		# Real small motorsport HQ renovation: $40K-$150K per phase.
+		# Real small motorsport HQ renovation: CR 40K-CR 150K per phase.
 		"Headquarters": {
 			"name": "Headquarters",
 			"built": true,
@@ -109,7 +172,7 @@ func _setup_campus() -> void:
 			"effects": "+1% Marketability per level\n+1 Sponsor Slot every 2 levels"
 		},
 		# Logistics Center: pre-built. Upgrade = better warehouse/inventory systems.
-		# Real small logistics depot fit-out: $15K-$60K.
+		# Real small logistics depot fit-out: CR 15K-CR 60K.
 		"Logistics Center": {
 			"name": "Logistics Center",
 			"built": true,
@@ -125,7 +188,7 @@ func _setup_campus() -> void:
 			"effects": "+1% reduced price of spare parts per level"
 		},
 		# Garage: pre-built, earns repair income. Upgrade = more bays, better tools.
-		# Real motorsport garage bay fit-out: $20K-$80K per expansion.
+		# Real motorsport garage bay fit-out: CR 20K-CR 80K per expansion.
 		"Garage": {
 			"name": "Garage",
 			"built": true,
@@ -138,10 +201,10 @@ func _setup_campus() -> void:
 			"build_time": 0,
 			"upgrade_cost": 15000,
 			"upgrade_time": 4,
-			"effects": "+$1800 weekly repair profit\n+$450 per level"
+			"effects": "+CR 1800 weekly repair profit\n+CR 450 per level"
 		},
 		# Racing Dept: pre-built. Upgrade = strategy tools, data systems, staff desks.
-		# Real motorsport operations room setup: $15K-$50K.
+		# Real motorsport operations room setup: CR 15K-CR 50K.
 		"Racing Department": {
 			"name": "Racing Department",
 			"built": true,
@@ -158,7 +221,7 @@ func _setup_campus() -> void:
 		},
 		# ── ENGINEERING ZONE ─────────────────────────────────────────────────
 		# R&D Studio: first major investment. Custom CAD/simulation room build-out.
-		# Real small engineering design studio: $80K-$200K. Mid-game goal.
+		# Real small engineering design studio: CR 80K-CR 200K. Mid-game goal.
 		"R&D Design Studio": {
 			"name": "R&D Design Studio",
 			"built": false,
@@ -173,7 +236,7 @@ func _setup_campus() -> void:
 			"upgrade_time": 8,
 			"effects": "Unlocks R&D (800 RP storage)\n+400 RP & +1% R&D speed per level"
 		},
-		# CNC Plant: serious manufacturing investment. Real small CNC shop: $150K-$400K.
+		# CNC Plant: serious manufacturing investment. Real small CNC shop: CR 150K-CR 400K.
 		# Late mid-game. Requires significant financial commitment.
 		"CNC Parts Plant": {
 			"name": "CNC Parts Plant",
@@ -190,7 +253,7 @@ func _setup_campus() -> void:
 			"effects": "Unlocks CNC production\n+4% speed & -1% material cost per level"
 		},
 		# ── SIMULATION ZONE ──────────────────────────────────────────────────
-		# Ops Sim: simulator rigs + telemetry servers. Real setup: $60K-$180K.
+		# Ops Sim: simulator rigs + telemetry servers. Real setup: CR 60K-CR 180K.
 		# Early mid-game, reachable after a good first season.
 		"Ops Sim & Telemetry": {
 			"name": "Ops Sim & Telemetry",
@@ -206,8 +269,8 @@ func _setup_campus() -> void:
 			"upgrade_time": 7,
 			"effects": "+25% baseline Track Knowledge\n+1% Track Knowledge gain per level"
 		},
-		# Wind Tunnel: endgame prestige facility. Real F1-grade: $20M-$80M.
-		# Scaled down but still a major late-game milestone. $800K feels right
+		# Wind Tunnel: endgame prestige facility. Real F1-grade: CR 20M-CR 80M.
+		# Scaled down but still a major late-game milestone. CR 800K feels right
 		# for a small-scale tunnel — think GP2/GP3 team level.
 		"Aerodynamic Wind Tunnel": {
 			"name": "Aerodynamic Wind Tunnel",
@@ -225,7 +288,7 @@ func _setup_campus() -> void:
 		},
 		# ── COMMERCIAL ZONE ──────────────────────────────────────────────────
 		# Vehicle Assembly Factory: major commercial venture. Real small auto factory:
-		# $2M-$10M. This is a true endgame building — long save goal.
+		# CR 2M-CR 10M. This is a true endgame building — long save goal.
 		"Vehicle Assembly Factory": {
 			"name": "Vehicle Assembly Factory",
 			"built": false,
@@ -240,7 +303,7 @@ func _setup_campus() -> void:
 			"upgrade_time": 26,
 			"effects": "Unlocks commercial car production\n+250 units/wk & +3% margin per level"
 		},
-		# Museum: motorsport heritage display. Real small museum fit-out: $80K-$250K.
+		# Museum: motorsport heritage display. Real small museum fit-out: CR 80K-CR 250K.
 		# Good early income investment once you have some history.
 		"Museum": {
 			"name": "Museum",
@@ -254,10 +317,10 @@ func _setup_campus() -> void:
 			"build_time": 16,
 			"upgrade_cost": 35000,
 			"upgrade_time": 6,
-			"effects": "+$2400 weekly passive income\n+$380 per level"
+			"effects": "+CR 2400 weekly passive income\n+CR 380 per level"
 		},
 		# Theme Park: major entertainment complex. Real small motorsport theme park:
-		# $2M-$15M. Scaled to be a late-game passive income machine.
+		# CR 2M-CR 15M. Scaled to be a late-game passive income machine.
 		"Theme Park": {
 			"name": "Theme Park",
 			"built": false,
@@ -270,9 +333,9 @@ func _setup_campus() -> void:
 			"build_time": 104,
 			"upgrade_cost": 200000,
 			"upgrade_time": 26,
-			"effects": "+$12000 weekly passive income\n+$1500 per level"
+			"effects": "+CR 12000 weekly passive income\n+CR 1500 per level"
 		},
-		# Public Racing Club: track day/member club. Real club setup: $40K-$120K.
+		# Public Racing Club: track day/member club. Real club setup: CR 40K-CR 120K.
 		# Accessible mid-game income stream.
 		"Public Racing Club": {
 			"name": "Public Racing Club",
@@ -286,9 +349,9 @@ func _setup_campus() -> void:
 			"build_time": 12,
 			"upgrade_cost": 18000,
 			"upgrade_time": 6,
-			"effects": "+$2200 weekly passive income\n+$350 per level"
+			"effects": "+CR 2200 weekly passive income\n+CR 350 per level"
 		},
-		# Merchandise Store: team shop. Real small branded retail fit-out: $20K-$60K.
+		# Merchandise Store: team shop. Real small branded retail fit-out: CR 20K-CR 60K.
 		# Cheapest income building — first thing a player should consider building.
 		"Merchandise Store": {
 			"name": "Merchandise Store",
@@ -302,10 +365,10 @@ func _setup_campus() -> void:
 			"build_time": 6,
 			"upgrade_cost": 10000,
 			"upgrade_time": 3,
-			"effects": "+$1800 weekly passive income\n+$280 per level"
+			"effects": "+CR 1800 weekly passive income\n+CR 280 per level"
 		},
 		# ── HUMAN PERFORMANCE ZONE ───────────────────────────────────────────
-		# Fitness Clinic: driver/crew gym and physio suite. Real sports clinic: $80K-$200K.
+		# Fitness Clinic: driver/crew gym and physio suite. Real sports clinic: CR 80K-CR 200K.
 		"Fitness Clinic": {
 			"name": "Fitness Clinic",
 			"built": false,
@@ -320,7 +383,7 @@ func _setup_campus() -> void:
 			"upgrade_time": 6,
 			"effects": "-10% Driver & Crew fatigue\n-0.5% per level"
 		},
-		# Pit Crew Arena: dedicated pit stop practice rig. Real setup: $30K-$150K.
+		# Pit Crew Arena: dedicated pit stop practice rig. Real setup: CR 30K-CR 150K.
 		# Tangible race performance investment — mid-game priority.
 		"Pit Crew Arena": {
 			"name": "Pit Crew Arena",
@@ -337,7 +400,7 @@ func _setup_campus() -> void:
 			"effects": "-0.1s pit stop time\n-1% pit stop time per level"
 		},
 		# Academy: driver development program facility. Real junior academy setup:
-		# $100K-$300K including simulators, coaching infrastructure.
+		# CR 100K-CR 300K including simulators, coaching infrastructure.
 		"Academy": {
 			"name": "Academy",
 			"built": false,
@@ -353,7 +416,7 @@ func _setup_campus() -> void:
 			"effects": "Unlocks 5 cadet slots\n+1 cadet slot & +3% rookie quality per level"
 		},
 		# ── TEST TRACKS ZONE ─────────────────────────────────────────────────
-		# Karting Track: real outdoor kart circuit construction: $150K-$600K.
+		# Karting Track: real outdoor kart circuit construction: CR 150K-CR 600K.
 		# Includes safety barriers, pit lane, timing, surface. Early-mid game.
 		"Karting Track": {
 			"name": "Karting Track",
@@ -367,10 +430,10 @@ func _setup_campus() -> void:
 			"build_time": 20,
 			"upgrade_cost": 55000,
 			"upgrade_time": 8,
-			"effects": "+5% Go-Kart performance\n+$2500 weekly income"
+			"effects": "+5% Go-Kart performance\n+CR 2500 weekly income"
 		},
 		# Gravel Track: rally stage with gravel surface, spectator areas, safety zones.
-		# Real rally stage construction: $200K-$800K.
+		# Real rally stage construction: CR 200K-CR 800K.
 		"Gravel Track": {
 			"name": "Gravel Track",
 			"built": false,
@@ -383,9 +446,9 @@ func _setup_campus() -> void:
 			"build_time": 22,
 			"upgrade_cost": 65000,
 			"upgrade_time": 10,
-			"effects": "+5% Rally performance\n+$2200 weekly income"
+			"effects": "+5% Rally performance\n+CR 2200 weekly income"
 		},
-		# Oval Track: banked oval with concrete surface. Real small oval: $400K-$1.5M.
+		# Oval Track: banked oval with concrete surface. Real small oval: CR 400K-CR 1.5M.
 		"Oval Track": {
 			"name": "Oval Track",
 			"built": false,
@@ -398,10 +461,10 @@ func _setup_campus() -> void:
 			"build_time": 30,
 			"upgrade_cost": 95000,
 			"upgrade_time": 12,
-			"effects": "+5% Oval performance\n+$3000 weekly income"
+			"effects": "+5% Oval performance\n+CR 3000 weekly income"
 		},
 		# Race Track: full tarmac road course with pit lane, marshal posts, timing.
-		# Real small circuit (2-3km): $1.5M-$8M. Major endgame investment.
+		# Real small circuit (2-3km): CR 1.5M-CR 8M. Major endgame investment.
 		"Race Track": {
 			"name": "Race Track",
 			"built": false,
@@ -414,7 +477,7 @@ func _setup_campus() -> void:
 			"build_time": 78,
 			"upgrade_cost": 320000,
 			"upgrade_time": 20,
-			"effects": "+3% Road course performance\n+$8500 weekly income"
+			"effects": "+3% Road course performance\n+CR 8500 weekly income"
 		},
 	}
 
@@ -446,7 +509,7 @@ func _setup_sponsor() -> void:
 		"performance_bonus": 500,
 		"seasons_remaining": 1,
 	}
-	add_log("📋 Sponsor signed: %s — $1,000/week" % picked["name"])
+	add_log("📋 Sponsor signed: %s — CR 1,000/week" % picked["name"])
 
 func add_notification(priority: String, message: String) -> void:
 	# priority: "Critical", "High", "Normal"
@@ -476,7 +539,7 @@ func _apply_sponsor_income() -> void:
 		return
 	var payment = active_sponsor["current_weekly"]
 	player_team.balance += payment
-	add_log("💼 %s: +$%d" % [active_sponsor["name"], payment])
+	add_log("💼 %s: +CR %d" % [active_sponsor["name"], payment])
 
 func _update_sponsor_performance(race_results: Array) -> void:
 	if active_sponsor.is_empty():
@@ -497,7 +560,7 @@ func _update_sponsor_performance(race_results: Array) -> void:
 	if player_top5:
 		active_sponsor["current_weekly"] = active_sponsor["base_weekly"] + active_sponsor["performance_bonus"]
 		sponsor_no_points_streak = 0
-		add_log("🌟 %s bonus: +$%d this week!" % [active_sponsor["name"], active_sponsor["current_weekly"]])
+		add_log("🌟 %s bonus: +CR %d this week!" % [active_sponsor["name"], active_sponsor["current_weekly"]])
 	elif player_scored:
 		active_sponsor["current_weekly"] = active_sponsor["base_weekly"]
 		sponsor_no_points_streak = 0
@@ -505,7 +568,7 @@ func _update_sponsor_performance(race_results: Array) -> void:
 		sponsor_no_points_streak += 1
 		if sponsor_no_points_streak >= 3:
 			active_sponsor["current_weekly"] = 500
-			add_log("⚠ %s unhappy — reduced to $500/week (no points in 3 races)" % active_sponsor["name"])
+			add_log("⚠ %s unhappy — reduced to CR 500/week (no points in 3 races)" % active_sponsor["name"])
 
 func _apply_weekly_expenses() -> void:
 	var player_expenses = 0.0
@@ -521,7 +584,7 @@ func _apply_weekly_expenses() -> void:
 			player_expenses += staff.weekly_salary
 
 	player_team.balance -= player_expenses
-	add_log("Weekly expenses paid: -$%d (drivers: $%d + staff: $%d)" % [
+	add_log("Weekly expenses paid: -CR %d (drivers: CR %d + staff: CR %d)" % [
 		int(player_expenses),
 		int(player_team.drivers.size() * driver_salary),
 		int(player_expenses - player_team.drivers.size() * driver_salary)
@@ -537,7 +600,7 @@ func _apply_weekly_expenses() -> void:
 
 func _get_championship_driver_salary() -> float:
 	## Returns base driver salary for the active championship.
-	## GK Regional: $50/week. Will expand when multiple championships are added.
+	## GK Regional: CR 50/week. Will expand when multiple championships are added.
 	match active_championship.id:
 		"C-001": return 50.0
 		"C-002": return 180.0
@@ -581,19 +644,19 @@ func _check_resource_notifications() -> void:
 	# Bankruptcy warning
 	var weekly_expenses = 1250
 	if player_team.balance < 0:
-		add_notification("Critical", "BANKRUPTCY RISK: Balance is negative ($%.0f)!" % player_team.balance)
+		add_notification("Critical", "BANKRUPTCY RISK: Balance is negative (CR %.0f)!" % player_team.balance)
 	elif player_team.balance < weekly_expenses * 2:
 		add_notification("High", "Low funds warning: Less than 2 weeks of expenses remaining.")
 
 func buy_spare_parts(units: int) -> bool:
-	var cost_per_unit = 1  # $1 per unit for GK Regional (120 units = $120/race)
+	var cost_per_unit = 1  # CR 1 per unit for GK Regional (120 units = CR 120/race)
 	var total_cost = units * cost_per_unit
 	if player_team.balance < total_cost:
 		add_notification("High", "Not enough credits to buy spare parts.")
 		return false
 	player_team.balance -= total_cost
 	spare_parts += units
-	add_log("🛒 Bought %d spare parts for $%d (stock: %d)" % [units, total_cost, spare_parts])
+	add_log("🛒 Bought %d spare parts for CR %d (stock: %d)" % [units, total_cost, spare_parts])
 	return true
 
 func buy_fuel(kg: float) -> bool:
@@ -604,8 +667,20 @@ func buy_fuel(kg: float) -> bool:
 		return false
 	player_team.balance -= total_cost
 	fuel_kg += kg
-	add_log("🛒 Bought %.1f kg fuel for $%.0f (stock: %.1f kg)" % [kg, total_cost, fuel_kg])
+	add_log("🛒 Bought %.1f kg fuel for CR %.0f (stock: %.1f kg)" % [kg, total_cost, fuel_kg])
 	return true
+
+## ═══════════════════════════════════════════════════════════════════════════
+## SLOT CAP HELPERS
+## ═══════════════════════════════════════════════════════════════════════════
+
+## Max drivers the player can sign — 1 per Racing Department level.
+func get_max_drivers() -> int:
+	return campus_buildings.get("Racing Department", {}).get("level", 1)
+
+## Max cars the player can field — 1 per Garage level.
+func get_max_cars() -> int:
+	return campus_buildings.get("Garage", {}).get("level", 1)
 
 ## ═══════════════════════════════════════════════════════════════════════════
 ## CAR SYSTEM
@@ -619,8 +694,8 @@ const CAR_TELEMETRY = {
 }
 
 func _setup_cars() -> void:
-	## Cars are created dynamically when drivers are hired (via _add_car_for_driver).
-	## At game start, player has no driver so no cars are created here.
+	## Cars are created independently via add_car() — not tied to driver hire.
+	## At game start, player has no cars. They must build cars via the Garage.
 	player_team_cars = []
 
 func get_car_for_driver(driver_id: String) -> Car:
@@ -664,14 +739,14 @@ func buy_part(part_name: String, quantity: int) -> bool:
 		return false
 	var total_cost = costs[part_name] * quantity
 	if player_team.balance < total_cost:
-		add_notification("High", "Not enough credits to buy %d× %s (need $%d, have $%d)." % [
+		add_notification("High", "Not enough credits to buy %d× %s (need CR %d, have CR %d)." % [
 			quantity, part_name, total_cost, int(player_team.balance)])
 		return false
 	player_team.balance -= total_cost
 	if not champ_id in part_inventory:
 		part_inventory[champ_id] = {}
 	part_inventory[champ_id][part_name] = part_inventory[champ_id].get(part_name, 0) + quantity
-	add_log("🔩 Bought %d× %s parts for $%d (stock: %d)" % [
+	add_log("🔩 Bought %d× %s parts for CR %d (stock: %d)" % [
 		quantity, part_name, total_cost, part_inventory[champ_id][part_name]])
 	return true
 
@@ -855,7 +930,7 @@ func hire_staff(staff_id: String) -> bool:
 			return false
 	staff.contract_team = player_team.id
 	staff.contract_seasons_remaining = 5
-	add_log("✅ Hired %s (%s) — $%.0f/week" % [staff.full_name(), staff.role, staff.weekly_salary])
+	add_log("✅ Hired %s (%s) — CR %.0f/week" % [staff.full_name(), staff.role, staff.weekly_salary])
 	add_notification("Normal", "%s (%s) joined your team." % [staff.full_name(), staff.role])
 	emit_signal("log_updated")
 	return true
@@ -900,7 +975,8 @@ func get_player_drivers() -> Array:
 			result.append(all_drivers[driver_id])
 	return result
 
-## Hire a driver — adds to player roster. Does NOT assign to a car.
+## Hire a driver — adds to player roster only. Does NOT create a car.
+## Cars are managed independently via add_car() in the Garage.
 func hire_driver(driver_id: String) -> bool:
 	if not driver_id in all_drivers:
 		return false
@@ -908,19 +984,24 @@ func hire_driver(driver_id: String) -> bool:
 	if driver.contract_team != "":
 		add_notification("High", "%s is already contracted to another team." % driver.full_name())
 		return false
+	# Enforce Racing Department slot cap
+	var max_d = get_max_drivers()
+	if player_team.drivers.size() >= max_d:
+		add_notification("High",
+			"Racing Department full (%d/%d slots). Upgrade it to sign more drivers." % [
+			player_team.drivers.size(), max_d])
+		return false
 	driver.contract_team = player_team.id
 	driver.contract_seasons_remaining = 5
 	player_team.drivers.append(driver_id)
 	active_championship.standings[driver_id] = 0
-	# Create a car slot for this driver (unassigned — player assigns separately)
-	_add_car_for_driver(driver_id)
-	add_log("✅ Signed %s — contract: 5 seasons. Assign them to Car %d in the Drivers screen." % [
-		driver.full_name(), player_team_cars.size()])
-	add_notification("Normal", "%s signed. Assign a Race Mechanic before racing." % driver.full_name())
+	add_log("✅ Signed %s — contract: 5 seasons. Assign them to a car in the Drivers screen." % driver.full_name())
+	add_notification("Normal", "%s signed. Build a car in the Garage, then assign them." % driver.full_name())
 	emit_signal("log_updated")
 	return true
 
 ## Release a driver from the player team.
+## Clears their assignment from any car but does NOT delete the car.
 func release_driver(driver_id: String) -> void:
 	if not driver_id in all_drivers:
 		return
@@ -928,8 +1009,12 @@ func release_driver(driver_id: String) -> void:
 	driver.contract_team = ""
 	driver.contract_seasons_remaining = 0
 	player_team.drivers.erase(driver_id)
-	# Remove their car
-	_remove_car_for_driver(driver_id)
+	# Unassign from any car they were in
+	for car in player_team_cars:
+		if car.driver_id == driver_id:
+			car.driver_id = ""
+			add_log("🏎 Car %d now has no driver." % car.car_number)
+			break
 	add_log("👋 Released driver: %s" % driver.full_name())
 	emit_signal("log_updated")
 
@@ -963,20 +1048,43 @@ func assign_driver_to_car(driver_id: String, car_id: String) -> void:
 		add_log("🏎 %s assigned to Car %d" % [driver.full_name() if driver else driver_id, car.car_number])
 		emit_signal("log_updated")
 
-## Adds a new Car object when a driver is hired.
-func _add_car_for_driver(driver_id: String) -> void:
-	## Creates a new empty car slot when a driver is hired.
-	## The car starts with NO driver assigned — player assigns via Drivers screen.
+## Creates a new empty car slot. Capped by Garage level.
+## Called from the Garage scene — independent of driver hire.
+## Generates a car display name: e.g. GKR-S1-A, GKN-S3-B
+## Must be called BEFORE appending the new car to player_team_cars.
+func generate_car_name() -> String:
+	const CHAMP_CODES = {
+		"C-001": "GKR", "C-002": "GKN", "C-003": "GKC", "C-004": "GKW",
+		"C-005": "RL4", "C-006": "RL3", "C-007": "RL2", "C-008": "RLP",
+		"C-009": "TCS", "C-010": "TCE",
+		"C-011": "OWN", "C-012": "OWD", "C-013": "OWP",
+		"C-014": "SCD", "C-015": "SCT", "C-016": "SCC", "C-017": "SCU",
+		"C-018": "EPS", "C-019": "EPL", "C-020": "EPH",
+		"C-021": "GP4", "C-022": "GP3", "C-023": "GP2", "C-024": "GP1",
+	}
+	var code   = CHAMP_CODES.get(active_championship.id, "CAR")
+	var season = "S%d" % current_season
+	var letter = char(65 + player_team_cars.size())  # A, B, C... — call BEFORE append
+	return "%s-%s-%s" % [code, season, letter]
+
+func add_car() -> bool:
+	var max_c = get_max_cars()
+	if player_team_cars.size() >= max_c:
+		add_notification("High",
+			"Garage full (%d/%d slots). Upgrade the Garage to field more cars." % [
+			player_team_cars.size(), max_c])
+		return false
 	var car_number = player_team_cars.size() + 1
-	var car = Car.new()
-	car.id = "CAR-P%03d" % car_number
-	car.car_type_id = "A_01"
+	var car        = Car.new()
+	car.id         = "CAR-P%03d" % car_number
+	car.car_type_id    = "A_01"
 	car.championship_id = active_championship.id
 	car.car_number = car_number
-	car.driver_id = ""        # empty — player assigns manually
+	car.car_name   = generate_car_name()  # generated BEFORE append — size() gives correct letter
+	car.driver_id  = ""
 	car.mechanic_id = ""
 	car.pit_crew_id = "N/A" if active_championship.discipline == "GK" else ""
-	car.condition = 100.0
+	car.condition   = 100.0
 	car.part_conditions = {"Aero": 100.0, "Engine": 100.0, "Gearbox": 100.0,
 		"Suspension": 100.0, "Brakes": 100.0, "Chassis": 100.0}
 	var telemetry = CAR_TELEMETRY.get("A_01", {})
@@ -989,25 +1097,50 @@ func _add_car_for_driver(driver_id: String) -> void:
 		car.tire_wear_rate = telemetry["tire_wear"]
 		car.baseline_performance_index = telemetry["perf_index"]
 	player_team_cars.append(car)
-	add_log("🏎 Car %d slot created — assign %s via the Drivers screen." % [
-		car_number, all_drivers[driver_id].full_name() if driver_id in all_drivers else "driver"])
+	add_log("🏎 %s added to garage — assign a driver and mechanic before racing." % car.car_name)
+	add_notification("Normal", "%s ready. Assign a driver via the Garage or Drivers screen." % car.car_name)
+	emit_signal("log_updated")
+	return true
 
-func _remove_car_for_driver(driver_id: String) -> void:
-	## Remove the car associated with this driver.
-	## First look for a car with this driver assigned.
-	## If none found (driver was never assigned to a car), remove the last car slot.
-	var found = false
-	for i in range(player_team_cars.size() - 1, -1, -1):
-		if player_team_cars[i].driver_id == driver_id:
-			player_team_cars.remove_at(i)
-			found = true
-			break
-	if not found and player_team_cars.size() > 0:
-		# Remove last car slot — was the empty slot created for this driver
-		player_team_cars.remove_at(player_team_cars.size() - 1)
-	# Re-number remaining cars
+## Removes a car by car_id. Clears any driver/mechanic assignments first.
+## Does NOT release the driver — they remain on the roster.
+func remove_car(car_id: String) -> bool:
 	for i in range(player_team_cars.size()):
-		player_team_cars[i].car_number = i + 1
+		var car = player_team_cars[i]
+		if car.id == car_id:
+			if car.driver_id != "":
+				add_log("🏎 Car %d removed — %s is now without a car." % [
+					car.car_number, all_drivers[car.driver_id].full_name() if car.driver_id in all_drivers else car.driver_id])
+			# Clear mechanic assignment
+			if car.mechanic_id != "" and car.mechanic_id in all_staff:
+				all_staff[car.mechanic_id].assigned_car_id = ""
+			player_team_cars.remove_at(i)
+			# Re-number remaining cars
+			for j in range(player_team_cars.size()):
+				player_team_cars[j].car_number = j + 1
+			add_log("🗑 Car removed. %d car(s) remaining." % player_team_cars.size())
+			emit_signal("log_updated")
+			return true
+	return false
+
+## Renames a car. Validates the name is non-empty and max 12 chars.
+## Returns true on success, false if validation fails.
+func rename_car(car_id: String, new_name: String) -> bool:
+	var name = new_name.strip_edges()
+	if name == "":
+		add_notification("Normal", "Car name cannot be empty.")
+		return false
+	if name.length() > 12:
+		add_notification("Normal", "Car name must be 12 characters or fewer.")
+		return false
+	var car = get_car_by_id(car_id)
+	if not car:
+		return false
+	var old_name = car.car_name
+	car.car_name = name
+	add_log("✏ Car renamed: %s → %s" % [old_name, name])
+	emit_signal("log_updated")
+	return true
 
 func assign_staff_to_car(staff_id: String, car_id: String) -> void:
 	if not staff_id in all_staff:
@@ -1177,7 +1310,7 @@ func get_pending_tasks() -> Array[String]:
 
 	# Negative balance
 	if player_team.balance < 0:
-		tasks.append("💸 Balance is negative ($%.0f). Bankruptcy risk." % player_team.balance)
+		tasks.append("💸 Balance is negative (CR %.0f). Bankruptcy risk." % player_team.balance)
 
 	# Car condition critically low
 	for car in player_team_cars:
@@ -1340,6 +1473,46 @@ func start_building(building_id: String) -> void:
 	add_log("🏗 Construction started: %s (%d weeks)" % [building["name"], building["build_time"]])
 	emit_signal("log_updated")
 
+## Returns the scaled upgrade cost for the next level.
+## Formula: base_cost * 1.5^current_level, rounded to nearest CR 500.
+func get_upgrade_cost(building: Dictionary) -> int:
+	var base = building["upgrade_cost"]
+	var level = building["level"]
+	var scaled = base * pow(1.5, level)
+	return int(round(scaled / 500.0) * 500)
+
+## Returns the scaled upgrade time for the next level.
+## Adds 1 week every 3 levels on top of the base time.
+func get_upgrade_time(building: Dictionary) -> int:
+	return building["upgrade_time"] + int(building["level"] / 3)
+
+## Weekly income increment per level — from Excel Buildings sheet Effects_Per_Level column.
+const BUILDING_INCOME_PER_LEVEL = {
+	"Garage":              450,
+	"Museum":              380,
+	"Theme Park":          650,
+	"Public Racing Club":  280,
+	"Merchandise Store":   420,
+	"Karting Track":       160,
+	"Gravel Track":        140,
+	"Oval Track":          170,
+	"Race Track":          220,
+}
+
+## Returns current weekly income: income_level1 + income_per_level × (level - 1).
+func get_building_income(building: Dictionary) -> int:
+	var level     = building["level"]
+	var base      = building["weekly_income"]
+	var per_level = BUILDING_INCOME_PER_LEVEL.get(building["name"], 0)
+	return base + per_level * max(0, level - 1)
+
+## Returns current weekly maintenance: maintenance_level1 × 1.10^(level-1), rounded to CR 50.
+func get_building_maintenance(building: Dictionary) -> int:
+	var level  = building["level"]
+	var base   = building["weekly_maintenance"]
+	var scaled = base * pow(1.10, max(0, level - 1))
+	return int(round(scaled / 50.0) * 50)
+
 func start_upgrade(building_id: String) -> void:
 	if not building_id in campus_buildings:
 		return
@@ -1350,14 +1523,17 @@ func start_upgrade(building_id: String) -> void:
 		return
 	if building["level"] >= building["max_level"]:
 		return
-	if player_team.balance < building["upgrade_cost"]:
+	var cost = get_upgrade_cost(building)
+	var weeks = get_upgrade_time(building)
+	if player_team.balance < cost:
 		return
-	player_team.balance -= building["upgrade_cost"]
-	building["construction_weeks_remaining"] = building["upgrade_time"]
-	add_log("⬆ Upgrade started: %s to Level %d (%d weeks)" % [
+	player_team.balance -= cost
+	building["construction_weeks_remaining"] = weeks
+	add_log("⬆ Upgrade started: %s to Level %d (CR %d, %d weeks)" % [
 		building["name"],
 		building["level"] + 1,
-		building["upgrade_time"]
+		cost,
+		weeks,
 	])
 	emit_signal("log_updated")
 
@@ -1375,14 +1551,15 @@ func _apply_campus_income() -> void:
 	var total_maintenance = 0
 	for building_id in campus_buildings:
 		var building = campus_buildings[building_id]
-		if building["built"] and building["construction_weeks_remaining"] == 0:
-			total_income += building["weekly_income"]
-			total_maintenance += building["weekly_maintenance"]
+		# Income and maintenance continue during upgrades (level >= 1).
+		if building["built"] and building["level"] >= 1:
+			total_income      += get_building_income(building)
+			total_maintenance += get_building_maintenance(building)
 	if total_income > 0:
 		player_team.balance += total_income
 	player_team.balance -= total_maintenance
 	if total_income > 0 or total_maintenance > 0:
-		add_log("🏗 Campus: +$%d income / -$%d maintenance" % [total_income, total_maintenance])
+		add_log("🏗 Campus: +CR %d income / -CR %d maintenance" % [total_income, total_maintenance])
 
 func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: String, p_starting_budget: int = 50000) -> void:
 	current_week = 1
@@ -1608,6 +1785,65 @@ func _apply_weekly_fitness_recovery() -> void:
 
 func _simulate_race(race_data: Dictionary) -> void:
 	add_log("=== RACE %d: %s ===" % [active_championship.current_round + 1, race_data["name"]])
+
+	# ── Staff Synergy Factor (simulated races only) ───────────────────────────
+	# From formula doc section 4: lap_time /= Staff_Synergy_Factor
+	# TP attributes multiply the corresponding Mechanic and Strategist attributes.
+	# Effective_staff_attr = staff_attr × (1 + tp_matching_attr / 200)
+	#   → TP skill 100 boosts staff attribute by 50%; TP skill 0 = no boost (×1.0)
+	# Staff_Synergy_Factor = 1.0
+	#   + (mechanic_effective_setup   / 100) × 0.08   → up to +8% at mechanic 100 + TP 100
+	#   + (strategist_effective_pace  / 100) × 0.06   → up to +6% at strategist 100 + TP 100
+	#   + (mechanic_track_knowledge   / 100) × 0.03   → up to +3%
+	#   + (strategist_track_knowledge / 100) × 0.03   → up to +3%
+	# Total possible range: 1.0 (no staff) → ~1.30 (all skills maxed with TP 100)
+	# Applied only to player drivers — AI teams run at their own flat factor.
+	var tp = get_team_principal()
+
+	# Gather player's mechanic and strategist for the active championship
+	# Use first assigned mechanic for now (multi-car will average later)
+	var mechanic: Staff   = null
+	var strategist: Staff = null
+	for car in player_team_cars:
+		if car.mechanic_id != "" and car.mechanic_id in all_staff:
+			mechanic = all_staff[car.mechanic_id]
+			break
+	var strats = get_player_staff_by_role("Race Strategist")
+	if strats.size() > 0:
+		strategist = strats[0]
+
+	# TP multiplier on each staff attribute (0 TP = factor 1.0, no boost)
+	var tp_factor: float = 1.0
+	if tp != null:
+		# TP boosts each staff pool by its matching attribute / 200
+		# Using race_pace_reading as the general TP race-day multiplier
+		tp_factor = 1.0 + tp.race_pace_reading / 200.0
+
+	# Effective attributes
+	var mech_setup:   float = 0.0
+	var mech_track:   float = 0.0
+	var strat_pace:   float = 0.0
+	var strat_track:  float = 0.0
+	if mechanic != null:
+		mech_setup = mechanic.car_setup    * tp_factor
+		mech_track = mechanic.track_knowledge * tp_factor
+	if strategist != null:
+		strat_pace  = strategist.race_strategy  * tp_factor
+		strat_track = strategist.track_knowledge * tp_factor
+
+	# Final Staff_Synergy_Factor for player cars
+	var staff_synergy: float = 1.0 \
+		+ (mech_setup  / 100.0) * 0.08 \
+		+ (strat_pace  / 100.0) * 0.06 \
+		+ (mech_track  / 100.0) * 0.03 \
+		+ (strat_track / 100.0) * 0.03
+
+	if tp != null or mechanic != null or strategist != null:
+		add_log("👥 Staff synergy: %.3f (mech %.0f, strat %.0f, TP %s)" % [
+			staff_synergy,
+			mech_setup if mechanic else 0.0,
+			strat_pace if strategist else 0.0,
+			tp.full_name() if tp else "none"])
  
 	# ── DNS check: player cars need enough fuel to start ──────
 	var dns_driver_ids: Array = []
@@ -1629,18 +1865,24 @@ func _simulate_race(race_data: Dictionary) -> void:
 	var driver_times = []
 	for driver in race_drivers:
 		var base_time = 28.5
-		var effective_pace = driver.get_effective_pace()
-		var effective_wet = driver.get_effective_wet()
+		var effective_pace  = driver.get_effective_pace()
+		var effective_wet   = driver.get_effective_wet()
 		var effective_focus = driver.get_effective_focus()
- 
-		var pace_factor = 1.0 - (effective_pace / 1000.0)
-		var wet_factor = 1.0
+
+		var pace_factor    = 1.0 - (effective_pace / 1000.0)
+		var wet_factor     = 1.0
 		if is_wet:
 			wet_factor = 1.0 + ((100.0 - effective_wet) / 200.0)
-		var focus_factor = 1.0 - (effective_focus / 2000.0)
+		var focus_factor   = 1.0 - (effective_focus / 2000.0)
 		var fitness_factor = driver.fitness_penalty()
 		var lap_time = base_time * pace_factor * wet_factor * focus_factor * (2.0 - fitness_factor)
-		# Noise range based on consistency: high consistency = tight laps, low = erratic
+
+		# Apply Staff_Synergy_Factor for player drivers (simulated races only).
+		# Formula: lap_time /= staff_synergy → higher synergy = faster lap.
+		if driver.id in player_team.drivers:
+			lap_time /= staff_synergy
+
+		# Noise based on consistency — high consistency = tight laps
 		var noise = driver.get_lap_noise_range()
 		lap_time += randf_range(-noise, noise)
 		driver_times.append({
@@ -1855,6 +2097,17 @@ func start_new_season() -> void:
 
 	# Age all drivers and check eligibility
 	_process_off_season()
+
+	# ── Wipe all player cars — new season = new car required ─────────────────
+	# Drivers and staff contracts carry over; car assignments are cleared.
+	# Player must buy from Logistics or build at CNC before Race 1.
+	player_team_cars.clear()
+	var delivery_wk = get_car_delivery_week(active_championship.id)
+	var race1_wk    = FIRST_RACE_WEEK.get(active_championship.id, 6)
+	add_log("🏎 All cars retired for Season %d. Buy or build new cars before Race 1." % current_season)
+	add_notification("High",
+		"Season %d: New car needed. Buy from Logistics or build at CNC. Delivery deadline: Week %d. Race 1: Week %d." % [
+		current_season, delivery_wk, race1_wk])
 
 	# Reset championship for new season
 	active_championship.reset_for_new_season()

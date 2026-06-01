@@ -50,7 +50,7 @@ func _build_ui() -> void:
 
 	var cr_color = Color(0.4, 0.9, 0.4) if GameState.player_team.balance >= 0 else Color(1.0, 0.3, 0.3)
 	stocks_row.add_child(_make_stock_box("💰 Credits (CR)",
-		"$%s" % _fmt(GameState.player_team.balance), cr_color))
+		"CR %s" % _fmt(GameState.player_team.balance), cr_color))
 
 	var sp_warn = GameState.spare_parts < GameState.active_championship.sp_per_10_pct_damage
 	stocks_row.add_child(_make_stock_box("🔧 Spare Parts (SP)",
@@ -76,7 +76,7 @@ func _build_ui() -> void:
 	var fuel_per_race = GameState.active_championship.fuel_per_car_per_race
 	var sp_per_10 = GameState.active_championship.sp_per_10_pct_damage
 	var champ_note = Label.new()
-	champ_note.text = "%s  —  SP: $1/unit  |  Fuel: $2/kg  |  %d car%s × %.0f kg/race = %.0f kg per weekend" % [
+	champ_note.text = "%s  —  SP: CR 1/unit  |  Fuel: CR 2/kg  |  %d car%s × %.0f kg/race = %.0f kg per weekend" % [
 		GameState.active_championship.championship_name,
 		cars, "s" if cars != 1 else "",
 		fuel_per_race, fuel_per_race * cars]
@@ -92,6 +92,17 @@ func _build_ui() -> void:
 	purchase_row.add_child(_make_purchase_card_sp(sp_per_10, cars))
 	purchase_row.add_child(_make_purchase_card_fuel(fuel_per_race, cars))
 	purchase_row.add_child(_make_purchase_card_parts())
+
+	layout.add_child(HSeparator.new())
+
+	# Buy Car section
+	var car_title = Label.new()
+	car_title.text = "BUY RACING CAR"
+	car_title.add_theme_font_size_override("font_size", 16)
+	car_title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.4))
+	layout.add_child(car_title)
+
+	layout.add_child(_make_buy_car_card())
 
 	layout.add_child(HSeparator.new())
 
@@ -153,7 +164,7 @@ func _make_purchase_card_sp(sp_per_10: int, _cars: int) -> PanelContainer:
 
 	sp_input.text_changed.connect(func(new_text: String):
 		var amt = int(new_text) if new_text.is_valid_int() and int(new_text) > 0 else 0
-		cost_label.text = "Cost: $%d" % amt if amt > 0 else ""
+		cost_label.text = "Cost: CR %d" % amt if amt > 0 else ""
 	)
 
 	# Presets
@@ -251,7 +262,7 @@ func _make_purchase_card_fuel(fuel_per_race: float, cars: int) -> PanelContainer
 
 	fuel_input.text_changed.connect(func(new_text: String):
 		var amt = float(new_text) if new_text.is_valid_float() and float(new_text) > 0.0 else 0.0
-		cost_label.text = "Cost: $%.0f" % (amt * 2.0) if amt > 0.0 else ""
+		cost_label.text = "Cost: CR %.0f" % (amt * 2.0) if amt > 0.0 else ""
 	)
 
 	# Presets
@@ -344,7 +355,7 @@ func _on_buy_sp_pressed() -> void:
 		_show_error("Please enter a valid amount of spare parts.")
 		return
 	if GameState.buy_spare_parts(int(text)):
-		get_tree().change_scene_to_file("res://scenes/Logistics.tscn")
+		get_tree().change_scene_to_file("res://scenes/buildings/Logistics.tscn")
 
 
 func _on_buy_fuel_pressed() -> void:
@@ -353,7 +364,7 @@ func _on_buy_fuel_pressed() -> void:
 		_show_error("Please enter a valid fuel amount in kg.")
 		return
 	if GameState.buy_fuel(float(text)):
-		get_tree().change_scene_to_file("res://scenes/Logistics.tscn")
+		get_tree().change_scene_to_file("res://scenes/buildings/Logistics.tscn")
 
 
 func _make_purchase_card_parts() -> PanelContainer:
@@ -409,7 +420,7 @@ func _make_purchase_card_parts() -> PanelContainer:
 
 		# Cost label
 		var cost_lbl = Label.new()
-		cost_lbl.text = "$%s ea" % _fmt(float(cost))
+		cost_lbl.text = "CR %s ea" % _fmt(float(cost))
 		cost_lbl.custom_minimum_size = Vector2(72, 0)
 		cost_lbl.add_theme_font_size_override("font_size", 11)
 		cost_lbl.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55))
@@ -463,8 +474,134 @@ func _on_buy_part_pressed(part_name: String) -> void:
 		_show_error("Enter a valid quantity for %s." % part_name)
 		return
 	if GameState.buy_part(part_name, int(text)):
-		get_tree().change_scene_to_file("res://scenes/Logistics.tscn")
+		get_tree().change_scene_to_file("res://scenes/buildings/Logistics.tscn")
 
+
+func _make_buy_car_card() -> PanelContainer:
+	var panel = PanelContainer.new()
+	panel.custom_minimum_size = Vector2(500, 0)
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	panel.add_child(vbox)
+
+	var max_c      = GameState.get_max_cars()
+	var cur_c      = GameState.player_team_cars.size()
+	var slots_full = cur_c >= max_c
+
+	const PROVIDERS = {
+		"C-001": "WRA Karting Supply Co.",    "C-002": "WRA Karting Supply Co.",
+		"C-003": "Apex Kart Distribution",    "C-004": "Apex Kart Distribution",
+		"C-005": "Rally Equipment Group",     "C-006": "Rally Equipment Group",
+		"C-007": "Rally Equipment Group",     "C-008": "WRC Contracted Provider",
+		"C-009": "TCM Touring Specialists",   "C-010": "TCM Touring Specialists",
+		"C-011": "OWC Chassis Group",         "C-012": "OWC Chassis Group",
+		"C-013": "IndyCar Contracted Provider",
+		"C-014": "NASCAR Supply Alliance",    "C-015": "NASCAR Supply Alliance",
+		"C-016": "NASCAR Supply Alliance",    "C-017": "NASCAR Contracted Provider",
+		"C-018": "EPC Prototype Suppliers",   "C-019": "EPC Prototype Suppliers",
+		"C-020": "WEC Contracted Provider",
+		"C-021": "Formula Parts Direct",      "C-022": "Formula Parts Direct",
+		"C-023": "Formula Parts Direct",      "C-024": "F1 Contracted Provider",
+	}
+	var champ_id   = GameState.active_championship.id
+	# Price scales 5%/season via GameState — season 1 = base cost, season 2 = +5%, etc.
+	var car_cost   = GameState.get_provider_car_cost(champ_id)
+	var provider   = PROVIDERS.get(champ_id, "WRA Contracted Provider")
+	var can_afford = GameState.player_team.balance >= car_cost
+
+	# Show delivery week info
+	var delivery_week = GameState.get_car_delivery_week(champ_id)
+	var race1_week    = GameState.FIRST_RACE_WEEK.get(champ_id, 6)
+
+	var lbl_provider = Label.new()
+	lbl_provider.text = "Provider:  %s  ·  Season %d pricing" % [provider, GameState.current_season]
+	lbl_provider.add_theme_font_size_override("font_size", 13)
+	lbl_provider.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	vbox.add_child(lbl_provider)
+
+	var lbl_delivery = Label.new()
+	lbl_delivery.text = "Delivery: Week %d  ·  Race 1: Week %d" % [delivery_week, race1_week]
+	lbl_delivery.add_theme_font_size_override("font_size", 12)
+	lbl_delivery.add_theme_color_override("font_color", Color(0.6, 0.75, 1.0))
+	vbox.add_child(lbl_delivery)
+
+	var info_row = HBoxContainer.new()
+	info_row.add_theme_constant_override("separation", 24)
+	vbox.add_child(info_row)
+
+	var lbl_slots = Label.new()
+	lbl_slots.text = "Garage slots: %d / %d" % [cur_c, max_c]
+	lbl_slots.add_theme_font_size_override("font_size", 13)
+	lbl_slots.add_theme_color_override("font_color",
+		Color(1.0, 0.5, 0.15) if slots_full else Color(0.5, 0.9, 0.5))
+	info_row.add_child(lbl_slots)
+
+	var lbl_cost = Label.new()
+	lbl_cost.text = "Unit price:  CR %s" % _fmt(float(car_cost))
+	lbl_cost.add_theme_font_size_override("font_size", 13)
+	lbl_cost.add_theme_color_override("font_color",
+		Color(0.5, 0.9, 0.5) if can_afford else Color(1.0, 0.35, 0.35))
+	info_row.add_child(lbl_cost)
+
+	var lbl_bal = Label.new()
+	lbl_bal.text = "Balance:  CR %s" % _fmt(GameState.player_team.balance)
+	lbl_bal.add_theme_font_size_override("font_size", 13)
+	lbl_bal.add_theme_color_override("font_color",
+		Color(0.5, 0.9, 0.5) if GameState.player_team.balance >= 0 else Color(1.0, 0.35, 0.35))
+	info_row.add_child(lbl_bal)
+
+	if slots_full:
+		var lbl_warn = Label.new()
+		lbl_warn.text = "⚠ Garage full — upgrade the Garage to buy more cars."
+		lbl_warn.add_theme_font_size_override("font_size", 12)
+		lbl_warn.add_theme_color_override("font_color", Color(1.0, 0.5, 0.15))
+		vbox.add_child(lbl_warn)
+	elif not can_afford:
+		var lbl_warn = Label.new()
+		lbl_warn.text = "⚠ Insufficient funds — need CR %s more." % _fmt(float(car_cost - int(GameState.player_team.balance)))
+		lbl_warn.add_theme_font_size_override("font_size", 12)
+		lbl_warn.add_theme_color_override("font_color", Color(1.0, 0.35, 0.35))
+		vbox.add_child(lbl_warn)
+
+	var lbl_note = Label.new()
+	lbl_note.text = "💡 Build your own cars in-house once you have a CNC Parts Plant and the required blueprints."
+	lbl_note.add_theme_font_size_override("font_size", 11)
+	lbl_note.add_theme_color_override("font_color", Color(0.45, 0.45, 0.45))
+	lbl_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(lbl_note)
+
+	var btn = Button.new()
+	btn.text = "Buy Car  (CR %s)" % _fmt(float(car_cost))
+	btn.custom_minimum_size = Vector2(260, 38)
+	btn.add_theme_font_size_override("font_size", 14)
+	btn.disabled = slots_full or not can_afford
+	btn.pressed.connect(_on_buy_car_pressed.bind(car_cost, provider))
+	vbox.add_child(btn)
+
+	return panel
+
+func _on_buy_car_pressed(car_cost: int, provider: String) -> void:
+	var dialog = ConfirmationDialog.new()
+	dialog.title = "Buy Racing Car"
+	dialog.dialog_text = "Purchase a %s car from %s for CR %s?" % [
+		GameState.active_championship.championship_name,
+		provider,
+		_fmt(float(car_cost))]
+	dialog.ok_button_text = "Buy"
+	dialog.cancel_button_text = "Cancel"
+	add_child(dialog)
+	dialog.popup_centered()
+	dialog.confirmed.connect(func():
+		if GameState.player_team.balance >= car_cost:
+			GameState.player_team.balance -= car_cost
+			GameState.add_car()
+			GameState.add_log("🏎 Car purchased from %s for CR %s" % [provider, _fmt(float(car_cost))])
+		else:
+			_show_error("Insufficient funds.")
+		dialog.queue_free()
+		get_tree().change_scene_to_file("res://scenes/buildings/Logistics.tscn")
+	)
+	dialog.canceled.connect(dialog.queue_free)
 
 func _on_back_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/Campus.tscn")

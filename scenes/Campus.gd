@@ -146,11 +146,13 @@ func _build_card(building_id: String) -> PanelContainer:
 	# Finance row
 	var finance_label = Label.new()
 	var finance_text = ""
-	if building["built"] and building["construction_weeks_remaining"] == 0:
-		if building["weekly_maintenance"] > 0:
-			finance_text += "💸 -$%d/wk" % building["weekly_maintenance"]
-		if building["weekly_income"] > 0:
-			finance_text += "  💰 +$%d/wk" % building["weekly_income"]
+	if building["built"] and building["level"] >= 1:
+		var cur_maintenance = GameState.get_building_maintenance(building)
+		var cur_income      = GameState.get_building_income(building)
+		if cur_maintenance > 0:
+			finance_text += "💸 -CR %d/wk" % cur_maintenance
+		if cur_income > 0:
+			finance_text += "  💰 +CR %d/wk" % cur_income
 	if finance_text != "":
 		finance_label.text = finance_text
 		finance_label.add_theme_font_size_override("font_size", 11)
@@ -166,10 +168,10 @@ func _build_card(building_id: String) -> PanelContainer:
 
 	if not building["built"]:
 		var can_afford = GameState.player_team.balance >= building["build_cost"]
-		action_btn.text = "Build — $%d (%d wks)" % [building["build_cost"], building["build_time"]]
+		action_btn.text = "Build — CR %d (%d wks)" % [building["build_cost"], building["build_time"]]
 		action_btn.disabled = not can_afford
 		if not can_afford:
-			action_btn.text += " [Need $%d more]" % (building["build_cost"] - GameState.player_team.balance)
+			action_btn.text += " [Need CR %d more]" % (building["build_cost"] - int(GameState.player_team.balance))
 		action_btn.pressed.connect(_on_build_pressed.bind(building_id))
 
 	elif building["construction_weeks_remaining"] > 0:
@@ -181,11 +183,13 @@ func _build_card(building_id: String) -> PanelContainer:
 		action_btn.disabled = true
 
 	else:
-		var can_afford = GameState.player_team.balance >= building["upgrade_cost"]
-		action_btn.text = "Upgrade to Lv%d — $%d (%d wks)" % [
+		var scaled_cost = GameState.get_upgrade_cost(building)
+		var scaled_time = GameState.get_upgrade_time(building)
+		var can_afford  = GameState.player_team.balance >= scaled_cost
+		action_btn.text = "Upgrade to Lv%d — CR %d (%d wks)" % [
 			building["level"] + 1,
-			building["upgrade_cost"],
-			building["upgrade_time"]
+			scaled_cost,
+			scaled_time
 		]
 		action_btn.disabled = not can_afford
 		action_btn.pressed.connect(_on_upgrade_pressed.bind(building_id))
@@ -197,89 +201,64 @@ func _build_card(building_id: String) -> PanelContainer:
 	# Logistics Center — always accessible once built
 	if building["name"] == "Logistics Center" and building["built"] and building["level"] >= 1:
 		var open_btn = Button.new()
-		open_btn.text = "📦 Open Logistics Center"
+		open_btn.text = "📦 Enter Logistics Center"
 		open_btn.custom_minimum_size = Vector2(260, 35)
-		open_btn.pressed.connect(_on_open_logistics)
+		open_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/buildings/Logistics.tscn"))
 		vbox.add_child(open_btn)
 
-	# HQ — hire Team Principal and CFO
+	# HQ — Enter building scene
 	if building["name"] == "Headquarters" and building["built"] and building["level"] >= 1:
-		var has_tp = GameState.get_player_staff_by_role("Team Principal").size() > 0
-		var tp_btn = Button.new()
-		tp_btn.text = "✅ Team Principal hired" if has_tp else "🧑‍💼 Hire Team Principal"
-		tp_btn.custom_minimum_size = Vector2(260, 35)
-		tp_btn.disabled = has_tp
-		tp_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/Staff.tscn"))
-		vbox.add_child(tp_btn)
+		var hq_btn = Button.new()
+		hq_btn.text = "🏛 Enter HQ"
+		hq_btn.custom_minimum_size = Vector2(260, 35)
+		hq_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/buildings/HQ.tscn"))
+		vbox.add_child(hq_btn)
 
-		var has_cfo = GameState.get_player_staff_by_role("CFO").size() > 0
-		var cfo_btn = Button.new()
-		cfo_btn.text = "✅ CFO hired" if has_cfo else "💼 Hire CFO"
-		cfo_btn.custom_minimum_size = Vector2(260, 35)
-		cfo_btn.disabled = has_cfo
-		cfo_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/Staff.tscn"))
-		vbox.add_child(cfo_btn)
-
-	# Garage — hire Race Mechanic (one per car)
+	# Garage — Enter building scene
 	if building["name"] == "Garage" and building["built"] and building["level"] >= 1:
-		var mechanics = GameState.get_player_staff_by_role("Race Mechanic")
-		var car_count = GameState.player_team_cars.size()
-		var mechanic_lbl = Label.new()
-		mechanic_lbl.text = "Mechanics: %d / %d cars" % [mechanics.size(), car_count]
-		mechanic_lbl.add_theme_font_size_override("font_size", 12)
-		mechanic_lbl.add_theme_color_override("font_color",
-			Color(0.4, 0.9, 0.4) if mechanics.size() >= car_count else Color(1.0, 0.6, 0.2))
-		vbox.add_child(mechanic_lbl)
-		if mechanics.size() < car_count:
-			var mech_btn = Button.new()
-			mech_btn.text = "🔧 Hire Race Mechanic"
-			mech_btn.custom_minimum_size = Vector2(260, 35)
-			mech_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/Staff.tscn"))
-			vbox.add_child(mech_btn)
+		var garage_btn = Button.new()
+		garage_btn.text = "🔧 Enter Garage"
+		garage_btn.custom_minimum_size = Vector2(260, 35)
+		garage_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/buildings/Garage.tscn"))
+		vbox.add_child(garage_btn)
 
-	# Pit Crew Arena — hire Pit Crew (one per car, non-GK)
-	if building["name"] == "Pit Crew Arena" and building["built"] and building["level"] >= 1:
-		var discipline = GameState.active_championship.discipline
-		if discipline != "GK":
-			var crews = GameState.get_player_staff_by_role("Pit Crew")
-			var car_count = GameState.player_team_cars.size()
-			var crew_lbl = Label.new()
-			crew_lbl.text = "Pit Crews: %d / %d cars" % [crews.size(), car_count]
-			crew_lbl.add_theme_font_size_override("font_size", 12)
-			crew_lbl.add_theme_color_override("font_color",
-				Color(0.4, 0.9, 0.4) if crews.size() >= car_count else Color(1.0, 0.6, 0.2))
-			vbox.add_child(crew_lbl)
-			if crews.size() < car_count:
-				var crew_btn = Button.new()
-				crew_btn.text = "⏱ Hire Pit Crew"
-				crew_btn.custom_minimum_size = Vector2(260, 35)
-				crew_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/Staff.tscn"))
-				vbox.add_child(crew_btn)
-		else:
-			var gk_lbl = Label.new()
-			gk_lbl.text = "Not required for GK championships"
-			gk_lbl.add_theme_font_size_override("font_size", 11)
-			gk_lbl.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
-			vbox.add_child(gk_lbl)
+	# Racing Department — Enter building scene
+	if building["name"] == "Racing Department" and building["built"] and building["level"] >= 1:
+		var rd_btn = Button.new()
+		rd_btn.text = "🏎 Enter Racing Department"
+		rd_btn.custom_minimum_size = Vector2(260, 35)
+		rd_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/buildings/RacingDept.tscn"))
+		vbox.add_child(rd_btn)
 
-	# Ops Sim & Telemetry — hire Race Strategist (non-GK)
-	if building["name"] == "Ops Sim & Telemetry" and building["built"] and building["level"] >= 1:
-		var discipline = GameState.active_championship.discipline
-		if discipline != "GK":
-			var strategists = GameState.get_player_staff_by_role("Race Strategist")
-			var has_strategist = strategists.size() > 0
-			var strat_btn = Button.new()
-			strat_btn.text = "✅ Race Strategist hired" if has_strategist else "📡 Hire Race Strategist"
-			strat_btn.custom_minimum_size = Vector2(260, 35)
-			strat_btn.disabled = has_strategist
-			strat_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/Staff.tscn"))
-			vbox.add_child(strat_btn)
-		else:
-			var strat_lbl = Label.new()
-			strat_lbl.text = "Race Strategist not required for GK"
-			strat_lbl.add_theme_font_size_override("font_size", 11)
-			strat_lbl.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
-			vbox.add_child(strat_lbl)
+	# ── All remaining buildings with scenes ──────────────────────────────────
+	const BUILDING_SCENES = {
+		"Ops Sim & Telemetry":     "res://scenes/buildings/OpsSim.tscn",
+		"Pit Crew Arena":          "res://scenes/buildings/PitCrewArena.tscn",
+		"Museum":                  "res://scenes/buildings/Museum.tscn",
+		"Theme Park":              "res://scenes/buildings/ThemePark.tscn",
+		"Public Racing Club":      "res://scenes/buildings/PublicRacingClub.tscn",
+		"Merchandise Store":       "res://scenes/buildings/MerchandiseStore.tscn",
+		"Fitness Clinic":          "res://scenes/buildings/FitnessClinic.tscn",
+		"Academy":                 "res://scenes/buildings/Academy.tscn",
+		"R&D Design Studio":       "res://scenes/buildings/RnDStudio.tscn",
+		"CNC Parts Plant":         "res://scenes/buildings/CNCPlant.tscn",
+		"Aerodynamic Wind Tunnel": "res://scenes/buildings/AeroWindTunnel.tscn",
+		"Vehicle Assembly Factory":"res://scenes/buildings/VehicleFactory.tscn",
+		"Karting Track":           "res://scenes/buildings/KartingTrack.tscn",
+		"Gravel Track":            "res://scenes/buildings/GravelTrack.tscn",
+		"Oval Track":              "res://scenes/buildings/OvalTrack.tscn",
+		"Race Track":              "res://scenes/buildings/RaceTrack.tscn",
+	}
+
+	var bname = building["name"]
+	if bname in BUILDING_SCENES and building["built"] and building["level"] >= 1:
+		var icon = BUILDING_ICONS.get(bname, "🏢")
+		var enter_btn = Button.new()
+		enter_btn.text = "%s Enter %s" % [icon, bname]
+		enter_btn.custom_minimum_size = Vector2(260, 35)
+		var scene_path = BUILDING_SCENES[bname]
+		enter_btn.pressed.connect(func(): get_tree().change_scene_to_file(scene_path))
+		vbox.add_child(enter_btn)
 
 	return card
 
@@ -290,9 +269,6 @@ func _on_build_pressed(building_id: String) -> void:
 func _on_upgrade_pressed(building_id: String) -> void:
 	GameState.start_upgrade(building_id)
 	_build_campus()
-
-func _on_open_logistics() -> void:
-	get_tree().change_scene_to_file("res://scenes/Logistics.tscn")
 
 func _on_back_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/MainHub.tscn")

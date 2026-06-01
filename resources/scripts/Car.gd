@@ -6,6 +6,7 @@ extends Resource
 @export var car_type_id: String = ""     # "A_01" — links to Cars sheet baseline data
 @export var championship_id: String = "" # "C-001"
 @export var car_number: int = 1          # Display number: Car 1, Car 2, etc.
+@export var car_name: String = ""        # Generated name: e.g. "GKR-S1-A"
 
 # ── Assigned personnel ────────────────────────────────────────────────────────
 @export var driver_id: String = ""      # "" = no driver assigned

@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://djxrdc70seck3"]
 
-[ext_resource type="Script" uid="uid://2rru3wfi8ljq" path="res://scenes/Logistics.gd" id="1_jraok"]
+[ext_resource type="Script" uid="uid://2rru3wfi8ljq" path="res://scenes/buildings/Logistics.gd" id="1_jraok"]
 
 [node name="Logistics" type="Control" unique_id=1439992154]
 layout_mode = 3
