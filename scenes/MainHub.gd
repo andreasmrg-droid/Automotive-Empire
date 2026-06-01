@@ -31,6 +31,7 @@ var notif_button: Button
 var notif_panel: PanelContainer
 var notif_box: VBoxContainer
 var notif_visible: bool = false
+var notif_dim: ColorRect = null
 var tab_cars_btn: Button
 var cars_panel: ScrollContainer
 var cars_box: VBoxContainer
@@ -53,6 +54,18 @@ func _ready() -> void:
 	campus_btn.custom_minimum_size = Vector2(130, 35)
 	campus_btn.pressed.connect(_on_campus_pressed)
 	top_bar.add_child(campus_btn)
+
+	var drivers_btn = Button.new()
+	drivers_btn.text = "👤 Drivers"
+	drivers_btn.custom_minimum_size = Vector2(110, 35)
+	drivers_btn.pressed.connect(_on_drivers_pressed)
+	top_bar.add_child(drivers_btn)
+
+	var staff_btn = Button.new()
+	staff_btn.text = "🧑‍🔧 Staff"
+	staff_btn.custom_minimum_size = Vector2(100, 35)
+	staff_btn.pressed.connect(_on_staff_pressed)
+	top_bar.add_child(staff_btn)
 
 	# Resource bar
 	resource_bar = HBoxContainer.new()
@@ -99,14 +112,17 @@ func _ready() -> void:
 	# ── NOTIFICATION PANEL (hidden by default) ────────────────────────
 	notif_panel = PanelContainer.new()
 	notif_panel.visible = false
-	notif_panel.custom_minimum_size = Vector2(420, 0)
-	notif_panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	# Position it as overlay — add to root Control, not layout
-	notif_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	notif_panel.offset_left = -440
-	notif_panel.offset_top = 50
-	notif_panel.offset_right = -10
-	notif_panel.offset_bottom = 600
+	notif_panel.custom_minimum_size = Vector2(560, 0)
+	notif_panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	# Center on screen
+	notif_panel.set_anchor(SIDE_LEFT,   0.5)
+	notif_panel.set_anchor(SIDE_RIGHT,  0.5)
+	notif_panel.set_anchor(SIDE_TOP,    0.5)
+	notif_panel.set_anchor(SIDE_BOTTOM, 0.5)
+	notif_panel.offset_left   = -280
+	notif_panel.offset_right  =  280
+	notif_panel.offset_top    = -320
+	notif_panel.offset_bottom =  320
 	add_child(notif_panel)
 
 	var notif_vbox = VBoxContainer.new()
@@ -282,11 +298,13 @@ func _update_display() -> void:
 	sp_label.text = "🔧 SP  %d" % GameState.spare_parts
 	fu_label.text = "⛽ FU  %.0f kg" % GameState.fuel_kg
 
-	# SP/FU warning colors
+	# SP/FU warning colors — use championship thresholds
+	var sp_threshold = GameState.active_championship.sp_per_10_pct_damage if GameState.active_championship else 120
+	var fu_threshold = GameState.active_championship.fuel_per_car_per_race if GameState.active_championship else 15.0
 	sp_label.add_theme_color_override("font_color",
-		Color(1.0, 0.3, 0.3) if GameState.spare_parts < 120 else Color(1.0, 0.8, 0.4))
+		Color(1.0, 0.3, 0.3) if GameState.spare_parts < sp_threshold else Color(1.0, 0.8, 0.4))
 	fu_label.add_theme_color_override("font_color",
-		Color(1.0, 0.3, 0.3) if GameState.fuel_kg < 15.0 else Color(1.0, 0.5, 0.3))
+		Color(1.0, 0.3, 0.3) if GameState.fuel_kg < fu_threshold else Color(1.0, 0.5, 0.3))
 
 	# Notification bell
 	var unread = GameState.unread_notification_count
@@ -310,9 +328,23 @@ func _on_notif_pressed() -> void:
 	notif_visible = !notif_visible
 	notif_panel.visible = notif_visible
 	if notif_visible:
+		# Add dim overlay behind panel
+		notif_dim = ColorRect.new()
+		notif_dim.color = Color(0, 0, 0, 0.55)
+		notif_dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		notif_dim.gui_input.connect(func(event):
+			if event is InputEventMouseButton and event.pressed:
+				_on_close_notif_panel()
+		)
+		add_child(notif_dim)
+		move_child(notif_dim, get_child_count() - 2)  # dim behind panel
 		_refresh_notifications()
 		_update_display()
 		GameState.mark_all_notifications_read()
+	else:
+		if notif_dim:
+			notif_dim.queue_free()
+			notif_dim = null
 
 func _on_clear_notifs_pressed() -> void:
 	GameState.mark_all_notifications_read()
@@ -322,6 +354,9 @@ func _on_clear_notifs_pressed() -> void:
 func _on_close_notif_panel() -> void:
 	notif_visible = false
 	notif_panel.visible = false
+	if notif_dim:
+		notif_dim.queue_free()
+		notif_dim = null
 	
 func _refresh_notifications() -> void:
 	for child in notif_box.get_children():
@@ -381,7 +416,7 @@ func _refresh_notifications() -> void:
 
 		var msg = Label.new()
 		msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		msg.custom_minimum_size = Vector2(380, 0)
+		msg.custom_minimum_size = Vector2(500, 0)
 		var color = (
 			Color(1.0, 0.4, 0.4) if n["priority"] == "Critical" else
 			(Color(1.0, 0.7, 0.3) if n["priority"] == "High" else Color(0.6, 0.8, 1.0))
@@ -595,9 +630,185 @@ func _refresh_log() -> void:
 			log_container.scroll_vertical = log_container.get_v_scroll_bar().max_value
 
 func _on_advance_pressed() -> void:
-	GameState.advance_week()
-	_update_display()
-	_show_tab(current_tab)
+	var tasks = GameState.get_pending_tasks()
+	if tasks.is_empty():
+		GameState.advance_week()
+		_update_display()
+		_show_tab(current_tab)
+	else:
+		_show_pending_tasks_dialog(tasks)
+
+func _show_pending_tasks_dialog(tasks: Array) -> void:
+	_show_modal(
+		"📋 PENDING TASKS",
+		"You have %d item%s that may need attention before advancing:" % [
+			tasks.size(), "s" if tasks.size() != 1 else ""],
+		tasks,
+		"Review Later — Advance Anyway",
+		"Go Back and Review",
+		func():
+			GameState.advance_week()
+			_update_display()
+			_show_tab(current_tab),
+		null
+	)
+
+## Show a large centred modal panel with a title, subtitle, optional item list,
+## and two action buttons. on_confirm fires on the left button, on_cancel on the right.
+## Pass null for on_cancel to just close the modal.
+func _show_modal(title: String, subtitle: String, items: Array,
+		confirm_text: String, cancel_text: String,
+		on_confirm: Callable, on_cancel) -> void:
+
+	# Dim overlay — fills screen, modal sits on top
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.65)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(overlay)
+
+	# Modal panel — anchored to full rect then sized via offsets to appear centered
+	var panel = PanelContainer.new()
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	# Override to give it a fixed width and auto height, truly centered
+	panel.set_anchor(SIDE_LEFT,   0.5)
+	panel.set_anchor(SIDE_RIGHT,  0.5)
+	panel.set_anchor(SIDE_TOP,    0.5)
+	panel.set_anchor(SIDE_BOTTOM, 0.5)
+	panel.offset_left   = -310
+	panel.offset_right  =  310
+	panel.offset_top    = -300
+	panel.offset_bottom =  300
+	panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.10, 0.10, 0.13, 1.0)
+	style.border_width_left = 2
+	style.border_width_right = 2
+	style.border_width_top = 2
+	style.border_width_bottom = 2
+	style.border_color = Color(0.4, 0.6, 1.0)
+	style.corner_radius_top_left = 8
+	style.corner_radius_top_right = 8
+	style.corner_radius_bottom_left = 8
+	style.corner_radius_bottom_right = 8
+	style.content_margin_left = 28
+	style.content_margin_right = 28
+	style.content_margin_top = 24
+	style.content_margin_bottom = 24
+	panel.add_theme_stylebox_override("panel", style)
+	add_child(panel)
+
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 14)
+	panel.add_child(vbox)
+
+	# Title
+	var title_lbl = Label.new()
+	title_lbl.text = title
+	title_lbl.add_theme_font_size_override("font_size", 22)
+	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title_lbl)
+
+	vbox.add_child(HSeparator.new())
+
+	# Subtitle
+	if subtitle != "":
+		var sub_lbl = Label.new()
+		sub_lbl.text = subtitle
+		sub_lbl.add_theme_font_size_override("font_size", 14)
+		sub_lbl.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
+		sub_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		sub_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vbox.add_child(sub_lbl)
+
+	# Items list — fixed height scroll so items are always visible
+	if not items.is_empty():
+		var scroll = ScrollContainer.new()
+		scroll.custom_minimum_size = Vector2(520, 200)  # height always visible
+		scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		vbox.add_child(scroll)
+
+		var items_vbox = VBoxContainer.new()
+		items_vbox.add_theme_constant_override("separation", 8)
+		items_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		scroll.add_child(items_vbox)
+
+		for item in items:
+			var item_panel = PanelContainer.new()
+			item_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			var item_style = StyleBoxFlat.new()
+			item_style.bg_color = Color(0.16, 0.16, 0.20, 1.0)
+			item_style.border_width_left = 3
+			item_style.border_color = Color(1.0, 0.6, 0.2)
+			item_style.content_margin_left = 12
+			item_style.content_margin_right = 8
+			item_style.content_margin_top = 8
+			item_style.content_margin_bottom = 8
+			item_panel.add_theme_stylebox_override("panel", item_style)
+			items_vbox.add_child(item_panel)
+
+			var item_lbl = Label.new()
+			item_lbl.text = item
+			item_lbl.add_theme_font_size_override("font_size", 13)
+			item_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.6))
+			item_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			item_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			item_panel.add_child(item_lbl)
+
+	vbox.add_child(HSeparator.new())
+
+	# Buttons
+	var btn_row = HBoxContainer.new()
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	btn_row.add_theme_constant_override("separation", 16)
+	vbox.add_child(btn_row)
+
+	var cancel_btn = Button.new()
+	cancel_btn.text = cancel_text
+	cancel_btn.custom_minimum_size = Vector2(220, 44)
+	cancel_btn.add_theme_font_size_override("font_size", 14)
+	cancel_btn.visible = cancel_text != ""
+	cancel_btn.pressed.connect(func():
+		overlay.queue_free()
+		panel.queue_free()
+		if on_cancel != null:
+			on_cancel.call()
+	)
+	btn_row.add_child(cancel_btn)
+
+	var confirm_btn = Button.new()
+	confirm_btn.text = confirm_text
+	confirm_btn.custom_minimum_size = Vector2(220, 44)
+	confirm_btn.add_theme_font_size_override("font_size", 14)
+	confirm_btn.pressed.connect(func():
+		overlay.queue_free()
+		panel.queue_free()
+		on_confirm.call()
+	)
+	btn_row.add_child(confirm_btn)
+
+func _show_notification(message: String) -> void:
+	_show_modal(
+		"📋 Automotive Empire",
+		message,
+		[],
+		"OK",
+		"",
+		func(): pass,
+		null
+	)
+
+func _show_confirmation(message: String, on_confirm: Callable) -> void:
+	_show_modal(
+		"Automotive Empire",
+		message,
+		[],
+		"Confirm",
+		"Cancel",
+		on_confirm,
+		null
+	)
 
 func _on_week_advanced(_week: int) -> void:
 	_update_display()
@@ -624,6 +835,12 @@ func _on_new_season_pressed() -> void:
 
 func _on_campus_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/Campus.tscn")
+
+func _on_drivers_pressed() -> void:
+	get_tree().change_scene_to_file("res://scenes/Drivers.tscn")
+
+func _on_staff_pressed() -> void:
+	get_tree().change_scene_to_file("res://scenes/Staff.tscn")
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
@@ -655,14 +872,6 @@ func _on_quit_pressed() -> void:
 			get_tree().quit()
 	)
 
-func _show_notification(message: String) -> void:
-	var dialog = AcceptDialog.new()
-	dialog.title = "Automotive Empire"
-	dialog.dialog_text = message
-	add_child(dialog)
-	dialog.popup_centered()
-	dialog.confirmed.connect(func(): dialog.queue_free())
-
 func _make_resource_label(_prefix: String, color: Color) -> Label:
 	var label = Label.new()
 	label.add_theme_font_size_override("font_size", 15)
@@ -670,87 +879,65 @@ func _make_resource_label(_prefix: String, color: Color) -> Label:
 	label.custom_minimum_size = Vector2(130, 0)
 	return label
 
-func _show_confirmation(message: String, on_confirm: Callable) -> void:
-	var dialog = ConfirmationDialog.new()
-	dialog.title = "Automotive Empire"
-	dialog.dialog_text = message
-	dialog.ok_button_text = "Confirm"
-	dialog.cancel_button_text = "Cancel"
-	add_child(dialog)
-	dialog.popup_centered()
-	dialog.confirmed.connect(func():
-		on_confirm.call()
-		dialog.queue_free()
-	)
-	dialog.canceled.connect(dialog.queue_free)
-
 func _refresh_cars() -> void:
 	for child in cars_box.get_children():
 		child.queue_free()
 
-	# ── Header ──────────────────────────────────────────────
+	# ── Header ───────────────────────────────────────────────
 	var title = Label.new()
 	title.text = "🔩 MY CARS"
 	title.add_theme_font_size_override("font_size", 15)
 	title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
 	cars_box.add_child(title)
 
-	var sep = HSeparator.new()
-	cars_box.add_child(sep)
+	cars_box.add_child(HSeparator.new())
 
-	# ── Resource summary row ─────────────────────────────────
+	# ── Resource summary ─────────────────────────────────────
+	var sp_threshold = GameState.active_championship.sp_per_10_pct_damage
+	var fu_threshold = GameState.active_championship.fuel_per_car_per_race
+	var sp_icon = "🟢" if GameState.spare_parts >= sp_threshold else ("🟠" if GameState.spare_parts >= sp_threshold / 2 else "🔴")
+	var fu_icon = "🟢" if GameState.fuel_kg >= fu_threshold else "🔴"
 	var res_label = Label.new()
-	var sp_color = "🟢" if GameState.spare_parts >= 120 else ("🟠" if GameState.spare_parts >= 60 else "🔴")
-	var fu_color  = "🟢" if GameState.fuel_kg >= 15.0 else "🔴"
-	res_label.text = "%s SP: %d units   %s FU: %.0f kg" % [
-		sp_color, GameState.spare_parts,
-		fu_color, GameState.fuel_kg
-	]
+	res_label.text = "%s SP: %d units   %s FU: %.0f kg" % [sp_icon, GameState.spare_parts, fu_icon, GameState.fuel_kg]
 	res_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
 	res_label.add_theme_font_size_override("font_size", 13)
 	cars_box.add_child(res_label)
 
-	# Fuel warning line
-	if GameState.fuel_kg < 15.0:
+	if GameState.fuel_kg < fu_threshold:
 		var warn = Label.new()
-		warn.text = "⛽ WARNING: Fuel below 15 kg — car will DNS if not refuelled!"
+		warn.text = "⛽ WARNING: Fuel below %.0f kg — car will DNS!" % fu_threshold
 		warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		warn.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
 		warn.add_theme_font_size_override("font_size", 12)
 		cars_box.add_child(warn)
 
-	var sep2 = HSeparator.new()
-	cars_box.add_child(sep2)
+	cars_box.add_child(HSeparator.new())
 
-	# ── One card per player car ──────────────────────────────
-	if GameState.player_team.drivers.is_empty():
+	# ── One card per Car object ───────────────────────────────
+	if GameState.player_team_cars.is_empty():
 		var no_car = Label.new()
 		no_car.text = "No cars assigned yet."
 		no_car.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 		cars_box.add_child(no_car)
 		return
 
-	var car_number = 1
-	for driver_id in GameState.player_team.drivers:
-		var driver = GameState.all_drivers.get(driver_id)
-		if not driver:
-			continue
+	for car in GameState.player_team_cars:
+		var driver = GameState.all_drivers.get(car.driver_id)
+		var mechanic = GameState.get_mechanic_for_car(car.id)
+		var condition = car.condition
+		var damage = 100.0 - condition
 
-		var condition = GameState.get_car_condition(driver_id)
-		var damage    = 100.0 - condition
-
-		# ── Car card container ───────────────────────────────
+		# ── Card ─────────────────────────────────────────────
 		var card = PanelContainer.new()
 		var card_style = StyleBoxFlat.new()
 		card_style.bg_color = Color(0.13, 0.13, 0.16, 1.0)
-		card_style.border_width_left   = 3
-		card_style.border_width_right  = 0
-		card_style.border_width_top    = 0
-		card_style.border_width_bottom = 0
-		card_style.corner_radius_top_left     = 4
-		card_style.corner_radius_bottom_left  = 4
-		card_style.set_content_margin_all(10)
-		# Border colour = condition health
+		card_style.border_width_left = 3
+		card_style.content_margin_left = 10
+		card_style.content_margin_right = 10
+		card_style.content_margin_top = 10
+		card_style.content_margin_bottom = 10
+		card_style.corner_radius_top_left = 4
+		card_style.corner_radius_bottom_left = 4
 		if condition >= 70.0:
 			card_style.border_color = Color(0.2, 0.85, 0.2)
 		elif condition >= 40.0:
@@ -761,41 +948,45 @@ func _refresh_cars() -> void:
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		cars_box.add_child(card)
 
-		var card_vbox = VBoxContainer.new()
-		card_vbox.add_theme_constant_override("separation", 6)
-		card_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		card.add_child(card_vbox)
+		var vbox = VBoxContainer.new()
+		vbox.add_theme_constant_override("separation", 6)
+		vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card.add_child(vbox)
 
-		# ── Car name row ─────────────────────────────────────
+		# Car title + driver
 		var name_row = HBoxContainer.new()
-		card_vbox.add_child(name_row)
+		vbox.add_child(name_row)
+		var car_lbl = Label.new()
+		car_lbl.text = "🏎  Car %d  [%s]" % [car.car_number, car.car_type_id]
+		car_lbl.add_theme_font_size_override("font_size", 14)
+		car_lbl.add_theme_color_override("font_color", Color.WHITE)
+		car_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_row.add_child(car_lbl)
+		var drv_lbl = Label.new()
+		drv_lbl.text = driver.full_name() if driver else "⚠ No Driver"
+		drv_lbl.add_theme_font_size_override("font_size", 13)
+		drv_lbl.add_theme_color_override("font_color",
+			Color(0.4, 0.8, 1.0) if driver else Color(1.0, 0.4, 0.4))
+		name_row.add_child(drv_lbl)
 
-		var car_label = Label.new()
-		car_label.text = "🏎  Car %d" % car_number
-		car_label.add_theme_font_size_override("font_size", 14)
-		car_label.add_theme_color_override("font_color", Color.WHITE)
-		car_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		name_row.add_child(car_label)
+		# Mechanic row
+		var mech_lbl = Label.new()
+		mech_lbl.text = "🔧 Mechanic: %s" % (mechanic.full_name() if mechanic else "⚠ None assigned")
+		mech_lbl.add_theme_font_size_override("font_size", 12)
+		mech_lbl.add_theme_color_override("font_color",
+			Color(0.7, 0.9, 0.7) if mechanic else Color(1.0, 0.6, 0.2))
+		vbox.add_child(mech_lbl)
 
-		var driver_label = Label.new()
-		driver_label.text = driver.full_name()
-		driver_label.add_theme_font_size_override("font_size", 13)
-		driver_label.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
-		name_row.add_child(driver_label)
-
-		# ── Condition bar ────────────────────────────────────
+		# Condition bar
 		var cond_row = HBoxContainer.new()
 		cond_row.add_theme_constant_override("separation", 8)
-		card_vbox.add_child(cond_row)
-
+		vbox.add_child(cond_row)
 		var cond_title = Label.new()
 		cond_title.text = "Condition:"
 		cond_title.add_theme_font_size_override("font_size", 12)
 		cond_title.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 		cond_title.custom_minimum_size = Vector2(80, 0)
 		cond_row.add_child(cond_title)
-
-		# Progress bar
 		var bar = ProgressBar.new()
 		bar.min_value = 0
 		bar.max_value = 100
@@ -803,113 +994,95 @@ func _refresh_cars() -> void:
 		bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		bar.custom_minimum_size = Vector2(0, 18)
 		bar.show_percentage = false
-		# Tint the fill according to health
 		var bar_style = StyleBoxFlat.new()
-		if condition >= 70.0:
-			bar_style.bg_color = Color(0.15, 0.75, 0.15)
-		elif condition >= 40.0:
-			bar_style.bg_color = Color(0.85, 0.55, 0.05)
-		else:
-			bar_style.bg_color = Color(0.85, 0.15, 0.15)
+		bar_style.bg_color = Color(0.15, 0.75, 0.15) if condition >= 70.0 \
+			else (Color(0.85, 0.55, 0.05) if condition >= 40.0 else Color(0.85, 0.15, 0.15))
 		bar.add_theme_stylebox_override("fill", bar_style)
 		cond_row.add_child(bar)
+		var pct_lbl = Label.new()
+		pct_lbl.text = "%.0f%%" % condition
+		pct_lbl.add_theme_font_size_override("font_size", 13)
+		pct_lbl.custom_minimum_size = Vector2(40, 0)
+		pct_lbl.add_theme_color_override("font_color",
+			Color(0.3, 1.0, 0.3) if condition >= 70.0
+			else (Color(1.0, 0.75, 0.2) if condition >= 40.0 else Color(1.0, 0.3, 0.3)))
+		cond_row.add_child(pct_lbl)
 
-		var pct_label = Label.new()
-		pct_label.text = "%.0f%%" % condition
-		pct_label.add_theme_font_size_override("font_size", 13)
-		pct_label.custom_minimum_size = Vector2(40, 0)
-		if condition >= 70.0:
-			pct_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
-		elif condition >= 40.0:
-			pct_label.add_theme_color_override("font_color", Color(1.0, 0.75, 0.2))
-		else:
-			pct_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
-		cond_row.add_child(pct_label)
-
-		# ── Fuel status ──────────────────────────────────────
+		# Fuel row
 		var fuel_row = HBoxContainer.new()
-		card_vbox.add_child(fuel_row)
-
+		vbox.add_child(fuel_row)
 		var fuel_title = Label.new()
 		fuel_title.text = "Fuel:"
 		fuel_title.add_theme_font_size_override("font_size", 12)
 		fuel_title.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 		fuel_title.custom_minimum_size = Vector2(80, 0)
 		fuel_row.add_child(fuel_title)
-
+		var fuel_ok = GameState.fuel_kg >= fu_threshold
 		var fuel_val = Label.new()
-		var fuel_ok = GameState.fuel_kg >= 15.0
-		fuel_val.text = "%.0f kg available  (need 15 kg)  %s" % [
-			GameState.fuel_kg,
-			"✅ OK" if fuel_ok else "🚫 DNS RISK"
-		]
+		fuel_val.text = "%.0f kg available  (need %.0f kg)  %s" % [
+			GameState.fuel_kg, fu_threshold,
+			"✅ OK" if fuel_ok else "🚫 DNS RISK"]
 		fuel_val.add_theme_font_size_override("font_size", 12)
 		fuel_val.add_theme_color_override("font_color",
 			Color(0.3, 1.0, 0.3) if fuel_ok else Color(1.0, 0.3, 0.3))
 		fuel_row.add_child(fuel_val)
 
-		# ── SP cost preview ──────────────────────────────────
+		# SP repair cost preview
 		if damage > 0.0:
-			var sp_for_full = int(ceil(damage / 10.0) * 120)
+			var sp_for_full = int(ceil(damage / 10.0) * sp_threshold)
 			var sp_preview = Label.new()
 			sp_preview.text = "Full repair cost: %d SP  (have: %d SP)" % [
 				sp_for_full, GameState.spare_parts]
 			sp_preview.add_theme_font_size_override("font_size", 12)
 			sp_preview.add_theme_color_override("font_color",
-				Color(0.6, 0.9, 1.0) if GameState.spare_parts >= sp_for_full
-				else Color(1.0, 0.5, 0.3))
-			card_vbox.add_child(sp_preview)
+				Color(0.6, 0.9, 1.0) if GameState.spare_parts >= sp_for_full else Color(1.0, 0.5, 0.3))
+			vbox.add_child(sp_preview)
 
-		# ── Repair buttons ───────────────────────────────────
+		# Repair buttons
 		var btn_row = HBoxContainer.new()
 		btn_row.add_theme_constant_override("separation", 6)
-		card_vbox.add_child(btn_row)
+		vbox.add_child(btn_row)
 
-		# Repair 10% button
+		var car_id = car.id
+		var driver_id = car.driver_id
+
 		var repair10_btn = Button.new()
-		repair10_btn.text = "Fix 10%  (-120 SP)"
-		repair10_btn.custom_minimum_size = Vector2(130, 30)
-		repair10_btn.disabled = (damage <= 0.0 or GameState.spare_parts < 120)
-		var _d_id_10 = driver_id   # capture for lambda
+		repair10_btn.text = "Fix 10%%  (-%d SP)" % sp_threshold
+		repair10_btn.custom_minimum_size = Vector2(140, 30)
+		repair10_btn.disabled = damage <= 0.0 or GameState.spare_parts < sp_threshold
 		repair10_btn.pressed.connect(func():
-			if GameState.repair_car(_d_id_10, 10.0):
+			if GameState.repair_car(driver_id, 10.0):
 				_refresh_cars()
 				_update_display()
 		)
 		btn_row.add_child(repair10_btn)
 
-		# Repair 50% button
 		var repair50_btn = Button.new()
-		repair50_btn.text = "Fix 50%  (-600 SP)"
-		repair50_btn.custom_minimum_size = Vector2(130, 30)
-		repair50_btn.disabled = (damage <= 0.0 or GameState.spare_parts < 600)
-		var _d_id_50 = driver_id
+		repair50_btn.text = "Fix 50%%  (-%d SP)" % (sp_threshold * 5)
+		repair50_btn.custom_minimum_size = Vector2(140, 30)
+		repair50_btn.disabled = damage <= 0.0 or GameState.spare_parts < sp_threshold * 5
 		repair50_btn.pressed.connect(func():
-			if GameState.repair_car(_d_id_50, 50.0):
+			if GameState.repair_car(driver_id, 50.0):
 				_refresh_cars()
 				_update_display()
 		)
 		btn_row.add_child(repair50_btn)
 
-		# Full repair button
-		var full_repair_btn = Button.new()
-		full_repair_btn.text = "Full Repair"
-		full_repair_btn.custom_minimum_size = Vector2(110, 30)
-		var sp_needed_full = int(ceil(damage / 10.0) * 120)
-		full_repair_btn.disabled = (damage <= 0.0 or GameState.spare_parts < sp_needed_full)
-		var _d_id_full = driver_id
-		full_repair_btn.pressed.connect(func():
-			if GameState.repair_car_full(_d_id_full):
+		var full_btn = Button.new()
+		full_btn.text = "Full Repair"
+		full_btn.custom_minimum_size = Vector2(110, 30)
+		var sp_full = int(ceil(damage / 10.0) * sp_threshold)
+		full_btn.disabled = damage <= 0.0 or GameState.spare_parts < sp_full
+		full_btn.pressed.connect(func():
+			if GameState.repair_car_full(driver_id):
 				_refresh_cars()
 				_update_display()
 		)
-		btn_row.add_child(full_repair_btn)
+		btn_row.add_child(full_btn)
 
-		car_number += 1
-
-	# ── Bottom hint ──────────────────────────────────────────
+	# Bottom hint
 	var hint = Label.new()
-	hint.text = "Buy SP and FU at the Logistics Center on Campus."
+	hint.text = "Buy SP, FU and parts at the Logistics Center on Campus."
 	hint.add_theme_font_size_override("font_size", 11)
 	hint.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

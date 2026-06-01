@@ -192,13 +192,94 @@ func _build_card(building_id: String) -> PanelContainer:
 
 	vbox.add_child(action_btn)
 
-# Logistics Center gets an extra Open button (always available once built, even during upgrade)
+	# ── Building-specific action buttons ─────────────────────
+
+	# Logistics Center — always accessible once built
 	if building["name"] == "Logistics Center" and building["built"] and building["level"] >= 1:
 		var open_btn = Button.new()
 		open_btn.text = "📦 Open Logistics Center"
 		open_btn.custom_minimum_size = Vector2(260, 35)
 		open_btn.pressed.connect(_on_open_logistics)
 		vbox.add_child(open_btn)
+
+	# HQ — hire Team Principal and CFO
+	if building["name"] == "Headquarters" and building["built"] and building["level"] >= 1:
+		var has_tp = GameState.get_player_staff_by_role("Team Principal").size() > 0
+		var tp_btn = Button.new()
+		tp_btn.text = "✅ Team Principal hired" if has_tp else "🧑‍💼 Hire Team Principal"
+		tp_btn.custom_minimum_size = Vector2(260, 35)
+		tp_btn.disabled = has_tp
+		tp_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/Staff.tscn"))
+		vbox.add_child(tp_btn)
+
+		var has_cfo = GameState.get_player_staff_by_role("CFO").size() > 0
+		var cfo_btn = Button.new()
+		cfo_btn.text = "✅ CFO hired" if has_cfo else "💼 Hire CFO"
+		cfo_btn.custom_minimum_size = Vector2(260, 35)
+		cfo_btn.disabled = has_cfo
+		cfo_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/Staff.tscn"))
+		vbox.add_child(cfo_btn)
+
+	# Garage — hire Race Mechanic (one per car)
+	if building["name"] == "Garage" and building["built"] and building["level"] >= 1:
+		var mechanics = GameState.get_player_staff_by_role("Race Mechanic")
+		var car_count = GameState.player_team_cars.size()
+		var mechanic_lbl = Label.new()
+		mechanic_lbl.text = "Mechanics: %d / %d cars" % [mechanics.size(), car_count]
+		mechanic_lbl.add_theme_font_size_override("font_size", 12)
+		mechanic_lbl.add_theme_color_override("font_color",
+			Color(0.4, 0.9, 0.4) if mechanics.size() >= car_count else Color(1.0, 0.6, 0.2))
+		vbox.add_child(mechanic_lbl)
+		if mechanics.size() < car_count:
+			var mech_btn = Button.new()
+			mech_btn.text = "🔧 Hire Race Mechanic"
+			mech_btn.custom_minimum_size = Vector2(260, 35)
+			mech_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/Staff.tscn"))
+			vbox.add_child(mech_btn)
+
+	# Pit Crew Arena — hire Pit Crew (one per car, non-GK)
+	if building["name"] == "Pit Crew Arena" and building["built"] and building["level"] >= 1:
+		var discipline = GameState.active_championship.discipline
+		if discipline != "GK":
+			var crews = GameState.get_player_staff_by_role("Pit Crew")
+			var car_count = GameState.player_team_cars.size()
+			var crew_lbl = Label.new()
+			crew_lbl.text = "Pit Crews: %d / %d cars" % [crews.size(), car_count]
+			crew_lbl.add_theme_font_size_override("font_size", 12)
+			crew_lbl.add_theme_color_override("font_color",
+				Color(0.4, 0.9, 0.4) if crews.size() >= car_count else Color(1.0, 0.6, 0.2))
+			vbox.add_child(crew_lbl)
+			if crews.size() < car_count:
+				var crew_btn = Button.new()
+				crew_btn.text = "⏱ Hire Pit Crew"
+				crew_btn.custom_minimum_size = Vector2(260, 35)
+				crew_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/Staff.tscn"))
+				vbox.add_child(crew_btn)
+		else:
+			var gk_lbl = Label.new()
+			gk_lbl.text = "Not required for GK championships"
+			gk_lbl.add_theme_font_size_override("font_size", 11)
+			gk_lbl.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
+			vbox.add_child(gk_lbl)
+
+	# Ops Sim & Telemetry — hire Race Strategist (non-GK)
+	if building["name"] == "Ops Sim & Telemetry" and building["built"] and building["level"] >= 1:
+		var discipline = GameState.active_championship.discipline
+		if discipline != "GK":
+			var strategists = GameState.get_player_staff_by_role("Race Strategist")
+			var has_strategist = strategists.size() > 0
+			var strat_btn = Button.new()
+			strat_btn.text = "✅ Race Strategist hired" if has_strategist else "📡 Hire Race Strategist"
+			strat_btn.custom_minimum_size = Vector2(260, 35)
+			strat_btn.disabled = has_strategist
+			strat_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/Staff.tscn"))
+			vbox.add_child(strat_btn)
+		else:
+			var strat_lbl = Label.new()
+			strat_lbl.text = "Race Strategist not required for GK"
+			strat_lbl.add_theme_font_size_override("font_size", 11)
+			strat_lbl.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
+			vbox.add_child(strat_lbl)
 
 	return card
 

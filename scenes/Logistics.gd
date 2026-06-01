@@ -2,6 +2,7 @@ extends Control
 
 var sp_input: LineEdit
 var fuel_input: LineEdit
+var part_inputs: Dictionary = {}  # part_name → LineEdit
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -90,6 +91,7 @@ func _build_ui() -> void:
 
 	purchase_row.add_child(_make_purchase_card_sp(sp_per_10, cars))
 	purchase_row.add_child(_make_purchase_card_fuel(fuel_per_race, cars))
+	purchase_row.add_child(_make_purchase_card_parts())
 
 	layout.add_child(HSeparator.new())
 
@@ -351,6 +353,116 @@ func _on_buy_fuel_pressed() -> void:
 		_show_error("Please enter a valid fuel amount in kg.")
 		return
 	if GameState.buy_fuel(float(text)):
+		get_tree().change_scene_to_file("res://scenes/Logistics.tscn")
+
+
+func _make_purchase_card_parts() -> PanelContainer:
+	var panel = PanelContainer.new()
+	panel.custom_minimum_size = Vector2(380, 0)
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
+	panel.add_child(vbox)
+
+	var title = Label.new()
+	title.text = "🔩 Buy Car Parts"
+	title.add_theme_font_size_override("font_size", 17)
+	title.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	vbox.add_child(title)
+
+	var info = Label.new()
+	info.text = "Stock replacement parts. CFO warns when any part ≤ 2.\nPart failure with no stock = DNF."
+	info.add_theme_font_size_override("font_size", 12)
+	info.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(info)
+
+	vbox.add_child(HSeparator.new())
+
+	var costs = GameState.PART_COSTS.get(GameState.active_championship.id, {})
+	var champ_id = GameState.active_championship.id
+
+	for part in GameState.PARTS_LIST:
+		var stock = GameState.get_part_stock(part)
+		var cost = costs.get(part, 0)
+
+		var row = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		vbox.add_child(row)
+
+		# Part name + stock
+		var name_lbl = Label.new()
+		name_lbl.text = part
+		name_lbl.custom_minimum_size = Vector2(85, 0)
+		name_lbl.add_theme_font_size_override("font_size", 13)
+		name_lbl.add_theme_color_override("font_color",
+			Color(1.0, 0.35, 0.35) if stock <= 2 else Color(0.85, 0.85, 0.85))
+		row.add_child(name_lbl)
+
+		# Stock badge
+		var stock_lbl = Label.new()
+		stock_lbl.text = "x%d" % stock
+		stock_lbl.custom_minimum_size = Vector2(28, 0)
+		stock_lbl.add_theme_font_size_override("font_size", 12)
+		stock_lbl.add_theme_color_override("font_color",
+			Color(1.0, 0.4, 0.4) if stock <= 2 else Color(0.5, 0.9, 0.5))
+		row.add_child(stock_lbl)
+
+		# Cost label
+		var cost_lbl = Label.new()
+		cost_lbl.text = "$%s ea" % _fmt(float(cost))
+		cost_lbl.custom_minimum_size = Vector2(72, 0)
+		cost_lbl.add_theme_font_size_override("font_size", 11)
+		cost_lbl.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55))
+		row.add_child(cost_lbl)
+
+		# Qty input
+		var input = LineEdit.new()
+		input.placeholder_text = "qty"
+		input.custom_minimum_size = Vector2(48, 28)
+		input.text = ""
+		row.add_child(input)
+		part_inputs[part] = input
+
+		# Buy button
+		var buy_btn = Button.new()
+		buy_btn.text = "Buy"
+		buy_btn.custom_minimum_size = Vector2(48, 28)
+		var _part = part
+		buy_btn.pressed.connect(func(): _on_buy_part_pressed(_part))
+		row.add_child(buy_btn)
+
+	vbox.add_child(HSeparator.new())
+
+	# Preset row — buy N of all parts at once
+	var preset_lbl = Label.new()
+	preset_lbl.text = "Buy all parts:"
+	preset_lbl.add_theme_font_size_override("font_size", 12)
+	preset_lbl.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+	vbox.add_child(preset_lbl)
+
+	var preset_row = HBoxContainer.new()
+	preset_row.add_theme_constant_override("separation", 6)
+	vbox.add_child(preset_row)
+
+	for qty in [1, 3, 5]:
+		var btn = _make_preset_btn("+%d each" % qty, func():
+			for p in GameState.PARTS_LIST:
+				if p in part_inputs:
+					part_inputs[p].text = str(qty)
+		)
+		preset_row.add_child(btn)
+
+	return panel
+
+
+func _on_buy_part_pressed(part_name: String) -> void:
+	if not part_name in part_inputs:
+		return
+	var text = part_inputs[part_name].text.strip_edges()
+	if not text.is_valid_int() or int(text) <= 0:
+		_show_error("Enter a valid quantity for %s." % part_name)
+		return
+	if GameState.buy_part(part_name, int(text)):
 		get_tree().change_scene_to_file("res://scenes/Logistics.tscn")
 
 

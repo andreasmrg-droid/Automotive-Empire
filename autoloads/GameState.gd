@@ -894,6 +894,132 @@ func release_staff(staff_id: String) -> void:
 	add_log("👋 Released %s (%s)" % [staff.full_name(), staff.role])
 	emit_signal("log_updated")
 
+func renew_staff_contract(staff_id: String, seasons: int = 5) -> void:
+	if not staff_id in all_staff:
+		return
+	var staff = all_staff[staff_id]
+	if staff.contract_team != player_team.id:
+		return
+	staff.contract_seasons_remaining = seasons
+	add_log("📋 Contract renewed: %s (%s) — %d seasons" % [staff.full_name(), staff.role, seasons])
+	emit_signal("log_updated")
+
+## ── Driver management ────────────────────────────────────────────────────────
+
+## Returns all drivers not contracted to any team (available for hire).
+func get_available_drivers() -> Array:
+	var result = []
+	for driver_id in all_drivers:
+		var driver = all_drivers[driver_id]
+		if driver.contract_team == "":
+			result.append(driver)
+	return result
+
+## Returns all drivers contracted to the player team.
+func get_player_drivers() -> Array:
+	var result = []
+	for driver_id in player_team.drivers:
+		if driver_id in all_drivers:
+			result.append(all_drivers[driver_id])
+	return result
+
+## Hire a driver — adds to player roster. Does NOT assign to a car.
+func hire_driver(driver_id: String) -> bool:
+	if not driver_id in all_drivers:
+		return false
+	var driver = all_drivers[driver_id]
+	if driver.contract_team != "":
+		add_notification("High", "%s is already contracted to another team." % driver.full_name())
+		return false
+	driver.contract_team = player_team.id
+	driver.contract_seasons_remaining = 5
+	player_team.drivers.append(driver_id)
+	active_championship.standings[driver_id] = 0
+	# Create a car slot for this driver
+	_add_car_for_driver(driver_id)
+	add_log("✅ Signed %s — %d seasons" % [driver.full_name(), 5])
+	add_notification("Normal", "%s joined your team." % driver.full_name())
+	emit_signal("log_updated")
+	return true
+
+## Release a driver from the player team.
+func release_driver(driver_id: String) -> void:
+	if not driver_id in all_drivers:
+		return
+	var driver = all_drivers[driver_id]
+	driver.contract_team = ""
+	driver.contract_seasons_remaining = 0
+	player_team.drivers.erase(driver_id)
+	# Remove their car
+	_remove_car_for_driver(driver_id)
+	add_log("👋 Released driver: %s" % driver.full_name())
+	emit_signal("log_updated")
+
+## Renew a driver's contract.
+func renew_driver_contract(driver_id: String, seasons: int = 5) -> void:
+	if not driver_id in all_drivers:
+		return
+	var driver = all_drivers[driver_id]
+	if driver.contract_team != player_team.id:
+		return
+	driver.contract_seasons_remaining = seasons
+	add_log("📋 Contract renewed: %s — %d seasons" % [driver.full_name(), seasons])
+	emit_signal("log_updated")
+
+## Assign a driver to a specific car by car_id.
+func assign_driver_to_car(driver_id: String, car_id: String) -> void:
+	# Unassign from any current car first
+	for car in player_team_cars:
+		if car.driver_id == driver_id:
+			car.driver_id = ""
+	# Assign to new car
+	var car = get_car_by_id(car_id)
+	if car:
+		# Unassign whoever was in this car
+		if car.driver_id != "" and car.driver_id != driver_id:
+			var old_driver = all_drivers.get(car.driver_id)
+			if old_driver:
+				add_log("↩ %s unassigned from Car %d" % [old_driver.full_name(), car.car_number])
+		car.driver_id = driver_id
+		var driver = all_drivers.get(driver_id)
+		add_log("🏎 %s assigned to Car %d" % [driver.full_name() if driver else driver_id, car.car_number])
+		emit_signal("log_updated")
+
+## Adds a new Car object when a driver is hired.
+func _add_car_for_driver(driver_id: String) -> void:
+	var car_number = player_team_cars.size() + 1
+	var car = Car.new()
+	car.id = "CAR-P%03d" % car_number
+	car.car_type_id = "A_01"
+	car.championship_id = active_championship.id
+	car.car_number = car_number
+	car.driver_id = driver_id
+	car.mechanic_id = ""
+	car.pit_crew_id = "N/A" if active_championship.discipline == "GK" else ""
+	car.condition = 100.0
+	car.part_conditions = {"Aero": 100.0, "Engine": 100.0, "Gearbox": 100.0,
+		"Suspension": 100.0, "Brakes": 100.0, "Chassis": 100.0}
+	var telemetry = CAR_TELEMETRY.get("A_01", {})
+	if not telemetry.is_empty():
+		car.top_speed = telemetry["top_speed"]
+		car.acceleration = telemetry["acceleration"]
+		car.deceleration = telemetry["deceleration"]
+		car.cornering_grip = telemetry["cornering_grip"]
+		car.fuel_consumption_per_km = telemetry["fuel_per_km"]
+		car.tire_wear_rate = telemetry["tire_wear"]
+		car.baseline_performance_index = telemetry["perf_index"]
+	player_team_cars.append(car)
+
+## Removes a Car object when a driver is released.
+func _remove_car_for_driver(driver_id: String) -> void:
+	for i in range(player_team_cars.size() - 1, -1, -1):
+		if player_team_cars[i].driver_id == driver_id:
+			player_team_cars.remove_at(i)
+			break
+	# Re-number remaining cars
+	for i in range(player_team_cars.size()):
+		player_team_cars[i].car_number = i + 1
+
 func assign_staff_to_car(staff_id: String, car_id: String) -> void:
 	if not staff_id in all_staff:
 		return
@@ -990,6 +1116,65 @@ func _check_race_requirements() -> void:
 	if not has_cfo:
 		add_notification("Normal",
 			"💼 No CFO on staff. Financial optimisation and part stock monitoring unavailable.")
+
+## Returns an array of pending task strings the player should review before advancing.
+## Used by MainHub to prompt the player before advancing the week.
+func get_pending_tasks() -> Array[String]:
+	var tasks: Array[String] = []
+
+	# No Team Principal
+	if get_team_principal() == null:
+		tasks.append("⚠ No Team Principal assigned — hire one at HQ or via Staff screen.")
+
+	# No CFO
+	if get_cfo() == null:
+		tasks.append("💼 No CFO hired — financial monitoring and sponsor optimisation unavailable.")
+
+	# Cars with no driver
+	for car in player_team_cars:
+		if car.driver_id == "":
+			tasks.append("🏎 Car %d has no driver assigned." % car.car_number)
+
+	# Cars with no mechanic
+	for car in player_team_cars:
+		if car.mechanic_id == "":
+			tasks.append("🔧 Car %d has no Race Mechanic assigned." % car.car_number)
+
+	# Low fuel — next race approaching
+	var next_race = active_championship.get_next_race()
+	if next_race:
+		var weeks_until = next_race["week"] - current_week
+		if weeks_until <= 2 and fuel_kg < active_championship.fuel_per_car_per_race:
+			tasks.append("⛽ Fuel below race minimum (%.0f kg). DNS risk in %d week%s." % [
+				fuel_kg, weeks_until, "s" if weeks_until != 1 else ""])
+
+	# Low SP — next race approaching
+	if next_race:
+		var weeks_until = next_race["week"] - current_week
+		if weeks_until <= 2 and spare_parts < active_championship.sp_per_10_pct_damage:
+			tasks.append("🔧 SP below repair minimum (%d units). Consider buying more." % spare_parts)
+
+	# Negative balance
+	if player_team.balance < 0:
+		tasks.append("💸 Balance is negative ($%.0f). Bankruptcy risk." % player_team.balance)
+
+	# Car condition critically low
+	for car in player_team_cars:
+		if car.condition < 30.0:
+			tasks.append("🔩 Car %d condition critical (%.0f%%) — repair before next race." % [
+				car.car_number, car.condition])
+
+	# Expiring contracts (1 season left)
+	for driver_id in player_team.drivers:
+		var driver = all_drivers.get(driver_id)
+		if driver and driver.contract_seasons_remaining <= 1:
+			tasks.append("📋 %s's contract expires soon — consider renewing." % driver.full_name())
+	for staff_id in all_staff:
+		var staff = all_staff[staff_id]
+		if staff.contract_team == player_team.id and staff.contract_seasons_remaining <= 1:
+			tasks.append("📋 %s (%s) contract expires soon." % [staff.full_name(), staff.role])
+
+	return tasks
 
 ## Weekly pit crew fitness recovery.
 func _recover_pit_crew_fitness() -> void:
