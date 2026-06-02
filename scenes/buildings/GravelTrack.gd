@@ -47,6 +47,15 @@ func _build_ui() -> void:
 
 	# Description
 	var lbl_desc = Label.new()
+	# PRC income gate notice
+	var prc = GameState.campus_buildings.get("Public Racing Club", {})
+	var prc_built = prc.get("built", false)
+	if not prc_built:
+		var lbl_prc = Label.new()
+		lbl_prc.text = "⚠ Build the Public Racing Club to unlock track income."
+		lbl_prc.add_theme_color_override("font_color", Color(1.0, 0.6, 0.2))
+		lbl_prc.add_theme_font_size_override("font_size", 12)
+		left.add_child(lbl_prc)
 	lbl_desc.text = "Unpaved rally stage. Improves Rally discipline stats. Generates income via Public Racing Club."
 	lbl_desc.modulate = Color(0.7, 0.7, 0.7)
 	lbl_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

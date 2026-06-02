@@ -214,6 +214,15 @@ func _ready() -> void:
 	advance_to_race_button.pressed.connect(_on_advance_to_race_pressed)
 	advance_button.get_parent().add_child(advance_to_race_button)
 
+	# Skip to End of Season button
+	var skip_season_btn = Button.new()
+	skip_season_btn.custom_minimum_size = Vector2(220, 50)
+	skip_season_btn.add_theme_font_size_override("font_size", 16)
+	skip_season_btn.text = "⏩ End of Season"
+	skip_season_btn.modulate = Color(0.8, 0.8, 0.8)
+	skip_season_btn.pressed.connect(_on_skip_to_season_end)
+	advance_button.get_parent().add_child(skip_season_btn)
+
 	# Connect signals
 	GameState.week_advanced.connect(_on_week_advanced)
 	GameState.season_ended.connect(_on_season_ended)
@@ -638,15 +647,14 @@ func _on_advance_pressed() -> void:
 
 func _on_advance_to_race_pressed() -> void:
 	var next_race = GameState.active_championship.get_next_race()
+	# No more races — skip to end of season instead
 	if not next_race:
-		_show_notification("No more races this season.")
+		_on_skip_to_season_end()
 		return
 	var weeks_to_skip = next_race["week"] - GameState.current_week
 	if weeks_to_skip <= 0:
-		# Already on race week — just advance normally
 		_on_advance_pressed()
 		return
-	# Only block on DNS-critical issues, not advisory warnings
 	var blocking = GameState.get_race_blocking_tasks()
 	if not blocking.is_empty():
 		_show_modal(
@@ -656,24 +664,54 @@ func _on_advance_to_race_pressed() -> void:
 			"Advance Anyway",
 			"Go Back and Fix",
 			func():
-				for i in range(weeks_to_skip - 1):
-					GameState.advance_week()
-					if GameState.active_championship.is_season_finished():
-						break
+				var news = _skip_weeks_collect_news(weeks_to_skip - 1)
 				_update_display()
 				_refresh_log()
-				_show_tab(current_tab),
+				_show_tab(current_tab)
+				if not news.is_empty():
+					_show_modal("📰 News While You Were Away", "", news, "OK", "", func(): pass, null),
 			null
 		)
 		return
-	# No blocking issues — skip weeks silently, stop week before race
-	for i in range(weeks_to_skip - 1):
-		GameState.advance_week()
-		if GameState.active_championship.is_season_finished():
-			break
+	var news = _skip_weeks_collect_news(weeks_to_skip - 1)
 	_update_display()
 	_refresh_log()
 	_show_tab(current_tab)
+	if not news.is_empty():
+		_show_modal("📰 News While You Were Away", "Events during the skip:", news, "OK", "", func(): pass, null)
+
+func _on_skip_to_season_end() -> void:
+	var weeks_remaining = GameState.max_weeks - GameState.current_week
+	if weeks_remaining <= 0:
+		_show_notification("Already at the end of the season.")
+		return
+	var news = _skip_weeks_collect_news(weeks_remaining)
+	_update_display()
+	_refresh_log()
+	_show_tab(current_tab)
+	if not news.is_empty():
+		_show_modal("📰 Season Summary", "Events during the skip:", news, "OK", "", func(): pass, null)
+
+## Advances N weeks silently, collecting notable events (building completions, race results).
+## Returns an Array of strings for the news modal.
+func _skip_weeks_collect_news(n: int) -> Array:
+	var news: Array = []
+	for i in range(n):
+		if GameState.current_week >= GameState.max_weeks:
+			break
+		GameState.advance_week()
+		# Collect building completions from the weekly log
+		for entry in GameState.weekly_log:
+			if "✅" in entry and ("built" in entry.to_lower() or "upgraded" in entry.to_lower() or "complete" in entry.to_lower()):
+				news.append("Wk %d: %s" % [GameState.current_week, entry])
+		# Collect player race wins
+		if GameState.last_race_results and not GameState.last_race_results.is_empty():
+			var p1 = GameState.last_race_results[0]
+			if p1.get("driver_id", "") in GameState.player_team.drivers:
+				var d = GameState.all_drivers.get(p1["driver_id"])
+				if d:
+					news.append("🏆 Wk %d: %s WON the race!" % [GameState.current_week, d.full_name()])
+	return news
 
 func _show_pending_tasks_dialog(tasks: Array) -> void:
 	_show_modal(

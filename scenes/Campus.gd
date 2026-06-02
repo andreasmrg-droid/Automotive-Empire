@@ -43,10 +43,10 @@ func _ready() -> void:
 	var layout = $Layout
 	layout.anchor_right = 1.0
 	layout.anchor_bottom = 1.0
-	layout.offset_left = 20
-	layout.offset_top = 20
-	layout.offset_right = -20
-	layout.offset_bottom = -20
+	layout.offset_left = 16
+	layout.offset_top = 16
+	layout.offset_right = -16
+	layout.offset_bottom = -16
 
 	# Header
 	title_label.text = "🏗 CAMPUS"
@@ -57,18 +57,18 @@ func _ready() -> void:
 	back_button.custom_minimum_size = Vector2(150, 40)
 	back_button.pressed.connect(_on_back_pressed)
 
-	# ScrollContainer fills remaining space
+	# ScrollContainer fills remaining space — full width
 	var scroll = $Layout/ScrollContainer
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical   = Control.SIZE_EXPAND_FILL
 
-	# ZonesBox
-	zones_box.add_theme_constant_override("separation", 20)
-	zones_box.custom_minimum_size = Vector2(800, 0)
+	# ZonesBox — full width, cards wrap naturally
+	zones_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	zones_box.add_theme_constant_override("separation", 16)
 
 	_build_campus()
 
 func _build_campus() -> void:
-	# Clear existing
 	for child in zones_box.get_children():
 		child.queue_free()
 
@@ -76,18 +76,20 @@ func _build_campus() -> void:
 		_build_zone(zone_name, GameState.campus_zones[zone_name])
 
 func _build_zone(zone_name: String, buildings: Array) -> void:
-	# Zone header
+	# Zone header — full width label
 	var zone_label = Label.new()
 	zone_label.text = "━━━  %s  ━━━" % zone_name.to_upper()
-	zone_label.add_theme_font_size_override("font_size", 16)
+	zone_label.add_theme_font_size_override("font_size", 14)
+	zone_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var zone_color = ZONE_COLORS.get(zone_name, Color(0.5, 0.5, 0.5))
 	zone_label.add_theme_color_override("font_color", zone_color)
 	zones_box.add_child(zone_label)
 
-	# Building cards in a horizontal wrap
+	# Building cards wrap across full width
 	var grid = HFlowContainer.new()
-	grid.add_theme_constant_override("h_separation", 12)
-	grid.add_theme_constant_override("v_separation", 12)
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 10)
 	zones_box.add_child(grid)
 
 	for building_id in buildings:
@@ -97,7 +99,7 @@ func _build_zone(zone_name: String, buildings: Array) -> void:
 func _build_card(building_id: String) -> PanelContainer:
 	var building = GameState.get_building(building_id)
 	var card = PanelContainer.new()
-	card.custom_minimum_size = Vector2(280, 0)
+	card.custom_minimum_size = Vector2(240, 0)
 
 	var vbox = VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 6)
@@ -252,9 +254,9 @@ func _build_card(building_id: String) -> PanelContainer:
 
 	var bname = building["name"]
 	if bname in BUILDING_SCENES and building["built"] and building["level"] >= 1:
-		var icon = BUILDING_ICONS.get(bname, "🏢")
+		var bicon = BUILDING_ICONS.get(bname, "🏢")
 		var enter_btn = Button.new()
-		enter_btn.text = "%s Enter %s" % [icon, bname]
+		enter_btn.text = "%s Enter %s" % [bicon, bname]
 		enter_btn.custom_minimum_size = Vector2(260, 35)
 		var scene_path = BUILDING_SCENES[bname]
 		enter_btn.pressed.connect(func(): get_tree().change_scene_to_file(scene_path))

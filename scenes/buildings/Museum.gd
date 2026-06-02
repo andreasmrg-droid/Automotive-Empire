@@ -73,27 +73,28 @@ func _build_effects_panel() -> PanelContainer:
 	panel.add_child(vbox)
 	var building = GameState.campus_buildings.get("Museum", {})
 	var level = building.get("level", 1)
-	var inc = GameState.get_building_income(building)
 	var maint = GameState.get_building_maintenance(building)
-	var effects_str = building.get("effects", "")
-	# Header stat: level
+
+	# Count only THIS team's wins — museum displays team history only
+	var team_wins = 0
+	var hof = GameState.hall_of_fame if "hall_of_fame" in GameState else []
+	for entry in hof:
+		if entry.get("team_id", "") == GameState.player_team.id:
+			team_wins += 1
+
+	# Income requires trophies: 0 wins = 0 income. Each win adds 10% to base income.
+	var base_inc = GameState.get_building_income(building)
+	var actual_inc = 0 if team_wins == 0 else int(base_inc * (1.0 + team_wins * 0.1))
+
 	var rows = [
-		["Level",       "%d / %d" % [level, building.get("max_level", 10)]],
-		["Maintenance", "CR %d/wk" % maint],
+		["Level",         "%d / %d" % [level, building.get("max_level", 10)]],
+		["Maintenance",   "CR %d/wk" % maint],
+		["Trophies",      "%d team win%s" % [team_wins, "s" if team_wins != 1 else ""]],
+		["Weekly Income", "CR %d/wk%s" % [actual_inc,
+			"  ⚠ earn wins first" if team_wins == 0 else ""]],
 	]
-	if inc > 0:
-		rows.append(["Weekly Income", "CR %d/wk" % inc])
 	for e in rows:
 		vbox.add_child(_stat_row(e[0], e[1]))
-	# Effects text
-	if effects_str != "":
-		vbox.add_child(HSeparator.new())
-		var lbl = Label.new()
-		lbl.text = effects_str
-		lbl.add_theme_font_size_override("font_size", 11)
-		lbl.modulate = Color(0.6, 0.85, 1.0)
-		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		vbox.add_child(lbl)
 	return panel
 
 func _build_extra_panel() -> PanelContainer:
@@ -101,33 +102,42 @@ func _build_extra_panel() -> PanelContainer:
 	var vbox = VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 8)
 	panel.add_child(vbox)
-	# Hall of Fame
 	var lbl = Label.new()
-	lbl.text = "HALL OF FAME"
+	lbl.text = "HALL OF FAME  —  %s" % GameState.player_team.team_name
 	lbl.add_theme_font_size_override("font_size", 11)
 	lbl.modulate = Color(0.5, 0.5, 0.5)
 	vbox.add_child(lbl)
-	var hof = GameState.hall_of_fame
-	if hof.is_empty():
+	var hof = GameState.hall_of_fame if "hall_of_fame" in GameState else []
+	# Filter to team wins only
+	var team_wins = hof.filter(func(e): return e.get("team_id","") == GameState.player_team.id)
+	if team_wins.is_empty():
 		var empty = Label.new()
-		empty.text = "No wins recorded yet."
+		empty.text = "No wins yet — get out there and race! 🏆"
 		empty.modulate = Color(0.5, 0.5, 0.5)
 		vbox.add_child(empty)
 	else:
-		for i in range(min(hof.size(), 8)):
-			var entry = hof[hof.size() - 1 - i]
+		for i in range(min(team_wins.size(), 10)):
+			var entry = team_wins[team_wins.size() - 1 - i]
 			var row = HBoxContainer.new()
+			row.add_theme_constant_override("separation", 10)
 			var lbl_round = Label.new()
 			lbl_round.text = "S%d R%d" % [entry.get("season",1), entry.get("round",1)]
 			lbl_round.custom_minimum_size.x = 60
 			lbl_round.add_theme_font_size_override("font_size", 12)
 			lbl_round.modulate = Color(0.55, 0.55, 0.55)
 			row.add_child(lbl_round)
-			var lbl_winner = Label.new()
-			lbl_winner.text = "%s  (%s)" % [entry.get("winner","?"), entry.get("track","?")]
-			lbl_winner.add_theme_font_size_override("font_size", 12)
-			row.add_child(lbl_winner)
+			var lbl_driver = Label.new()
+			lbl_driver.text = entry.get("winner", "?")
+			lbl_driver.add_theme_font_size_override("font_size", 12)
+			lbl_driver.add_theme_color_override("font_color", Color(1.0, 0.84, 0.0))
+			row.add_child(lbl_driver)
+			var lbl_track = Label.new()
+			lbl_track.text = "  %s" % entry.get("track", "?")
+			lbl_track.modulate = Color(0.6, 0.6, 0.6)
+			lbl_track.add_theme_font_size_override("font_size", 12)
+			row.add_child(lbl_track)
 			vbox.add_child(row)
+	return panel
 	return panel
 
 func _on_back() -> void:

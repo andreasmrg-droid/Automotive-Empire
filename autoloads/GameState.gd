@@ -335,8 +335,8 @@ func _setup_campus() -> void:
 			"upgrade_time": 26,
 			"effects": "+CR 12000 weekly passive income\n+CR 1500 per level"
 		},
-		# Public Racing Club: track day/member club. Real club setup: CR 40K-CR 120K.
-		# Accessible mid-game income stream.
+		# Public Racing Club: track day/member club. Enables income from all track buildings.
+		# No direct income — its value is unlocking Karting/Gravel/Oval/Race Track income.
 		"Public Racing Club": {
 			"name": "Public Racing Club",
 			"built": false,
@@ -344,12 +344,12 @@ func _setup_campus() -> void:
 			"max_level": 7,
 			"construction_weeks_remaining": 0,
 			"weekly_maintenance": 850,
-			"weekly_income": 2200,
+			"weekly_income": 0,
 			"build_cost": 55000,
 			"build_time": 12,
 			"upgrade_cost": 18000,
 			"upgrade_time": 6,
-			"effects": "+CR 2200 weekly passive income\n+CR 350 per level"
+			"effects": "Enables income from Karting, Gravel, Oval and Race Track buildings.\n+10% track income per PRC level."
 		},
 		# Merchandise Store: team shop. Real small branded retail fit-out: CR 20K-CR 60K.
 		# Cheapest income building — first thing a player should consider building.
@@ -623,9 +623,21 @@ func _consume_race_resources() -> void:
 	_check_resource_notifications()
 
 func _earn_race_rp(laps: int) -> void:
-	var rp_gained = laps * 0.5
-	research_points += rp_gained
-	add_log("🔬 RP gained: %.0f (total: %.0f)" % [rp_gained, research_points])
+	# RP only accumulates if the team has an R&D Design Studio AND at least one Designer.
+	var rnd_studio = campus_buildings.get("R&D Design Studio", {})
+	if not rnd_studio.get("built", false):
+		return
+	var designers = get_player_staff_by_role("Designer")
+	if designers.is_empty():
+		return
+	# Each Designer contributes proportionally to their design_skill
+	var design_power = 0.0
+	for d in designers:
+		design_power += d.design_skill / 100.0
+	var rp_gained = laps * 0.5 * design_power
+	var rp_cap = get_rnd_rp_storage_cap()
+	research_points = min(research_points + rp_gained, float(rp_cap))
+	add_log("🔬 RP gained: %.0f (total: %.0f / %d)" % [rp_gained, research_points, rp_cap])
 
 func _check_resource_notifications() -> void:
 	# SP warnings — SP is for repairs only
@@ -737,7 +749,10 @@ func buy_part(part_name: String, quantity: int) -> bool:
 	if part_name not in costs:
 		add_notification("High", "No part cost data for %s in this championship." % part_name)
 		return false
-	var total_cost = costs[part_name] * quantity
+	# Apply Logistics Center discount (-1% per level, max -50%)
+	var discount = get_logistics_parts_discount()
+	var unit_cost = int(round(costs[part_name] * discount))
+	var total_cost = unit_cost * quantity
 	if player_team.balance < total_cost:
 		add_notification("High", "Not enough credits to buy %d× %s (need CR %d, have CR %d)." % [
 			quantity, part_name, total_cost, int(player_team.balance)])
@@ -746,8 +761,9 @@ func buy_part(part_name: String, quantity: int) -> bool:
 	if not champ_id in part_inventory:
 		part_inventory[champ_id] = {}
 	part_inventory[champ_id][part_name] = part_inventory[champ_id].get(part_name, 0) + quantity
-	add_log("🔩 Bought %d× %s parts for CR %d (stock: %d)" % [
-		quantity, part_name, total_cost, part_inventory[champ_id][part_name]])
+	var discount_str = " (%.0f%% discount)" % ((1.0 - discount) * 100) if discount < 1.0 else ""
+	add_log("🔩 Bought %d× %s parts for CR %d%s (stock: %d)" % [
+		quantity, part_name, total_cost, discount_str, part_inventory[champ_id][part_name]])
 	return true
 
 func _check_part_inventory_notifications() -> void:
@@ -1488,10 +1504,9 @@ func get_upgrade_time(building: Dictionary) -> int:
 
 ## Weekly income increment per level — from Excel Buildings sheet Effects_Per_Level column.
 const BUILDING_INCOME_PER_LEVEL = {
-	"Garage":              450,
+	"Garage":              450,   # repair profit per level
 	"Museum":              380,
 	"Theme Park":          650,
-	"Public Racing Club":  280,
 	"Merchandise Store":   420,
 	"Karting Track":       160,
 	"Gravel Track":        140,
@@ -1499,11 +1514,29 @@ const BUILDING_INCOME_PER_LEVEL = {
 	"Race Track":          220,
 }
 
+## Track buildings only generate income when Public Racing Club is built.
+## PRC level also multiplies track income by +10% per level.
+const TRACK_BUILDINGS = ["Karting Track", "Gravel Track", "Oval Track", "Race Track"]
+
 ## Returns current weekly income: income_level1 + income_per_level × (level - 1).
+## Track buildings return 0 unless Public Racing Club is built.
+## PRC level multiplies track income by (1 + prc_level × 0.10).
 func get_building_income(building: Dictionary) -> int:
+	var bname = building["name"]
+	if bname in TRACK_BUILDINGS:
+		var prc = campus_buildings.get("Public Racing Club", {})
+		if not prc.get("built", false):
+			return 0
+		var level     = building["level"]
+		var base      = building["weekly_income"]
+		var per_level = BUILDING_INCOME_PER_LEVEL.get(bname, 0)
+		var raw_income = base + per_level * max(0, level - 1)
+		# PRC level bonus: +10% per PRC level
+		var prc_level = prc.get("level", 1)
+		return int(raw_income * (1.0 + prc_level * 0.10))
 	var level     = building["level"]
 	var base      = building["weekly_income"]
-	var per_level = BUILDING_INCOME_PER_LEVEL.get(building["name"], 0)
+	var per_level = BUILDING_INCOME_PER_LEVEL.get(bname, 0)
 	return base + per_level * max(0, level - 1)
 
 ## Returns current weekly maintenance: maintenance_level1 × 1.10^(level-1), rounded to CR 50.
@@ -1512,6 +1545,56 @@ func get_building_maintenance(building: Dictionary) -> int:
 	var base   = building["weekly_maintenance"]
 	var scaled = base * pow(1.10, max(0, level - 1))
 	return int(round(scaled / 50.0) * 50)
+
+## ── Building bonus helpers ────────────────────────────────────────────────────
+
+func get_hq_marketability_bonus() -> float:
+	var hq = campus_buildings.get("Headquarters (HQ)", {})
+	if not hq.get("built", false): return 0.0
+	return float(hq.get("level", 1))
+
+func get_hq_sponsor_slots() -> int:
+	var hq = campus_buildings.get("Headquarters (HQ)", {})
+	if not hq.get("built", false): return 1
+	return 1 + int(hq.get("level", 1) / 2)
+
+func get_logistics_parts_discount() -> float:
+	var lc = campus_buildings.get("Logistics Center", {})
+	if not lc.get("built", false): return 1.0
+	return max(0.5, 1.0 - lc.get("level", 1) * 0.01)
+
+func get_fitness_fatigue_reduction() -> float:
+	var fc = campus_buildings.get("Fitness Clinic", {})
+	if not fc.get("built", false): return 0.0
+	var level = fc.get("level", 1)
+	return 0.10 + (level - 1) * 0.005
+
+func get_pit_crew_time_bonus() -> float:
+	var pca = campus_buildings.get("Pit Crew Arena", {})
+	if not pca.get("built", false): return 0.0
+	var level = pca.get("level", 1)
+	return 0.1 * pow(1.01, level - 1)
+
+func get_wind_tunnel_aero_bonus() -> float:
+	var wt = campus_buildings.get("Aerodynamic Wind Tunnel", {})
+	if not wt.get("built", false): return 0.0
+	var level = wt.get("level", 1)
+	return 0.10 + (level - 1) * 0.05
+
+func get_ops_sim_track_knowledge_base() -> float:
+	var ops = campus_buildings.get("Ops Sim & Telemetry", {})
+	if not ops.get("built", false): return 0.0
+	return 25.0 + float(ops.get("level", 1) - 1)
+
+func get_racing_dept_driver_bonus() -> float:
+	var rd = campus_buildings.get("Racing Department", {})
+	if not rd.get("built", false): return 0.0
+	return 10.0 + (rd.get("level", 1) - 1) * 5.0
+
+func get_rnd_rp_storage_cap() -> int:
+	var rnd = campus_buildings.get("R&D Design Studio", {})
+	if not rnd.get("built", false): return 0
+	return 800 + (rnd.get("level", 1) - 1) * 400
 
 func start_upgrade(building_id: String) -> void:
 	if not building_id in campus_buildings:
@@ -1735,6 +1818,12 @@ func _generate_ai_teams() -> void:
 
 func advance_week() -> void:
 	weekly_log = []
+
+	# Guard: never advance past max_weeks
+	if current_week >= max_weeks:
+		_end_season()
+		return
+
 	current_week += 1
 
 	# Weekly fitness recovery (drivers)
@@ -1767,21 +1856,18 @@ func advance_week() -> void:
 		active_championship.current_round += 1
 		return
 
-	# Season ends only at week 52 — NOT when last race is done.
-	# After the last race, the season continues until week 52 (off-season activities).
-	# _simulate_race() handles end-of-season internally only when week >= max_weeks.
-	if current_week >= max_weeks:
-		_end_season()
-		return
-
 	add_log("--- Week %d ---" % current_week)
 	emit_signal("week_advanced", current_week)
 	emit_signal("log_updated")
 
 func _apply_weekly_fitness_recovery() -> void:
+	var fatigue_reduction = get_fitness_fatigue_reduction()
+	var base_recovery = 8.0
+	# Fitness Clinic reduces fatigue — means faster recovery each week
+	var actual_recovery = base_recovery * (1.0 + fatigue_reduction)
 	for driver_id in all_drivers:
 		var driver = all_drivers[driver_id]
-		driver.fitness = min(100.0, driver.fitness + 8.0)
+		driver.fitness = min(100.0, driver.fitness + actual_recovery)
 
 func _simulate_race(race_data: Dictionary) -> void:
 	add_log("=== RACE %d: %s ===" % [active_championship.current_round + 1, race_data["name"]])
@@ -1861,6 +1947,28 @@ func _simulate_race(race_data: Dictionary) -> void:
 	# Determine weather
 	var is_wet = randf() * 100.0 < race_data["rain_probability"]
  
+	# ── Track discipline bonus ────────────────────────────────────────────────
+	# Track buildings improve pace for matching disciplines (player only, sim only).
+	# GK → Karting Track: +5% base, +3%/level
+	# Rally → Gravel Track: +5% base, +3%/level
+	# SC/OWC → Oval Track: +5% base, +3%/level
+	# GP/EPC/TC → Race Track: +3% base, +3%/level
+	var track_perf_bonus: float = 0.0
+	const TRACK_BONUS_MAP = {
+		"GK": "Karting Track", "Rally": "Gravel Track",
+		"SC": "Oval Track", "OWC": "Oval Track",
+		"GP": "Race Track", "EPC": "Race Track", "TC": "Race Track",
+	}
+	var disc = active_championship.discipline
+	if disc in TRACK_BONUS_MAP:
+		var tname = TRACK_BONUS_MAP[disc]
+		var tbld  = campus_buildings.get(tname, {})
+		if tbld.get("built", false):
+			var tlevel = tbld.get("level", 1)
+			var base_b = 0.03 if disc in ["GP", "EPC", "TC"] else 0.05
+			track_perf_bonus = base_b + (tlevel - 1) * 0.03
+			add_log("🏟 %s bonus: +%.0f%% pace" % [tname, track_perf_bonus * 100.0])
+
 	# Calculate lap times
 	var driver_times = []
 	for driver in race_drivers:
@@ -1881,6 +1989,13 @@ func _simulate_race(race_data: Dictionary) -> void:
 		# Formula: lap_time /= staff_synergy → higher synergy = faster lap.
 		if driver.id in player_team.drivers:
 			lap_time /= staff_synergy
+			# Wind Tunnel aero bonus
+			var aero_bonus = get_wind_tunnel_aero_bonus()
+			if aero_bonus > 0.0:
+				lap_time /= (1.0 + aero_bonus)
+			# Track discipline bonus
+			if track_perf_bonus > 0.0:
+				lap_time /= (1.0 + track_perf_bonus)
 
 		# Noise based on consistency — high consistency = tight laps
 		var noise = driver.get_lap_noise_range()

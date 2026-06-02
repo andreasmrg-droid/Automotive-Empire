@@ -108,7 +108,7 @@ func _ready() -> void:
 	# Quick preset buttons
 	for amount in [50000, 100000, 250000, 500000]:
 		var preset_btn = Button.new()
-		preset_btn.text = "$%s" % _fmt_budget(amount)
+		preset_btn.text = "CR%s" % _fmt_budget(amount)
 		preset_btn.custom_minimum_size = Vector2(0, 45)
 		var _a = amount
 		preset_btn.pressed.connect(func():
