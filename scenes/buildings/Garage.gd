@@ -73,10 +73,19 @@ func _build_ui() -> void:
 	vbox.add_child(action_bar)
 
 	var btn_buy = Button.new()
-	btn_buy.text = "🛒 Buy Car  →  Logistics Center"
-	btn_buy.custom_minimum_size = Vector2(260, 36)
+	btn_buy.text = "🛒 Buy Car  →  Logistics"
+	btn_buy.custom_minimum_size = Vector2(220, 36)
 	btn_buy.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/buildings/Logistics.tscn"))
 	action_bar.add_child(btn_buy)
+
+	var btn_mech = Button.new()
+	btn_mech.text = "🔧 Hire Mechanic  →  Staff"
+	btn_mech.custom_minimum_size = Vector2(220, 36)
+	btn_mech.pressed.connect(func():
+		GameState.pending_staff_filter = "Race Mechanic"
+		get_tree().change_scene_to_file("res://scenes/Staff.tscn")
+	)
+	action_bar.add_child(btn_mech)
 
 	var lbl_hint = Label.new()
 	lbl_hint.text = "Cars are purchased from the Logistics Center or built at the CNC Plant."
@@ -304,6 +313,14 @@ func _build_car_card(car) -> PanelContainer:
 	lbl_sub.add_theme_font_size_override("font_size", 12)
 	lbl_sub.modulate = Color(0.5, 0.5, 0.5)
 	row1.add_child(lbl_sub)
+	# Championship name — clearly labelled so player knows which series this car runs in
+	var reg = GameState.CHAMPIONSHIP_REGISTRY.get(car.championship_id, {})
+	if not reg.is_empty():
+		var lbl_champ = Label.new()
+		lbl_champ.text = "  🏆 %s" % reg.get("name", car.championship_id)
+		lbl_champ.add_theme_font_size_override("font_size", 11)
+		lbl_champ.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+		row1.add_child(lbl_champ)
 	row1.add_child(_spacer())
 	var btn_rename = Button.new()
 	btn_rename.text = "✏"
@@ -400,6 +417,38 @@ func _build_car_card(car) -> PanelContainer:
 		m_row.add_child(btn_unassign)
 	m_vbox.add_child(m_row)
 	row3.add_child(m_vbox)
+
+	# Pit Crew column — only for non-GK championships
+	if GameState.get_pit_crew_required(car.championship_id):
+		var pc_vbox = VBoxContainer.new()
+		var pc_title = Label.new()
+		pc_title.text = "PIT CREW"
+		pc_title.add_theme_font_size_override("font_size", 10)
+		pc_title.modulate = Color(0.55, 0.55, 0.55)
+		pc_vbox.add_child(pc_title)
+		var pc_row = HBoxContainer.new()
+		pc_row.add_theme_constant_override("separation", 6)
+		var lbl_crew = Label.new()
+		if car.pit_crew_id != "" and car.pit_crew_id != "N/A" and car.pit_crew_id in GameState.all_staff:
+			lbl_crew.text = GameState.all_staff[car.pit_crew_id].display_name()
+			lbl_crew.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
+		elif car.pit_crew_id == "N/A":
+			lbl_crew.text = "N/A (GK)"
+			lbl_crew.modulate = Color(0.5, 0.5, 0.5)
+		else:
+			lbl_crew.text = "⚠ unassigned — DNS"
+			lbl_crew.modulate = Color(1.0, 0.4, 0.4)
+		pc_row.add_child(lbl_crew)
+		# Quick-assign button to navigate to PitCrewArena
+		var btn_crew = Button.new()
+		btn_crew.text = "→ Pit Crew Arena"
+		btn_crew.add_theme_font_size_override("font_size", 11)
+		btn_crew.pressed.connect(func():
+			get_tree().change_scene_to_file("res://scenes/buildings/PitCrewArena.tscn"))
+		pc_row.add_child(btn_crew)
+		pc_vbox.add_child(pc_row)
+		row3.add_child(pc_vbox)
+
 	vbox.add_child(row3)
 
 	# Row 4 — telemetry stats

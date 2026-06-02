@@ -77,10 +77,21 @@ extends Resource
 @export var practice_scheduling: float = 0.0  # Optimises practice session programs
 @export var qualifying_timing: float = 0.0    # Optimises qualifying lap release timing
 
+## Pit Crew unit number — set at hire time (1, 2, 3...).
+## Crew is displayed as "Crew #N" with individual as "Crew Chief".
+@export var crew_number: int = 0
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 func full_name() -> String:
 	return first_name + " " + last_name
+
+## Display name: Pit Crew shown as "Crew #N" with chief name.
+## All other roles use full_name().
+func display_name() -> String:
+	if role == "Pit Crew" and crew_number > 0:
+		return "Crew #%d  (Chief: %s)" % [crew_number, full_name()]
+	return full_name()
 
 func is_available() -> bool:
 	return contract_team == ""

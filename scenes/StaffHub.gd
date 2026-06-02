@@ -34,6 +34,11 @@ var card_overlay: PanelContainer = null
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_ui()
+	# Apply pre-filter if set by another scene (e.g. Garage sets "Race Mechanic")
+	if GameState.pending_staff_filter != "":
+		role_filter = GameState.pending_staff_filter
+		GameState.pending_staff_filter = ""
+		_show_tab("available_staff")
 
 func _build_ui() -> void:
 	var layout = VBoxContainer.new()
@@ -195,7 +200,7 @@ func _make_my_staff_row(staff) -> PanelContainer:
 	var row1 = HBoxContainer.new()
 	row1.add_theme_constant_override("separation", 8)
 	vbox.add_child(row1)
-	_add_col(row1, staff.full_name(), 170, Color(0.9, 0.9, 0.9), 14)
+	_add_col(row1, staff.display_name(), 170, Color(0.9, 0.9, 0.9), 14)
 	_add_col(row1, "Age %d" % staff.age, 55)
 	_add_col(row1, staff.nationality, 100)
 	_add_col(row1, "%s %.0f" % [staff.get_primary_skill_label(), staff.get_primary_skill()], 100,
@@ -217,11 +222,17 @@ func _make_my_staff_row(staff) -> PanelContainer:
 		else Color(1.0, 0.6, 0.2))
 	_add_col(row1, assign_text, 130, assign_color)
 
+	# Previous season championship indicator
+	var prev_champ_id = GameState.previous_season_championship.get(staff.id, "")
+	if prev_champ_id != "":
+		var prev_reg = GameState.CHAMPIONSHIP_REGISTRY.get(prev_champ_id, {})
+		_add_col(row1, "↩ %s" % prev_reg.get("name", prev_champ_id).left(18), 140, Color(0.5, 0.75, 0.5))
+
 	# Contract
 	var contract_color = Color(1.0, 0.4, 0.4) if staff.contract_seasons_remaining <= 1 \
 		else Color(0.7, 0.7, 0.7)
-	_add_col(row1, "%d seasons" % staff.contract_seasons_remaining, 80, contract_color)
-	_add_col(row1, "CR %.0f/wk" % staff.weekly_salary, 75, Color(0.6, 0.6, 0.6))
+	_add_col(row1, "%d season%s" % [staff.contract_seasons_remaining, "s" if staff.contract_seasons_remaining != 1 else ""], 100, contract_color)
+	_add_col(row1, "CR %s/yr" % _fmt_sal(int(staff.weekly_salary * 52)), 90, Color(0.6, 0.9, 0.6))
 
 	# Buttons
 	var btn_row = HBoxContainer.new()
@@ -286,14 +297,14 @@ func _make_available_staff_row(staff) -> PanelContainer:
 	var row1 = HBoxContainer.new()
 	row1.add_theme_constant_override("separation", 8)
 	vbox.add_child(row1)
-	_add_col(row1, staff.full_name(), 170, Color(0.85, 0.85, 0.85), 14)
+	_add_col(row1, staff.display_name(), 170, Color(0.85, 0.85, 0.85), 14)
 	_add_col(row1, "Age %d" % staff.age, 55)
 	_add_col(row1, staff.nationality, 100)
 	_add_col(row1, "%s %s" % [ROLE_ICONS.get(staff.role, ""), staff.role], 155,
 		Color(0.7, 0.85, 1.0))
 	_add_col(row1, "%s %.0f" % [staff.get_primary_skill_label(), staff.get_primary_skill()], 100,
 		_skill_color(staff.get_primary_skill()))
-	_add_col(row1, "CR %.0f/wk" % staff.weekly_salary, 75, Color(0.6, 0.6, 0.6))
+	_add_col(row1, "CR %s/yr" % _fmt_sal(int(staff.weekly_salary * 52)), 90, Color(0.6, 0.6, 0.6))
 
 	var btn_row = HBoxContainer.new()
 	btn_row.add_theme_constant_override("separation", 6)
@@ -367,7 +378,7 @@ func _show_staff_card(staff_id: String) -> void:
 	var header = HBoxContainer.new()
 	vbox.add_child(header)
 	var name_lbl = Label.new()
-	name_lbl.text = "%s %s" % [ROLE_ICONS.get(staff.role, ""), staff.full_name()]
+	name_lbl.text = "%s %s" % [ROLE_ICONS.get(staff.role, ""), staff.display_name()]
 	name_lbl.add_theme_font_size_override("font_size", 20)
 	name_lbl.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -385,9 +396,9 @@ func _show_staff_card(staff_id: String) -> void:
 		"%d  |  %s  |  %s" % [staff.age, staff.sex, staff.nationality])
 	_card_row(vbox, "Reputation", "%.0f / 100" % staff.reputation,
 		_skill_color(staff.reputation))
-	_card_row(vbox, "Weekly Salary", "CR %.0f" % staff.weekly_salary)
+	_card_row(vbox, "Salary", "CR %s/yr  (CR %.0f/wk)" % [_fmt_sal(int(staff.weekly_salary * 52)), staff.weekly_salary])
 	_card_row(vbox, "Contract",
-		"%d seasons remaining" % staff.contract_seasons_remaining,
+		"%d season%s remaining" % [staff.contract_seasons_remaining, "s" if staff.contract_seasons_remaining != 1 else ""],
 		Color(1.0, 0.4, 0.4) if staff.contract_seasons_remaining <= 1 else Color.WHITE)
 
 	var assign_text = "Unassigned"
@@ -520,7 +531,7 @@ func _show_assign_popup(staff_id: String) -> void:
 	var header = HBoxContainer.new()
 	vbox.add_child(header)
 	var title = Label.new()
-	title.text = "Assign %s:" % staff.full_name()
+	title.text = "Assign %s:" % staff.display_name()
 	title.add_theme_font_size_override("font_size", 15)
 	title.add_theme_color_override("font_color", Color.WHITE)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -598,7 +609,7 @@ func _confirm_release_staff(staff_id: String) -> void:
 	var dialog = ConfirmationDialog.new()
 	dialog.title = "Release Staff"
 	dialog.dialog_text = "Release %s (%s)?\nThey will return to the available pool." % [
-		staff.full_name(), staff.role]
+		staff.display_name(), staff.role]
 	dialog.ok_button_text = "Release"
 	dialog.cancel_button_text = "Cancel"
 	add_child(dialog)
@@ -716,8 +727,10 @@ func _skill_color(value: float) -> Color:
 func _get_slot_message(role: String) -> String:
 	match role:
 		"Team Principal":
-			if GameState.get_player_staff_by_role("Team Principal").size() >= 1:
-				return "You already have a Team Principal. Release them first."
+			var current = GameState.get_player_staff_by_role("Team Principal").size()
+			var max_tp = GameState.get_hq_tp_slots()
+			if current >= max_tp:
+				return "TP slots full (%d/%d). Upgrade HQ to unlock more slots." % [current, max_tp]
 		"CFO":
 			if GameState.get_player_staff_by_role("CFO").size() >= 1:
 				return "You already have a CFO. Release them first."
@@ -773,3 +786,10 @@ func _car_display_name(car) -> String:
 	if car.car_name != null and car.car_name != "":
 		return car.car_name
 	return "Car %d" % car.car_number
+
+func _fmt_sal(n: int) -> String:
+	if n >= 1000000:
+		return "%.1fM" % (n / 1000000.0)
+	elif n >= 1000:
+		return "%.0fK" % (n / 1000.0)
+	return str(n)

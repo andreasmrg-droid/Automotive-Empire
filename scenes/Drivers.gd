@@ -2,9 +2,10 @@ extends Control
 
 # ── State ─────────────────────────────────────────────────────────────────────
 var current_tab: String = "my_drivers"
-var sort_field: String = "overall"    # overall | pace | age | salary
+var sort_field: String = "overall"
 var sort_ascending: bool = false
 var role_filter: String = "All"
+var free_agents_only: bool = false
 
 # ── Node references (built in code) ──────────────────────────────────────────
 var tab_my_btn: Button
@@ -66,6 +67,18 @@ func _build_ui() -> void:
 	tab_all_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tab_all_btn.pressed.connect(func(): _show_tab("all_drivers"))
 	tab_row.add_child(tab_all_btn)
+
+	var btn_fa = Button.new()
+	btn_fa.name = "BtnFreeAgents"
+	btn_fa.text = "Free Agents Only"
+	btn_fa.toggle_mode = true
+	btn_fa.button_pressed = false
+	btn_fa.pressed.connect(func():
+		free_agents_only = btn_fa.button_pressed
+		btn_fa.text = "✅ Free Agents Only" if free_agents_only else "Free Agents Only"
+		_show_tab("all_drivers")
+	)
+	tab_row.add_child(btn_fa)
 
 	# ── Sort/filter bar ───────────────────────────────────────
 	sort_bar = HBoxContainer.new()
@@ -164,10 +177,27 @@ func _make_my_driver_row(driver) -> PanelContainer:
 	_add_col(row1, car_text, 70,
 		Color(0.4, 0.9, 0.4) if car else Color(1.0, 0.6, 0.2))
 
-	# Contract
+	# Previous season championship indicator
+	var prev_champ_id = GameState.previous_season_championship.get(driver.id, "")
+	if prev_champ_id != "":
+		var prev_reg = GameState.CHAMPIONSHIP_REGISTRY.get(prev_champ_id, {})
+		var prev_lbl = Label.new()
+		prev_lbl.text = "↩ %s" % prev_reg.get("name", prev_champ_id)
+		prev_lbl.add_theme_font_size_override("font_size", 11)
+		prev_lbl.add_theme_color_override("font_color", Color(0.5, 0.75, 0.5))
+		vbox.add_child(prev_lbl)
+
+	# Contract + salary
 	var contract_color = Color(1.0, 0.4, 0.4) if driver.contract_seasons_remaining <= 1 \
 		else Color(0.7, 0.7, 0.7)
-	_add_col(row1, "%d seasons" % driver.contract_seasons_remaining, 80, contract_color)
+	var seasons_text = "Free Agent" if driver.contract_seasons_remaining == 0 and driver.contract_team == "" \
+		else "%d season%s left" % [driver.contract_seasons_remaining, "s" if driver.contract_seasons_remaining != 1 else ""]
+	_add_col(row1, seasons_text, 100, contract_color)
+
+	# Salary — show weekly and yearly
+	var weekly = _driver_salary(driver)
+	var yearly = weekly * 52
+	_add_col(row1, "CR %s/yr" % _fmt_sal(yearly), 90, Color(0.6, 0.9, 0.6))
 
 	# Row 2 — stats bar
 	var row2 = HBoxContainer.new()
@@ -220,7 +250,10 @@ func _make_my_driver_row(driver) -> PanelContainer:
 func _get_sorted_all_drivers() -> Array:
 	var drivers = []
 	for driver_id in GameState.all_drivers:
-		drivers.append(GameState.all_drivers[driver_id])
+		var driver = GameState.all_drivers[driver_id]
+		if free_agents_only and driver.contract_team != "":
+			continue
+		drivers.append(driver)
 
 	drivers.sort_custom(func(a, b):
 		var va = _sort_value(a)
@@ -282,7 +315,7 @@ func _make_all_driver_row(driver) -> PanelContainer:
 	_add_col(row1, status, 100, status_color)
 
 	# Salary estimate
-	_add_col(row1, "$%d/wk" % _driver_salary(driver), 75, Color(0.7, 0.7, 0.7))
+	_add_col(row1, "CR %s/yr" % _fmt_sal(_driver_salary(driver) * 52), 90, Color(0.7, 0.7, 0.7))
 
 	# Stats row
 	var row2 = HBoxContainer.new()
@@ -672,6 +705,13 @@ func _skill_color(value: float) -> Color:
 
 func _on_back_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/MainHub.tscn")
+
+func _fmt_sal(n: int) -> String:
+	if n >= 1000000:
+		return "%.1fM" % (n / 1000000.0)
+	elif n >= 1000:
+		return "%.0fK" % (n / 1000.0)
+	return str(n)
 
 func _input(event: InputEvent) -> void:
 	# Close card on Escape

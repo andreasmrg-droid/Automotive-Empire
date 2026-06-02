@@ -49,6 +49,14 @@ func _build_ui() -> void:
 	btn_back.pressed.connect(_on_back)
 	header.add_child(btn_back)
 
+	# Re-register all currently-running championships for next season
+	var btn_rereg = Button.new()
+	btn_rereg.text = "🔄 Re-register All Running"
+	btn_rereg.custom_minimum_size = Vector2(220, 36)
+	btn_rereg.modulate = Color(0.7, 1.0, 0.7)
+	btn_rereg.pressed.connect(_on_reregister_all)
+	header.add_child(btn_rereg)
+
 	root.add_child(HSeparator.new())
 
 	# ── Balance + registered summary ─────────────────────────────────────────
@@ -273,6 +281,27 @@ func _tag(text: String, color: Color) -> PanelContainer:
 	lbl.add_theme_color_override("font_color", color)
 	chip.add_child(lbl)
 	return chip
+
+func _on_reregister_all() -> void:
+	var registered_count = 0
+	var failed = []
+	for champ in GameState.active_championships:
+		if champ.id == "":
+			continue
+		if champ.id in GameState.player_registered_championships:
+			continue  # already registered
+		if GameState.can_register_for_championship(champ.id):
+			if GameState.register_for_championship(champ.id):
+				registered_count += 1
+		else:
+			failed.append(champ.championship_name)
+	_refresh_list()
+	if registered_count > 0:
+		GameState.add_notification("Normal",
+			"Re-registered for %d championship%s." % [registered_count, "s" if registered_count != 1 else ""])
+	if not failed.is_empty():
+		GameState.add_notification("High",
+			"Could not re-register for: %s (check deadline/funds)." % ", ".join(failed))
 
 func _on_back() -> void:
 	get_tree().change_scene_to_file("res://scenes/MainHub.tscn")

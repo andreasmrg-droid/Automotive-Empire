@@ -43,32 +43,33 @@ func _ready() -> void:
 	var layout = $Layout
 	layout.anchor_right = 1.0
 	layout.anchor_bottom = 1.0
-	layout.offset_left = 16
-	layout.offset_top = 16
-	layout.offset_right = -16
-	layout.offset_bottom = -16
+	layout.offset_left = 12
+	layout.offset_top = 12
+	layout.offset_right = -12
+	layout.offset_bottom = -12
 
 	# Header
 	title_label.text = "🏗 CAMPUS"
-	title_label.add_theme_font_size_override("font_size", 28)
+	title_label.add_theme_font_size_override("font_size", 22)
 	title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	back_button.text = "← Back to Hub"
-	back_button.custom_minimum_size = Vector2(150, 40)
+	back_button.custom_minimum_size = Vector2(150, 36)
 	back_button.pressed.connect(_on_back_pressed)
 
-	# ScrollContainer fills remaining space — full width
+	# ScrollContainer — expand both axes
 	var scroll = $Layout/ScrollContainer
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_vertical   = Control.SIZE_EXPAND_FILL
 
-	# ZonesBox — full width, cards wrap naturally
+	# ZonesBox — no forced minimum width, let it fill the screen
 	zones_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	zones_box.add_theme_constant_override("separation", 16)
+	zones_box.add_theme_constant_override("separation", 14)
 
 	_build_campus()
 
 func _build_campus() -> void:
+	# Clear existing
 	for child in zones_box.get_children():
 		child.queue_free()
 
@@ -76,20 +77,19 @@ func _build_campus() -> void:
 		_build_zone(zone_name, GameState.campus_zones[zone_name])
 
 func _build_zone(zone_name: String, buildings: Array) -> void:
-	# Zone header — full width label
+	# Zone header
 	var zone_label = Label.new()
 	zone_label.text = "━━━  %s  ━━━" % zone_name.to_upper()
-	zone_label.add_theme_font_size_override("font_size", 14)
-	zone_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	zone_label.add_theme_font_size_override("font_size", 16)
 	var zone_color = ZONE_COLORS.get(zone_name, Color(0.5, 0.5, 0.5))
 	zone_label.add_theme_color_override("font_color", zone_color)
 	zones_box.add_child(zone_label)
 
-	# Building cards wrap across full width
+	# Building cards in a horizontal wrap
 	var grid = HFlowContainer.new()
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	grid.add_theme_constant_override("h_separation", 10)
-	grid.add_theme_constant_override("v_separation", 10)
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 8)
 	zones_box.add_child(grid)
 
 	for building_id in buildings:
@@ -125,7 +125,9 @@ func _build_card(building_id: String) -> PanelContainer:
 	var status_label = Label.new()
 	if building["built"]:
 		if building["construction_weeks_remaining"] > 0:
-			status_label.text = "🔨 Under Construction — %d weeks remaining" % building["construction_weeks_remaining"]
+			status_label.text = "Level %d / %d  ·  🔨 Upgrading — %d wks" % [
+				building["level"], building["max_level"],
+				building["construction_weeks_remaining"]]
 			status_label.add_theme_color_override("font_color", Color(1.0, 0.7, 0.2))
 		else:
 			status_label.text = "Level %d / %d" % [building["level"], building["max_level"]]
@@ -148,13 +150,11 @@ func _build_card(building_id: String) -> PanelContainer:
 	# Finance row
 	var finance_label = Label.new()
 	var finance_text = ""
-	if building["built"] and building["level"] >= 1:
-		var cur_maintenance = GameState.get_building_maintenance(building)
-		var cur_income      = GameState.get_building_income(building)
-		if cur_maintenance > 0:
-			finance_text += "💸 -CR %d/wk" % cur_maintenance
-		if cur_income > 0:
-			finance_text += "  💰 +CR %d/wk" % cur_income
+	if building["built"] and building["construction_weeks_remaining"] == 0:
+		if building["weekly_maintenance"] > 0:
+			finance_text += "💸 -$%d/wk" % building["weekly_maintenance"]
+		if building["weekly_income"] > 0:
+			finance_text += "  💰 +$%d/wk" % building["weekly_income"]
 	if finance_text != "":
 		finance_label.text = finance_text
 		finance_label.add_theme_font_size_override("font_size", 11)
@@ -170,10 +170,10 @@ func _build_card(building_id: String) -> PanelContainer:
 
 	if not building["built"]:
 		var can_afford = GameState.player_team.balance >= building["build_cost"]
-		action_btn.text = "Build — CR %d (%d wks)" % [building["build_cost"], building["build_time"]]
+		action_btn.text = "Build — $%d (%d wks)" % [building["build_cost"], building["build_time"]]
 		action_btn.disabled = not can_afford
 		if not can_afford:
-			action_btn.text += " [Need CR %d more]" % (building["build_cost"] - int(GameState.player_team.balance))
+			action_btn.text += " [Need $%d more]" % (building["build_cost"] - GameState.player_team.balance)
 		action_btn.pressed.connect(_on_build_pressed.bind(building_id))
 
 	elif building["construction_weeks_remaining"] > 0:
@@ -187,10 +187,10 @@ func _build_card(building_id: String) -> PanelContainer:
 	else:
 		var scaled_cost = GameState.get_upgrade_cost(building)
 		var scaled_time = GameState.get_upgrade_time(building)
-		var can_afford  = GameState.player_team.balance >= scaled_cost
-		action_btn.text = "Upgrade to Lv%d — CR %d (%d wks)" % [
+		var can_afford = GameState.player_team.balance >= scaled_cost
+		action_btn.text = "Upgrade to Lv%d — CR %s (%d wks)" % [
 			building["level"] + 1,
-			scaled_cost,
+			_fmt(scaled_cost),
 			scaled_time
 		]
 		action_btn.disabled = not can_afford
@@ -198,7 +198,17 @@ func _build_card(building_id: String) -> PanelContainer:
 
 	vbox.add_child(action_btn)
 
-	# ── Building-specific action buttons ─────────────────────
+	# Sell building — only for buildings the player paid to build (build_cost > 0)
+	# Starter buildings (HQ, Logistics, Garage, Racing Dept) have build_cost 0 — not sellable
+	if building["built"] and building["construction_weeks_remaining"] == 0 and building["build_cost"] > 0:
+		var sell_value = int(building["build_cost"] * 0.3)
+		var sell_btn = Button.new()
+		sell_btn.text = "🏚 Sell  (+CR %s)" % _fmt(sell_value)
+		sell_btn.custom_minimum_size = Vector2(180, 28)
+		sell_btn.add_theme_font_size_override("font_size", 11)
+		sell_btn.modulate = Color(1.0, 0.5, 0.4)
+		sell_btn.pressed.connect(_on_sell_pressed.bind(building_id, sell_value))
+		vbox.add_child(sell_btn)
 
 	# Logistics Center — always accessible once built
 	if building["name"] == "Logistics Center" and building["built"] and building["level"] >= 1:
@@ -232,33 +242,32 @@ func _build_card(building_id: String) -> PanelContainer:
 		rd_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/buildings/RacingDept.tscn"))
 		vbox.add_child(rd_btn)
 
-	# ── All remaining buildings with scenes ──────────────────────────────────
-	const BUILDING_SCENES = {
-		"Ops Sim & Telemetry":     "res://scenes/buildings/OpsSim.tscn",
-		"Pit Crew Arena":          "res://scenes/buildings/PitCrewArena.tscn",
-		"Museum":                  "res://scenes/buildings/Museum.tscn",
-		"Theme Park":              "res://scenes/buildings/ThemePark.tscn",
-		"Public Racing Club":      "res://scenes/buildings/PublicRacingClub.tscn",
-		"Merchandise Store":       "res://scenes/buildings/MerchandiseStore.tscn",
-		"Fitness Clinic":          "res://scenes/buildings/FitnessClinic.tscn",
-		"Academy":                 "res://scenes/buildings/Academy.tscn",
-		"R&D Design Studio":       "res://scenes/buildings/RnDStudio.tscn",
-		"CNC Parts Plant":         "res://scenes/buildings/CNCPlant.tscn",
-		"Aerodynamic Wind Tunnel": "res://scenes/buildings/AeroWindTunnel.tscn",
-		"Vehicle Assembly Factory":"res://scenes/buildings/VehicleFactory.tscn",
-		"Karting Track":           "res://scenes/buildings/KartingTrack.tscn",
-		"Gravel Track":            "res://scenes/buildings/GravelTrack.tscn",
-		"Oval Track":              "res://scenes/buildings/OvalTrack.tscn",
-		"Race Track":              "res://scenes/buildings/RaceTrack.tscn",
+	# All remaining buildings with dedicated scenes
+	const EXTRA_SCENES = {
+		"Ops Sim & Telemetry":      ["📡 Enter Ops Sim",          "res://scenes/buildings/OpsSim.tscn"],
+		"Pit Crew Arena":           ["⏱ Enter Pit Crew Arena",    "res://scenes/buildings/PitCrewArena.tscn"],
+		"Museum":                   ["🏆 Enter Museum",            "res://scenes/buildings/Museum.tscn"],
+		"Theme Park":               ["🎡 Enter Theme Park",        "res://scenes/buildings/ThemePark.tscn"],
+		"Public Racing Club":       ["🏁 Enter Racing Club",       "res://scenes/buildings/PublicRacingClub.tscn"],
+		"Merchandise Store":        ["👕 Enter Merchandise Store", "res://scenes/buildings/MerchandiseStore.tscn"],
+		"Fitness Clinic":           ["💪 Enter Fitness Clinic",    "res://scenes/buildings/FitnessClinic.tscn"],
+		"Academy":                  ["🎓 Enter Academy",           "res://scenes/buildings/Academy.tscn"],
+		"R&D Design Studio":        ["🔬 Enter R&D Studio",        "res://scenes/buildings/RnDStudio.tscn"],
+		"CNC Parts Plant":          ["⚙ Enter CNC Plant",         "res://scenes/buildings/CNCPlant.tscn"],
+		"Aerodynamic Wind Tunnel":  ["💨 Enter Wind Tunnel",       "res://scenes/buildings/AeroWindTunnel.tscn"],
+		"Vehicle Assembly Factory": ["🏭 Enter Vehicle Factory",   "res://scenes/buildings/VehicleFactory.tscn"],
+		"Karting Track":            ["🔵 Enter Karting Track",     "res://scenes/buildings/KartingTrack.tscn"],
+		"Gravel Track":             ["🟤 Enter Gravel Track",      "res://scenes/buildings/GravelTrack.tscn"],
+		"Oval Track":               ["🟡 Enter Oval Track",        "res://scenes/buildings/OvalTrack.tscn"],
+		"Race Track":               ["🔴 Enter Race Track",        "res://scenes/buildings/RaceTrack.tscn"],
 	}
-
 	var bname = building["name"]
-	if bname in BUILDING_SCENES and building["built"] and building["level"] >= 1:
-		var bicon = BUILDING_ICONS.get(bname, "🏢")
+	if bname in EXTRA_SCENES and building["built"] and building["level"] >= 1:
+		var info = EXTRA_SCENES[bname]
 		var enter_btn = Button.new()
-		enter_btn.text = "%s Enter %s" % [bicon, bname]
+		enter_btn.text = info[0]
 		enter_btn.custom_minimum_size = Vector2(260, 35)
-		var scene_path = BUILDING_SCENES[bname]
+		var scene_path = info[1]
 		enter_btn.pressed.connect(func(): get_tree().change_scene_to_file(scene_path))
 		vbox.add_child(enter_btn)
 
@@ -272,8 +281,38 @@ func _on_upgrade_pressed(building_id: String) -> void:
 	GameState.start_upgrade(building_id)
 	_build_campus()
 
+func _on_sell_pressed(building_id: String, sell_value: int) -> void:
+	var building = GameState.campus_buildings.get(building_id, {})
+	if building.is_empty():
+		return
+	var dialog = ConfirmationDialog.new()
+	dialog.title = "Sell Building"
+	dialog.dialog_text = "Sell %s for CR %s?\n\nYou will receive 30%% of the original build cost.\nAll upgrades and progress will be lost." % [
+		building["name"], _fmt(sell_value)]
+	dialog.ok_button_text = "Sell"
+	dialog.cancel_button_text = "Keep"
+	add_child(dialog)
+	dialog.popup_centered()
+	dialog.confirmed.connect(func():
+		GameState.sell_building(building_id)
+		dialog.queue_free()
+		_build_campus()
+	)
+	dialog.canceled.connect(dialog.queue_free)
+
 func _on_back_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/MainHub.tscn")
+
+func _fmt(n: int) -> String:
+	var s = str(n)
+	var result = ""
+	var count = 0
+	for i in range(s.length() - 1, -1, -1):
+		if count > 0 and count % 3 == 0:
+			result = "," + result
+		result = s[i] + result
+		count += 1
+	return result
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:

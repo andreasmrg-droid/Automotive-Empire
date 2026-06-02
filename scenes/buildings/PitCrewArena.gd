@@ -38,8 +38,13 @@ func _build_ui() -> void:
 	root.add_child(HSeparator.new())
 
 	# Discipline check
-	var discipline = GameState.active_championship.discipline
-	if discipline == "GK":
+	# Show pit crew if player has ANY non-GK championship
+	var has_non_gk = false
+	for champ in GameState.active_championships:
+		if champ.discipline != "GK":
+			has_non_gk = true
+			break
+	if not has_non_gk:
 		var lbl_gk = Label.new()
 		lbl_gk.text = "Pit Crew not required for Go-Karting championships.\nThis building will be active when racing in non-GK disciplines."
 		lbl_gk.modulate = Color(0.55, 0.55, 0.55)
@@ -125,7 +130,9 @@ func _build_crew_card(crew) -> PanelContainer:
 	var row1 = HBoxContainer.new()
 	row1.add_theme_constant_override("separation", 10)
 	var lbl_name = Label.new()
-	lbl_name.text = crew.full_name()
+	# Show as crew unit, not individual name
+	var crew_label = crew.display_name() if crew.crew_number > 0 else ("Crew (Chief: %s)" % crew.full_name())
+	lbl_name.text = crew_label
 	lbl_name.add_theme_font_size_override("font_size", 15)
 	lbl_name.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
 	lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -166,25 +173,30 @@ func _build_crew_card(crew) -> PanelContainer:
 		stats_row.add_child(_stat_chip(stat[0], stat[1]))
 	vbox.add_child(stats_row)
 
-	# Car assignment
-	var cars = GameState.player_team_cars
-	if not cars.is_empty():
+	# Car assignment — only non-GK cars need pit crew
+	var non_gk_cars = GameState.player_team_cars.filter(func(c):
+		return GameState.get_pit_crew_required(c.championship_id))
+	if not non_gk_cars.is_empty():
 		var assign_row = HBoxContainer.new()
 		assign_row.add_theme_constant_override("separation", 8)
 		var assigned_car = _find_car_for_crew(crew.id)
 		var lbl_car = Label.new()
-		lbl_car.text = "Car: %s" % (_car_name(assigned_car) if assigned_car else "Unassigned")
-		lbl_car.modulate = Color(0.4, 0.9, 0.4) if assigned_car else Color(0.9, 0.5, 0.15)
+		lbl_car.text = "Assigned to: %s" % (_car_name(assigned_car) if assigned_car else "⚠ Unassigned — DNS risk")
+		lbl_car.modulate = Color(0.4, 0.9, 0.4) if assigned_car else Color(1.0, 0.5, 0.15)
 		lbl_car.add_theme_font_size_override("font_size", 12)
 		lbl_car.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		assign_row.add_child(lbl_car)
-		for car in cars:
+		for car in non_gk_cars:
 			var btn = Button.new()
-			btn.text = _car_name(car)
+			var reg = GameState.CHAMPIONSHIP_REGISTRY.get(car.championship_id, {})
+			btn.text = "%s (%s)" % [_car_name(car), reg.get("discipline", "?")]
 			btn.add_theme_font_size_override("font_size", 11)
 			if assigned_car and assigned_car.id == car.id:
 				btn.text += " ✅"
 				btn.disabled = true
+			elif car.pit_crew_id != "" and car.pit_crew_id != "N/A":
+				btn.text += " (taken)"
+				btn.modulate = Color(0.5, 0.5, 0.5)
 			var cid = car.id
 			var sid = crew.id
 			btn.pressed.connect(func():
@@ -193,6 +205,18 @@ func _build_crew_card(crew) -> PanelContainer:
 			)
 			assign_row.add_child(btn)
 		vbox.add_child(assign_row)
+	elif GameState.player_team_cars.is_empty():
+		var lbl_no_car = Label.new()
+		lbl_no_car.text = "No cars in garage yet."
+		lbl_no_car.add_theme_font_size_override("font_size", 11)
+		lbl_no_car.modulate = Color(0.5, 0.5, 0.5)
+		vbox.add_child(lbl_no_car)
+	else:
+		var lbl_gk = Label.new()
+		lbl_gk.text = "All current cars are GK — no pit crew needed."
+		lbl_gk.add_theme_font_size_override("font_size", 11)
+		lbl_gk.modulate = Color(0.5, 0.5, 0.5)
+		vbox.add_child(lbl_gk)
 
 	return panel
 

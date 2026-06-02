@@ -2,7 +2,6 @@ extends Control
 
 # ── Node refs ─────────────────────────────────────────────────────────────────
 var _stats_container: VBoxContainer
-var _tp_panel: PanelContainer
 var _cfo_panel: PanelContainer
 
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
@@ -68,6 +67,13 @@ func _build_ui() -> void:
 	_stats_container.add_theme_constant_override("separation", 6)
 	left.add_child(_stats_container)
 
+	var btn_hof = Button.new()
+	btn_hof.text = "🏆 View Hall of Fame"
+	btn_hof.custom_minimum_size = Vector2(200, 32)
+	btn_hof.pressed.connect(func():
+		get_tree().change_scene_to_file("res://scenes/HallOfFame.tscn"))
+	left.add_child(btn_hof)
+
 	left.add_child(HSeparator.new())
 
 	# CEO slot (player — display only)
@@ -76,13 +82,17 @@ func _build_ui() -> void:
 
 	left.add_child(_spacer_v(8))
 
-	# TP slot
-	_tp_panel = _build_staff_slot("Team Principal", "🧑‍💼")
-	left.add_child(_tp_panel)
+	# TP slots — 1 per HQ level, shown dynamically
+	var tp_section_lbl = _section_label("TEAM PRINCIPAL SLOTS  (1 per HQ level)")
+	left.add_child(tp_section_lbl)
+	var tp_slots_container = VBoxContainer.new()
+	tp_slots_container.name = "TPSlotsContainer"
+	tp_slots_container.add_theme_constant_override("separation", 6)
+	left.add_child(tp_slots_container)
 
 	left.add_child(_spacer_v(8))
 
-	# CFO slot
+	# CFO slot (always 1)
 	_cfo_panel = _build_staff_slot("CFO", "💼")
 	left.add_child(_cfo_panel)
 
@@ -103,8 +113,97 @@ func _build_ui() -> void:
 # ── Refresh ───────────────────────────────────────────────────────────────────
 func refresh() -> void:
 	_refresh_stats()
-	_refresh_staff_slot(_tp_panel, "Team Principal", "🧑‍💼")
+	_refresh_tp_slots()
 	_refresh_staff_slot(_cfo_panel, "CFO", "💼")
+
+func _refresh_tp_slots() -> void:
+	var container = get_node_or_null("TPSlotsContainer")
+	# Find it in the tree (it's nested inside the columns layout)
+	container = _find_node_by_name(self, "TPSlotsContainer")
+	if container == null:
+		return
+	for child in container.get_children():
+		child.queue_free()
+
+	var max_tp = GameState.get_hq_tp_slots()
+	var hired_tp = GameState.get_player_staff_by_role("Team Principal")
+	for i in range(max_tp):
+		var slot = _build_tp_slot(i, hired_tp)
+		container.add_child(slot)
+
+func _build_tp_slot(index: int, hired_tp: Array) -> PanelContainer:
+	var panel = PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.11, 0.12, 0.15)
+	style.border_width_left = 2; style.border_width_right = 2
+	style.border_width_top = 2; style.border_width_bottom = 2
+	style.border_color = Color(0.25, 0.25, 0.30)
+	style.corner_radius_top_left = 4; style.corner_radius_top_right = 4
+	style.corner_radius_bottom_left = 4; style.corner_radius_bottom_right = 4
+	style.content_margin_left = 10; style.content_margin_right = 10
+	style.content_margin_top = 8; style.content_margin_bottom = 8
+	panel.add_theme_stylebox_override("panel", style)
+
+	var hbox = HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 10)
+	panel.add_child(hbox)
+
+	var lbl_icon = Label.new()
+	lbl_icon.text = "🧑‍💼"
+	lbl_icon.add_theme_font_size_override("font_size", 18)
+	hbox.add_child(lbl_icon)
+
+	var vbox = VBoxContainer.new()
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hbox.add_child(vbox)
+
+	if index < hired_tp.size():
+		var tp = hired_tp[index]
+		var lbl_name = Label.new()
+		lbl_name.text = tp.full_name()
+		lbl_name.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
+		vbox.add_child(lbl_name)
+		var lbl_stats = Label.new()
+		lbl_stats.text = "Strategy %.0f  ·  Pace %.0f  ·  CR %.0f/wk" % [
+			tp.race_strategy, tp.race_pace_reading, tp.weekly_salary]
+		lbl_stats.modulate = Color(0.6, 0.6, 0.6)
+		lbl_stats.add_theme_font_size_override("font_size", 11)
+		vbox.add_child(lbl_stats)
+		var btn_release = Button.new()
+		btn_release.text = "Release"
+		btn_release.modulate = Color(1.0, 0.5, 0.5)
+		btn_release.add_theme_font_size_override("font_size", 11)
+		var tid = tp.id
+		btn_release.pressed.connect(func():
+			GameState.release_staff(tid)
+			refresh()
+		)
+		hbox.add_child(btn_release)
+	else:
+		var lbl_empty = Label.new()
+		lbl_empty.text = "TP Slot %d — Empty" % (index + 1)
+		lbl_empty.modulate = Color(0.5, 0.5, 0.5)
+		vbox.add_child(lbl_empty)
+		var btn_hire = Button.new()
+		btn_hire.text = "Hire →"
+		btn_hire.add_theme_font_size_override("font_size", 11)
+		btn_hire.pressed.connect(func():
+			GameState.pending_staff_filter = "Team Principal"
+			get_tree().change_scene_to_file("res://scenes/Staff.tscn")
+		)
+		hbox.add_child(btn_hire)
+
+	return panel
+
+func _find_node_by_name(node: Node, target_name: String) -> Node:
+	if node.name == target_name:
+		return node
+	for child in node.get_children():
+		var found = _find_node_by_name(child, target_name)
+		if found:
+			return found
+	return null
 
 func _refresh_stats() -> void:
 	for child in _stats_container.get_children():

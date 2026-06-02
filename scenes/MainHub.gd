@@ -146,19 +146,32 @@ func _ready() -> void:
 	clear_btn.pressed.connect(_on_clear_notifs_pressed)
 	notif_header.add_child(clear_btn)
 
+	var dismiss_all_btn = Button.new()
+	dismiss_all_btn.text = "Clear all"
+	dismiss_all_btn.custom_minimum_size = Vector2(75, 30)
+	dismiss_all_btn.modulate = Color(0.8, 0.5, 0.5)
+	dismiss_all_btn.pressed.connect(func():
+		GameState.notifications.clear()
+		GameState.unread_notification_count = 0
+		GameState.emit_signal("notifications_updated")
+		_refresh_notifications()
+		_update_display()
+	)
+	notif_header.add_child(dismiss_all_btn)
+
 	var close_btn = Button.new()
-	close_btn.text = "✕ Close"
-	close_btn.custom_minimum_size = Vector2(75, 30)
+	close_btn.text = "✕"
+	close_btn.custom_minimum_size = Vector2(30, 30)
 	close_btn.pressed.connect(_on_close_notif_panel)
 	notif_header.add_child(close_btn)
 
 	var notif_scroll = ScrollContainer.new()
-	notif_scroll.custom_minimum_size = Vector2(400, 0)
+	notif_scroll.custom_minimum_size = Vector2(480, 0)
 	notif_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	notif_vbox.add_child(notif_scroll)
 
 	notif_box = VBoxContainer.new()
-	notif_box.custom_minimum_size = Vector2(400, 0)
+	notif_box.custom_minimum_size = Vector2(480, 0)
 	notif_box.add_theme_constant_override("separation", 6)
 	notif_scroll.add_child(notif_box)
 
@@ -228,7 +241,7 @@ func _ready() -> void:
 	btn_champ.name = "ChampRegBtn"
 	btn_champ.custom_minimum_size = Vector2(260, 50)
 	btn_champ.add_theme_font_size_override("font_size", 15)
-	btn_champ.text = "🏆 Championships"
+	btn_champ.text = "🏆 Championships Registration for Next Season"
 	btn_champ.modulate = Color(1.0, 0.85, 0.3)
 	btn_champ.pressed.connect(func():
 		get_tree().change_scene_to_file("res://scenes/ChampionshipSelect.tscn")
@@ -239,6 +252,7 @@ func _ready() -> void:
 	GameState.week_advanced.connect(_on_week_advanced)
 	GameState.season_ended.connect(_on_season_ended)
 	GameState.log_updated.connect(_refresh_log)
+	GameState.notifications_updated.connect(_on_notifications_updated)
 
 	_update_display()
 	_refresh_log()
@@ -360,13 +374,18 @@ func _update_display() -> void:
 	fu_label.add_theme_color_override("font_color",
 		Color(1.0, 0.3, 0.3) if GameState.fuel_kg < fu_threshold else Color(1.0, 0.5, 0.3))
 
-	# Notification bell
+	# Notification bell — shows critical count in red, total unread in badge
 	var unread = GameState.unread_notification_count
-	notif_button.text = "🔔 %d" % unread
-	if unread > 0:
+	var critical = GameState.get_critical_count()
+	if critical > 0:
+		notif_button.text = "🔔 %d 🔴%d" % [unread, critical]
 		notif_button.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
+	elif unread > 0:
+		notif_button.text = "🔔 %d" % unread
+		notif_button.add_theme_color_override("font_color", Color(1.0, 0.65, 0.2))
 	else:
-		notif_button.add_theme_color_override("font_color", Color.WHITE)
+		notif_button.text = "🔔"
+		notif_button.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 
 	# Also remove the old balance label update since cr_label handles it now
 
@@ -419,73 +438,124 @@ func _refresh_notifications() -> void:
 	var notifs = GameState.notifications
 	if notifs.is_empty():
 		var empty = Label.new()
-		empty.text = "No notifications"
-		empty.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+		empty.text = "No notifications — all clear! ✅"
+		empty.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
 		notif_box.add_child(empty)
 		return
 
-	for i in range(notifs.size() - 1, -1, -1):
-		var n = notifs[i]
-		var card = PanelContainer.new()
+	# Sort: unread first, then by priority (Critical > High > Normal), then by week desc
+	var priority_order = {"Critical": 0, "High": 1, "Normal": 2}
+	var sorted_notifs = []
+	for i in range(notifs.size()):
+		sorted_notifs.append({"index": i, "n": notifs[i]})
+	sorted_notifs.sort_custom(func(a, b):
+		var ar = 0 if not a["n"]["read"] else 1
+		var br = 0 if not b["n"]["read"] else 1
+		if ar != br: return ar < br
+		var ap = priority_order.get(a["n"]["priority"], 2)
+		var bp = priority_order.get(b["n"]["priority"], 2)
+		if ap != bp: return ap < bp
+		return a["n"]["week"] > b["n"]["week"]
+	)
 
-		# Unread cards get a highlighted style
-		if not n["read"]:
-			var stylebox = StyleBoxFlat.new()
-			stylebox.bg_color = Color(0.18, 0.18, 0.22, 1.0)
-			stylebox.border_width_left = 3
-			stylebox.border_color = (
-				Color(1.0, 0.3, 0.3) if n["priority"] == "Critical" else
-				(Color(1.0, 0.6, 0.1) if n["priority"] == "High" else Color(0.3, 0.5, 1.0))
-			)
-			card.add_theme_stylebox_override("panel", stylebox)
-		else:
-			var stylebox = StyleBoxFlat.new()
-			stylebox.bg_color = Color(0.12, 0.12, 0.14, 1.0)
-			stylebox.border_width_left = 3
-			stylebox.border_color = Color(0.3, 0.3, 0.3)
-			card.add_theme_stylebox_override("panel", stylebox)
+	for item in sorted_notifs:
+		var idx = item["index"]
+		var n = item["n"]
+		var card = PanelContainer.new()
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+		var is_critical = n["priority"] == "Critical"
+		var is_high = n["priority"] == "High"
+		var border_color = Color(1.0, 0.3, 0.3) if is_critical else \
+			(Color(1.0, 0.6, 0.1) if is_high else Color(0.3, 0.5, 1.0))
+		var bg_color = Color(0.18, 0.10, 0.10) if is_critical else \
+			(Color(0.16, 0.13, 0.08) if is_high else Color(0.10, 0.12, 0.20))
+		if n["read"]:
+			bg_color = Color(0.11, 0.11, 0.13)
+			border_color = border_color.darkened(0.5)
+
+		var style = StyleBoxFlat.new()
+		style.bg_color = bg_color
+		style.border_width_left = 4
+		style.border_color = border_color
+		style.content_margin_left = 10; style.content_margin_right = 8
+		style.content_margin_top = 8; style.content_margin_bottom = 8
+		style.corner_radius_top_right = 4; style.corner_radius_bottom_right = 4
+		card.add_theme_stylebox_override("panel", style)
 
 		var vbox = VBoxContainer.new()
-		vbox.add_theme_constant_override("separation", 2)
+		vbox.add_theme_constant_override("separation", 4)
 		card.add_child(vbox)
 
+		# Header row: icon + season/week + NEW badge + dismiss button
 		var header_row = HBoxContainer.new()
+		header_row.add_theme_constant_override("separation", 6)
 		vbox.add_child(header_row)
 
-		var priority_icon = "🔴" if n["priority"] == "Critical" else ("🟠" if n["priority"] == "High" else "🔵")
-		var header = Label.new()
-		header.text = "%s  S%d W%d" % [priority_icon, n["season"], n["week"]]
-		header.add_theme_font_size_override("font_size", 11)
-		header.add_theme_color_override("font_color",
-			Color(1.0, 1.0, 1.0) if not n["read"] else Color(0.5, 0.5, 0.5))
-		header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		header_row.add_child(header)
+		var icon = "🔴" if is_critical else ("🟠" if is_high else "🔵")
+		var lbl_header = Label.new()
+		lbl_header.text = "%s  S%d W%d" % [icon, n["season"], n["week"]]
+		lbl_header.add_theme_font_size_override("font_size", 11)
+		lbl_header.modulate = Color(1.0, 1.0, 1.0) if not n["read"] else Color(0.5, 0.5, 0.5)
+		lbl_header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		header_row.add_child(lbl_header)
 
 		if not n["read"]:
-			var new_badge = Label.new()
-			new_badge.text = " ● NEW"
-			new_badge.add_theme_font_size_override("font_size", 11)
-			new_badge.add_theme_color_override("font_color", Color(1.0, 1.0, 0.3))
-			header_row.add_child(new_badge)
+			var badge = Label.new()
+			badge.text = "NEW"
+			badge.add_theme_font_size_override("font_size", 10)
+			badge.add_theme_color_override("font_color", Color(1.0, 1.0, 0.3))
+			header_row.add_child(badge)
 
+		# Dismiss button
+		var btn_dismiss = Button.new()
+		btn_dismiss.text = "✕"
+		btn_dismiss.custom_minimum_size = Vector2(24, 22)
+		btn_dismiss.add_theme_font_size_override("font_size", 11)
+		btn_dismiss.modulate = Color(0.6, 0.6, 0.6)
+		var capture_idx = idx
+		btn_dismiss.pressed.connect(func():
+			GameState.dismiss_notification(capture_idx)
+			_refresh_notifications()
+			_update_display()
+		)
+		header_row.add_child(btn_dismiss)
+
+		# Message
 		var msg = Label.new()
 		msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		msg.custom_minimum_size = Vector2(500, 0)
-		var color = (
-			Color(1.0, 0.4, 0.4) if n["priority"] == "Critical" else
-			(Color(1.0, 0.7, 0.3) if n["priority"] == "High" else Color(0.6, 0.8, 1.0))
-		)
-
+		msg.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var text_color = border_color if not n["read"] else border_color.darkened(0.3)
+		msg.add_theme_color_override("font_color", text_color)
+		msg.add_theme_font_size_override("font_size", 12)
 		msg.text = n["message"]
-		if n["read"]:
-			color = color.darkened(0.4)
-		msg.add_theme_color_override("font_color", color)
 		vbox.add_child(msg)
 
-		notif_box.add_child(card)
+		# Snooze row — only for unread notifications
+		if not n["read"]:
+			var snooze_row = HBoxContainer.new()
+			snooze_row.add_theme_constant_override("separation", 4)
+			vbox.add_child(snooze_row)
+			var snooze_lbl = Label.new()
+			snooze_lbl.text = "Snooze:"
+			snooze_lbl.add_theme_font_size_override("font_size", 10)
+			snooze_lbl.modulate = Color(0.5, 0.5, 0.5)
+			snooze_row.add_child(snooze_lbl)
+			for weeks in [1, 2, 4]:
+				var btn_snooze = Button.new()
+				btn_snooze.text = "%d wk" % weeks
+				btn_snooze.custom_minimum_size = Vector2(44, 22)
+				btn_snooze.add_theme_font_size_override("font_size", 10)
+				var ci = idx
+				var cw = weeks
+				btn_snooze.pressed.connect(func():
+					GameState.snooze_notification(ci, cw)
+					_refresh_notifications()
+					_update_display()
+				)
+				snooze_row.add_child(btn_snooze)
 
-		var sep = HSeparator.new()
-		notif_box.add_child(sep)
+		notif_box.add_child(card)
 
 func _refresh_driver_standings() -> void:
 	for child in drivers_box.get_children():
@@ -628,6 +698,32 @@ func _refresh_driver_stats() -> void:
 func _refresh_log() -> void:
 	for child in log_box.get_children():
 		child.queue_free()
+
+	# ── To-Do List (top 5 urgent tasks) ──────────────────────────────────────
+	var tasks = GameState.get_pending_tasks()
+	if not tasks.is_empty():
+		var todo_lbl = Label.new()
+		todo_lbl.text = "📋 TO-DO"
+		todo_lbl.add_theme_font_size_override("font_size", 12)
+		todo_lbl.add_theme_color_override("font_color", Color(1.0, 0.8, 0.3))
+		log_box.add_child(todo_lbl)
+		var show_tasks = min(tasks.size(), 5)
+		for i in range(show_tasks):
+			var tl = Label.new()
+			tl.text = tasks[i]
+			tl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			tl.add_theme_font_size_override("font_size", 11)
+			tl.add_theme_color_override("font_color",
+				Color(1.0, 0.4, 0.4) if tasks[i].begins_with("🚫") or tasks[i].begins_with("⏱") or tasks[i].begins_with("⛽") \
+				else Color(1.0, 0.7, 0.3))
+			log_box.add_child(tl)
+		if tasks.size() > 5:
+			var more = Label.new()
+			more.text = "  +%d more tasks..." % (tasks.size() - 5)
+			more.add_theme_font_size_override("font_size", 10)
+			more.modulate = Color(0.5, 0.5, 0.5)
+			log_box.add_child(more)
+		log_box.add_child(HSeparator.new())
 	for message in GameState.weekly_log:
 		var label = Label.new()
 		label.text = message
@@ -636,7 +732,23 @@ func _refresh_log() -> void:
 		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		if message.begins_with("==="):
 			label.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
-			label.add_theme_font_size_override("font_size", 16)
+			label.add_theme_font_size_override("font_size", 15)
+			# Dim if not the most recent championship
+			if GameState.active_championships.size() > 1:
+				# Color by discipline
+				const DISC_COLORS = {
+					"GK": Color(0.3, 0.9, 0.3), "Rally": Color(0.9, 0.55, 0.1),
+					"TC": Color(0.3, 0.7, 1.0), "OWC": Color(0.8, 0.3, 0.9),
+					"SC": Color(1.0, 0.3, 0.3), "EPC": Color(0.2, 0.9, 0.9),
+					"GP": Color(1.0, 0.85, 0.0),
+				}
+				for champ in GameState.active_championships:
+					if champ.championship_name in message:
+						var reg = GameState.CHAMPIONSHIP_REGISTRY.get(champ.id, {})
+						var disc = reg.get("discipline", "GK")
+						label.add_theme_color_override("font_color",
+							DISC_COLORS.get(disc, Color(1.0, 0.8, 0.0)))
+						break
 		elif message.begins_with("P1:") or message.begins_with("DRIVERS") or message.begins_with("TEAMS"):
 			label.add_theme_color_override("font_color", Color(1.0, 0.84, 0.0))
 		elif message.begins_with("P2:"):
@@ -697,12 +809,12 @@ func _on_advance_to_race_pressed() -> void:
 			"Advance Anyway",
 			"Go Back and Fix",
 			func():
-				var news = _skip_weeks_collect_news(weeks_to_skip - 1)
+				var inner_news = _skip_weeks_collect_news(weeks_to_skip - 1)
 				_update_display()
 				_refresh_log()
 				_show_tab(current_tab)
-				if not news.is_empty():
-					_show_modal("📰 News While You Were Away", "", news, "OK", "", func(): pass, null),
+				if not inner_news.is_empty():
+					_show_modal("📰 News While You Were Away", "", inner_news, "OK", "", func(): pass, null),
 			null
 		)
 		return
@@ -918,6 +1030,67 @@ func _show_confirmation(message: String, on_confirm: Callable) -> void:
 		null
 	)
 
+func _on_notifications_updated() -> void:
+	_update_display()
+	# Show Critical banner if any new critical notifications
+	var critical_count = GameState.get_critical_count()
+	if critical_count > 0:
+		_show_critical_banner(critical_count)
+
+func _show_critical_banner(count: int) -> void:
+	# Remove existing banner
+	var existing = get_node_or_null("CriticalBanner")
+	if existing:
+		existing.queue_free()
+
+	var banner = PanelContainer.new()
+	banner.name = "CriticalBanner"
+	banner.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	banner.offset_top = 44
+	banner.offset_bottom = 82
+	banner.offset_left = 0
+	banner.offset_right = 0
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.55, 0.05, 0.05, 0.95)
+	style.border_width_bottom = 2
+	style.border_color = Color(1.0, 0.3, 0.3)
+	banner.add_theme_stylebox_override("panel", style)
+	add_child(banner)
+	move_child(banner, get_child_count() - 1)
+
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	banner.add_child(row)
+
+	var lbl = Label.new()
+	lbl.text = "🔴 %d CRITICAL NOTIFICATION%s — ACTION REQUIRED THIS WEEK" % [
+		count, "S" if count > 1 else ""]
+	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.add_theme_color_override("font_color", Color(1.0, 0.8, 0.8))
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(lbl)
+
+	var btn_view = Button.new()
+	btn_view.text = "View  →"
+	btn_view.custom_minimum_size = Vector2(80, 0)
+	btn_view.pressed.connect(func():
+		banner.queue_free()
+		_on_notif_pressed()
+	)
+	row.add_child(btn_view)
+
+	var btn_close = Button.new()
+	btn_close.text = "✕"
+	btn_close.custom_minimum_size = Vector2(28, 0)
+	btn_close.modulate = Color(0.7, 0.7, 0.7)
+	btn_close.pressed.connect(banner.queue_free)
+	row.add_child(btn_close)
+
+	# Auto-dismiss after 8 seconds
+	await get_tree().create_timer(8.0).timeout
+	if is_instance_valid(banner):
+		banner.queue_free()
+
 func _on_week_advanced(_week: int) -> void:
 	_update_display()
 	_refresh_log()
@@ -1006,7 +1179,7 @@ func _refresh_cars() -> void:
 	# ── Resource summary ─────────────────────────────────────
 	var sp_threshold = GameState.active_championship.sp_per_10_pct_damage
 	var fu_threshold = GameState.active_championship.fuel_per_car_per_race
-	var sp_icon = "🟢" if GameState.spare_parts >= sp_threshold else ("🟠" if GameState.spare_parts >= sp_threshold / 2 else "🔴")
+	var sp_icon = "🟢" if GameState.spare_parts >= sp_threshold else ("🟠" if GameState.spare_parts >= sp_threshold / 2.0 else "🔴")
 	var fu_icon = "🟢" if GameState.fuel_kg >= fu_threshold else "🔴"
 	var res_label = Label.new()
 	res_label.text = "%s SP: %d units   %s FU: %.0f kg" % [sp_icon, GameState.spare_parts, fu_icon, GameState.fuel_kg]
@@ -1154,7 +1327,7 @@ func _refresh_cars() -> void:
 		btn_row.add_theme_constant_override("separation", 6)
 		vbox.add_child(btn_row)
 
-		var car_id = car.id
+		var _car_id = car.id
 		var driver_id = car.driver_id
 
 		var repair10_btn = Button.new()

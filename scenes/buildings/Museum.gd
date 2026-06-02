@@ -137,7 +137,16 @@ func _build_extra_panel() -> PanelContainer:
 			lbl_track.add_theme_font_size_override("font_size", 12)
 			row.add_child(lbl_track)
 			vbox.add_child(row)
-	return panel
+		if team_wins.size() > 10:
+			var lbl_more = Label.new()
+			lbl_more.text = "... and %d more wins" % (team_wins.size() - 10)
+			lbl_more.modulate = Color(0.45, 0.45, 0.45)
+			vbox.add_child(lbl_more)
+	var btn_hof = Button.new()
+	btn_hof.text = "🏆 View Full Hall of Fame"
+	btn_hof.pressed.connect(func():
+		get_tree().change_scene_to_file("res://scenes/HallOfFame.tscn"))
+	vbox.add_child(btn_hof)
 	return panel
 
 func _on_back() -> void:

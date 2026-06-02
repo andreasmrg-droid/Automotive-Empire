@@ -58,6 +58,14 @@ var last_race_round: int = 0
 var last_race_name: String = ""
 var last_race_wet: bool = false
 var last_race_results: Array = []
+var last_race_championship: String = ""
+var last_race_championship_id: String = ""
+var last_race_num_races: int = 0
+var last_race_standings: Array = []
+
+## Maps driver_id / staff_id → championship_id they ran in last season
+## Used to show "Prev: GK Regional" badge in Drivers/Staff screens
+var previous_season_championship: Dictionary = {}
 
 # Hall of fame
 var hall_of_fame: Array = []
@@ -134,6 +142,30 @@ const FIRST_RACE_WEEK = {
 	"C-014": 7,  "C-015": 7,  "C-016": 6,  "C-017": 6,
 	"C-018": 6,  "C-019": 6,  "C-020": 6,
 	"C-021": 6,  "C-022": 6,  "C-023": 6,  "C-024": 10,
+}
+
+## Drivers required per car — from Team Car & Driver Limit Matrix (Brainstorming doc)
+## GK/GP/OWC/SC: 1 driver | Rally (WRC) / TC (GT3/GT4): 2 drivers | EPC (WEC/LMP): 3 drivers
+const DRIVERS_PER_CAR = {
+	"GK":    1,  # All GK championships
+	"Rally": 2,  # WRC, RALLY2, RALLY3, RALLY4 (co-driver)
+	"TC":    2,  # GT3 / GT4 (driver pairs in endurance)
+	"OWC":   1,  # IndyCar series
+	"SC":    1,  # NASCAR series
+	"EPC":   3,  # WEC Hypercars, LMP2, LMP3 (driver trios)
+	"GP":    1,  # Formula 1/2/3/4
+}
+
+## Pit crew required per car — 1 per car for all non-GK championships
+## GK championships: no pit crew required (karts don't pit)
+const PIT_CREW_REQUIRED = {
+	"GK":    false,
+	"Rally": true,
+	"TC":    true,
+	"OWC":   true,
+	"SC":    true,
+	"EPC":   true,
+	"GP":    true,
 }
 
 ## Full championship registry — from Excel Championships sheet.
@@ -893,6 +925,10 @@ func _setup_sponsor() -> void:
 	add_log("📋 Sponsor signed: %s — CR 1,000/week" % picked["name"])
 
 func add_notification(priority: String, message: String) -> void:
+	# Deduplicate — skip if identical message already added this week
+	for n in notifications:
+		if n["message"] == message and n["week"] == current_week and n["season"] == current_season:
+			return
 	# priority: "Critical", "High", "Normal"
 	notifications.append({
 		"priority": priority,
@@ -913,6 +949,48 @@ func mark_all_notifications_read() -> void:
 	for n in notifications:
 		n["read"] = true
 	unread_notification_count = 0
+	emit_signal("notifications_updated")
+
+## Dismiss a single notification by index — removes it entirely.
+func dismiss_notification(index: int) -> void:
+	if index >= 0 and index < notifications.size():
+		notifications.remove_at(index)
+		unread_notification_count = 0
+		for n in notifications:
+			if not n["read"]:
+				unread_notification_count += 1
+		emit_signal("notifications_updated")
+
+## Snooze a notification — pushes its week forward so it won't show until then.
+func snooze_notification(index: int, weeks: int) -> void:
+	if index >= 0 and index < notifications.size():
+		notifications[index]["week"] = current_week + weeks
+		notifications[index]["read"] = true
+		unread_notification_count = 0
+		for n in notifications:
+			if not n["read"]:
+				unread_notification_count += 1
+		emit_signal("notifications_updated")
+
+## Returns count of unread Critical notifications specifically.
+func get_critical_count() -> int:
+	var count = 0
+	for n in notifications:
+		if not n["read"] and n["priority"] == "Critical":
+			count += 1
+	return count
+
+## Removes notifications that have been read AND are older than keep_weeks.
+## Called each week to prevent pile-up.
+func _purge_old_notifications(keep_weeks: int = 2) -> void:
+	var cutoff_week = current_week - keep_weeks
+	notifications = notifications.filter(func(n):
+		return not n["read"] or n["week"] >= cutoff_week
+	)
+	unread_notification_count = 0
+	for n in notifications:
+		if not n["read"]:
+			unread_notification_count += 1
 	emit_signal("notifications_updated")
 
 func _apply_sponsor_income() -> void:
@@ -973,6 +1051,16 @@ func _apply_weekly_expenses() -> void:
 		int(player_expenses - player_team.drivers.size() * driver_salary)
 	])
 
+	# Bankruptcy warning — Critical if balance < 2 weeks of expenses
+	if player_expenses > 0:
+		if player_team.balance < 0:
+			add_notification("Critical",
+				"🚨 BANKRUPTCY RISK: Balance is negative (CR %s)! Sell buildings, release staff, or find a sponsor immediately." % _fmt_int(int(player_team.balance)))
+		elif player_team.balance < player_expenses * 2:
+			add_notification("High",
+				"⚠ Low funds: Balance (CR %s) covers less than 2 weeks of expenses (CR %s/wk). Consider selling assets." % [
+				_fmt_int(int(player_team.balance)), _fmt_int(int(player_expenses))])
+
 	# AI teams — simple salary model (unchanged)
 	for team in all_teams:
 		if team.is_player_team:
@@ -1004,9 +1092,6 @@ func _consume_race_resources() -> void:
 	# SP is NOT auto-deducted per race.
 	# SP is spent only on repairs — see _auto_repair_cars_post_race() below.
 
-	# Check resource warnings
-	_check_resource_notifications()
-
 func _earn_race_rp(laps: int) -> void:
 	# RP only accumulates if the team has an R&D Design Studio AND at least one Designer.
 	var rnd_studio = campus_buildings.get("R&D Design Studio", {})
@@ -1015,10 +1100,11 @@ func _earn_race_rp(laps: int) -> void:
 	var designers = get_player_staff_by_role("Designer")
 	if designers.is_empty():
 		return
-	# Each Designer contributes proportionally to their design_skill
+	# Each Designer contributes proportionally to their average design skill
 	var design_power = 0.0
 	for d in designers:
-		design_power += d.design_skill / 100.0
+		var avg = (d.engine + d.aero + d.chassis + d.gearbox + d.brakes + d.suspension) / 6.0
+		design_power += avg / 100.0
 	var rp_gained = laps * 0.5 * design_power
 	var rp_cap = get_rnd_rp_storage_cap()
 	research_points = min(research_points + rp_gained, float(rp_cap))
@@ -1086,9 +1172,14 @@ func get_max_cars() -> int:
 
 ## Car telemetry data keyed by car_type_id (from Excel Cars sheet)
 const CAR_TELEMETRY = {
-	"A_01": {"top_speed": 75.0,  "acceleration": 9.8,  "deceleration": 11.2, "cornering_grip": 2.9,  "fuel_per_km": 0.045, "tire_wear": 0.65, "perf_index": 1},
-	"A_02": {"top_speed": 115.0, "acceleration": 10.5, "deceleration": 12.1, "cornering_grip": 2.95, "fuel_per_km": 0.055, "tire_wear": 0.72, "perf_index": 10},
-	"A_21": {"top_speed": 315.0, "acceleration": 11.8, "deceleration": 12.7, "cornering_grip": 3.2,  "fuel_per_km": 0.32,  "tire_wear": 1.15, "perf_index": 50},
+	"A_01": {"top_speed": 75.0,  "acceleration": 7.5,  "deceleration": 9.0,  "cornering_grip": 2.5,  "fuel_per_km": 0.045, "tire_wear": 0.65, "perf_index": 1},   # GK Regional
+	"A_02": {"top_speed": 115.0, "acceleration": 4.8,  "deceleration": 10.0, "cornering_grip": 2.8,  "fuel_per_km": 0.055, "tire_wear": 0.72, "perf_index": 10},  # GK National/Continental/World
+	"A_05": {"top_speed": 175.0, "acceleration": 7.0,  "deceleration": 10.5, "cornering_grip": 3.0,  "fuel_per_km": 0.28,  "tire_wear": 1.20, "perf_index": 30},  # Rally
+	"A_09": {"top_speed": 290.0, "acceleration": 3.5,  "deceleration": 12.0, "cornering_grip": 3.4,  "fuel_per_km": 0.30,  "tire_wear": 1.05, "perf_index": 40},  # GT3/GT4
+	"A_11": {"top_speed": 273.0, "acceleration": 3.4,  "deceleration": 12.2, "cornering_grip": 3.3,  "fuel_per_km": 0.22,  "tire_wear": 0.95, "perf_index": 40},  # OWC
+	"A_14": {"top_speed": 310.0, "acceleration": 3.3,  "deceleration": 10.8, "cornering_grip": 2.9,  "fuel_per_km": 0.38,  "tire_wear": 1.10, "perf_index": 42},  # NASCAR/SC
+	"A_18": {"top_speed": 290.0, "acceleration": 3.2,  "deceleration": 12.5, "cornering_grip": 3.5,  "fuel_per_km": 0.35,  "tire_wear": 1.15, "perf_index": 45},  # EPC/WEC/LMP
+	"A_21": {"top_speed": 320.0, "acceleration": 2.9,  "deceleration": 13.5, "cornering_grip": 3.8,  "fuel_per_km": 0.32,  "tire_wear": 1.20, "perf_index": 50},  # GP Formula
 }
 
 func _setup_cars() -> void:
@@ -1319,11 +1410,13 @@ func hire_staff(staff_id: String) -> bool:
 	var staff = all_staff[staff_id]
 	if staff.is_hired():
 		return false
-	## One TP per team, one CFO per team — enforce limits
+	## TP slots = 1 per HQ level. CFO: always 1.
 	if staff.role == "Team Principal":
 		var existing_tp = get_player_staff_by_role("Team Principal")
-		if existing_tp.size() >= 1:
-			add_notification("High", "You already have a Team Principal. Release them first.")
+		var max_tp = get_hq_tp_slots()
+		if existing_tp.size() >= max_tp:
+			add_notification("High",
+				"TP slots full (%d/%d). Upgrade the HQ to unlock more slots." % [existing_tp.size(), max_tp])
 			return false
 	if staff.role == "CFO":
 		var existing_cfo = get_player_staff_by_role("CFO")
@@ -1332,8 +1425,15 @@ func hire_staff(staff_id: String) -> bool:
 			return false
 	staff.contract_team = player_team.id
 	staff.contract_seasons_remaining = 5
-	add_log("✅ Hired %s (%s) — CR %.0f/week" % [staff.full_name(), staff.role, staff.weekly_salary])
-	add_notification("Normal", "%s (%s) joined your team." % [staff.full_name(), staff.role])
+	# Assign crew number for Pit Crew units
+	if staff.role == "Pit Crew":
+		var existing_crews = get_player_staff_by_role("Pit Crew")
+		staff.crew_number = existing_crews.size() + 1
+		add_log("✅ Hired %s — CR %.0f/week" % [staff.display_name(), staff.weekly_salary])
+		add_notification("Normal", "Pit Crew #%d hired. Assign them to a non-GK car in the Pit Crew Arena." % staff.crew_number)
+	else:
+		add_log("✅ Hired %s (%s) — CR %.0f/week" % [staff.full_name(), staff.role, staff.weekly_salary])
+		add_notification("Normal", "%s (%s) joined your team." % [staff.full_name(), staff.role])
 	emit_signal("log_updated")
 	return true
 
@@ -1433,12 +1533,26 @@ func renew_driver_contract(driver_id: String, seasons: int = 5) -> void:
 
 ## Assign a driver to a specific car by car_id.
 func assign_driver_to_car(driver_id: String, car_id: String) -> void:
-	# Unassign from any current car first
-	for car in player_team_cars:
-		if car.driver_id == driver_id:
-			car.driver_id = ""
-	# Assign to new car
 	var car = get_car_by_id(car_id)
+	if not car:
+		return
+	# Age eligibility check for this championship
+	var driver = all_drivers.get(driver_id)
+	if driver:
+		var reg = CHAMPIONSHIP_REGISTRY.get(car.championship_id, {})
+		var min_age = reg.get("min_age", 0)
+		var max_age = reg.get("max_age", 99)
+		if driver.age < min_age or driver.age > max_age:
+			add_notification("High",
+				"⚠ Cannot assign %s (age %d) to %s — age limit is %d–%s." % [
+				driver.full_name(), driver.age, reg.get("name", car.championship_id),
+				min_age, str(max_age) if max_age < 99 else "+"])
+			emit_signal("log_updated")
+			return
+	# Unassign from any current car first
+	for c in player_team_cars:
+		if c.driver_id == driver_id:
+			c.driver_id = ""
 	if car:
 		# Unassign whoever was in this car
 		if car.driver_id != "" and car.driver_id != driver_id:
@@ -1446,21 +1560,28 @@ func assign_driver_to_car(driver_id: String, car_id: String) -> void:
 			if old_driver:
 				add_log("↩ %s unassigned from Car %d" % [old_driver.full_name(), car.car_number])
 		car.driver_id = driver_id
-		var driver = all_drivers.get(driver_id)
-		add_log("🏎 %s assigned to Car %d" % [driver.full_name() if driver else driver_id, car.car_number])
+		var assigned_driver = all_drivers.get(driver_id)
+		add_log("🏎 %s assigned to %s" % [assigned_driver.full_name() if assigned_driver else driver_id, car.car_name if car.car_name != "" else "Car %d" % car.car_number])
+		# Add driver to this championship's standings if not already there
+		for champ in active_championships:
+			if champ.id == car.championship_id and not driver_id in champ.standings:
+				champ.standings[driver_id] = 0
+		# Record which championship this driver is running — shown next season
+		previous_season_championship[driver_id] = car.championship_id
 		emit_signal("log_updated")
 
 ## Creates a new empty car slot. Capped by Garage level.
 ## Called from the Garage scene — independent of driver hire.
 ## Generates a car display name: e.g. GKR-S1-A, GKN-S3-B
 ## Must be called BEFORE appending the new car to player_team_cars.
-func generate_car_name() -> String:
-	# Use active championship ID, or first registered if off-season
-	var champ_id = active_championship.id
+func generate_car_name(for_champ_id: String = "") -> String:
+	# Use provided champ_id, or fall back
+	var champ_id = for_champ_id
+	if champ_id == "":
+		champ_id = active_championship.id
 	if champ_id == "" and not player_registered_championships.is_empty():
 		champ_id = player_registered_championships[0]
-	if champ_id == "" and not active_championships.is_empty():
-		champ_id = active_championships[0].id
+
 	const CHAMP_CODES = {
 		"C-001": "GKR", "C-002": "GKN", "C-003": "GKC", "C-004": "GKW",
 		"C-005": "RL4", "C-006": "RL3", "C-007": "RL2", "C-008": "RLP",
@@ -1470,32 +1591,60 @@ func generate_car_name() -> String:
 		"C-018": "EPS", "C-019": "EPL", "C-020": "EPH",
 		"C-021": "GP4", "C-022": "GP3", "C-023": "GP2", "C-024": "GP1",
 	}
-	var code   = CHAMP_CODES.get(champ_id, "CAR")
+	var code = CHAMP_CODES.get(champ_id, "CAR")
 	var season = "S%d" % current_season
-	var letter = char(65 + player_team_cars.size())  # A, B, C... — call BEFORE append
+	# Letter counts cars assigned to THIS championship only (A = first, B = second...)
+	var same_champ_count = 0
+	for car in player_team_cars:
+		if car.championship_id == champ_id:
+			same_champ_count += 1
+	var letter = char(65 + same_champ_count)
 	return "%s-%s-%s" % [code, season, letter]
 
-func add_car() -> bool:
+func add_car(for_champ_id: String = "") -> bool:
 	var max_c = get_max_cars()
 	if player_team_cars.size() >= max_c:
 		add_notification("High",
 			"Garage full (%d/%d slots). Upgrade the Garage to field more cars." % [
 			player_team_cars.size(), max_c])
 		return false
+
+	# Determine which championship this car is for
+	var champ_id = for_champ_id
+	if champ_id == "":
+		champ_id = active_championship.id
+		if champ_id == "" and not player_registered_championships.is_empty():
+			champ_id = player_registered_championships[0]
+
 	var car_number = player_team_cars.size() + 1
 	var car        = Car.new()
 	car.id         = "CAR-P%03d" % car_number
 	car.car_type_id    = "A_01"
-	car.championship_id = active_championship.id
+	car.championship_id = champ_id
 	car.car_number = car_number
-	car.car_name   = generate_car_name()  # generated BEFORE append — size() gives correct letter
+	car.car_name   = generate_car_name(champ_id)
 	car.driver_id  = ""
 	car.mechanic_id = ""
-	car.pit_crew_id = "N/A" if active_championship.discipline == "GK" else ""
+	# Pit crew: not required for GK, required for all others
+	var reg = CHAMPIONSHIP_REGISTRY.get(champ_id, {})
+	var discipline = reg.get("discipline", "GK")
+	car.pit_crew_id = "N/A" if not PIT_CREW_REQUIRED.get(discipline, true) else ""
 	car.condition   = 100.0
 	car.part_conditions = {"Aero": 100.0, "Engine": 100.0, "Gearbox": 100.0,
 		"Suspension": 100.0, "Brakes": 100.0, "Chassis": 100.0}
-	var telemetry = CAR_TELEMETRY.get("A_01", {})
+	# Use championship-appropriate telemetry
+	const CHAMP_CAR_TYPE = {
+		"C-001": "A_01", "C-002": "A_02", "C-003": "A_02", "C-004": "A_02",
+		"C-005": "A_05", "C-006": "A_05", "C-007": "A_05", "C-008": "A_05",
+		"C-009": "A_09", "C-010": "A_09",
+		"C-011": "A_11", "C-012": "A_11", "C-013": "A_11",
+		"C-014": "A_14", "C-015": "A_14", "C-016": "A_14", "C-017": "A_14",
+		"C-018": "A_18", "C-019": "A_18", "C-020": "A_18",
+		"C-021": "A_21", "C-022": "A_21", "C-023": "A_21", "C-024": "A_21",
+	}
+	var car_type = CHAMP_CAR_TYPE.get(champ_id, "A_01")
+	car.car_type_id = car_type
+	var telemetry = CAR_TELEMETRY.get(car_type, CAR_TELEMETRY.get("A_01", {}))
 	if not telemetry.is_empty():
 		car.top_speed = telemetry["top_speed"]
 		car.acceleration = telemetry["acceleration"]
@@ -1505,8 +1654,12 @@ func add_car() -> bool:
 		car.tire_wear_rate = telemetry["tire_wear"]
 		car.baseline_performance_index = telemetry["perf_index"]
 	player_team_cars.append(car)
-	add_log("🏎 %s added to garage — assign a driver and mechanic before racing." % car.car_name)
-	add_notification("Normal", "%s ready. Assign a driver via the Garage or Drivers screen." % car.car_name)
+	add_log("🏎 %s added to garage for %s — assign a driver and mechanic before racing." % [
+		car.car_name, reg.get("name", champ_id)])
+	if get_pit_crew_required(champ_id):
+		add_notification("High",
+			"🔧 %s needs a Pit Crew assigned before Race 1 or it will DNS. Hire at Pit Crew Arena." % car.car_name)
+	add_notification("Normal", "%s ready. Assign a driver via the Garage." % car.car_name)
 	emit_signal("log_updated")
 	return true
 
@@ -1554,10 +1707,13 @@ func assign_staff_to_car(staff_id: String, car_id: String) -> void:
 	if not staff_id in all_staff:
 		return
 	var staff = all_staff[staff_id]
-	staff.assigned_car_id = car_id
-	staff.assigned_championship = active_championship.id
-	# Wire mechanic to car
 	var car = get_car_by_id(car_id)
+	staff.assigned_car_id = car_id
+	staff.assigned_championship = car.championship_id if car else active_championship.id
+	# Record which championship this staff member is running
+	if car:
+		previous_season_championship[staff_id] = car.championship_id
+	# Wire mechanic/pit crew to car
 	if car:
 		if staff.role == "Race Mechanic":
 			car.mechanic_id = staff_id
@@ -1641,12 +1797,21 @@ func get_race_blocking_tasks() -> Array[String]:
 		tasks.append("👤 No drivers signed — cannot race.")
 		return tasks
 
-	# Cars with DNS conditions
+	# Cars with DNS conditions — check per active championship
 	for car in player_team_cars:
+		var champ_name = ""
+		for champ in active_championships:
+			if champ.id == car.championship_id:
+				champ_name = " [%s]" % champ.championship_name
+				break
+		var cn = (car.car_name if car.car_name != "" else "Car %d" % car.car_number) + champ_name
 		if car.driver_id == "":
-			tasks.append("🏎 Car %d has no driver — will DNS." % car.car_number)
+			tasks.append("🏎 %s has no driver — will DNS." % cn)
 		if car.mechanic_id == "":
-			tasks.append("🔧 Car %d has no Race Mechanic — will DNS." % car.car_number)
+			tasks.append("🔧 %s has no Race Mechanic — will DNS." % cn)
+		if get_pit_crew_required(car.championship_id):
+			if car.pit_crew_id == "" or car.pit_crew_id == "N/A":
+				tasks.append("⏱ %s has no Pit Crew — will DNS. Assign in Pit Crew Arena." % cn)
 
 	# No fuel
 	if fuel_kg < active_championship.fuel_per_car_per_race:
@@ -1702,6 +1867,15 @@ func get_pending_tasks() -> Array[String]:
 	for car in player_team_cars:
 		if car.mechanic_id == "":
 			tasks.append("🔧 Car %d has no Race Mechanic — DNS risk and repairs blocked!" % car.car_number)
+
+	# Cars with no pit crew — causes DNS for non-GK championships
+	for car in player_team_cars:
+		if get_pit_crew_required(car.championship_id):
+			if car.pit_crew_id == "" or car.pit_crew_id == "N/A":
+				var reg = CHAMPIONSHIP_REGISTRY.get(car.championship_id, {})
+				tasks.append("⏱ %s has no Pit Crew assigned — will DNS in %s! Assign in Pit Crew Arena." % [
+					car.car_name if car.car_name != "" else "Car %d" % car.car_number,
+					reg.get("name", car.championship_id)])
 
 	# No drivers hired at all
 	if player_team.drivers.is_empty():
@@ -1854,6 +2028,8 @@ func repair_car_full(driver_id: String) -> bool:
 
 ## DNS check — returns true if the car CAN race, false if DNS.
 func _can_car_race(driver_id: String) -> bool:
+	var car = get_car_for_driver(driver_id)
+
 	# DNS: no fuel
 	var fuel_needed = active_championship.fuel_per_car_per_race
 	if fuel_kg < fuel_needed:
@@ -1862,13 +2038,25 @@ func _can_car_race(driver_id: String) -> bool:
 				fuel_kg, fuel_needed])
 		add_log("🚫 DNS — Insufficient fuel for race start.")
 		return false
-	# DNS: no race mechanic assigned to car
-	var car = get_car_for_driver(driver_id)
-	if car and car.mechanic_id == "":
-		add_notification("Critical",
-			"DNS: Car %d has no Race Mechanic assigned! Hire and assign a mechanic before racing." % car.car_number)
-		add_log("🚫 DNS — No Race Mechanic assigned to Car %d." % car.car_number)
+
+	if car == null:
 		return false
+
+	# DNS: no race mechanic
+	if car.mechanic_id == "":
+		add_notification("Critical",
+			"DNS: %s has no Race Mechanic! Assign one in the Garage before racing." % (car.car_name if car.car_name != "" else "Car %d" % car.car_number))
+		add_log("🚫 DNS — No Race Mechanic on %s." % (car.car_name if car.car_name != "" else "Car %d" % car.car_number))
+		return false
+
+	# DNS: no pit crew for non-GK championships
+	if get_pit_crew_required(car.championship_id):
+		if car.pit_crew_id == "" or car.pit_crew_id == "N/A":
+			add_notification("Critical",
+				"DNS: %s has no Pit Crew! Assign one in the Pit Crew Arena before racing." % (car.car_name if car.car_name != "" else "Car %d" % car.car_number))
+			add_log("🚫 DNS — No Pit Crew on %s." % (car.car_name if car.car_name != "" else "Car %d" % car.car_number))
+			return false
+
 	return true
 
 func get_building(building_id: String) -> Dictionary:
@@ -2001,6 +2189,21 @@ func _fmt_int(n: int) -> String:
 		count += 1
 	return result
 
+## Sells a building — refunds 30% of build cost, resets to unbuilt state.
+## Staff assigned to this building are unassigned but not fired.
+func sell_building(building_id: String) -> void:
+	var building = campus_buildings.get(building_id, {})
+	if building.is_empty() or not building["built"]:
+		return
+	var refund = int(building["build_cost"] * 0.3)
+	player_team.balance += refund
+	building["built"] = false
+	building["level"] = 0
+	building["construction_weeks_remaining"] = 0
+	add_log("🏚 %s sold — CR %s refunded (30%% of build cost)." % [building["name"], _fmt_int(refund)])
+	add_notification("Normal", "%s sold for CR %s." % [building["name"], _fmt_int(refund)])
+	emit_signal("log_updated")
+
 func get_upgrade_cost(building: Dictionary) -> int:
 	var base = building["upgrade_cost"]
 	var level = building["level"]
@@ -2010,7 +2213,11 @@ func get_upgrade_cost(building: Dictionary) -> int:
 ## Returns the scaled upgrade time for the next level.
 ## Adds 1 week every 3 levels on top of the base time.
 func get_upgrade_time(building: Dictionary) -> int:
-	return building["upgrade_time"] + int(building["level"] / 3)
+	# Upgrade time scales with level: base × (1 + level × 0.3), rounded up
+	# Level 1→2: base × 1.3, Level 5→6: base × 2.5, Level 10→11: base × 4.0
+	var base = building["upgrade_time"]
+	var level = building["level"]
+	return max(base, int(ceil(base * (1.0 + level * 0.3))))
 
 ## Weekly income increment per level — from Excel Buildings sheet Effects_Per_Level column.
 const BUILDING_INCOME_PER_LEVEL = {
@@ -2033,6 +2240,20 @@ const TRACK_BUILDINGS = ["Karting Track", "Gravel Track", "Oval Track", "Race Tr
 ## PRC level multiplies track income by (1 + prc_level × 0.10).
 func get_building_income(building: Dictionary) -> int:
 	var bname = building["name"]
+	# Museum: income scales with player race wins — 0 wins = 0 income
+	if bname == "Museum":
+		if not building.get("built", false):
+			return 0
+		var team_wins = 0
+		for entry in hall_of_fame:
+			if entry.get("team_id", "") == player_team.id:
+				team_wins += 1
+		if team_wins == 0:
+			return 0
+		var base = building["weekly_income"]
+		var per_level = BUILDING_INCOME_PER_LEVEL.get("Museum", 380)
+		var level_income = base + per_level * max(0, building["level"] - 1)
+		return int(level_income * (1.0 + team_wins * 0.1))
 	if bname in TRACK_BUILDINGS:
 		var prc = campus_buildings.get("Public Racing Club", {})
 		if not prc.get("built", false):
@@ -2058,13 +2279,31 @@ func get_building_maintenance(building: Dictionary) -> int:
 
 ## ── Building bonus helpers ────────────────────────────────────────────────────
 
+## Returns how many drivers are required per car for a given championship.
+func get_drivers_per_car(champ_id: String) -> int:
+	var reg = CHAMPIONSHIP_REGISTRY.get(champ_id, {})
+	var disc = reg.get("discipline", "GK")
+	return DRIVERS_PER_CAR.get(disc, 1)
+
+## Returns whether a pit crew is required per car for a given championship.
+func get_pit_crew_required(champ_id: String) -> bool:
+	var reg = CHAMPIONSHIP_REGISTRY.get(champ_id, {})
+	var disc = reg.get("discipline", "GK")
+	return PIT_CREW_REQUIRED.get(disc, true)
+
 func get_hq_marketability_bonus() -> float:
-	var hq = campus_buildings.get("Headquarters (HQ)", {})
+	var hq = campus_buildings.get("Headquarters", {})
 	if not hq.get("built", false): return 0.0
 	return float(hq.get("level", 1))
 
+## TP slots = 1 per HQ level (level 1 = 1 slot, level 5 = 5 slots)
+func get_hq_tp_slots() -> int:
+	var hq = campus_buildings.get("Headquarters", {})
+	if not hq.get("built", false): return 1
+	return max(1, hq.get("level", 1))
+
 func get_hq_sponsor_slots() -> int:
-	var hq = campus_buildings.get("Headquarters (HQ)", {})
+	var hq = campus_buildings.get("Headquarters", {})
 	if not hq.get("built", false): return 1
 	return 1 + int(hq.get("level", 1) / 2)
 
@@ -2227,21 +2466,149 @@ func _setup_player_team() -> void:
 	active_championship.team_standings[player_team.id] = 0
 
 func _generate_drivers() -> void:
-	## Player starts with NO driver — they must hire from the free agent pool.
-	## Generate 8 young free agent drivers (ages 8-12) for the player to choose from.
-	## They are NOT added to championship standings — only contracted drivers race.
-	var nationalities = ["British", "Italian", "German", "French", "Spanish",
-		"Finnish", "Brazilian", "Japanese", "American", "Australian"]
-	for i in range(8):
-		var nat = nationalities[randi() % nationalities.size()]
+	## Generates a free agent pool covering ALL championships.
+	## Player starts with no driver — must hire from this pool.
+	## Pool covers: GK (age 8-16), Rally/TC/OWC/SC/EPC (16-35), GP (16-35)
+	## Each discipline gets ~15 free agents at varying skill levels.
+	var nats = ["British","Italian","German","French","Spanish","Finnish",
+		"Brazilian","Japanese","American","Australian","Dutch","Belgian",
+		"Mexican","Canadian","Austrian","Swedish","Norwegian","Portuguese"]
+
+	var driver_idx = 0
+
+	# GK free agents — ages 8-15, 20 drivers
+	for i in range(20):
+		var nat = nats[randi() % nats.size()]
 		var sex = "Male" if randf() > 0.3 else "Female"
-		var age = randi_range(8, 12)
+		var age = randi_range(8, 15)
 		var name_data = NameGenerator.get_full_name(nat, sex)
-		var driver_id = "D-FA-%03d" % i
-		var driver = _create_driver(driver_id, name_data["first"], name_data["last"],
-			nat, age, sex, "")  # contract_team = "" = free agent, not racing
-		all_drivers[driver_id] = driver
-		# NOT added to active_championship.standings — free agents don't race
+		var d = _create_driver_for_discipline(
+			"D-FA-%03d" % driver_idx, name_data["first"], name_data["last"],
+			nat, age, sex, "GK", 1)
+		all_drivers[d.id] = d
+		driver_idx += 1
+
+	# Rally free agents — ages 17-32, 12 drivers
+	for i in range(12):
+		var nat = nats[randi() % nats.size()]
+		var sex = "Male" if randf() > 0.25 else "Female"
+		var age = randi_range(17, 32)
+		var name_data = NameGenerator.get_full_name(nat, sex)
+		var d = _create_driver_for_discipline(
+			"D-FA-%03d" % driver_idx, name_data["first"], name_data["last"],
+			nat, age, sex, "Rally", 1)
+		all_drivers[d.id] = d
+		driver_idx += 1
+
+	# TC (GT) free agents — ages 18-40, 12 drivers
+	for i in range(12):
+		var nat = nats[randi() % nats.size()]
+		var sex = "Male" if randf() > 0.2 else "Female"
+		var age = randi_range(18, 40)
+		var name_data = NameGenerator.get_full_name(nat, sex)
+		var d = _create_driver_for_discipline(
+			"D-FA-%03d" % driver_idx, name_data["first"], name_data["last"],
+			nat, age, sex, "TC", 1)
+		all_drivers[d.id] = d
+		driver_idx += 1
+
+	# OWC (Indy/Open Wheel) free agents — ages 16-35, 12 drivers
+	for i in range(12):
+		var nat = nats[randi() % nats.size()]
+		var sex = "Male" if randf() > 0.25 else "Female"
+		var age = randi_range(16, 35)
+		var name_data = NameGenerator.get_full_name(nat, sex)
+		var d = _create_driver_for_discipline(
+			"D-FA-%03d" % driver_idx, name_data["first"], name_data["last"],
+			nat, age, sex, "OWC", 1)
+		all_drivers[d.id] = d
+		driver_idx += 1
+
+	# SC (NASCAR) free agents — ages 18-45, 12 drivers
+	for i in range(12):
+		var nat = ["American","Canadian","Mexican"][randi() % 3]
+		var sex = "Male" if randf() > 0.15 else "Female"
+		var age = randi_range(18, 45)
+		var name_data = NameGenerator.get_full_name(nat, sex)
+		var d = _create_driver_for_discipline(
+			"D-FA-%03d" % driver_idx, name_data["first"], name_data["last"],
+			nat, age, sex, "SC", 1)
+		all_drivers[d.id] = d
+		driver_idx += 1
+
+	# EPC (Endurance/LMP) free agents — ages 18-45, 10 drivers
+	for i in range(10):
+		var nat = nats[randi() % nats.size()]
+		var sex = "Male" if randf() > 0.2 else "Female"
+		var age = randi_range(18, 45)
+		var name_data = NameGenerator.get_full_name(nat, sex)
+		var d = _create_driver_for_discipline(
+			"D-FA-%03d" % driver_idx, name_data["first"], name_data["last"],
+			nat, age, sex, "EPC", 1)
+		all_drivers[d.id] = d
+		driver_idx += 1
+
+	# GP (Formula) free agents — ages 16-35, 15 drivers
+	for i in range(15):
+		var nat = nats[randi() % nats.size()]
+		var sex = "Male" if randf() > 0.25 else "Female"
+		var age = randi_range(16, 35)
+		var name_data = NameGenerator.get_full_name(nat, sex)
+		var d = _create_driver_for_discipline(
+			"D-FA-%03d" % driver_idx, name_data["first"], name_data["last"],
+			nat, age, sex, "GP", 1)
+		all_drivers[d.id] = d
+		driver_idx += 1
+
+## Creates a driver suited for a specific discipline and tier.
+## Tier 1 = entry level skills, Tier 4 = elite skills.
+func _create_driver_for_discipline(id: String, first: String, last: String,
+		nationality: String, age: int, sex: String,
+		discipline: String, tier: int) -> Driver:
+	var d = Driver.new()
+	d.id = id
+	d.first_name = first
+	d.last_name = last
+	d.nationality = nationality
+	d.age = age
+	d.sex = sex
+	d.contract_team = ""  # free agent
+	d.active_discipline = discipline
+	d.discipline_change_season = current_season
+
+	# Skill scaling: age peak 24-32, tier boosts base skills
+	var age_factor = clamp(float(age - 8) / 20.0, 0.0, 1.0)
+	var peak_factor = 1.0 - abs(float(age) - 28.0) / 28.0  # peaks at 28
+	peak_factor = clamp(peak_factor, 0.3, 1.0)
+	var tier_bonus = (tier - 1) * 15.0  # T1=0, T2=+15, T3=+30, T4=+45
+
+	d.pace        = clamp(randf_range(20.0, 55.0) + age_factor * 30.0 + tier_bonus + peak_factor * 10.0, 5.0, 99.0)
+	d.wet         = clamp(randf_range(15.0, 45.0) + age_factor * 25.0 + tier_bonus * 0.8, 5.0, 99.0)
+	d.focus       = clamp(randf_range(20.0, 50.0) + age_factor * 25.0 + tier_bonus * 0.9, 5.0, 99.0)
+	d.race_craft  = clamp(randf_range(15.0, 45.0) + age_factor * 30.0 + tier_bonus, 5.0, 99.0)
+	d.consistency = clamp(randf_range(15.0, 45.0) + age_factor * 25.0 + tier_bonus * 0.8, 5.0, 99.0)
+	d.feedback    = clamp(randf_range(20.0, 55.0) + age_factor * 20.0 + tier_bonus * 0.7, 5.0, 99.0)
+	d.marketability = clamp(randf_range(5.0, 30.0) + age_factor * 15.0 + tier_bonus * 0.5, 1.0, 99.0)
+	d.fitness     = randf_range(75.0, 100.0)
+	d.potential   = randf_range(40.0, 95.0)
+	d.aggression  = randf_range(20.0, 80.0)
+	d.experience  = age_factor * 40.0
+	d.morale      = 100.0
+
+	# Discipline adaptation — good in their primary discipline, low elsewhere
+	for disc in d.discipline_adaptation.keys():
+		if disc == discipline:
+			var starting = 5.0 + age_factor * 20.0 + tier_bonus * 0.3
+			d.discipline_adaptation[disc] = clamp(starting, 1.0, 60.0)
+			d.peak_adaptation[disc] = d.discipline_adaptation[disc]
+		else:
+			d.discipline_adaptation[disc] = 1.0
+			d.peak_adaptation[disc] = 1.0
+
+	# AI drivers start with 3 season contracts; free agents have 0
+	d.contract_seasons_remaining = 3 if d.contract_team != "" else 0
+
+	return d
 
 func _create_driver(id: String, first: String, last: String, nationality: String, age: int, sex: String, team_id: String) -> Driver:
 	var d = Driver.new()
@@ -2278,53 +2645,180 @@ func _create_driver(id: String, first: String, last: String, nationality: String
 	return d
 
 func _generate_ai_teams() -> void:
-	var ai_data = [
-		{"name": "Karting Italia",     "nationality": "Italian"},
-		{"name": "Speed Academy",      "nationality": "Spanish"},
-		{"name": "Nordic Kart",        "nationality": "Finnish"},
-		{"name": "British Racing",     "nationality": "British"},
-		{"name": "German Motorsport",  "nationality": "German"},
-		{"name": "French Kart Team",   "nationality": "French"},
-		{"name": "Brazilian Speed",    "nationality": "Brazilian"},
-		{"name": "Japanese Racing",    "nationality": "Japanese"},
-		{"name": "USA Kart Pro",       "nationality": "American"},
+	## Real teams from Excel AI Teams Championship Participation Matrix.
+	## Each team gets drivers appropriate for their championships.
+	## Minimum cars per championship enforced.
+
+	# Map Excel column names to championship IDs
+	const TEAM_PARTICIPATION = {
+		"Mercedes":    ["C-001","C-002","C-003","C-004","C-009","C-010","C-024"],
+		"Ferrari":     ["C-001","C-002","C-003","C-004","C-009","C-010","C-020","C-024"],
+		"McLaren":     ["C-001","C-002","C-003","C-004","C-009","C-010","C-013","C-018","C-024"],
+		"Red Bull":    ["C-024"],
+		"Alpine":      ["C-020","C-024"],
+		"Haas":        ["C-016","C-024"],
+		"Racing Bulls":["C-024"],
+		"Williams":    ["C-024"],
+		"Audi":        ["C-024"],
+		"Cadillac":    ["C-020","C-024"],
+		"Aston Martin":["C-010","C-020","C-024"],
+		"Invicta":     ["C-022","C-023"],
+		"Hitech":      ["C-021","C-022","C-023"],
+		"Campos":      ["C-021","C-022","C-023"],
+		"DAMS":        ["C-022","C-023"],
+		"MP":          ["C-021","C-022","C-023"],
+		"Prema":       ["C-001","C-002","C-003","C-004","C-021","C-022","C-023"],
+		"Rodin":       ["C-021","C-022"],
+		"ART":         ["C-021","C-022","C-023"],
+		"Trident":     ["C-022","C-023"],
+		"Charouz":     ["C-022","C-023"],
+		"Carlin":      ["C-021","C-022","C-023"],
+	}
+
+	# Budget tiers — scales initial balance and driver quality
+	const TEAM_TIER = {
+		"Mercedes": 4, "Ferrari": 4, "McLaren": 4, "Red Bull": 4,
+		"Alpine": 3, "Haas": 3, "Racing Bulls": 3, "Williams": 3,
+		"Audi": 3, "Cadillac": 3, "Aston Martin": 3,
+		"Invicta": 2, "Hitech": 2, "Campos": 2, "DAMS": 2,
+		"MP": 2, "ART": 2, "Trident": 2, "Charouz": 1, "Carlin": 2,
+		"Prema": 3, "Rodin": 2,
+	}
+
+	const TEAM_NAT = {
+		"Mercedes": "German", "Ferrari": "Italian", "McLaren": "British",
+		"Red Bull": "Austrian", "Alpine": "French", "Haas": "American",
+		"Racing Bulls": "Italian", "Williams": "British", "Audi": "German",
+		"Cadillac": "American", "Aston Martin": "British",
+		"Invicta": "British", "Hitech": "British", "Campos": "Spanish",
+		"DAMS": "French", "MP": "Dutch", "Prema": "Italian",
+		"Rodin": "British", "ART": "French", "Trident": "Italian",
+		"Charouz": "Czech", "Carlin": "British",
+	}
+
+	var ai_idx = 0
+	for team_name in TEAM_PARTICIPATION:
+		var team = Team.new()
+		team.id = "T-AI-%02d" % ai_idx
+		team.team_name = team_name
+		team.nationality = TEAM_NAT.get(team_name, "British")
+		team.is_player_team = false
+		var tier = TEAM_TIER.get(team_name, 2)
+		team.balance = randf_range(50000.0, 200000.0) * float(tier)
+		team.reputation = 15.0 + tier * 15.0 + randf_range(-5.0, 5.0)
+		team.weekly_driver_salary = 50.0 * float(tier)
+		team.weekly_mechanic_salary = 200.0 + float(tier) * 100.0
+		all_teams.append(team)
+
+		# Register team in ALL their championships' standings
+		var champ_ids = TEAM_PARTICIPATION[team_name]
+		for champ_id in champ_ids:
+			for champ in active_championships:
+				if champ.id == champ_id:
+					champ.team_standings[team.id] = 0
+
+		# Generate 2 drivers per championship this team runs (age-appropriate)
+		# Each driver is specific to ONE championship — no cross-contamination
+		var drv_idx = 0
+		for primary_champ_id in champ_ids:
+			var reg = CHAMPIONSHIP_REGISTRY.get(primary_champ_id, {})
+			var discipline = reg.get("discipline", "GK")
+			var min_age = reg.get("min_age", 8)
+			var max_age = min(reg.get("max_age", 99), min_age + 20)
+			if max_age < min_age:
+				max_age = min_age + 5
+			# Always 2 drivers per championship for competitive grids
+			for j in range(2):
+				var driver_id = "D-AI-%02d-%d" % [ai_idx, drv_idx]
+				var nat = NameGenerator.get_nationality_for_team(team.nationality)
+				var sex = "Male" if randf() > 0.25 else "Female"
+				var age = randi_range(min_age, max_age)
+				var name_data = NameGenerator.get_full_name(nat, sex)
+				var driver = _create_driver_for_discipline(
+					driver_id, name_data["first"], name_data["last"],
+					nat, age, sex, discipline, tier)
+				driver.contract_team = team.id
+				all_drivers[driver_id] = driver
+				team.drivers.append(driver_id)
+				# Add ONLY to this specific championship's standings
+				for champ in active_championships:
+					if champ.id == primary_champ_id:
+						champ.standings[driver_id] = 0
+				drv_idx += 1
+
+		ai_idx += 1
+
+	# Ensure GK Regional has enough drivers (minimum 15 for a good grid)
+	_ensure_minimum_gk_drivers()
+
+## Ensures GK Regional has a competitive grid (minimum 15 AI drivers).
+## Generates anonymous local karting teams to fill the grid if needed.
+func _ensure_minimum_gk_drivers() -> void:
+	var gk_champ = null
+	for champ in active_championships:
+		if champ.id == "C-001":
+			gk_champ = champ
+			break
+	if gk_champ == null:
+		return
+
+	var current_gk_count = gk_champ.standings.size()
+	var needed = max(0, 15 - current_gk_count)
+	if needed == 0:
+		return
+
+	var local_nats = ["British","Italian","German","French","Spanish","Finnish",
+		"Brazilian","Japanese","American","Australian"]
+	var local_teams_data = [
+		["Karting Italia","Italian"],["Speed Academy","Spanish"],
+		["Nordic Kart","Finnish"],["British Racing","British"],
+		["German Motorsport","German"],["French Kart Team","French"],
+		["Brazilian Speed","Brazilian"],["Japanese Racing","Japanese"],
+		["USA Kart Pro","American"],
 	]
 
-	for i in range(ai_data.size()):
-		var team = Team.new()
-		team.id = "T-AI-%02d" % i
-		team.team_name = ai_data[i]["name"]
-		team.nationality = ai_data[i]["nationality"]
-		team.is_player_team = false
-		team.balance = randf_range(30000.0, 80000.0)
-		team.reputation = randf_range(10.0, 25.0)
-		team.weekly_driver_salary = 50.0
-		team.weekly_mechanic_salary = 250.0
-		all_teams.append(team)
-		active_championship.team_standings[team.id] = 0
+	var fill_idx = 0
+	var teams_used = 0
+	while fill_idx < needed:
+		var tdata = local_teams_data[teams_used % local_teams_data.size()]
+		var team_id = "T-GK-%02d" % teams_used
+		var existing_team = null
+		for t in all_teams:
+			if t.id == team_id:
+				existing_team = t
+				break
+		if existing_team == null:
+			var team = Team.new()
+			team.id = team_id
+			team.team_name = tdata[0]
+			team.nationality = tdata[1]
+			team.is_player_team = false
+			team.balance = randf_range(20000.0, 60000.0)
+			team.reputation = randf_range(5.0, 15.0)
+			team.weekly_driver_salary = 50.0
+			team.weekly_mechanic_salary = 200.0
+			all_teams.append(team)
+			gk_champ.team_standings[team.id] = 0
+			existing_team = team
+		teams_used += 1
 
-		var driver_count = 3 if i == 0 else 2
-		for j in range(driver_count):
-			var driver_id = "D-AI-%02d-%d" % [i, j]
-			var nat = NameGenerator.get_nationality_for_team(ai_data[i]["nationality"])
-			var sex = "Male" if randf() > 0.3 else "Female"
-			var age = randi_range(8, 14)
-			var name_data = NameGenerator.get_full_name(nat, sex)
-			var driver = _create_driver(
-				driver_id,
-				name_data["first"],
-				name_data["last"],
-				nat,
-				age,
-				sex,
-				team.id
-			)
-			all_drivers[driver_id] = driver
-			team.drivers.append(driver_id)
-			active_championship.standings[driver_id] = 0
+		var driver_id = "D-GK-FILL-%03d" % fill_idx
+		var nat = local_nats[randi() % local_nats.size()]
+		var sex = "Male" if randf() > 0.3 else "Female"
+		var age = randi_range(8, 14)
+		var name_data = NameGenerator.get_full_name(nat, sex)
+		var driver = _create_driver_for_discipline(
+			driver_id, name_data["first"], name_data["last"],
+			nat, age, sex, "GK", 1)
+		driver.contract_team = existing_team.id
+		all_drivers[driver_id] = driver
+		existing_team.drivers.append(driver_id)
+		gk_champ.standings[driver_id] = 0
+		fill_idx += 1
 
 func advance_week() -> void:
 	weekly_log = []
+	_purge_old_notifications(2)
 
 	# Guard: never advance past max_weeks
 	if current_week >= max_weeks:
@@ -2353,6 +2847,8 @@ func advance_week() -> void:
 
 	# CFO part inventory check (weekly reminder if stock is low)
 	_check_part_inventory_notifications()
+	# Resource level warnings (SP, fuel) — once per week only
+	_check_resource_notifications()
 
 	# Check for races this week across ALL active championships
 	for champ in active_championships:
@@ -2466,12 +2962,38 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 			strat_pace if strategist else 0.0,
 			tp.full_name() if tp else "none"])
  
-	# ── DNS check: player cars need enough fuel to start ──────
+	# ── DNS check: player needs a car assigned to THIS championship ──────────
 	var dns_driver_ids: Array = []
-	if player_team.drivers.size() > 0:
-		if not _can_car_race(player_team.drivers[0]):
-			for d_id in player_team.drivers:
-				dns_driver_ids.append(d_id)
+	# Find player cars for this specific championship
+	var cars_for_champ = player_team_cars.filter(func(car): return car.championship_id == c.id)
+	if cars_for_champ.is_empty():
+		# No car for this championship — all player drivers DNS
+		for d_id in player_team.drivers:
+			dns_driver_ids.append(d_id)
+		add_log("🚫 DNS [%s]: No car assigned to this championship." % c.championship_name)
+	else:
+		# Check each car's race eligibility (driver, mechanic, pit crew, fuel)
+		for car in cars_for_champ:
+			var car_dns = false
+			var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
+
+			if car.driver_id == "":
+				add_log("🚫 DNS [%s] %s — no driver assigned." % [c.championship_name, car_label])
+				car_dns = true
+			elif not _can_car_race(car.driver_id):
+				car_dns = true
+
+			# Pit crew check for non-GK
+			if get_pit_crew_required(c.id):
+				if car.pit_crew_id == "" or car.pit_crew_id == "N/A":
+					add_log("🚫 DNS [%s] %s — no Pit Crew assigned." % [c.championship_name, car_label])
+					add_notification("Critical",
+						"DNS: %s has no Pit Crew for %s! Assign one in Pit Crew Arena." % [
+						car_label, c.championship_name])
+					car_dns = true
+
+			if car_dns and car.driver_id != "":
+				dns_driver_ids.append(car.driver_id)
  
 	# ── Collect all drivers, skipping DNS cars ────────────────
 	var race_drivers = []
@@ -2505,36 +3027,51 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 			add_log("🏟 %s bonus: +%.0f%% pace" % [tname, track_perf_bonus * 100.0])
 
 	# Calculate lap times
+	# Formula: base_time × skill_factors + noise
+	# Pace range 20-99 should produce ±1.5% lap time spread (realistic F1: ~1-2%)
+	# Base time is notional seconds/lap — only differences matter for ordering
 	var driver_times = []
 	for driver in race_drivers:
-		var base_time = 28.5
+		var base_time = 60.0  # notional seconds per lap
 		var effective_pace  = driver.get_effective_pace()
 		var effective_wet   = driver.get_effective_wet()
 		var effective_focus = driver.get_effective_focus()
 
-		var pace_factor    = 1.0 - (effective_pace / 1000.0)
-		var wet_factor     = 1.0
-		if is_wet:
-			wet_factor = 1.0 + ((100.0 - effective_wet) / 200.0)
-		var focus_factor   = 1.0 - (effective_focus / 2000.0)
-		var fitness_factor = driver.fitness_penalty()
-		var lap_time = base_time * pace_factor * wet_factor * focus_factor * (2.0 - fitness_factor)
+		# Pace factor: compress to ±1.5% around base (pace 60 = neutral)
+		# pace 99 → ×0.985, pace 20 → ×1.015
+		var pace_factor = 1.0 - ((effective_pace - 60.0) / 60.0) * 0.015
+		pace_factor = clamp(pace_factor, 0.97, 1.03)
 
-		# Apply Staff_Synergy_Factor for player drivers (simulated races only).
-		# Formula: lap_time /= staff_synergy → higher synergy = faster lap.
+		var wet_factor = 1.0
+		if is_wet:
+			# Wet skill 99 = no penalty, wet skill 20 = +3% penalty
+			wet_factor = 1.0 + ((100.0 - effective_wet) / 100.0) * 0.03
+
+		# Focus: small effect ±0.5%
+		var focus_factor = 1.0 - ((effective_focus - 50.0) / 50.0) * 0.005
+		focus_factor = clamp(focus_factor, 0.995, 1.005)
+
+		var fitness_factor = driver.fitness_penalty()
+		# Fitness penalty max +1% for exhausted driver
+		var fitness_penalty = (1.0 - fitness_factor) * 0.01
+
+		var lap_time = base_time * pace_factor * wet_factor * focus_factor * (1.0 + fitness_penalty)
+
+		# Apply Staff_Synergy_Factor for player drivers — max ±0.8%
 		if driver.id in player_team.drivers:
-			lap_time /= staff_synergy
-			# Wind Tunnel aero bonus
+			lap_time /= (1.0 + (staff_synergy - 1.0) * 0.5)
 			var aero_bonus = get_wind_tunnel_aero_bonus()
 			if aero_bonus > 0.0:
-				lap_time /= (1.0 + aero_bonus)
-			# Track discipline bonus
+				lap_time /= (1.0 + aero_bonus * 0.5)
 			if track_perf_bonus > 0.0:
-				lap_time /= (1.0 + track_perf_bonus)
+				lap_time /= (1.0 + track_perf_bonus * 0.5)
 
-		# Noise based on consistency — high consistency = tight laps
-		var noise = driver.get_lap_noise_range()
+		# Lap noise: based on consistency (high = tight laps)
+		# Noise range ±0.3% to ±1.0% of lap time
+		var noise_pct = 0.01 - (driver.consistency / 100.0) * 0.007
+		var noise = lap_time * noise_pct
 		lap_time += randf_range(-noise, noise)
+
 		driver_times.append({
 			"driver": driver,
 			"lap_time": lap_time,
@@ -2542,6 +3079,15 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 			"points": 0
 		})
  
+	# Snapshot pre-race driver stats for delta display in RaceResults
+	var pre_race_stats: Dictionary = {}
+	for entry in driver_times:
+		var d = entry["driver"]
+		pre_race_stats[d.id] = {
+			"pace": d.pace, "wet": d.wet, "focus": d.focus,
+			"experience": d.experience, "fitness": d.fitness
+		}
+
 	# Sort by total time
 	driver_times.sort_custom(func(a, b): return a["total_time"] < b["total_time"])
  
@@ -2559,21 +3105,34 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 			driver_times[i]["points"] = pts
  
 		# Find team and award team points + prize money
+		var entry_prize = 0.0
 		for team in all_teams:
 			if driver.id in team.drivers:
 				c.add_team_points(team.id, pts)
-				var prize = 0.0
 				if standing_position == 1:
-					prize = c.prize_1st
+					entry_prize = c.prize_1st
 				elif standing_position == 2:
-					prize = c.prize_2nd
+					entry_prize = c.prize_2nd
 				elif standing_position == 3:
-					prize = c.prize_3rd
-				team.balance += prize
+					entry_prize = c.prize_3rd
+				team.balance += entry_prize
 				break
+		driver_times[i]["prize"] = entry_prize
+		driver_times[i]["is_player"] = driver.id in player_team.drivers
  
 		# Update driver stats
 		_update_driver_stats_after_race(driver, standing_position, race_data["laps"], is_wet, race_drivers.size())
+
+		# Record stat deltas for RaceResults display
+		if driver.id in pre_race_stats:
+			var pre = pre_race_stats[driver.id]
+			driver_times[i]["stat_deltas"] = {
+				"pace": driver.pace - pre["pace"],
+				"wet": driver.wet - pre["wet"],
+				"focus": driver.focus - pre["focus"],
+				"experience": driver.experience - pre["experience"],
+				"fitness": driver.fitness - pre["fitness"],
+			}
  
 	# ── DNS entries: add to last_race_results with 0 pts ─────
 	# This ensures they appear in the Results screen (last place, DNS label)
@@ -2593,6 +3152,12 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 	last_race_name = race_data["name"]
 	last_race_wet = is_wet
 	last_race_results = driver_times
+	last_race_championship = c.championship_name
+	last_race_championship_id = c.id
+	last_race_num_races = c.num_races
+
+	# Snapshot current standings for display in RaceResults
+	last_race_standings = c.get_standings_sorted()
  
 	# Hall of fame (only if at least one car finished)
 	if driver_times.size() > 0:
@@ -2603,17 +3168,21 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 				winner = entry["driver"]
 				break
 		if winner:
-			var winner_team = "Unknown"
+			var winner_team_id = ""
+			var winner_team_name = "Unknown"
 			for team in all_teams:
 				if winner.id in team.drivers:
-					winner_team = team.team_name
+					winner_team_id = team.id
+					winner_team_name = team.team_name
 					break
 			hall_of_fame.append({
 				"season": current_season,
 				"round": last_race_round,
+				"championship": c.championship_name,
 				"track": race_data["name"],
 				"winner": winner.full_name(),
-				"team": winner_team
+				"team": winner_team_name,
+				"team_id": winner_team_id
 			})
  
 	# ── Car condition: degrade only cars that raced, skip DNS ────────────────
@@ -2792,9 +3361,12 @@ func start_new_season() -> void:
 			"Season %d [%s]: New car needed. Delivery: Week %d. Race 1: Week %d." % [
 			current_season, champ.championship_name, delivery_wk, race1_wk])
 
-	# Re-register all eligible drivers and teams
+	# Re-register all eligible AI drivers and teams
+	# Player drivers enter standings when assigned to a car for that championship
 	for champ in active_championships:
 		for team in all_teams:
+			if team.id == player_team.id:
+				continue  # Player drivers added via car assignment, not here
 			for driver_id in team.drivers:
 				if driver_id in all_drivers:
 					var driver = all_drivers[driver_id]
@@ -2881,7 +3453,7 @@ func _regenerate_ai_team_cars(team) -> void:
 		car.car_name = ""
 		car.driver_id = team.drivers[i] if i < team.drivers.size() else ""
 		car.mechanic_id = ""
-		car.pit_crew_id = "N/A"
+		car.pit_crew_id = "N/A"  # AI cars start in C-001 (GK) — no pit crew needed
 		car.condition = 100.0
 		car.part_conditions = {"Aero": 100.0, "Engine": 100.0, "Gearbox": 100.0,
 			"Suspension": 100.0, "Brakes": 100.0, "Chassis": 100.0}
@@ -2896,15 +3468,36 @@ func _regenerate_ai_team_cars(team) -> void:
 			car.baseline_performance_index = telemetry["perf_index"]
 
 func _process_off_season() -> void:
+	# Age all drivers, recover fitness, accumulate experience
 	for driver_id in all_drivers:
 		var driver = all_drivers[driver_id]
 		driver.age += 1
 		driver.fitness = 100.0
 		driver.experience = min(100.0, driver.experience + 1.0)
 		driver.seasons_without_contract += 1
+		# Decrement contract
+		if driver.contract_seasons_remaining > 0:
+			driver.contract_seasons_remaining -= 1
+			if driver.contract_seasons_remaining == 0 and driver.contract_team == player_team.id:
+				add_notification("High",
+					"⚠ %s's contract has expired! Re-sign them or they will leave." % driver.full_name())
+
+	# Decrement staff contracts
+	for staff_id in all_staff:
+		var staff = all_staff[staff_id]
+		if staff.contract_seasons_remaining > 0:
+			staff.contract_seasons_remaining -= 1
+			if staff.contract_seasons_remaining == 0 and staff.contract_team == player_team.id:
+				add_notification("High",
+					"⚠ %s (%s) contract expired! Re-sign or they will leave." % [
+					staff.full_name(), staff.role])
 
 	var driver_counter = all_drivers.size()
 	for team in all_teams:
+		# Never auto-remove player team drivers — player manages their own roster
+		if team.id == player_team.id:
+			continue
+
 		var drivers_to_remove = []
 		var drivers_to_add = []
 
@@ -2929,7 +3522,8 @@ func _process_off_season() -> void:
 					)
 					drivers_to_add.append(new_driver)
 					NameGenerator.release_name(driver.full_name())
-					add_log("%s aged out — replaced by %s" % [driver.full_name(), new_driver.full_name()])
+					add_log("%s aged out of %s — replaced by %s" % [
+						driver.full_name(), team.team_name, new_driver.full_name()])
 
 		for driver_id in drivers_to_remove:
 			team.drivers.erase(driver_id)
