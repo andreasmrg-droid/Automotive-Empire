@@ -223,6 +223,18 @@ func _ready() -> void:
 	skip_season_btn.pressed.connect(_on_skip_to_season_end)
 	advance_button.get_parent().add_child(skip_season_btn)
 
+	# Championship Registration — always visible so deadlines are never missed
+	var btn_champ = Button.new()
+	btn_champ.name = "ChampRegBtn"
+	btn_champ.custom_minimum_size = Vector2(260, 50)
+	btn_champ.add_theme_font_size_override("font_size", 15)
+	btn_champ.text = "🏆 Championships"
+	btn_champ.modulate = Color(1.0, 0.85, 0.3)
+	btn_champ.pressed.connect(func():
+		get_tree().change_scene_to_file("res://scenes/ChampionshipSelect.tscn")
+	)
+	advance_button.get_parent().add_child(btn_champ)
+
 	# Connect signals
 	GameState.week_advanced.connect(_on_week_advanced)
 	GameState.season_ended.connect(_on_season_ended)
@@ -298,12 +310,22 @@ func _update_display() -> void:
 		balance_label.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
 	else:
 		balance_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
-	var next_race = GameState.active_championship.get_next_race()
-	if next_race:
-		next_race_label.text = "🏎 Next Race: Round %d — %s   (Week %d)" % [
-			next_race["round"], next_race["name"], next_race["week"]
+	# Find the soonest upcoming race across all active championships
+	var soonest_race = null
+	var soonest_champ = null
+	for champ in GameState.active_championships:
+		var nr = champ.get_next_race()
+		if nr:
+			if soonest_race == null or nr["week"] < soonest_race["week"]:
+				soonest_race = nr
+				soonest_champ = champ
+
+	if soonest_race:
+		var champ_tag = " [%s]" % soonest_champ.championship_name if GameState.active_championships.size() > 1 else ""
+		next_race_label.text = "🏎 Next Race: Round %d — %s%s   (Week %d)" % [
+			soonest_race["round"], soonest_race["name"], champ_tag, soonest_race["week"]
 		]
-		var weeks_away = next_race["week"] - GameState.current_week
+		var weeks_away = soonest_race["week"] - GameState.current_week
 		if advance_to_race_button:
 			if weeks_away > 1:
 				advance_to_race_button.text = "⏭ Next Race  (%d wks)" % weeks_away
@@ -313,7 +335,7 @@ func _update_display() -> void:
 				advance_to_race_button.disabled = false
 			else:
 				advance_to_race_button.text = "⏭ Race Week!"
-				advance_to_race_button.disabled = true  # already on race week
+				advance_to_race_button.disabled = true
 	else:
 		next_race_label.text = "✅ No more races this season"
 		if advance_to_race_button:
@@ -469,74 +491,79 @@ func _refresh_driver_standings() -> void:
 	for child in drivers_box.get_children():
 		child.queue_free()
 
-	var title = Label.new()
-	title.text = "🏆 DRIVERS CHAMPIONSHIP"
-	title.add_theme_font_size_override("font_size", 15)
-	title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
-	drivers_box.add_child(title)
+	# Show standings for ALL active championships
+	for champ in GameState.active_championships:
+		var title = Label.new()
+		title.text = "🏆 %s" % champ.championship_name.to_upper()
+		title.add_theme_font_size_override("font_size", 14)
+		title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
+		drivers_box.add_child(title)
 
-	var sep = HSeparator.new()
-	drivers_box.add_child(sep)
+		var sorted = champ.get_standings_sorted()
+		var player_drivers = GameState.player_team.drivers
 
-	var sorted = GameState.active_championship.get_standings_sorted()
-	var player_drivers = GameState.player_team.drivers
+		for i in range(sorted.size()):
+			var entry = sorted[i]
+			var driver = GameState.all_drivers.get(entry["driver_id"])
+			if not driver:
+				continue
+			var pos = i + 1
+			var is_player = entry["driver_id"] in player_drivers
+			var medal = "🥇" if pos == 1 else ("🥈" if pos == 2 else ("🥉" if pos == 3 else "  %d." % pos))
+			var label = Label.new()
+			label.text = "%s %s — %d pts" % [medal, driver.full_name(), entry["points"]]
+			label.custom_minimum_size = Vector2(300, 0)
+			label.add_theme_color_override("font_color",
+				Color(0.4, 0.8, 1.0) if is_player else
+				(Color(1.0, 0.84, 0.0) if pos == 1 else
+				(Color(0.75, 0.75, 0.75) if pos == 2 else
+				(Color(0.8, 0.5, 0.2) if pos == 3 else Color.WHITE))))
+			if is_player:
+				label.add_theme_font_size_override("font_size", 15)
+			drivers_box.add_child(label)
 
-	for i in range(sorted.size()):
-		var entry = sorted[i]
-		var driver = GameState.all_drivers.get(entry["driver_id"])
-		if not driver:
-			continue
-		var pos = i + 1
-		var is_player = entry["driver_id"] in player_drivers
-		var medal = "🥇" if pos == 1 else ("🥈" if pos == 2 else ("🥉" if pos == 3 else "  %d." % pos))
-		var label = Label.new()
-		label.text = "%s %s — %d pts" % [medal, driver.full_name(), entry["points"]]
-		label.custom_minimum_size = Vector2(300, 0)
-		label.add_theme_color_override("font_color",
-			Color(0.4, 0.8, 1.0) if is_player else
-			(Color(1.0, 0.84, 0.0) if pos == 1 else
-			(Color(0.75, 0.75, 0.75) if pos == 2 else
-			(Color(0.8, 0.5, 0.2) if pos == 3 else Color.WHITE))))
-		if is_player:
-			label.add_theme_font_size_override("font_size", 15)
-		drivers_box.add_child(label)
+		# Separator between championships
+		if GameState.active_championships.size() > 1:
+			drivers_box.add_child(HSeparator.new())
 
 func _refresh_team_standings() -> void:
 	for child in teams_box.get_children():
 		child.queue_free()
 
-	var title = Label.new()
-	title.text = "🏭 TEAMS CHAMPIONSHIP"
-	title.add_theme_font_size_override("font_size", 15)
-	title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
-	teams_box.add_child(title)
+	for champ in GameState.active_championships:
+		var title = Label.new()
+		title.text = "🏭 %s — TEAMS" % champ.championship_name.to_upper()
+		title.add_theme_font_size_override("font_size", 14)
+		title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
+		teams_box.add_child(title)
 
-	var sep = HSeparator.new()
-	teams_box.add_child(sep)
+		var sorted = champ.get_team_standings_sorted()
+		for i in range(sorted.size()):
+			var entry = sorted[i]
+			var team_name = "Unknown"
+			var is_player = false
+			for team in GameState.all_teams:
+				if team.id == entry["team_id"]:
+					team_name = team.team_name
+					is_player = team.is_player_team
+					break
+			var pos = i + 1
+			var medal = "🥇" if pos == 1 else ("🥈" if pos == 2 else ("🥉" if pos == 3 else "  %d." % pos))
+			var label = Label.new()
+			label.text = "%s %s — %d pts" % [medal, team_name, entry["points"]]
+			label.custom_minimum_size = Vector2(300, 0)
+			label.add_theme_color_override("font_color",
+				Color(0.4, 0.8, 1.0) if is_player else
+				(Color(1.0, 0.84, 0.0) if pos == 1 else
+				(Color(0.75, 0.75, 0.75) if pos == 2 else
+				(Color(0.8, 0.5, 0.2) if pos == 3 else Color.WHITE))))
+			if is_player:
+				label.add_theme_font_size_override("font_size", 15)
+			teams_box.add_child(label)
 
-	var sorted = GameState.active_championship.get_team_standings_sorted()
-	for i in range(sorted.size()):
-		var entry = sorted[i]
-		var team_name = "Unknown"
-		var is_player = false
-		for team in GameState.all_teams:
-			if team.id == entry["team_id"]:
-				team_name = team.team_name
-				is_player = team.is_player_team
-				break
-		var pos = i + 1
-		var medal = "🥇" if pos == 1 else ("🥈" if pos == 2 else ("🥉" if pos == 3 else "  %d." % pos))
-		var label = Label.new()
-		label.text = "%s %s — %d pts" % [medal, team_name, entry["points"]]
-		label.custom_minimum_size = Vector2(300, 0)
-		label.add_theme_color_override("font_color",
-			Color(0.4, 0.8, 1.0) if is_player else
-			(Color(1.0, 0.84, 0.0) if pos == 1 else
-			(Color(0.75, 0.75, 0.75) if pos == 2 else
-			(Color(0.8, 0.5, 0.2) if pos == 3 else Color.WHITE))))
-		if is_player:
-			label.add_theme_font_size_override("font_size", 15)
-		teams_box.add_child(label)
+
+		if GameState.active_championships.size() > 1:
+			teams_box.add_child(HSeparator.new())
 
 func _refresh_driver_stats() -> void:
 	if GameState.player_team.drivers.size() == 0:
@@ -646,7 +673,13 @@ func _on_advance_pressed() -> void:
 		_show_pending_tasks_dialog(tasks)
 
 func _on_advance_to_race_pressed() -> void:
-	var next_race = GameState.active_championship.get_next_race()
+	# Find soonest upcoming race across all active championships
+	var next_race = null
+	for champ in GameState.active_championships:
+		var nr = champ.get_next_race()
+		if nr:
+			if next_race == null or nr["week"] < next_race["week"]:
+				next_race = nr
 	# No more races — skip to end of season instead
 	if not next_race:
 		_on_skip_to_season_end()

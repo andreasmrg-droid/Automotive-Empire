@@ -125,7 +125,7 @@ func _refresh_stats() -> void:
 
 	var rows = [
 		["Team",          team.team_name,                      Color.WHITE],
-		["Balance",       "$%s" % _fmt(int(team.balance)),
+		["Balance",       "CR %s" % _fmt(int(team.balance)),
 			Color(0.3, 0.9, 0.4) if team.balance >= 0 else Color(1.0, 0.3, 0.3)],
 		["Reputation",    "%.0f / 100" % team.reputation,      Color(0.9, 0.8, 0.3)],
 		["Season",        "Season %d  ·  Week %d" % [GameState.current_season, GameState.current_week],

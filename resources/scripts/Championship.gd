@@ -18,7 +18,7 @@ extends Resource
 @export var num_races: int = 6
 
 # Points system
-@export var points_system: Array[int] = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
+@export var points_system: Array = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
 
 # Prize money
 @export var prize_1st: float = 300.0
@@ -70,7 +70,7 @@ extends Resource
 @export var pit_stop_repair_pct: float = 0.0
 
 # ── Calendar ───────────────────────────────────────────────────────────────────
-@export var calendar: Array[Dictionary] = []
+@export var calendar: Array = []
 
 # Driver standings  — driver_id : points
 @export var standings: Dictionary = {}
