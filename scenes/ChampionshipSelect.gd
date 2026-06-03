@@ -49,6 +49,14 @@ func _build_ui() -> void:
 	btn_back.pressed.connect(_on_back)
 	header.add_child(btn_back)
 
+	# Register all affordable championships not yet registered
+	var btn_reg_all = Button.new()
+	btn_reg_all.text = "✅ Register All Affordable"
+	btn_reg_all.custom_minimum_size = Vector2(220, 36)
+	btn_reg_all.modulate = Color(0.7, 1.0, 0.85)
+	btn_reg_all.pressed.connect(_on_register_all_pressed)
+	header.add_child(btn_reg_all)
+
 	# Re-register all currently-running championships for next season
 	var btn_rereg = Button.new()
 	btn_rereg.text = "🔄 Re-register All Running"
@@ -316,3 +324,15 @@ func _fmt(n: int) -> String:
 		result = s[i] + result
 		count += 1
 	return result
+
+func _on_register_all_pressed() -> void:
+	var registered_any = false
+	for champ_id in GameState.CHAMPIONSHIP_REGISTRY:
+		if GameState.can_register_for_championship(champ_id):
+			var reg = GameState.CHAMPIONSHIP_REGISTRY[champ_id]
+			if GameState.player_team.balance >= reg.get("entry_fee", 0):
+				if GameState.register_for_championship(champ_id):
+					registered_any = true
+	if not registered_any:
+		GameState.add_notification("Normal", "No new championships to register for (check funds or deadlines).")
+	_refresh_list()

@@ -137,7 +137,7 @@ func _build_card(building_id: String) -> PanelContainer:
 		status_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 	vbox.add_child(status_label)
 
-	# Effects
+	# Effects — show for built buildings, or L1 preview for unbuilt
 	if building["built"] and building["construction_weeks_remaining"] == 0:
 		var effects_label = Label.new()
 		effects_label.text = building["effects"]
@@ -146,15 +146,38 @@ func _build_card(building_id: String) -> PanelContainer:
 		effects_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		effects_label.custom_minimum_size = Vector2(260, 0)
 		vbox.add_child(effects_label)
+	elif not building["built"]:
+		# Show what building provides at L1 once built
+		var preview_label = Label.new()
+		preview_label.text = "ℹ Once built (L1):\n%s" % building["effects"]
+		preview_label.add_theme_font_size_override("font_size", 11)
+		preview_label.add_theme_color_override("font_color", Color(0.5, 0.65, 0.5))
+		preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		preview_label.custom_minimum_size = Vector2(260, 0)
+		vbox.add_child(preview_label)
+		# L1 upkeep/income preview
+		var maint = building["weekly_maintenance"]
+		var income = building["weekly_income"]
+		var finance_preview = ""
+		if maint > 0: finance_preview += "💸 -CR %d/wk" % maint
+		if income > 0: finance_preview += "  💰 +CR %d/wk" % income
+		if finance_preview != "":
+			var fp_label = Label.new()
+			fp_label.text = finance_preview
+			fp_label.add_theme_font_size_override("font_size", 11)
+			fp_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
+			vbox.add_child(fp_label)
 
-	# Finance row
+	# Finance row — current level values for built buildings
 	var finance_label = Label.new()
 	var finance_text = ""
 	if building["built"] and building["construction_weeks_remaining"] == 0:
-		if building["weekly_maintenance"] > 0:
-			finance_text += "💸 -$%d/wk" % building["weekly_maintenance"]
-		if building["weekly_income"] > 0:
-			finance_text += "  💰 +$%d/wk" % building["weekly_income"]
+		var cur_maint = GameState.get_building_maintenance(building)
+		var cur_income = GameState.get_building_income(building)
+		if cur_maint > 0:
+			finance_text += "💸 -CR %d/wk" % cur_maint
+		if cur_income > 0:
+			finance_text += "  💰 +CR %d/wk" % cur_income
 	if finance_text != "":
 		finance_label.text = finance_text
 		finance_label.add_theme_font_size_override("font_size", 11)

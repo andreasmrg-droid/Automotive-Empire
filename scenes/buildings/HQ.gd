@@ -69,10 +69,20 @@ func _build_ui() -> void:
 
 	var btn_hof = Button.new()
 	btn_hof.text = "🏆 View Hall of Fame"
-	btn_hof.custom_minimum_size = Vector2(200, 32)
+	btn_hof.custom_minimum_size = Vector2(0, 32)
+	btn_hof.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	btn_hof.pressed.connect(func():
 		get_tree().change_scene_to_file("res://scenes/HallOfFame.tscn"))
 	left.add_child(btn_hof)
+
+	var btn_champ = Button.new()
+	btn_champ.text = "🏁 Championships Registration"
+	btn_champ.custom_minimum_size = Vector2(0, 32)
+	btn_champ.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	btn_champ.modulate = Color(1.0, 0.85, 0.3)
+	btn_champ.pressed.connect(func():
+		get_tree().change_scene_to_file("res://scenes/ChampionshipSelect.tscn"))
+	left.add_child(btn_champ)
 
 	left.add_child(HSeparator.new())
 
@@ -156,6 +166,7 @@ func _build_tp_slot(index: int, hired_tp: Array) -> PanelContainer:
 
 	var vbox = VBoxContainer.new()
 	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_theme_constant_override("separation", 4)
 	hbox.add_child(vbox)
 
 	if index < hired_tp.size():
@@ -170,6 +181,54 @@ func _build_tp_slot(index: int, hired_tp: Array) -> PanelContainer:
 		lbl_stats.modulate = Color(0.6, 0.6, 0.6)
 		lbl_stats.add_theme_font_size_override("font_size", 11)
 		vbox.add_child(lbl_stats)
+
+		# Championship assignment dropdown
+		var champ_row = HBoxContainer.new()
+		champ_row.add_theme_constant_override("separation", 6)
+		vbox.add_child(champ_row)
+		var lbl_c = Label.new()
+		lbl_c.text = "Championship:"
+		lbl_c.add_theme_font_size_override("font_size", 11)
+		lbl_c.modulate = Color(0.55, 0.55, 0.55)
+		champ_row.add_child(lbl_c)
+
+		var assigned = tp.assigned_championship
+		# Show current assignment or unassigned
+		if assigned != "" and assigned in GameState.CHAMPIONSHIP_REGISTRY:
+			var reg = GameState.CHAMPIONSHIP_REGISTRY[assigned]
+			var lbl_assigned = Label.new()
+			lbl_assigned.text = reg.get("name", assigned)
+			lbl_assigned.add_theme_font_size_override("font_size", 11)
+			lbl_assigned.add_theme_color_override("font_color", Color(0.4, 0.85, 0.4))
+			champ_row.add_child(lbl_assigned)
+		else:
+			var lbl_none = Label.new()
+			lbl_none.text = "⚠ None assigned"
+			lbl_none.add_theme_font_size_override("font_size", 11)
+			lbl_none.modulate = Color(1.0, 0.6, 0.2)
+			champ_row.add_child(lbl_none)
+
+		# Assign buttons for each active championship
+		var assign_row = HBoxContainer.new()
+		assign_row.add_theme_constant_override("separation", 4)
+		vbox.add_child(assign_row)
+		for champ in GameState.active_championships:
+			var reg = GameState.CHAMPIONSHIP_REGISTRY.get(champ.id, {})
+			var btn_assign = Button.new()
+			btn_assign.text = reg.get("name", champ.id).left(14)
+			btn_assign.add_theme_font_size_override("font_size", 10)
+			btn_assign.custom_minimum_size = Vector2(0, 24)
+			if tp.assigned_championship == champ.id:
+				btn_assign.modulate = Color(0.4, 0.85, 0.4)
+				btn_assign.disabled = true
+			var tid = tp.id; var cid = champ.id
+			btn_assign.pressed.connect(func():
+				var t = GameState.all_staff.get(tid)
+				if t: t.assigned_championship = cid
+				refresh()
+			)
+			assign_row.add_child(btn_assign)
+
 		var btn_release = Button.new()
 		btn_release.text = "Release"
 		btn_release.modulate = Color(1.0, 0.5, 0.5)

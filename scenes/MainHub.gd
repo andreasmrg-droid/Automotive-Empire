@@ -237,17 +237,6 @@ func _ready() -> void:
 	advance_button.get_parent().add_child(skip_season_btn)
 
 	# Championship Registration — always visible so deadlines are never missed
-	var btn_champ = Button.new()
-	btn_champ.name = "ChampRegBtn"
-	btn_champ.custom_minimum_size = Vector2(260, 50)
-	btn_champ.add_theme_font_size_override("font_size", 15)
-	btn_champ.text = "🏆 Championships Registration for Next Season"
-	btn_champ.modulate = Color(1.0, 0.85, 0.3)
-	btn_champ.pressed.connect(func():
-		get_tree().change_scene_to_file("res://scenes/ChampionshipSelect.tscn")
-	)
-	advance_button.get_parent().add_child(btn_champ)
-
 	# Connect signals
 	GameState.week_advanced.connect(_on_week_advanced)
 	GameState.season_ended.connect(_on_season_ended)
@@ -1032,64 +1021,6 @@ func _show_confirmation(message: String, on_confirm: Callable) -> void:
 
 func _on_notifications_updated() -> void:
 	_update_display()
-	# Show Critical banner if any new critical notifications
-	var critical_count = GameState.get_critical_count()
-	if critical_count > 0:
-		_show_critical_banner(critical_count)
-
-func _show_critical_banner(count: int) -> void:
-	# Remove existing banner
-	var existing = get_node_or_null("CriticalBanner")
-	if existing:
-		existing.queue_free()
-
-	var banner = PanelContainer.new()
-	banner.name = "CriticalBanner"
-	banner.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	banner.offset_top = 44
-	banner.offset_bottom = 82
-	banner.offset_left = 0
-	banner.offset_right = 0
-	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.55, 0.05, 0.05, 0.95)
-	style.border_width_bottom = 2
-	style.border_color = Color(1.0, 0.3, 0.3)
-	banner.add_theme_stylebox_override("panel", style)
-	add_child(banner)
-	move_child(banner, get_child_count() - 1)
-
-	var row = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 12)
-	banner.add_child(row)
-
-	var lbl = Label.new()
-	lbl.text = "🔴 %d CRITICAL NOTIFICATION%s — ACTION REQUIRED THIS WEEK" % [
-		count, "S" if count > 1 else ""]
-	lbl.add_theme_font_size_override("font_size", 13)
-	lbl.add_theme_color_override("font_color", Color(1.0, 0.8, 0.8))
-	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(lbl)
-
-	var btn_view = Button.new()
-	btn_view.text = "View  →"
-	btn_view.custom_minimum_size = Vector2(80, 0)
-	btn_view.pressed.connect(func():
-		banner.queue_free()
-		_on_notif_pressed()
-	)
-	row.add_child(btn_view)
-
-	var btn_close = Button.new()
-	btn_close.text = "✕"
-	btn_close.custom_minimum_size = Vector2(28, 0)
-	btn_close.modulate = Color(0.7, 0.7, 0.7)
-	btn_close.pressed.connect(banner.queue_free)
-	row.add_child(btn_close)
-
-	# Auto-dismiss after 8 seconds
-	await get_tree().create_timer(8.0).timeout
-	if is_instance_valid(banner):
-		banner.queue_free()
 
 func _on_week_advanced(_week: int) -> void:
 	_update_display()
@@ -1134,6 +1065,11 @@ func _input(event: InputEvent) -> void:
 			var path = "user://screenshot_%s.png" % timestamp
 			screenshot.save_png(path)
 			print("Screenshot saved: " + path)
+
+	if event is InputEventKey and event.pressed and event.keycode == KEY_F9:
+		var console = load("res://scenes/dev/DevProfileSelector.tscn").instantiate()
+		console.console_mode = true
+		get_tree().root.add_child(console)
 
 func _on_save_pressed() -> void:
 	GameState.save_game()
@@ -1241,7 +1177,7 @@ func _refresh_cars() -> void:
 		var name_row = HBoxContainer.new()
 		vbox.add_child(name_row)
 		var car_lbl = Label.new()
-		car_lbl.text = "🏎  Car %d  [%s]" % [car.car_number, car.car_type_id]
+		car_lbl.text = "🏎  %s" % (car.car_name if car.car_name != "" else "Car %d" % car.car_number)
 		car_lbl.add_theme_font_size_override("font_size", 14)
 		car_lbl.add_theme_color_override("font_color", Color.WHITE)
 		car_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL

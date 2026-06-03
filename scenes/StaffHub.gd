@@ -363,29 +363,29 @@ func _show_staff_card(staff_id: String) -> void:
 	style.corner_radius_top_right = 6
 	style.corner_radius_bottom_left = 6
 	style.corner_radius_bottom_right = 6
-	style.content_margin_left = 16
-	style.content_margin_right = 16
-	style.content_margin_top = 16
-	style.content_margin_bottom = 16
+	style.content_margin_left = 20
+	style.content_margin_right = 20
+	style.content_margin_top = 20
+	style.content_margin_bottom = 20
 	card_overlay.add_theme_stylebox_override("panel", style)
 	add_child(card_overlay)
 
 	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 8)
+	vbox.add_theme_constant_override("separation", 10)
 	card_overlay.add_child(vbox)
 
 	# Header
 	var header = HBoxContainer.new()
 	vbox.add_child(header)
 	var name_lbl = Label.new()
-	name_lbl.text = "%s %s" % [ROLE_ICONS.get(staff.role, ""), staff.display_name()]
-	name_lbl.add_theme_font_size_override("font_size", 20)
+	name_lbl.text = "%s %s" % [ROLE_ICONS.get(staff.role, ""), _staff_display_name(staff)]
+	name_lbl.add_theme_font_size_override("font_size", 24)
 	name_lbl.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(name_lbl)
 	var close_btn = Button.new()
 	close_btn.text = "✕"
-	close_btn.custom_minimum_size = Vector2(32, 32)
+	close_btn.custom_minimum_size = Vector2(36, 36)
 	close_btn.pressed.connect(func(): card_overlay.queue_free(); card_overlay = null)
 	header.add_child(close_btn)
 
@@ -416,7 +416,7 @@ func _show_staff_card(staff_id: String) -> void:
 	# Role-specific attributes
 	var attrs_title = Label.new()
 	attrs_title.text = "ATTRIBUTES"
-	attrs_title.add_theme_font_size_override("font_size", 13)
+	attrs_title.add_theme_font_size_override("font_size", 15)
 	attrs_title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
 	vbox.add_child(attrs_title)
 
@@ -427,20 +427,20 @@ func _show_staff_card(staff_id: String) -> void:
 		vbox.add_child(row)
 		var lbl = Label.new()
 		lbl.text = attr[0]
-		lbl.custom_minimum_size = Vector2(180, 0)
-		lbl.add_theme_font_size_override("font_size", 13)
+		lbl.custom_minimum_size = Vector2(200, 0)
+		lbl.add_theme_font_size_override("font_size", 15)
 		lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 		row.add_child(lbl)
 		var bar = ProgressBar.new()
 		bar.min_value = 0
 		bar.max_value = 100
 		bar.value = attr[1]
-		bar.custom_minimum_size = Vector2(160, 14)
+		bar.custom_minimum_size = Vector2(160, 18)
 		bar.show_percentage = false
 		row.add_child(bar)
 		var val_lbl = Label.new()
 		val_lbl.text = "%.1f" % attr[1]
-		val_lbl.add_theme_font_size_override("font_size", 12)
+		val_lbl.add_theme_font_size_override("font_size", 15)
 		val_lbl.add_theme_color_override("font_color", _skill_color(attr[1]))
 		row.add_child(val_lbl)
 
@@ -707,13 +707,13 @@ func _card_row(parent: VBoxContainer, label: String, value: String,
 	parent.add_child(row)
 	var lbl = Label.new()
 	lbl.text = label
-	lbl.custom_minimum_size = Vector2(180, 0)
-	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.custom_minimum_size = Vector2(200, 0)
+	lbl.add_theme_font_size_override("font_size", 15)
 	lbl.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 	row.add_child(lbl)
 	var val = Label.new()
 	val.text = value
-	val.add_theme_font_size_override("font_size", 13)
+	val.add_theme_font_size_override("font_size", 15)
 	val.add_theme_color_override("font_color", value_color)
 	row.add_child(val)
 
@@ -751,13 +751,14 @@ func _get_slot_message(role: String) -> String:
 		"Pit Crew":
 			if GameState.active_championship.discipline == "GK":
 				return "Pit Crew not required for GK championships."
-			var arena = GameState.get_building("Pit Crew Arena")
-			if not arena.get("built", false) or arena.get("level", 0) < 1:
-				return "Build the Pit Crew Arena first to hire Pit Crew."
-			var max_crews = max(1, arena.get("level", 1))
-			if GameState.get_player_staff_by_role("Pit Crew").size() >= max_crews:
-				return "Pit Crew slots full (Arena Lv%d = %d slot%s). Upgrade Arena for more." % [
-					max_crews, max_crews, "s" if max_crews != 1 else ""]
+			else:
+				var arena = GameState.get_building("Pit Crew Arena")
+				if not arena.get("built", false) or arena.get("level", 0) < 1:
+					return "Build the Pit Crew Arena first to hire Pit Crew."
+				var max_crews = max(1, arena.get("level", 1))
+				if GameState.get_player_staff_by_role("Pit Crew").size() >= max_crews:
+					return "Pit Crew slots full (Arena Lv%d = %d slot%s). Upgrade Arena for more." % [
+						max_crews, max_crews, "s" if max_crews != 1 else ""]
 		"Designer":
 			# Slot limited by R&D Studio level. If not built, 0 slots.
 			var rnd = GameState.get_building("R&D Design Studio")

@@ -370,7 +370,7 @@ func _show_driver_card(driver_id: String) -> void:
 
 	card_overlay = PanelContainer.new()
 	card_overlay.set_anchors_preset(Control.PRESET_CENTER)
-	card_overlay.custom_minimum_size = Vector2(480, 0)
+	card_overlay.custom_minimum_size = Vector2(500, 0)
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.12, 0.12, 0.16, 0.98)
 	style.border_width_left = 2
@@ -382,15 +382,15 @@ func _show_driver_card(driver_id: String) -> void:
 	style.corner_radius_top_right = 6
 	style.corner_radius_bottom_left = 6
 	style.corner_radius_bottom_right = 6
-	style.content_margin_left = 16
-	style.content_margin_right = 16
-	style.content_margin_top = 16
-	style.content_margin_bottom = 16
+	style.content_margin_left = 20
+	style.content_margin_right = 20
+	style.content_margin_top = 20
+	style.content_margin_bottom = 20
 	card_overlay.add_theme_stylebox_override("panel", style)
 	add_child(card_overlay)
 
 	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 8)
+	vbox.add_theme_constant_override("separation", 10)
 	card_overlay.add_child(vbox)
 
 	# Header
@@ -398,13 +398,13 @@ func _show_driver_card(driver_id: String) -> void:
 	vbox.add_child(header)
 	var name_lbl = Label.new()
 	name_lbl.text = "👤 %s" % driver.full_name()
-	name_lbl.add_theme_font_size_override("font_size", 20)
+	name_lbl.add_theme_font_size_override("font_size", 24)
 	name_lbl.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(name_lbl)
 	var close_btn = Button.new()
 	close_btn.text = "✕"
-	close_btn.custom_minimum_size = Vector2(32, 32)
+	close_btn.custom_minimum_size = Vector2(36, 36)
 	close_btn.pressed.connect(func(): card_overlay.queue_free(); card_overlay = null)
 	header.add_child(close_btn)
 
@@ -440,7 +440,7 @@ func _show_driver_card(driver_id: String) -> void:
 	# Stats
 	var stats_title = Label.new()
 	stats_title.text = "ATTRIBUTES"
-	stats_title.add_theme_font_size_override("font_size", 13)
+	stats_title.add_theme_font_size_override("font_size", 15)
 	stats_title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
 	vbox.add_child(stats_title)
 
@@ -460,22 +460,22 @@ func _show_driver_card(driver_id: String) -> void:
 		vbox.add_child(row)
 		var lbl = Label.new()
 		lbl.text = stat[0]
-		lbl.custom_minimum_size = Vector2(160, 0)
-		lbl.add_theme_font_size_override("font_size", 13)
+		lbl.custom_minimum_size = Vector2(200, 0)
+		lbl.add_theme_font_size_override("font_size", 15)
 		lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 		row.add_child(lbl)
 		var bar = ProgressBar.new()
 		bar.min_value = 0
 		bar.max_value = 100
 		bar.value = stat[1]
-		bar.custom_minimum_size = Vector2(160, 14)
+		bar.custom_minimum_size = Vector2(160, 18)
 		bar.show_percentage = false
 		row.add_child(bar)
 		var val_lbl = Label.new()
 		val_lbl.text = "%.1f" % stat[1]
 		if stat[2] >= 0:
 			val_lbl.text += "  (eff: %.1f)" % stat[2]
-		val_lbl.add_theme_font_size_override("font_size", 12)
+		val_lbl.add_theme_font_size_override("font_size", 15)
 		val_lbl.add_theme_color_override("font_color", _skill_color(stat[1]))
 		row.add_child(val_lbl)
 
@@ -687,13 +687,13 @@ func _card_row(parent: VBoxContainer, label: String, value: String,
 	parent.add_child(row)
 	var lbl = Label.new()
 	lbl.text = label
-	lbl.custom_minimum_size = Vector2(160, 0)
-	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.custom_minimum_size = Vector2(200, 0)
+	lbl.add_theme_font_size_override("font_size", 15)
 	lbl.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 	row.add_child(lbl)
 	var val = Label.new()
 	val.text = value
-	val.add_theme_font_size_override("font_size", 13)
+	val.add_theme_font_size_override("font_size", 15)
 	val.add_theme_color_override("font_color", value_color)
 	row.add_child(val)
 

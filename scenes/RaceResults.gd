@@ -59,7 +59,7 @@ func _build_ui() -> void:
 	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(columns)
 
-	# Left column: race results
+	# Left column: race results — expands to fill available space
 	var left_scroll = ScrollContainer.new()
 	left_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	left_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -72,9 +72,9 @@ func _build_ui() -> void:
 
 	_build_race_results(left)
 
-	# Middle column: driver standings
+	# Middle column: driver standings — narrower fixed width
 	var mid_scroll = ScrollContainer.new()
-	mid_scroll.custom_minimum_size = Vector2(300, 0)
+	mid_scroll.custom_minimum_size = Vector2(230, 0)
 	mid_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	columns.add_child(mid_scroll)
 
@@ -87,7 +87,7 @@ func _build_ui() -> void:
 
 	# Right column: team standings + car condition
 	var right_scroll = ScrollContainer.new()
-	right_scroll.custom_minimum_size = Vector2(280, 0)
+	right_scroll.custom_minimum_size = Vector2(260, 0)
 	right_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	columns.add_child(right_scroll)
 
