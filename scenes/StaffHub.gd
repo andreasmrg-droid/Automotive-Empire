@@ -350,7 +350,14 @@ func _show_staff_card(staff_id: String) -> void:
 		return
 
 	card_overlay = PanelContainer.new()
-	card_overlay.set_anchors_preset(Control.PRESET_CENTER)
+	card_overlay.anchor_left   = 1.0
+	card_overlay.anchor_top    = 0.0
+	card_overlay.anchor_right  = 1.0
+	card_overlay.anchor_bottom = 0.0
+	card_overlay.offset_left   = -600
+	card_overlay.offset_top    = 190
+	card_overlay.offset_right  = -50
+	card_overlay.offset_bottom = 60
 	card_overlay.custom_minimum_size = Vector2(500, 0)
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.12, 0.12, 0.16, 0.98)
@@ -504,7 +511,14 @@ func _show_assign_popup(staff_id: String) -> void:
 		return
 
 	card_overlay = PanelContainer.new()
-	card_overlay.set_anchors_preset(Control.PRESET_CENTER)
+	card_overlay.anchor_left   = 1.0
+	card_overlay.anchor_top    = 0.0
+	card_overlay.anchor_right  = 1.0
+	card_overlay.anchor_bottom = 0.0
+	card_overlay.offset_left   = -600
+	card_overlay.offset_top    = 190
+	card_overlay.offset_right  = -50
+	card_overlay.offset_bottom = 60
 	card_overlay.custom_minimum_size = Vector2(380, 0)
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.12, 0.12, 0.16, 0.98)
@@ -769,6 +783,12 @@ func _get_slot_message(role: String) -> String:
 				return "Designer slots full (Level %d = %d slot%s). Upgrade R&D Studio for more." % [
 					max_designers, max_designers, "s" if max_designers != 1 else ""]
 	return ""
+
+func _staff_display_name(staff) -> String:
+	if staff.role == "Pit Crew":
+		var num = staff.crew_number if "crew_number" in staff else 1
+		return "Pit Crew %d" % num
+	return staff.display_name()
 
 func _on_back_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/MainHub.tscn")

@@ -67,22 +67,38 @@ func _build_ui() -> void:
 	_stats_container.add_theme_constant_override("separation", 6)
 	left.add_child(_stats_container)
 
+	var btn_row = HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 8)
+	left.add_child(btn_row)
+
 	var btn_hof = Button.new()
-	btn_hof.text = "🏆 View Hall of Fame"
-	btn_hof.custom_minimum_size = Vector2(0, 32)
-	btn_hof.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	btn_hof.text = "🏆 Hall of Fame"
+	btn_hof.custom_minimum_size = Vector2(0, 34)
 	btn_hof.pressed.connect(func():
 		get_tree().change_scene_to_file("res://scenes/HallOfFame.tscn"))
-	left.add_child(btn_hof)
+	btn_row.add_child(btn_hof)
 
 	var btn_champ = Button.new()
-	btn_champ.text = "🏁 Championships Registration"
-	btn_champ.custom_minimum_size = Vector2(0, 32)
-	btn_champ.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	btn_champ.text = "🏁 Championships"
+	btn_champ.custom_minimum_size = Vector2(0, 34)
 	btn_champ.modulate = Color(1.0, 0.85, 0.3)
 	btn_champ.pressed.connect(func():
 		get_tree().change_scene_to_file("res://scenes/ChampionshipSelect.tscn"))
-	left.add_child(btn_champ)
+	btn_row.add_child(btn_champ)
+
+	var btn_drivers = Button.new()
+	btn_drivers.text = "🏎 Drivers"
+	btn_drivers.custom_minimum_size = Vector2(0, 34)
+	btn_drivers.pressed.connect(func():
+		get_tree().change_scene_to_file("res://scenes/Drivers.tscn"))
+	btn_row.add_child(btn_drivers)
+
+	var btn_staff = Button.new()
+	btn_staff.text = "👤 Staff"
+	btn_staff.custom_minimum_size = Vector2(0, 34)
+	btn_staff.pressed.connect(func():
+		get_tree().change_scene_to_file("res://scenes/Staff.tscn"))
+	btn_row.add_child(btn_staff)
 
 	left.add_child(HSeparator.new())
 
@@ -389,10 +405,6 @@ func _refresh_staff_slot(panel: PanelContainer, role: String, icon_text: String)
 	var btn_row = HBoxContainer.new()
 	btn_row.add_theme_constant_override("separation", 8)
 	if staff:
-		var btn_view = Button.new()
-		btn_view.text = "View Card"
-		btn_view.pressed.connect(func(): _go_to_staff(role, false))
-		btn_row.add_child(btn_view)
 		var btn_release = Button.new()
 		btn_release.text = "Release"
 		btn_release.modulate = Color(1.0, 0.5, 0.5)

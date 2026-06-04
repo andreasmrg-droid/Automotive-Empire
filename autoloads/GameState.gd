@@ -721,7 +721,6 @@ func _build_rnd_tasks() -> Dictionary:
 					"cr":             int(p2b[2] * tier_mult),
 					"effect":         p2b[3],
 					"value":          p2b[4],
-					"requires":       p1_id,
 				}
 				var p2_id_l2 = "UPG_%s_%s_L2" % [code, part.to_upper().left(4)]
 				tasks[p2_id_l2] = {
@@ -1414,17 +1413,6 @@ func _check_resource_notifications() -> void:
 			add_notification("Critical", "No fuel remaining! Buy more at the Logistics Center before next race.")
 		elif fuel_kg < fuel_needed:
 			add_notification("High", "Fuel running low (%.1f kg). Less than 1 race worth remaining." % fuel_kg)
-
-	# No car for running championship warning
-	for champ in active_championships:
-		var reg = CHAMPIONSHIP_REGISTRY.get(champ.id, {})
-		var champ_name = reg.get("name", champ.id)
-		var cars_for_champ = player_team_cars.filter(func(c): return c.championship_id == champ.id)
-		if cars_for_champ.is_empty():
-			var race1_week = FIRST_RACE_WEEK.get(champ.id, 6)
-			if current_week >= race1_week - 4:
-				add_notification("Critical",
-					"🚨 No car entered for %s! Race 1 is Week %d — buy a car at the Logistics Center or you will DNS all races." % [champ_name, race1_week])
 
 	# Bankruptcy warning
 	var weekly_expenses = 1250
@@ -3944,6 +3932,11 @@ func start_new_season() -> void:
 
 	# ── Wipe ALL player cars ─────────────────────────────────────────────────
 	player_team_cars.clear()
+	# Clear car assignments on all staff — cars no longer exist
+	for staff_id in all_staff:
+		var s = all_staff[staff_id]
+		if s.assigned_car_id != "":
+			s.assigned_car_id = ""
 	add_log("🏎 All cars retired for Season %d. Buy or build new cars before Race 1." % current_season)
 
 	# ── AI team car regeneration ─────────────────────────────────────────────

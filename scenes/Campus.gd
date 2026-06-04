@@ -308,20 +308,8 @@ func _on_sell_pressed(building_id: String, sell_value: int) -> void:
 	var building = GameState.campus_buildings.get(building_id, {})
 	if building.is_empty():
 		return
-	var dialog = ConfirmationDialog.new()
-	dialog.title = "Sell Building"
-	dialog.dialog_text = "Sell %s for CR %s?\n\nYou will receive 30%% of the original build cost.\nAll upgrades and progress will be lost." % [
-		building["name"], _fmt(sell_value)]
-	dialog.ok_button_text = "Sell"
-	dialog.cancel_button_text = "Keep"
-	add_child(dialog)
-	dialog.popup_centered()
-	dialog.confirmed.connect(func():
-		GameState.sell_building(building_id)
-		dialog.queue_free()
-		_build_campus()
-	)
-	dialog.canceled.connect(dialog.queue_free)
+	GameState.sell_building(building_id)
+	_build_campus()
 
 func _on_back_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/MainHub.tscn")

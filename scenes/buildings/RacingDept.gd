@@ -299,6 +299,12 @@ func _build_driver_card(driver) -> PanelContainer:
 
 	var d_id = driver.id
 
+	var btn_view = Button.new()
+	btn_view.text = "📋 View Card"
+	btn_view.custom_minimum_size = Vector2(110, 28)
+	btn_view.pressed.connect(func(): _show_driver_card(d_id))
+	btn_row.add_child(btn_view)
+
 	var btn_assign = Button.new()
 	btn_assign.text = "Assign Car" if not car else "Change Car"
 	btn_assign.custom_minimum_size = Vector2(110, 28)
@@ -535,6 +541,124 @@ func _card_panel() -> PanelContainer:
 	style.content_margin_bottom = 12
 	panel.add_theme_stylebox_override("panel", style)
 	return panel
+
+func _show_driver_card(driver_id: String) -> void:
+	var existing = get_node_or_null("DriverCardOverlay")
+	if existing: existing.queue_free()
+
+	var driver = GameState.all_drivers.get(driver_id)
+	if not driver: return
+
+	var overlay = PanelContainer.new()
+	overlay.name = "DriverCardOverlay"
+	overlay.anchor_left   = 1.0
+	overlay.anchor_top    = 0.0
+	overlay.anchor_right  = 1.0
+	overlay.anchor_bottom = 0.0
+	overlay.offset_left   = -600
+	overlay.offset_top    = 190
+	overlay.offset_right  = -50
+	overlay.offset_bottom = 60
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.12, 0.16, 0.98)
+	style.border_width_left = 2; style.border_width_right = 2
+	style.border_width_top = 2; style.border_width_bottom = 2
+	style.border_color = Color(0.4, 0.8, 1.0)
+	style.corner_radius_top_left = 6; style.corner_radius_top_right = 6
+	style.corner_radius_bottom_left = 6; style.corner_radius_bottom_right = 6
+	style.content_margin_left = 20; style.content_margin_right = 20
+	style.content_margin_top = 20; style.content_margin_bottom = 20
+	overlay.add_theme_stylebox_override("panel", style)
+	add_child(overlay)
+
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	overlay.add_child(vbox)
+
+	var header = HBoxContainer.new()
+	vbox.add_child(header)
+	var name_lbl = Label.new()
+	name_lbl.text = "👤 %s" % driver.full_name()
+	name_lbl.add_theme_font_size_override("font_size", 24)
+	name_lbl.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(name_lbl)
+	var close_btn = Button.new()
+	close_btn.text = "✕"
+	close_btn.custom_minimum_size = Vector2(36, 36)
+	close_btn.pressed.connect(func(): overlay.queue_free())
+	header.add_child(close_btn)
+
+	vbox.add_child(HSeparator.new())
+
+	_card_row(vbox, "Age / Sex / Nationality",
+		"%d  |  %s  |  %s" % [driver.age, driver.sex, driver.nationality])
+	_card_row(vbox, "Discipline", "%s  (Adapt: %.1f)" % [
+		driver.active_discipline, driver.get_active_adaptation()])
+
+	var car = GameState.get_car_for_driver(driver_id)
+	_card_row(vbox, "Contract",
+		"%d seasons remaining  |  Car: %s" % [
+			driver.contract_seasons_remaining,
+			(car.car_name if car.car_name != "" else "Car %d" % car.car_number) if car else "Unassigned"])
+
+	vbox.add_child(HSeparator.new())
+
+	var attrs_title = Label.new()
+	attrs_title.text = "ATTRIBUTES"
+	attrs_title.add_theme_font_size_override("font_size", 15)
+	attrs_title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
+	vbox.add_child(attrs_title)
+
+	for stat in [
+		["🚀 Pace", driver.pace, driver.get_effective_pace()],
+		["🌧 Wet", driver.wet, driver.get_effective_wet()],
+		["🎯 Focus", driver.focus, driver.get_effective_focus()],
+		["⚔ Race Craft", driver.race_craft, driver.get_effective_race_craft()],
+		["🔄 Consistency", driver.consistency, driver.get_effective_consistency()],
+		["💬 Feedback", driver.feedback, -1.0],
+		["📣 Marketability", driver.marketability, -1.0],
+		["💪 Fitness", driver.fitness, -1.0],
+	]:
+		var row = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		vbox.add_child(row)
+		var lbl = Label.new()
+		lbl.text = stat[0]
+		lbl.custom_minimum_size = Vector2(200, 0)
+		lbl.add_theme_font_size_override("font_size", 15)
+		lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+		row.add_child(lbl)
+		var bar = ProgressBar.new()
+		bar.min_value = 0; bar.max_value = 100; bar.value = stat[1]
+		bar.custom_minimum_size = Vector2(160, 18); bar.show_percentage = false
+		row.add_child(bar)
+		var val_lbl = Label.new()
+		val_lbl.text = "%.1f" % stat[1]
+		if stat[2] >= 0: val_lbl.text += "  (eff: %.1f)" % stat[2]
+		val_lbl.add_theme_font_size_override("font_size", 15)
+		val_lbl.add_theme_color_override("font_color", _skill_color(stat[1]))
+		row.add_child(val_lbl)
+
+	vbox.add_child(HSeparator.new())
+	_card_row(vbox, "Overall Skill", "%.1f / 100" % driver.get_overall_skill(),
+		_skill_color(driver.get_overall_skill()))
+
+func _card_row(parent: VBoxContainer, label: String, value: String,
+		value_color: Color = Color.WHITE) -> void:
+	var row = HBoxContainer.new()
+	parent.add_child(row)
+	var lbl = Label.new()
+	lbl.text = label
+	lbl.custom_minimum_size = Vector2(200, 0)
+	lbl.add_theme_font_size_override("font_size", 15)
+	lbl.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+	row.add_child(lbl)
+	var val = Label.new()
+	val.text = value
+	val.add_theme_font_size_override("font_size", 15)
+	val.add_theme_color_override("font_color", value_color)
+	row.add_child(val)
 
 func _skill_color(value: float) -> Color:
 	if value >= 75.0:   return Color(0.3, 1.0, 0.3)
