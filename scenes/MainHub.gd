@@ -1,4 +1,5 @@
 extends Control
+## Version: S15.2 — TDL destinations added for R&D→WRA→CNC→Garage pipeline and new-game car prompt.
 
 @onready var title_label = $Layout/TitleLabel
 @onready var week_label = $Layout/WeekLabel
@@ -242,6 +243,7 @@ func _ready() -> void:
 	GameState.season_ended.connect(_on_season_ended)
 	GameState.log_updated.connect(_refresh_log)
 	GameState.notifications_updated.connect(_on_notifications_updated)
+	GameState.bankruptcy_triggered.connect(_show_bankruptcy_screen)
 
 	_update_display()
 	_refresh_log()
@@ -544,6 +546,24 @@ func _refresh_notifications() -> void:
 				)
 				snooze_row.add_child(btn_snooze)
 
+			## Navigation action button (S20)
+			var dest = notifs[idx].get("destination", "")
+			if dest != "" and dest in GameState.NOTIFICATION_DESTINATIONS:
+				var btn_goto = Button.new()
+				btn_goto.text = GameState.NOTIFICATION_DESTINATION_LABELS.get(dest, "Go \u2192")
+				btn_goto.custom_minimum_size = Vector2(140, 24)
+				btn_goto.add_theme_font_size_override("font_size", 11)
+				btn_goto.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
+				var capture_dest = dest
+				var capture_idx2 = idx
+				btn_goto.pressed.connect(func():
+					notifs[capture_idx2]["read"] = true
+					if capture_dest == "wra_office":
+						GameState.pending_hq_tab = "wra_office"
+					get_tree().change_scene_to_file(
+						GameState.NOTIFICATION_DESTINATIONS[capture_dest]))
+				snooze_row.add_child(btn_goto)
+
 		notif_box.add_child(card)
 
 func _refresh_driver_standings() -> void:
@@ -688,32 +708,74 @@ func _refresh_log() -> void:
 	for child in log_box.get_children():
 		child.queue_free()
 
-	# ── To-Do List (top 5 urgent tasks) ──────────────────────────────────────
+	# ── To-Do List — always visible ───────────────────────────────────────────
+	var todo_header = HBoxContainer.new()
+	todo_header.add_theme_constant_override("separation", 8)
+	log_box.add_child(todo_header)
+
+	var todo_lbl = Label.new()
+	todo_lbl.text = "📋 TO-DO"
+	todo_lbl.add_theme_font_size_override("font_size", 12)
+	todo_lbl.add_theme_color_override("font_color", Color(1.0, 0.8, 0.3))
+	todo_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	todo_header.add_child(todo_lbl)
+
 	var tasks = GameState.get_pending_tasks()
-	if not tasks.is_empty():
-		var todo_lbl = Label.new()
-		todo_lbl.text = "📋 TO-DO"
-		todo_lbl.add_theme_font_size_override("font_size", 12)
-		todo_lbl.add_theme_color_override("font_color", Color(1.0, 0.8, 0.3))
-		log_box.add_child(todo_lbl)
-		var show_tasks = min(tasks.size(), 5)
-		for i in range(show_tasks):
+	if tasks.is_empty():
+		var lbl_ok = Label.new()
+		lbl_ok.text = "✅ All clear"
+		lbl_ok.add_theme_font_size_override("font_size", 11)
+		lbl_ok.modulate = Color(0.4, 0.9, 0.4)
+		log_box.add_child(lbl_ok)
+	else:
+		for task_text in tasks:
+			var task_row = HBoxContainer.new()
+			task_row.add_theme_constant_override("separation", 4)
+			log_box.add_child(task_row)
+
+			## Task label
 			var tl = Label.new()
-			tl.text = tasks[i]
+			tl.text = task_text
 			tl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			tl.add_theme_font_size_override("font_size", 11)
+			tl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			var is_critical = task_text.begins_with("🚫") or task_text.begins_with("⏱") \
+				or task_text.begins_with("⛽") or task_text.begins_with("💸") \
+				or task_text.begins_with("🏎")
 			tl.add_theme_color_override("font_color",
-				Color(1.0, 0.4, 0.4) if tasks[i].begins_with("🚫") or tasks[i].begins_with("⏱") or tasks[i].begins_with("⛽") \
-				else Color(1.0, 0.7, 0.3))
-			log_box.add_child(tl)
-		if tasks.size() > 5:
-			var more = Label.new()
-			more.text = "  +%d more tasks..." % (tasks.size() - 5)
-			more.add_theme_font_size_override("font_size", 10)
-			more.modulate = Color(0.5, 0.5, 0.5)
-			log_box.add_child(more)
-		log_box.add_child(HSeparator.new())
+				Color(1.0, 0.4, 0.4) if is_critical else Color(1.0, 0.7, 0.3))
+			task_row.add_child(tl)
+
+			## Action button — navigate to relevant scene
+			var dest = _get_todo_destination(task_text)
+			if dest != "":
+				var btn_go = Button.new()
+				btn_go.text = "→"
+				btn_go.custom_minimum_size = Vector2(28, 22)
+				btn_go.add_theme_font_size_override("font_size", 10)
+				btn_go.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
+				var d = dest
+				btn_go.pressed.connect(func():
+					get_tree().change_scene_to_file(d))
+				task_row.add_child(btn_go)
+
+			## Dismiss button
+			var btn_x = Button.new()
+			btn_x.text = "✕"
+			btn_x.custom_minimum_size = Vector2(22, 22)
+			btn_x.add_theme_font_size_override("font_size", 10)
+			btn_x.modulate = Color(0.5, 0.5, 0.5)
+			var tt = task_text
+			btn_x.pressed.connect(func():
+				GameState.dismiss_todo_item(tt))
+			task_row.add_child(btn_x)
+
+	log_box.add_child(HSeparator.new())
 	for message in GameState.weekly_log:
+		## Skip noisy entries — campus/staff costs shown in Financial Dept instead
+		if message.begins_with("Weekly expenses") or message.begins_with("Campus:") \
+				or message.begins_with("💼 "):
+			continue
 		var label = Label.new()
 		label.text = message
 		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -750,8 +812,6 @@ func _refresh_log() -> void:
 			label.add_theme_color_override("font_color", Color(0.4, 0.6, 1.0))
 		elif message.begins_with("---"):
 			label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
-		elif message.begins_with("Weekly expenses") or message.begins_with("Campus:"):
-			label.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4))
 		elif message.begins_with("🏗") or message.begins_with("⬆") or message.begins_with("✅"):
 			label.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
 		elif message.begins_with("aged out"):
@@ -1307,3 +1367,194 @@ func _refresh_cars() -> void:
 	hint.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	cars_box.add_child(hint)
+
+## Returns scene path for a to-do item based on its content
+func _get_todo_destination(task: String) -> String:
+	## Car purchase — always Logistics first
+	if "buy one at Logistics" in task or "No car for" in task or "Buy your first car" in task:
+		return "res://scenes/buildings/Logistics.tscn"
+	## Driver: hire = Drivers scene, assign = Garage
+	if "No drivers signed" in task or "hire one from Drivers" in task:
+		return "res://scenes/Drivers.tscn"
+	if "no driver assigned" in task or "Go to Garage" in task:
+		return "res://scenes/buildings/Garage.tscn"
+	## Mechanic: hire = Staff scene, assign = Garage
+	if "No Race Mechanic hired" in task or "hire one from Staff" in task:
+		return "res://scenes/Staff.tscn"
+	if "no mechanic assigned" in task:
+		return "res://scenes/buildings/Garage.tscn"
+	## Pit Crew
+	if "Pit Crew" in task:
+		return "res://scenes/buildings/PitCrewArena.tscn"
+	## Staff roles
+	if "Team Principal" in task:
+		return "res://scenes/Staff.tscn"
+	if "CFO" in task:
+		return "res://scenes/Staff.tscn"
+	## Resources
+	if "Fuel" in task or "fuel" in task or "Spare parts" in task or "Logistics" in task:
+		return "res://scenes/buildings/Logistics.tscn"
+	## Financial
+	if "Balance negative" in task or "Bankruptcy" in task:
+		return "res://scenes/FinancialDept.tscn"
+	## Car condition
+	if "condition critical" in task or "Garage" in task:
+		return "res://scenes/buildings/Garage.tscn"
+	## Contracts
+	if "contract expires" in task:
+		return "res://scenes/Staff.tscn"
+	## R&D → WRA → CNC → Garage pipeline
+	if "submit to WRA" in task or "Blueprint ready" in task:
+		return "res://scenes/buildings/HQ.tscn"
+	if "queue manufacturing" in task or "CNC Plant" in task:
+		return "res://scenes/buildings/CNCPlant.tscn"
+	if "install it in Garage" in task or "warehouse" in task:
+		return "res://scenes/buildings/Garage.tscn"
+	return ""
+
+## ═══════════════════════════════════════════════════════════════════════════
+## BANKRUPTCY SCREEN
+## ═══════════════════════════════════════════════════════════════════════════
+
+func _show_bankruptcy_screen() -> void:
+	var overlay = PanelContainer.new()
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 100
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.05, 0.05, 0.07, 0.96)
+	style.border_width_left = 4; style.border_width_right = 4
+	style.border_width_top = 4; style.border_width_bottom = 4
+	style.border_color = Color(0.8, 0.2, 0.2)
+	overlay.add_theme_stylebox_override("panel", style)
+	add_child(overlay)
+
+	var center = VBoxContainer.new()
+	center.alignment = BoxContainer.ALIGNMENT_CENTER
+	center.add_theme_constant_override("separation", 20)
+	center.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	center.custom_minimum_size = Vector2(640, 0)
+	overlay.add_child(center)
+
+	var lbl_title = Label.new()
+	lbl_title.text = "🚨 BANKRUPTCY"
+	lbl_title.add_theme_font_size_override("font_size", 36)
+	lbl_title.add_theme_color_override("font_color", Color(1.0, 0.2, 0.2))
+	lbl_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	center.add_child(lbl_title)
+
+	var lbl_sub = Label.new()
+	lbl_sub.text = "Your team has been insolvent for 8 consecutive weeks.\nYou must choose how to proceed."
+	lbl_sub.add_theme_font_size_override("font_size", 15)
+	lbl_sub.add_theme_color_override("font_color", Color(0.75, 0.75, 0.75))
+	lbl_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl_sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	center.add_child(lbl_sub)
+
+	var lbl_bal = Label.new()
+	lbl_bal.text = "Balance: CR %s" % GameState._fmt_int(int(GameState.player_team.balance))
+	lbl_bal.add_theme_font_size_override("font_size", 18)
+	lbl_bal.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4))
+	lbl_bal.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	center.add_child(lbl_bal)
+
+	center.add_child(HSeparator.new())
+
+	## Option 1 — Close team
+	var btn_quit = _bankruptcy_btn(
+		"❌  Close the Team",
+		"End your career here. Return to the main menu.",
+		Color(0.8, 0.3, 0.3))
+	btn_quit.pressed.connect(func():
+		overlay.queue_free()
+		get_tree().change_scene_to_file("res://scenes/MainHub.tscn"))
+	center.add_child(btn_quit)
+
+	## Option 2 — Get hired
+	var btn_hire = _bankruptcy_btn(
+		"🤝  Get Hired by Another Team",
+		"Your CEO enters the job market. Take over a struggling AI team\nas a hired manager — career continues.",
+		Color(0.3, 0.6, 0.9))
+	btn_hire.pressed.connect(func():
+		overlay.queue_free()
+		## CEO Job Market scene — coming in future build
+		GameState.add_notification("Normal",
+			"CEO Job Market coming in a future update."))
+	center.add_child(btn_hire)
+
+	## Option 3 — Start new team (requires CEO wealth)
+	var ceo_wealth = GameState.ceo_accumulated_salary
+	var threshold = 150000.0
+	var can_start = ceo_wealth >= threshold
+	var btn_start = _bankruptcy_btn(
+		"🏁  Start a New Team  (CR %s required)" % GameState._fmt_int(int(threshold)),
+		("Use your personal savings (CR %s) to start fresh." % GameState._fmt_int(int(ceo_wealth))) if can_start
+		else "You need CR %s in personal savings. Currently: CR %s." % [
+			GameState._fmt_int(int(threshold)), GameState._fmt_int(int(ceo_wealth))],
+		Color(0.3, 0.8, 0.4) if can_start else Color(0.4, 0.4, 0.4))
+	if not can_start:
+		btn_start.modulate = Color(0.5, 0.5, 0.5)
+		btn_start.disabled = true
+	btn_start.pressed.connect(func():
+		overlay.queue_free()
+		## New team start — coming in future build
+		GameState.add_notification("Normal",
+			"New Team start coming in a future update."))
+	center.add_child(btn_start)
+
+	## Dismiss — temporary, allows continue
+	var btn_dismiss = Button.new()
+	btn_dismiss.text = "Dismiss  (continue at your own risk)"
+	btn_dismiss.add_theme_font_size_override("font_size", 11)
+	btn_dismiss.modulate = Color(0.4, 0.4, 0.4)
+	btn_dismiss.pressed.connect(func():
+		overlay.queue_free()
+		GameState.bankruptcy_screen_shown = false)
+	center.add_child(btn_dismiss)
+
+func _bankruptcy_btn(title: String, desc: String, border_color: Color) -> Button:
+	## Returns a styled Button so .pressed can be connected directly.
+	## Visual: left accent border + title + desc, dark background.
+	var btn = Button.new()
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+
+	var style_normal = StyleBoxFlat.new()
+	style_normal.bg_color = Color(0.10, 0.11, 0.14)
+	style_normal.border_width_left = 3
+	style_normal.border_color = border_color
+	style_normal.corner_radius_top_left = 5; style_normal.corner_radius_top_right = 5
+	style_normal.corner_radius_bottom_left = 5; style_normal.corner_radius_bottom_right = 5
+	style_normal.content_margin_left = 16; style_normal.content_margin_right = 16
+	style_normal.content_margin_top = 10; style_normal.content_margin_bottom = 10
+	btn.add_theme_stylebox_override("normal", style_normal)
+
+	var style_hover = style_normal.duplicate()
+	style_hover.bg_color = Color(0.14, 0.15, 0.19)
+	btn.add_theme_stylebox_override("hover", style_hover)
+
+	var style_pressed_sb = style_normal.duplicate()
+	style_pressed_sb.bg_color = Color(0.08, 0.09, 0.12)
+	btn.add_theme_stylebox_override("pressed", style_pressed_sb)
+
+	## Embed title + desc as a VBoxContainer inside the Button
+	var vb = VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 3)
+	vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	btn.add_child(vb)
+
+	var lt = Label.new()
+	lt.text = title
+	lt.add_theme_font_size_override("font_size", 14)
+	lt.add_theme_color_override("font_color", border_color)
+	lt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vb.add_child(lt)
+
+	var ld = Label.new()
+	ld.text = desc
+	ld.add_theme_font_size_override("font_size", 11)
+	ld.modulate = Color(0.65, 0.65, 0.65)
+	ld.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ld.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vb.add_child(ld)
+
+	return btn

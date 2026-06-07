@@ -148,6 +148,11 @@ func _build_ui() -> void:
 		right.add_child(cond_panel)
 		_build_car_condition(cond_panel.get_child(0))
 
+		## Driver development — now in right column with staff development
+		var driver_dev_panel = _section_panel(Color(0.3, 0.7, 0.5))
+		right.add_child(driver_dev_panel)
+		_build_driver_improvements(driver_dev_panel.get_child(0))
+
 		var staff_panel = _section_panel(Color(0.25, 0.75, 0.65))
 		right.add_child(staff_panel)
 		_build_staff_improvements(staff_panel.get_child(0))
@@ -292,34 +297,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		lbl_prize.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		lbl_prize.add_theme_color_override("font_color", Color(0.9, 0.7, 0.2))
 		row.add_child(lbl_prize)
-
-		# Stat deltas for player drivers only
-		if is_player and not is_dns:
-			var deltas = entry.get("stat_deltas", {})
-			if not deltas.is_empty():
-				var dr = HBoxContainer.new()
-				dr.add_theme_constant_override("separation", 8)
-				parent.add_child(dr)
-				var sp = Control.new()
-				sp.custom_minimum_size = Vector2(36, 0)
-				dr.add_child(sp)
-				for sk in [["Pace","pace"],["Wet","wet"],["Focus","focus"],["Exp","experience"]]:
-					var dv = deltas.get(sk[1], 0.0)
-					if abs(dv) > 0.01:
-						var dl = Label.new()
-						dl.text = "%s %s%.1f" % [sk[0], "+" if dv >= 0 else "", dv]
-						dl.add_theme_font_size_override("font_size", 10)
-						dl.add_theme_color_override("font_color",
-							Color(0.4,0.9,0.4) if dv >= 0 else Color(1.0,0.4,0.4))
-						dr.add_child(dl)
-				var fd = deltas.get("fitness", 0.0)
-				if abs(fd) > 0.01:
-					var fl = Label.new()
-					fl.text = "Fit %s%.1f%%" % ["+" if fd >= 0 else "", fd]
-					fl.add_theme_font_size_override("font_size", 10)
-					fl.add_theme_color_override("font_color",
-						Color(0.4,0.9,0.4) if fd >= 0 else Color(1.0,0.6,0.2))
-					dr.add_child(fl)
+		## Driver stat deltas moved to right column — see _build_driver_improvements()
 
 func _build_standings(parent: VBoxContainer, teams_mode: bool) -> void:
 	var lbl = Label.new()
@@ -526,6 +504,7 @@ func _build_car_condition(parent: VBoxContainer) -> void:
 			parts_row.add_child(chip)
 
 func _on_continue() -> void:
+	GameState.apply_post_race_repairs()
 	get_tree().change_scene_to_file("res://scenes/MainHub.tscn")
 
 func _input(event: InputEvent) -> void:
@@ -567,6 +546,51 @@ func _fmt_time(seconds: float) -> String:
 	var s  = int(seconds) % 60
 	var ms = int((seconds - int(seconds)) * 1000.0)
 	return "%d:%02d:%02d.%03d" % [h, m, s, ms]
+
+func _build_driver_improvements(parent: VBoxContainer) -> void:
+	var lbl = Label.new()
+	lbl.text = "DRIVER DEVELOPMENT"
+	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.add_theme_color_override("font_color", Color(0.4, 0.9, 0.6))
+	parent.add_child(lbl)
+
+	var any = false
+	for entry in GameState.last_race_results:
+		var driver = entry.get("driver")
+		if not driver: continue
+		if not driver.id in GameState.player_team.drivers: continue
+		if entry.get("dns", false): continue
+		var deltas = entry.get("stat_deltas", {})
+		if deltas.is_empty(): continue
+
+		any = true
+		var name_lbl = Label.new()
+		name_lbl.text = driver.full_name() if driver.has_method("full_name") else str(driver)
+		name_lbl.add_theme_font_size_override("font_size", 12)
+		name_lbl.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
+		parent.add_child(name_lbl)
+
+		var row = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		parent.add_child(row)
+
+		for sk in [["Pace","pace"],["Wet","wet"],["Focus","focus"],["Exp","experience"],["Fit","fitness"]]:
+			var dv = deltas.get(sk[1], 0.0)
+			if abs(dv) > 0.01:
+				var dl = Label.new()
+				dl.text = "%s %s%.1f%s" % [sk[0], "+" if dv >= 0 else "", dv,
+					"%" if sk[0] == "Fit" else ""]
+				dl.add_theme_font_size_override("font_size", 11)
+				dl.add_theme_color_override("font_color",
+					Color(0.4, 0.9, 0.4) if dv >= 0 else Color(1.0, 0.4, 0.4))
+				row.add_child(dl)
+
+	if not any:
+		var empty = Label.new()
+		empty.text = "No development this race."
+		empty.modulate = Color(0.5, 0.5, 0.5)
+		empty.add_theme_font_size_override("font_size", 11)
+		parent.add_child(empty)
 
 func _build_staff_improvements(parent: VBoxContainer) -> void:
 	var driver_deltas: Array = []

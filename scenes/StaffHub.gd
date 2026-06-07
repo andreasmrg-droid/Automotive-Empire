@@ -1,4 +1,7 @@
 extends Control
+## Version: S15.2 — Strategist/TP assign shows championship picker (not auto-assign);
+##                    TP buttons disable when championship already has a TP;
+##                    assignment display uses championship registry lookup not active_championship.
 
 # ── State ─────────────────────────────────────────────────────────────────────
 var current_tab: String = "my_staff"
@@ -214,7 +217,8 @@ func _make_my_staff_row(staff) -> PanelContainer:
 		var car = GameState.get_car_by_id(staff.assigned_car_id)
 		assign_text = _car_display_name(car) if car else "Car ?"
 	elif staff.assigned_championship != "":
-		assign_text = GameState.active_championship.championship_name
+		var _reg = GameState.CHAMPIONSHIP_REGISTRY.get(staff.assigned_championship, {})
+		assign_text = _reg.get("name", staff.assigned_championship)
 	else:
 		assign_text = "⚠ Unassigned"
 	var assign_color = Color(0.6, 0.6, 0.6) if assign_text == "Team Level" \
@@ -415,7 +419,8 @@ func _show_staff_card(staff_id: String) -> void:
 		var car = GameState.get_car_by_id(staff.assigned_car_id)
 		assign_text = _car_display_name(car) if car else "Car ?"
 	elif staff.assigned_championship != "":
-		assign_text = GameState.active_championship.championship_name
+		var _reg = GameState.CHAMPIONSHIP_REGISTRY.get(staff.assigned_championship, {})
+		assign_text = _reg.get("name", staff.assigned_championship)
 	_card_row(vbox, "Assignment", assign_text)
 
 	vbox.add_child(HSeparator.new())
@@ -584,22 +589,55 @@ func _show_assign_popup(staff_id: String) -> void:
 			)
 			vbox.add_child(btn)
 
-	# Championship-assigned roles: TP, Strategist
+	# Championship-assigned roles: TP, Strategist — show picker for all active championships
 	elif staff.role in ["Team Principal", "Race Strategist"]:
 		var lbl = Label.new()
 		lbl.text = "Assign to championship:"
 		lbl.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 		vbox.add_child(lbl)
-		var btn = Button.new()
-		btn.text = GameState.active_championship.championship_name
-		btn.custom_minimum_size = Vector2(340, 36)
-		btn.pressed.connect(func():
-			GameState.assign_staff_to_championship(s_id, GameState.active_championship.id)
-			card_overlay.queue_free()
-			card_overlay = null
-			_refresh_list()
-		)
-		vbox.add_child(btn)
+
+		if GameState.active_championships.is_empty():
+			var lbl_none = Label.new()
+			lbl_none.text = "No active championships this season."
+			lbl_none.modulate = Color(0.5, 0.5, 0.5)
+			vbox.add_child(lbl_none)
+		else:
+			for champ in GameState.active_championships:
+				var reg = GameState.CHAMPIONSHIP_REGISTRY.get(champ.id, {})
+				var champ_name = reg.get("name", champ.id)
+
+				## For TP: disable button if another TP is already assigned to this championship
+				var already_has_tp = false
+				if staff.role == "Team Principal":
+					for sid2 in GameState.all_staff:
+						var s2 = GameState.all_staff[sid2]
+						if s2.id == s_id: continue
+						if s2.role == "Team Principal" and s2.contract_team == GameState.player_team.id \
+								and s2.assigned_championship == champ.id:
+							already_has_tp = true
+							break
+
+				var is_assigned_here = staff.assigned_championship == champ.id
+
+				var btn = Button.new()
+				btn.custom_minimum_size = Vector2(340, 36)
+				if is_assigned_here:
+					btn.text = "✅ %s (current)" % champ_name
+					btn.disabled = true
+					btn.modulate = Color(0.6, 1.0, 0.6)
+				elif already_has_tp:
+					btn.text = "🔒 %s (TP slot taken)" % champ_name
+					btn.disabled = true
+					btn.modulate = Color(0.5, 0.5, 0.5)
+				else:
+					btn.text = "→ %s" % champ_name
+					btn.pressed.connect(func():
+						GameState.assign_staff_to_championship(s_id, champ.id)
+						card_overlay.queue_free()
+						card_overlay = null
+						_refresh_list()
+					)
+				vbox.add_child(btn)
 
 	# Team-level roles: CFO, Designer — no specific assignment needed
 	else:
@@ -617,24 +655,10 @@ func _show_assign_popup(staff_id: String) -> void:
 # ── Release confirmation ───────────────────────────────────────────────────────
 
 func _confirm_release_staff(staff_id: String) -> void:
-	var staff = GameState.all_staff.get(staff_id)
-	if not staff:
-		return
-	var dialog = ConfirmationDialog.new()
-	dialog.title = "Release Staff"
-	dialog.dialog_text = "Release %s (%s)?\nThey will return to the available pool." % [
-		staff.display_name(), staff.role]
-	dialog.ok_button_text = "Release"
-	dialog.cancel_button_text = "Cancel"
-	add_child(dialog)
-	dialog.popup_centered()
-	dialog.confirmed.connect(func():
-		GameState.release_staff(staff_id)
-		tab_my_btn.text = "👥 My Staff (%d)" % GameState.get_all_player_staff().size()
-		_refresh_list()
-		dialog.queue_free()
-	)
-	dialog.canceled.connect(dialog.queue_free)
+	## No confirmation dialog per design spec
+	GameState.release_staff(staff_id)
+	tab_my_btn.text = "👥 My Staff (%d)" % GameState.get_all_player_staff().size()
+	_refresh_list()
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 

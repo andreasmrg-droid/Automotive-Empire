@@ -1,4 +1,6 @@
 extends Control
+## Version: S15.1 — Fixed get_installed_parts_for_car crash; new inventory dict format;
+##                    install/remove via install_part_on_car/remove_part_from_car; parts panel always renders.
 
 # ── State ─────────────────────────────────────────────────────────────────────
 var _assigning_car_id: String = ""
@@ -125,7 +127,7 @@ func _build_ui() -> void:
 	vbox.add_child(parts_vbox)
 
 	var parts_title = Label.new()
-	parts_title.text = "PARTS INVENTORY"
+	parts_title.text = "PARTS INVENTORY  (Provider Spare Parts)"
 	parts_title.add_theme_font_size_override("font_size", 11)
 	parts_title.modulate = Color(0.6, 0.6, 0.6)
 	parts_vbox.add_child(parts_title)
@@ -133,6 +135,25 @@ func _build_ui() -> void:
 	_parts_container = HBoxContainer.new()
 	_parts_container.add_theme_constant_override("separation", 28)
 	parts_vbox.add_child(_parts_container)
+
+	# ── CNC Parts Installation ────────────────────────────────────────────────
+	vbox.add_child(HSeparator.new())
+	var install_title = Label.new()
+	install_title.text = "CNC PARTS INSTALLATION"
+	install_title.add_theme_font_size_override("font_size", 14)
+	install_title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.2))
+	vbox.add_child(install_title)
+
+	var install_scroll = ScrollContainer.new()
+	install_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	install_scroll.custom_minimum_size = Vector2(0, 200)
+	vbox.add_child(install_scroll)
+
+	var install_vbox = VBoxContainer.new()
+	install_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	install_vbox.add_theme_constant_override("separation", 8)
+	install_scroll.add_child(install_vbox)
+	_build_parts_installation(install_vbox)
 
 	# ── Mechanic popup ────────────────────────────────────────────────────────
 	_popup = PanelContainer.new()
@@ -520,6 +541,8 @@ func _build_car_card(car) -> PanelContainer:
 func _refresh_parts() -> void:
 	for child in _parts_container.get_children():
 		child.queue_free()
+	## Note: these are provider spare parts (race consumables), not CNC manufactured parts
+	## Provider parts are pre-stocked (3 per type). CNC parts appear in the Installation section below.
 	for part in GameState.PARTS_LIST:
 		var stock = GameState.get_part_stock(part)
 		var vb = VBoxContainer.new()
@@ -737,3 +760,145 @@ func _car_display_name(car) -> String:
 	if car and car.car_name != null and car.car_name != "":
 		return car.car_name
 	return "Car %d" % car.car_number
+
+## ═══════════════════════════════════════════════════════════════════════════
+## S16 — CNC PARTS INSTALLATION
+## ═══════════════════════════════════════════════════════════════════════════
+
+func _build_parts_installation(parent: VBoxContainer) -> void:
+	if GameState.player_team_cars.is_empty():
+		var e = Label.new()
+		e.text = "No cars in garage."
+		e.modulate = Color(0.45, 0.45, 0.45)
+		parent.add_child(e)
+		return
+	for car in GameState.player_team_cars:
+		parent.add_child(_build_car_parts_panel(car))
+
+func _build_car_parts_panel(car) -> PanelContainer:
+	var panel = PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.09, 0.10, 0.13)
+	style.border_width_left = 3
+	style.border_color = Color(0.3, 0.55, 0.9)
+	style.corner_radius_top_left = 5; style.corner_radius_top_right = 5
+	style.corner_radius_bottom_left = 5; style.corner_radius_bottom_right = 5
+	style.content_margin_left = 10; style.content_margin_right = 10
+	style.content_margin_top = 8; style.content_margin_bottom = 8
+	panel.add_theme_stylebox_override("panel", style)
+
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 6)
+	panel.add_child(vbox)
+
+	var reg = GameState.CHAMPIONSHIP_REGISTRY.get(car.championship_id, {})
+	var lbl_car = Label.new()
+	lbl_car.text = "🏎 %s  —  %s" % [
+		car.car_name if car.car_name != "" else "Car %d" % car.car_number,
+		reg.get("name", car.championship_id)]
+	lbl_car.add_theme_font_size_override("font_size", 13)
+	lbl_car.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
+	vbox.add_child(lbl_car)
+
+	const PART_CODES = ["AER","ENG","GRB","SUS","BRK","CHS"]
+	const PART_NAMES = {
+		"AER":"Aerodynamics","ENG":"Engine","GRB":"Gearbox",
+		"SUS":"Suspension","BRK":"Brakes","CHS":"Chassis"
+	}
+	const PART_SPEC_MAP = {
+		"C-001":[true,true,true,false,false,true],"C-002":[true,true,true,false,true,false],
+		"C-003":[true,false,true,false,false,false],"C-004":[true,false,false,false,false,false],
+		"C-005":[true,true,true,false,false,true],"C-006":[false,true,true,false,false,false],
+		"C-007":[false,false,false,false,false,false],"C-008":[false,false,false,false,false,false],
+		"C-009":[true,true,true,true,true,true],"C-010":[true,true,true,true,true,true],
+		"C-011":[true,true,true,true,true,true],"C-012":[true,true,true,true,true,true],
+		"C-013":[true,false,true,false,true,true],"C-014":[true,false,true,false,false,true],
+		"C-015":[true,false,false,false,false,true],"C-016":[true,false,false,false,false,true],
+		"C-017":[true,false,false,false,false,true],"C-018":[true,true,true,true,true,true],
+		"C-019":[true,true,true,false,false,true],"C-020":[false,false,false,false,false,false],
+		"C-021":[true,true,true,true,true,true],"C-022":[true,true,true,true,true,true],
+		"C-023":[true,true,true,true,true,true],"C-024":[false,false,false,false,false,false],
+	}
+	var spec_arr = PART_SPEC_MAP.get(car.championship_id, [false,false,false,false,false,false])
+	var installed = GameState.get_installed_parts_for_car(car.id)  ## Now returns {} or {pcode: {reliability, quality, ...}}
+
+	for i in range(PART_CODES.size()):
+		var pcode = PART_CODES[i]
+		var pname = PART_NAMES[pcode]
+		var is_spec = spec_arr[i]
+		## New inventory key format: "CHAMP_ID|PCODE"
+		var inv_key = "%s|%s" % [car.championship_id, pcode]
+		var inv_item = GameState.cnc_parts_inventory.get(inv_key, null)
+		var in_inventory = inv_item != null and (inv_item.get("quantity", 0) if inv_item is Dictionary else int(inv_item)) > 0
+		var is_installed = pcode in installed
+
+		var row = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		vbox.add_child(row)
+
+		var lbl_p = Label.new()
+		lbl_p.text = pname
+		lbl_p.custom_minimum_size = Vector2(130, 0)
+		lbl_p.add_theme_font_size_override("font_size", 12)
+		row.add_child(lbl_p)
+
+		var lbl_t = Label.new()
+		lbl_t.text = "SPEC" if is_spec else "OPEN"
+		lbl_t.custom_minimum_size = Vector2(46, 0)
+		lbl_t.add_theme_font_size_override("font_size", 10)
+		lbl_t.add_theme_color_override("font_color",
+			Color(1.0, 0.6, 0.2) if is_spec else Color(0.4, 0.88, 0.55))
+		row.add_child(lbl_t)
+
+		if is_installed:
+			var pd = installed[pcode]
+			var rel:  float = pd.get("reliability", 60.0) if pd is Dictionary else 60.0
+			var qual: float = pd.get("quality",     1.0)  if pd is Dictionary else 1.0
+			var ls = Label.new()
+			ls.text = "✅ Rel:%.0f%%  Qual:%.2f×" % [rel, qual]
+			ls.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			ls.add_theme_font_size_override("font_size", 11)
+			ls.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
+			row.add_child(ls)
+			var btn_r = Button.new()
+			btn_r.text = "Remove"
+			btn_r.custom_minimum_size = Vector2(72, 24)
+			btn_r.modulate = Color(1.0, 0.5, 0.5)
+			btn_r.pressed.connect(func():
+				GameState.remove_part_from_car(car.id, pcode)
+				_build_ui())
+			row.add_child(btn_r)
+		elif in_inventory:
+			var item = GameState.cnc_parts_inventory[inv_key]
+			var qty:  int   = item.get("quantity",    1)    if item is Dictionary else int(item)
+			var rel:  float = item.get("reliability", 60.0) if item is Dictionary else 60.0
+			var qual: float = item.get("quality",     1.0)  if item is Dictionary else 1.0
+			var la = Label.new()
+			la.text = "×%d  Rel:%.0f%%  Qual:%.2f×" % [qty, rel, qual]
+			la.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			la.add_theme_font_size_override("font_size", 11)
+			la.add_theme_color_override("font_color", Color(0.6, 0.8, 1.0))
+			row.add_child(la)
+			var btn_i = Button.new()
+			btn_i.text = "Install →"
+			btn_i.custom_minimum_size = Vector2(72, 24)
+			btn_i.pressed.connect(func():
+				GameState.install_part_on_car(car.id, car.championship_id, pcode)
+				_build_ui())
+			row.add_child(btn_i)
+		else:
+			var ln = Label.new()
+			ln.text = "Provider part (no CNC part available)"
+			ln.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			ln.add_theme_font_size_override("font_size", 11)
+			ln.modulate = Color(0.45, 0.45, 0.45)
+			row.add_child(ln)
+			var btn_c = Button.new()
+			btn_c.text = "Make Part →"
+			btn_c.custom_minimum_size = Vector2(85, 24)
+			btn_c.pressed.connect(func():
+				get_tree().change_scene_to_file("res://scenes/buildings/CNCPlant.tscn"))
+			row.add_child(btn_c)
+
+	return panel

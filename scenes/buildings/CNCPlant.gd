@@ -1,5 +1,7 @@
 extends Control
-## CNC Parts Plant — Session 11 rewrite
+## Version: S15.1 — WRA-gated manufacturing flow; column layout restructured;
+##                    inventory uses dict format; install/remove via GameState.install/remove_part_on_car.
+## CNC Parts Plant
 ## Layout: Header | 3-column body
 ##   Left   — Production queue + Start new job
 ##   Center — Parts inventory + Assign to car
@@ -55,12 +57,12 @@ func _build_ui() -> void:
 	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(lbl_title)
 
-	# Blueprint count badge
-	var bp_count = GameState.get_manufacturable_parts().size()
+	# Blueprint count badge — show WRA-approved (ready to manufacture)
+	var bp_count = GameState.wra_approved_blueprints.size()
 	var lbl_bp = Label.new()
-	lbl_bp.text = "📋 %d Blueprint%s" % [bp_count, "s" if bp_count != 1 else ""]
+	lbl_bp.text = "✅ %d WRA Approved" % bp_count if bp_count > 0 else "📋 No approved blueprints"
 	lbl_bp.add_theme_font_size_override("font_size", 13)
-	lbl_bp.add_theme_color_override("font_color", Color(0.45, 0.75, 1.0) if bp_count > 0 else Color(0.45, 0.45, 0.45))
+	lbl_bp.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4) if bp_count > 0 else Color(0.45, 0.45, 0.45))
 	header.add_child(lbl_bp)
 
 	var btn_back = Button.new()
@@ -87,12 +89,12 @@ func _build_ui() -> void:
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(body)
 
-	# Column A — Production queue + New job
+	# Column A — WRA Approved Blueprints → manufacture (always shown)
 	var col_a = VBoxContainer.new()
 	col_a.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col_a.add_theme_constant_override("separation", 10)
 	body.add_child(col_a)
-	_build_production_column(col_a)
+	_build_wra_blueprints_column(col_a)
 
 	# Column B — Inventory + assign to car
 	var col_b = VBoxContainer.new()
@@ -101,107 +103,12 @@ func _build_ui() -> void:
 	body.add_child(col_b)
 	_build_inventory_column(col_b)
 
-	# Column C — Building info + blueprints list
+	# Column C — Building info + production queue
 	var col_c = VBoxContainer.new()
 	col_c.custom_minimum_size = Vector2(240, 0)
 	col_c.add_theme_constant_override("separation", 10)
 	body.add_child(col_c)
 	_build_info_column(col_c)
-
-
-# ─── Column A: Production Queue + New Job ────────────────────────────────────
-func _build_production_column(parent: VBoxContainer) -> void:
-	parent.add_child(_section_header("PRODUCTION QUEUE", Color(1.0, 0.8, 0.0)))
-
-	var queue = GameState.cnc_production_queue
-	if queue.is_empty():
-		var lbl = Label.new()
-		lbl.text = "Queue is empty.\nStart a new production run below."
-		lbl.modulate = Color(0.5, 0.5, 0.5)
-		lbl.add_theme_font_size_override("font_size", 12)
-		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		parent.add_child(lbl)
-	else:
-		for job in queue:
-			parent.add_child(_build_queue_card(job))
-
-	parent.add_child(_hsep())
-
-	# ── New Production Job UI ─────────────────────────────────────────────────
-	parent.add_child(_section_header("NEW PRODUCTION RUN", Color(0.85, 0.65, 0.2)))
-
-	var mfg_parts = GameState.get_manufacturable_parts()
-	if mfg_parts.is_empty():
-		var lbl_no = Label.new()
-		lbl_no.text = "No blueprints available.\nResearch parts in R&D Studio first."
-		lbl_no.modulate = Color(0.5, 0.5, 0.5)
-		lbl_no.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		lbl_no.add_theme_font_size_override("font_size", 12)
-		parent.add_child(lbl_no)
-		return
-
-	# Championship cost context
-	var champ_row = HBoxContainer.new()
-	champ_row.add_theme_constant_override("separation", 8)
-	parent.add_child(champ_row)
-	var lbl_champ_info = Label.new()
-	var champ_name = GameState.CHAMPIONSHIP_REGISTRY.get(_selected_champ_id, {}).get("name", _selected_champ_id)
-	lbl_champ_info.text = "Cost basis:  %s" % champ_name
-	lbl_champ_info.add_theme_font_size_override("font_size", 11)
-	lbl_champ_info.modulate = Color(0.55, 0.55, 0.55)
-	lbl_champ_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	champ_row.add_child(lbl_champ_info)
-
-	# Part buttons
-	for part in mfg_parts:
-		var cost_info = _get_part_cost_info(part, _selected_champ_id)
-		var can_afford = GameState.player_team.balance >= cost_info["cost"]
-
-		var panel = _make_panel(Color(0.07, 0.11, 0.16))
-		var style = panel.get_theme_stylebox("panel")
-		style.border_color = PART_COLORS.get(part, Color.WHITE).darkened(0.4)
-		style.border_width_left = 4
-		parent.add_child(panel)
-
-		var row = HBoxContainer.new()
-		row.add_theme_constant_override("separation", 10)
-		panel.add_child(row)
-
-		# Part label
-		var lbl_part = Label.new()
-		lbl_part.text = part
-		lbl_part.add_theme_font_size_override("font_size", 13)
-		lbl_part.add_theme_color_override("font_color", PART_COLORS.get(part, Color.WHITE))
-		lbl_part.custom_minimum_size = Vector2(90, 0)
-		row.add_child(lbl_part)
-
-		# Cost / time
-		var lbl_cost = Label.new()
-		lbl_cost.text = "💰 CR %s" % _fmt(cost_info["cost"])
-		lbl_cost.add_theme_font_size_override("font_size", 12)
-		lbl_cost.add_theme_color_override("font_color",
-			Color(0.45, 0.88, 0.45) if can_afford else Color(1.0, 0.35, 0.35))
-		lbl_cost.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(lbl_cost)
-
-		var lbl_time = Label.new()
-		lbl_time.text = "⏱ %d wks" % cost_info["weeks"]
-		lbl_time.add_theme_font_size_override("font_size", 12)
-		lbl_time.modulate = Color(0.7, 0.7, 0.7)
-		row.add_child(lbl_time)
-
-		var btn_produce = Button.new()
-		btn_produce.text = "Manufacture ×1"
-		btn_produce.custom_minimum_size = Vector2(120, 28)
-		btn_produce.add_theme_font_size_override("font_size", 11)
-		btn_produce.disabled = not can_afford
-		var p = part
-		var cid = _selected_champ_id
-		btn_produce.pressed.connect(func():
-			GameState.start_cnc_production(p, cid, 1)
-			get_tree().change_scene_to_file("res://scenes/buildings/CNCPlant.tscn")
-		)
-		row.add_child(btn_produce)
 
 
 func _build_queue_card(job: Dictionary) -> PanelContainer:
@@ -257,16 +164,17 @@ func _build_inventory_column(parent: VBoxContainer) -> void:
 	var inventory = GameState.cnc_parts_inventory
 	if inventory.is_empty():
 		var lbl = Label.new()
-		lbl.text = "No parts in stock.\nManufacture parts in the Production Queue."
+		lbl.text = "No parts in stock.\nManufacture parts using WRA-approved blueprints above."
 		lbl.modulate = Color(0.5, 0.5, 0.5)
 		lbl.add_theme_font_size_override("font_size", 12)
 		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		parent.add_child(lbl)
 	else:
-		for part in inventory:
-			var qty: int = inventory[part]
+		for inv_key in inventory:
+			var item = inventory[inv_key]
+			var qty: int = item.get("quantity", 0) if item is Dictionary else int(item)
 			if qty <= 0: continue
-			parent.add_child(_build_inventory_card(part, qty))
+			parent.add_child(_build_inventory_card(inv_key, item))
 
 	parent.add_child(_hsep())
 
@@ -291,15 +199,27 @@ func _build_inventory_column(parent: VBoxContainer) -> void:
 		parent.add_child(lbl)
 
 
-func _build_inventory_card(part: String, qty: int) -> PanelContainer:
+func _build_inventory_card(inv_key: String, item) -> PanelContainer:
+	## item can be a Dictionary (new format) or an int (legacy)
+	var qty:  int   = item.get("quantity",    0)  if item is Dictionary else int(item)
+	var rel:  float = item.get("reliability", 60.0) if item is Dictionary else 60.0
+	var qual: float = item.get("quality",     1.0)  if item is Dictionary else 1.0
+	var part: String = item.get("part",       inv_key.split("|")[1] if "|" in inv_key else inv_key) if item is Dictionary else inv_key
+	var pcode: String = item.get("part_code", "") if item is Dictionary else ""
+	var champ_id: String = item.get("championship_id", "") if item is Dictionary else ""
+
 	var panel = _make_panel(Color(0.08, 0.13, 0.09))
 	var style = panel.get_theme_stylebox("panel")
 	style.border_color = PART_COLORS.get(part, Color.WHITE).darkened(0.3)
 	style.border_width_left = 4
 
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 5)
+	panel.add_child(vbox)
+
 	var row = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
-	panel.add_child(row)
+	vbox.add_child(row)
 
 	var lbl_part = Label.new()
 	lbl_part.text = part
@@ -309,33 +229,44 @@ func _build_inventory_card(part: String, qty: int) -> PanelContainer:
 	row.add_child(lbl_part)
 
 	var lbl_qty = Label.new()
-	lbl_qty.text = "× %d in stock" % qty
+	lbl_qty.text = "× %d" % qty
 	lbl_qty.add_theme_font_size_override("font_size", 13)
 	lbl_qty.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(lbl_qty)
 
-	# Assign-to-car dropdown area
-	var cars_for_assignment = GameState.player_team_cars.filter(func(c): return c.championship_id != "")
+	var lbl_stats = Label.new()
+	lbl_stats.text = "Rel:%.0f%%  Qual:%.2f×" % [rel, qual]
+	lbl_stats.add_theme_font_size_override("font_size", 11)
+	lbl_stats.modulate = Color(0.6, 0.6, 0.6)
+	row.add_child(lbl_stats)
+
+	## Install-to-car buttons
+	var cars_for_assignment = GameState.player_team_cars.filter(
+		func(c): return c.championship_id == champ_id or champ_id == "")
 	if cars_for_assignment.is_empty():
 		var lbl_no = Label.new()
-		lbl_no.text = "No cars"
-		lbl_no.add_theme_font_size_override("font_size", 11)
+		lbl_no.text = "No matching cars"
+		lbl_no.add_theme_font_size_override("font_size", 10)
 		lbl_no.modulate = Color(0.5, 0.5, 0.5)
-		row.add_child(lbl_no)
+		vbox.add_child(lbl_no)
 	else:
+		var btn_row = HBoxContainer.new()
+		btn_row.add_theme_constant_override("separation", 6)
+		vbox.add_child(btn_row)
 		for car in cars_for_assignment:
 			var cname = car.car_name if car.car_name != "" else "Car %d" % car.car_number
 			var btn = Button.new()
-			btn.text = "→ %s" % cname.left(16)
-			btn.custom_minimum_size = Vector2(100, 26)
+			btn.text = "Install → %s" % cname.left(14)
+			btn.custom_minimum_size = Vector2(110, 26)
 			btn.add_theme_font_size_override("font_size", 10)
-			var p = part
-			var cid = car.id
+			var cid_car = car.id
+			var cid_champ = car.championship_id
+			var pc = pcode
 			btn.pressed.connect(func():
-				GameState.assign_cnc_part_to_car(cid, p)
+				GameState.install_part_on_car(cid_car, cid_champ, pc)
 				get_tree().change_scene_to_file("res://scenes/buildings/CNCPlant.tscn")
 			)
-			row.add_child(btn)
+			btn_row.add_child(btn)
 
 	return panel
 
@@ -360,16 +291,18 @@ func _build_installed_car_panel(car, car_name: String, installed: Dictionary) ->
 	lbl_bonus.add_theme_color_override("font_color", Color(0.4, 0.88, 0.5))
 	vbox.add_child(lbl_bonus)
 
-	for part in installed:
-		var qty: int = installed[part]
+	for pcode in installed:
+		var pd = installed[pcode]
+		var rel:  float = pd.get("reliability", 60.0) if pd is Dictionary else 60.0
+		var qual: float = pd.get("quality",     1.0)  if pd is Dictionary else 1.0
 		var row = HBoxContainer.new()
 		row.add_theme_constant_override("separation", 8)
 		vbox.add_child(row)
 
 		var lbl_p = Label.new()
-		lbl_p.text = "  %s × %d" % [part, qty]
+		lbl_p.text = "  %s  Rel:%.0f%%  Qual:%.2f×" % [pcode, rel, qual]
 		lbl_p.add_theme_font_size_override("font_size", 11)
-		lbl_p.add_theme_color_override("font_color", PART_COLORS.get(part, Color(0.7, 0.7, 0.7)))
+		lbl_p.add_theme_color_override("font_color", Color(0.7, 0.9, 0.7))
 		lbl_p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(lbl_p)
 
@@ -378,10 +311,10 @@ func _build_installed_car_panel(car, car_name: String, installed: Dictionary) ->
 		btn_remove.custom_minimum_size = Vector2(65, 22)
 		btn_remove.add_theme_font_size_override("font_size", 10)
 		btn_remove.modulate = Color(0.7, 0.35, 0.35)
-		var p = part
+		var pc = pcode
 		var cid = car.id
 		btn_remove.pressed.connect(func():
-			GameState.remove_cnc_part_from_car(cid, p)
+			GameState.remove_part_from_car(cid, pc)
 			get_tree().change_scene_to_file("res://scenes/buildings/CNCPlant.tscn")
 		)
 		row.add_child(btn_remove)
@@ -599,3 +532,178 @@ func _fmt(n: int) -> String:
 
 func _on_back() -> void:
 	get_tree().change_scene_to_file("res://scenes/Campus.tscn")
+
+## ═══════════════════════════════════════════════════════════════════════════
+## S15 — WRA APPROVED BLUEPRINTS COLUMN
+## ═══════════════════════════════════════════════════════════════════════════
+
+func _build_wra_blueprints_column(parent: VBoxContainer) -> void:
+	parent.add_child(_section_header("MANUFACTURE PARTS", Color(0.4, 0.9, 0.4)))
+
+	var lbl_flow = Label.new()
+	lbl_flow.text = "R&D → Send to WRA (HQ) → Approved here → Manufacture → Warehouse → Garage"
+	lbl_flow.add_theme_font_size_override("font_size", 10)
+	lbl_flow.modulate = Color(0.5, 0.5, 0.5)
+	lbl_flow.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	parent.add_child(lbl_flow)
+
+	## Production queue summary
+	if not GameState.cnc_production_queue.is_empty():
+		var q_lbl = Label.new()
+		q_lbl.text = "IN PRODUCTION:"
+		q_lbl.add_theme_font_size_override("font_size", 11)
+		q_lbl.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
+		parent.add_child(q_lbl)
+		for job in GameState.cnc_production_queue:
+			parent.add_child(_build_queue_card(job))
+		parent.add_child(_hsep())
+
+	parent.add_child(_section_header("WRA APPROVED — READY TO MANUFACTURE", Color(0.4, 0.9, 0.4)))
+
+	var in_production = []
+	for job in GameState.cnc_production_queue:
+		in_production.append(job.get("blueprint_id", ""))
+
+	if GameState.wra_approved_blueprints.is_empty():
+		var e = Label.new()
+		e.text = "No approved blueprints yet.\n\n1. Research a part in R&D Studio\n2. Submit blueprint to WRA Office in HQ\n3. Return here once approved to manufacture"
+		e.modulate = Color(0.5, 0.5, 0.5)
+		e.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		e.add_theme_font_size_override("font_size", 12)
+		parent.add_child(e)
+		var btn_hq = Button.new()
+		btn_hq.text = "🏛 Go to WRA Office in HQ →"
+		btn_hq.custom_minimum_size = Vector2(0, 30)
+		btn_hq.pressed.connect(func():
+			GameState.pending_hq_tab = "wra_office"
+			get_tree().change_scene_to_file("res://scenes/buildings/HQ.tscn"))
+		parent.add_child(btn_hq)
+		return
+
+	var preselected = GameState.pending_cnc_blueprint
+	GameState.pending_cnc_blueprint = ""
+
+	for app in GameState.wra_approved_blueprints:
+		var bp_id = app.blueprint_id
+		var bp = GameState.known_blueprints.get(bp_id, {})
+		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(app.championship_id, {})
+		var already_queued = bp_id in in_production
+
+		var panel = _make_panel(Color(0.08, 0.12, 0.09))
+		var style = panel.get_theme_stylebox("panel") as StyleBoxFlat
+		if style:
+			style.border_color = Color(0.3, 0.7, 0.45) if not already_queued \
+				else Color(0.5, 0.5, 0.5)
+			style.border_width_left = 3
+		parent.add_child(panel)
+
+		var vb = VBoxContainer.new()
+		vb.add_theme_constant_override("separation", 5)
+		panel.add_child(vb)
+
+		## Header
+		var hdr = HBoxContainer.new()
+		hdr.add_theme_constant_override("separation", 6)
+		vb.add_child(hdr)
+
+		var ln = Label.new()
+		ln.text = "✅ %s [%s]" % [
+			bp.get("name", bp_id),
+			reg.get("name", app.championship_id)]
+		ln.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		ln.add_theme_font_size_override("font_size", 12)
+		ln.add_theme_color_override("font_color",
+			Color(0.4, 0.9, 0.4) if not already_queued else Color(0.5,0.5,0.5))
+		hdr.add_child(ln)
+
+		if already_queued:
+			var lq = Label.new()
+			lq.text = "IN QUEUE"
+			lq.add_theme_font_size_override("font_size", 10)
+			lq.add_theme_color_override("font_color", Color(1.0, 0.6, 0.1))
+			hdr.add_child(lq)
+			continue
+
+		## Stats row
+		var base_wk = GameState.get_cnc_manufacturing_weeks(bp_id)
+		var base_cr = GameState.get_cnc_manufacturing_cr(bp_id, 1)
+		var base_rel = GameState.calculate_final_reliability(bp_id)
+		var quality = bp.get("quality", 1.0)
+
+		var stats = Label.new()
+		stats.text = "CR %s | %dwks | Rel:%.0f%% | Qual:%.2f×" % [
+			_fmt(base_cr), base_wk, base_rel, quality]
+		stats.add_theme_font_size_override("font_size", 10)
+		stats.modulate = Color(0.6, 0.6, 0.6)
+		vb.add_child(stats)
+
+		## Controls
+		var ctrl = HBoxContainer.new()
+		ctrl.add_theme_constant_override("separation", 6)
+		vb.add_child(ctrl)
+
+		var qty_lbl = Label.new()
+		qty_lbl.text = "Qty:"
+		qty_lbl.add_theme_font_size_override("font_size", 11)
+		ctrl.add_child(qty_lbl)
+
+		var qty_spin = SpinBox.new()
+		qty_spin.min_value = 1; qty_spin.max_value = 20; qty_spin.value = 1
+		qty_spin.custom_minimum_size = Vector2(65, 0)
+		ctrl.add_child(qty_spin)
+
+		var ecr_lbl = Label.new()
+		ecr_lbl.text = "+CR:"
+		ecr_lbl.add_theme_font_size_override("font_size", 11)
+		ctrl.add_child(ecr_lbl)
+
+		var ecr_spin = SpinBox.new()
+		ecr_spin.min_value = 0; ecr_spin.max_value = 200000; ecr_spin.step = 1000
+		ecr_spin.value = 0; ecr_spin.custom_minimum_size = Vector2(85, 0)
+		ctrl.add_child(ecr_spin)
+
+		var ewk_lbl = Label.new()
+		ewk_lbl.text = "+wks:"
+		ewk_lbl.add_theme_font_size_override("font_size", 11)
+		ctrl.add_child(ewk_lbl)
+
+		var ewk_spin = SpinBox.new()
+		ewk_spin.min_value = 0; ewk_spin.max_value = 20; ewk_spin.value = 0
+		ewk_spin.custom_minimum_size = Vector2(60, 0)
+		ctrl.add_child(ewk_spin)
+
+		## Live preview
+		var preview = Label.new()
+		preview.add_theme_font_size_override("font_size", 10)
+		preview.modulate = Color(0.7, 0.7, 0.7)
+		vb.add_child(preview)
+
+		var bid = bp_id
+		var update_preview = func():
+			var q = int(qty_spin.value)
+			var ecr = int(ecr_spin.value)
+			var ewk = int(ewk_spin.value)
+			var tcr = GameState.get_cnc_manufacturing_cr(bid, q, ecr)
+			var twk = GameState.get_cnc_manufacturing_weeks(bid, ewk)
+			var rel = GameState.calculate_final_reliability(bid, ecr, ewk)
+			preview.text = "Total: CR %s | %dwks | Rel:%.0f%%" % [_fmt(tcr), twk, rel]
+
+		qty_spin.value_changed.connect(func(_v): update_preview.call())
+		ecr_spin.value_changed.connect(func(_v): update_preview.call())
+		ewk_spin.value_changed.connect(func(_v): update_preview.call())
+		update_preview.call()
+
+		var btn = Button.new()
+		btn.text = "Start Manufacturing"
+		btn.custom_minimum_size = Vector2(150, 30)
+		btn.pressed.connect(func():
+			if GameState.start_cnc_job(bid,
+					int(qty_spin.value),
+					int(ecr_spin.value),
+					int(ewk_spin.value)):
+				get_tree().change_scene_to_file("res://scenes/buildings/CNCPlant.tscn"))
+		vb.add_child(btn)
+
+		## Auto-expand if preselected from WRA Office
+		if preselected == bp_id:
+			pass  ## Already expanded — all controls visible

@@ -1,4 +1,5 @@
 extends Control
+## Version: S15.2 — Effects panel clarifies Strategist vs Designer slots.
 
 var _strategist_container: VBoxContainer
 var _popup: PanelContainer
@@ -190,6 +191,14 @@ func _build_effects_panel() -> PanelContainer:
 	]
 	for e in effects:
 		vbox.add_child(_stat_row(e[0], e[1]))
+	var rnd = GameState.campus_buildings.get("R&D Design Studio", {})
+	var designer_slots = rnd.get("level", 0)
+	var note = Label.new()
+	note.text = "Designer slots: %d (from R&D Studio Lv%d)" % [designer_slots, designer_slots]
+	note.add_theme_font_size_override("font_size", 10)
+	note.modulate = Color(0.5, 0.5, 0.5)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(note)
 	return panel
 
 func _build_track_knowledge_panel() -> PanelContainer:

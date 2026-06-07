@@ -1,4 +1,6 @@
 extends Control
+## Version: S15.1 — L1/L2 level badges; Current/Next Season labels; Send to WRA button on done blueprints;
+##                    RE→L2 unlock hint in P3; RE completion notification.
 ## R&D Design Studio
 ## P1 — All part blueprints, all championships, no filter
 ## P2 — Upgrade Open parts of owned cars only
@@ -438,17 +440,110 @@ func _build_catalog_column(parent: VBoxContainer) -> void:
 
 # ── P1: All blueprints for all parts, all championships ───────────────────────
 func _build_p1_catalog(parent: VBoxContainer, free_designers: Array) -> void:
-	var any = false
+	var season     = GameState.current_season
+	var next_season = season + 1
+
+	## Find all P1 tasks grouped by championship and part
+	## Show per championship: Current S L1 → (if done) Current S L2
+	##                        Next S L1    → (if done) Next S L2
+
+	## Group tasks by championship_id
+	var by_champ: Dictionary = {}
 	for task_id in GameState.RND_TASKS:
 		var t = GameState.RND_TASKS[task_id]
 		if t["pillar"] != 1: continue
-		parent.add_child(_build_task_card(task_id, t, free_designers, ""))
-		any = true
-	if not any:
+		var cid = t.get("championship_id", "")
+		if not cid in by_champ:
+			by_champ[cid] = []
+		by_champ[cid].append({"id": task_id, "task": t})
+
+	## Also build next season tasks (they exist in RND_TASKS since
+	## _build_rnd_tasks_for_season generates current season only —
+	## we generate them on-the-fly here for display)
+	var next_tasks = GameState._build_rnd_tasks_for_season(next_season)
+
+	if by_champ.is_empty():
 		parent.add_child(_lbl_empty("No blueprint tasks defined."))
+		return
+
+	## Sort by championship tier
+	var sorted_champs = by_champ.keys()
+
+	## For each championship show current season then next season
+	for cid in sorted_champs:
+		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
+		var champ_name = reg.get("name", cid)
+		var is_formula = cid in ["C-021","C-022","C-023","C-024"]
+
+		## Championship header
+		var lbl_champ = Label.new()
+		lbl_champ.text = champ_name
+		lbl_champ.add_theme_font_size_override("font_size", 13)
+		lbl_champ.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
+		parent.add_child(lbl_champ)
+
+		## ── Current season tasks ──────────────────────────────────────
+		var cur_lbl = Label.new()
+		cur_lbl.text = "Current Season (S%d)" % season
+		cur_lbl.add_theme_font_size_override("font_size", 12)
+		cur_lbl.add_theme_color_override("font_color", Color(0.6, 0.8, 0.6))
+		parent.add_child(cur_lbl)
+
+		## Get parts for this championship from current season tasks
+		var parts_seen: Array = []
+		for entry in by_champ[cid]:
+			var t = entry["task"]
+			var part = t.get("part", "")
+			var level = t.get("level", 1)
+			var task_id = entry["id"]
+			if level == 1:
+				parts_seen.append(part)
+				## Always show L1
+				parent.add_child(_build_task_card(task_id, t, free_designers, cid))
+				## Show L2 only if L1 is completed
+				var l1_done = task_id in GameState.completed_rnd_tasks
+				if l1_done:
+					## Find the L2 task
+					var l2_id = task_id.replace("-L1", "-L2")
+					if l2_id in GameState.RND_TASKS:
+						parent.add_child(_build_task_card(
+							l2_id, GameState.RND_TASKS[l2_id], free_designers, cid))
+
+		## ── Next season tasks ─────────────────────────────────────────
+		var next_lbl = Label.new()
+		if is_formula:
+			next_lbl.text = "▶ Next Season (S%d) — ⚠ MANDATORY for Formula" % next_season
+			next_lbl.add_theme_color_override("font_color", Color(1.0, 0.6, 0.2))
+		else:
+			next_lbl.text = "▶ Next Season (S%d)" % next_season
+			next_lbl.add_theme_color_override("font_color", Color(0.55, 0.75, 1.0))
+		next_lbl.add_theme_font_size_override("font_size", 12)
+		parent.add_child(next_lbl)
+
+		for part in parts_seen:
+			## Build next season L1 task_id
+			var pcode = {"Aero":"AER","Engine":"ENG","Gearbox":"GRB",
+				"Suspension":"SUS","Brakes":"BRK","Chassis":"CHS"}.get(part, "AER")
+			var code = GameState.CHAMP_CODES.get(cid, "")
+			var ns_l1_id = "BP-%s-%s-S%d-L1" % [code, pcode, next_season]
+			var ns_l2_id = "BP-%s-%s-S%d-L2" % [code, pcode, next_season]
+
+			if ns_l1_id in next_tasks:
+				var t = next_tasks[ns_l1_id]
+				## Next season L1 has no prerequisite — always unlocked
+				## Pass next_tasks so _build_task_card can resolve any requires text
+				parent.add_child(_build_task_card_with_unlock(
+					ns_l1_id, t, free_designers, cid, next_tasks, true))
+				## Show next season L2 only if next season L1 is done
+				var ns_l1_done = ns_l1_id in GameState.completed_rnd_tasks
+				if ns_l1_done and ns_l2_id in next_tasks:
+					parent.add_child(_build_task_card_with_unlock(
+						ns_l2_id, next_tasks[ns_l2_id], free_designers, cid, next_tasks, false))
+
+		parent.add_child(_hsep())
 
 
-# ── P2: Open parts of owned cars only ─────────────────────────────────────────
+# ── P2: Open parts of owned cars only — show ONLY next available upgrade level ─
 func _build_p2_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 	if GameState.player_team_cars.is_empty():
 		parent.add_child(_lbl_empty("No cars owned. Buy a car at the Logistics Center."))
@@ -466,7 +561,6 @@ func _build_p2_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 				open_parts.append(PART_NAMES[i])
 
 		if open_parts.is_empty():
-			# All spec — show info card
 			var lbl = Label.new()
 			lbl.text = "🏎 %s  [%s] — All parts are Spec. No upgrades available." % [
 				car.car_name if car.car_name != "" else "Car %d" % car.car_number,
@@ -488,18 +582,57 @@ func _build_p2_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 		parent.add_child(lbl_car)
 
 		var lbl_open = Label.new()
-		lbl_open.text = "Open parts: %s" % ", ".join(open_parts)
+		lbl_open.text = "Open parts (upgradeable): %s" % ", ".join(open_parts)
 		lbl_open.add_theme_font_size_override("font_size", 11)
 		lbl_open.modulate = Color(0.4, 0.88, 0.55)
 		parent.add_child(lbl_open)
 
-		# Show P2 tasks for open parts only
-		for task_id in GameState.RND_TASKS:
-			var t = GameState.RND_TASKS[task_id]
-			if t["pillar"] != 2: continue
-			if not t["part"] in open_parts: continue
-			parent.add_child(_build_task_card(task_id, t, free_designers, cid))
-			any_shown = true
+		# For each open part, find and show ONLY the next available upgrade level
+		for part in open_parts:
+			# Get part code for ID matching
+			const PART_CODES_MAP = {
+				"Aero":"AER","Engine":"ENG","Gearbox":"GRB",
+				"Suspension":"SUS","Brakes":"BRK","Chassis":"CHS"
+			}
+			var pcode = PART_CODES_MAP.get(part, part.to_upper().left(3))
+			var season = GameState.current_season
+
+			# Find the highest completed upgrade level for this part/champ/season
+			var highest_done = 0
+			for lv in range(1, 6):
+				var check_id = "UPG-%s-%s-S%d-L%d" % [
+					GameState.CHAMP_CODES.get(cid, cid), pcode, season, lv]
+				if check_id in GameState.completed_rnd_tasks:
+					highest_done = lv
+				else:
+					break  # Levels must be sequential
+
+			# Next level to research
+			var next_lv = highest_done + 1
+			if next_lv > 5:
+				# All 5 levels done for this part
+				var lbl_max = Label.new()
+				lbl_max.text = "  %s — Max upgrade (L5) complete ✅" % part
+				lbl_max.add_theme_font_size_override("font_size", 11)
+				lbl_max.add_theme_color_override("font_color", Color(0.4, 0.82, 0.4))
+				parent.add_child(lbl_max)
+				any_shown = true
+				continue
+
+			var next_id = "UPG-%s-%s-S%d-L%d" % [
+				GameState.CHAMP_CODES.get(cid, cid), pcode, season, next_lv]
+
+			if next_id in GameState.RND_TASKS:
+				var t = GameState.RND_TASKS[next_id]
+				# Show current progress indicator
+				if highest_done > 0:
+					var lbl_prog = Label.new()
+					lbl_prog.text = "  %s — L%d complete, researching L%d" % [part, highest_done, next_lv]
+					lbl_prog.add_theme_font_size_override("font_size", 11)
+					lbl_prog.add_theme_color_override("font_color", Color(0.65, 0.65, 0.65))
+					parent.add_child(lbl_prog)
+				parent.add_child(_build_task_card(next_id, t, free_designers, cid))
+				any_shown = true
 
 		parent.add_child(_hsep())
 
@@ -577,9 +710,16 @@ func _build_p3_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 			lbl_no.modulate = Color(0.5, 0.5, 0.5)
 			parent.add_child(lbl_no)
 		else:
+			var lbl_re_hint = Label.new()
+			lbl_re_hint.text = "💡 Completing a RE task unlocks P1 Design L2 for that part, and produces a blueprint you can submit to the WRA for CNC manufacturing."
+			lbl_re_hint.add_theme_font_size_override("font_size", 10)
+			lbl_re_hint.modulate = Color(0.5, 0.75, 1.0)
+			lbl_re_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			parent.add_child(lbl_re_hint)
 			for task_id in GameState.RND_TASKS:
 				var t = GameState.RND_TASKS[task_id]
 				if t["pillar"] != 3: continue
+				if t.get("championship_id", "") != cid: continue
 				if not t["part"] in owned_spec: continue
 				parent.add_child(_build_task_card(task_id, t, free_designers, cid))
 				any_shown = true
@@ -604,13 +744,17 @@ func _build_p4_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 
 
 # ── Generic task card ──────────────────────────────────────────────────────────
-func _build_task_card(task_id: String, task: Dictionary, free_designers: Array, champ_id: String) -> PanelContainer:
+func _build_task_card(task_id: String, task: Dictionary, free_designers: Array, champ_id: String, extra_tasks: Dictionary = {}) -> PanelContainer:
+	return _build_task_card_with_unlock(task_id, task, free_designers, champ_id, extra_tasks, GameState.rnd_task_unlocked(task_id))
+
+## Allows forcing unlock state — used for next-season tasks not in RND_TASKS
+func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_designers: Array, champ_id: String, extra_tasks: Dictionary, force_unlocked: bool) -> PanelContainer:
 	var is_done   = task_id in GameState.completed_rnd_tasks
 	var is_active = false
 	for t in GameState.active_rnd_tasks:
 		if t["id"] == task_id: is_active = true; break
 
-	var unlocked = GameState.rnd_task_unlocked(task_id)
+	var unlocked = force_unlocked
 	var can_rp   = GameState.research_points >= task["rp"]
 	var can_cr   = GameState.player_team.balance >= task["cr"]
 	var has_free = not free_designers.is_empty()
@@ -631,7 +775,7 @@ func _build_task_card(task_id: String, task: Dictionary, free_designers: Array, 
 	vbox.add_theme_constant_override("separation", 5)
 	panel.add_child(vbox)
 
-	# Row 1: name + part badge + status
+	# Row 1: name + level badge + part badge + status
 	var row1 = HBoxContainer.new()
 	row1.add_theme_constant_override("separation", 8)
 	vbox.add_child(row1)
@@ -642,6 +786,18 @@ func _build_task_card(task_id: String, task: Dictionary, free_designers: Array, 
 	if is_done: lbl_name.add_theme_color_override("font_color", Color(0.4, 0.82, 0.4))
 	elif not unlocked: lbl_name.modulate = Color(0.4, 0.4, 0.4)
 	row1.add_child(lbl_name)
+
+	## Level badge — L1 / L2 / L3 etc
+	var level = task.get("level", 0)
+	if level > 0:
+		var lbl_lv = Label.new()
+		lbl_lv.text = "L%d" % level
+		lbl_lv.add_theme_font_size_override("font_size", 10)
+		var lv_colors = {1: Color(0.4, 0.88, 0.55), 2: Color(0.55, 0.75, 1.0),
+			3: Color(1.0, 0.75, 0.3), 4: Color(1.0, 0.45, 0.45), 5: Color(0.85, 0.4, 1.0)}
+		lbl_lv.add_theme_color_override("font_color", lv_colors.get(level, Color(0.7, 0.7, 0.7)))
+		row1.add_child(lbl_lv)
+
 	var lbl_part = Label.new()
 	lbl_part.text = task["part"]
 	lbl_part.add_theme_font_size_override("font_size", 10)
@@ -659,12 +815,49 @@ func _build_task_card(task_id: String, task: Dictionary, free_designers: Array, 
 	row2.add_theme_constant_override("separation", 10)
 	vbox.add_child(row2)
 
-	if is_done or is_active:
+	if is_done:
+		## Show WRA submission status
+		var bp_id = task_id
+		if GameState.is_blueprint_approved(bp_id):
+			var lbl_wra = Label.new()
+			lbl_wra.text = "✅ WRA Approved — ready for CNC manufacturing"
+			lbl_wra.add_theme_font_size_override("font_size", 11)
+			lbl_wra.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
+			row2.add_child(lbl_wra)
+		elif GameState.is_blueprint_submitted(bp_id):
+			var lbl_wra = Label.new()
+			lbl_wra.text = "⏳ Submitted to WRA — awaiting approval"
+			lbl_wra.add_theme_font_size_override("font_size", 11)
+			lbl_wra.modulate = Color(0.7, 0.7, 0.4)
+			row2.add_child(lbl_wra)
+		elif bp_id in GameState.known_blueprints:
+			var btn_wra = Button.new()
+			btn_wra.text = "📋 Send to WRA for Approval →"
+			btn_wra.custom_minimum_size = Vector2(0, 28)
+			btn_wra.add_theme_font_size_override("font_size", 11)
+			btn_wra.pressed.connect(func():
+				GameState.pending_hq_tab = "wra_office"
+				get_tree().change_scene_to_file("res://scenes/buildings/HQ.tscn"))
+			row2.add_child(btn_wra)
+		## P3 RE hint: completing RE unlocks P1 L2
+		if task.get("pillar", 0) == 3:
+			var lbl_hint = Label.new()
+			lbl_hint.text = "💡 Unlocks P1 Design L2 for this part"
+			lbl_hint.add_theme_font_size_override("font_size", 10)
+			lbl_hint.modulate = Color(0.5, 0.75, 1.0)
+			vbox.add_child(lbl_hint)
+	elif is_active:
 		pass
 	elif not unlocked:
-		var req = GameState.RND_TASKS.get(task.get("requires", ""), {})
+		var req_id = task.get("requires", "")
+		var req = GameState.RND_TASKS.get(req_id, extra_tasks.get(req_id, {}))
+		var req_name = req.get("name", "") if not req.is_empty() else ""
 		var lbl_lock = Label.new()
-		lbl_lock.text = "🔒 Requires: %s" % req.get("name", task.get("requires", "?"))
+		if req_name != "":
+			lbl_lock.text = "🔒 Requires: %s" % req_name
+		else:
+			## Next-season L1 tasks have no prerequisite — they're freely available
+			lbl_lock.text = "🔒 Complete Season %d L1 first" % GameState.current_season
 		lbl_lock.add_theme_font_size_override("font_size", 11)
 		lbl_lock.modulate = Color(0.5, 0.5, 0.5)
 		lbl_lock.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -701,7 +894,10 @@ func _build_task_card(task_id: String, task: Dictionary, free_designers: Array, 
 				var did = designer.id
 				var tid = task_id
 				var cid = champ_id
+				var etasks = extra_tasks
 				btn.pressed.connect(func():
+					if not tid in GameState.RND_TASKS and tid in etasks:
+						GameState.RND_TASKS[tid] = etasks[tid]
 					GameState.start_rnd_task(tid, did, cid)
 					get_tree().change_scene_to_file("res://scenes/buildings/RnDStudio.tscn")
 				)

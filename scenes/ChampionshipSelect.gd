@@ -1,4 +1,5 @@
 extends Control
+## Version: S15.2 — _reg_count_label kept as ref so _refresh_list updates count live.
 
 ## Championship registration screen.
 ## Shown during off-season (weeks 40-52) via MainHub "Register for Championships" button.
@@ -7,6 +8,7 @@ extends Control
 var _list_container: VBoxContainer
 var _filter_discipline: String = "All"
 var _filter_tier: int = 0  # 0 = all tiers
+var _reg_count_label: Label  ## ref so _refresh_list can update without full rebuild
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -86,6 +88,7 @@ func _build_ui() -> void:
 	lbl_reg.modulate = Color(0.7, 0.7, 0.7)
 	lbl_reg.add_theme_font_size_override("font_size", 13)
 	info_row.add_child(lbl_reg)
+	_reg_count_label = lbl_reg  ## keep ref for live updates
 
 	# ── Filter bar ────────────────────────────────────────────────────────────
 	var filter_row = HBoxContainer.new()
@@ -122,6 +125,12 @@ func _build_ui() -> void:
 	scroll.add_child(_list_container)
 
 func _refresh_list() -> void:
+	## Update live count label without full rebuild
+	if _reg_count_label != null and is_instance_valid(_reg_count_label):
+		var rc = GameState.player_registered_championships.size()
+		_reg_count_label.text = "%d championship%s registered for Season %d" % [
+			rc, "s" if rc != 1 else "", GameState.current_season + 1]
+
 	for child in _list_container.get_children():
 		child.queue_free()
 
@@ -242,6 +251,36 @@ func _build_champ_row(champ_id: String) -> PanelContainer:
 	# Running = show register for next season (same as unregistered)
 	# Registered for next season = show locked label
 	# Deadline passed and not registered = too late
+
+	## WRA reset warning badge
+	const WRA_CYCLES_MAP = {
+		"C-001":"Karting","C-002":"Karting","C-003":"Karting","C-004":"Karting",
+		"C-005":"Rally","C-006":"Rally","C-007":"Rally","C-008":"Rally",
+		"C-009":"Touring","C-010":"Touring",
+		"C-011":"Open Wheel","C-012":"Open Wheel","C-013":"Open Wheel",
+		"C-014":"Stock Car","C-015":"Stock Car","C-016":"Stock Car","C-017":"Stock Car",
+		"C-018":"Endurance","C-019":"Endurance","C-020":"Endurance",
+		"C-021":"Formula","C-022":"Formula","C-023":"Formula","C-024":"Formula",
+	}
+	const WRA_CYCLE_LENGTHS_MAP = {
+		"Formula":4,"Touring":5,"Karting":6,"Open Wheel":7,
+		"Stock Car":8,"Rally":9,"Endurance":10,
+	}
+	var wra_group = WRA_CYCLES_MAP.get(champ_id, "")
+	if wra_group != "":
+		var wra_len = WRA_CYCLE_LENGTHS_MAP.get(wra_group, 6)
+		var wra_start = GameState.wra_cycle_starts.get(wra_group, 1)
+		var seasons_in = GameState.current_season - wra_start
+		var seasons_until = wra_len - (seasons_in % wra_len)
+		if seasons_until <= 2:
+			var lbl_wra = Label.new()
+			lbl_wra.text = "\u26A0 WRA reset in %d season%s \u2014 blueprints will be wiped" % [
+				seasons_until, "s" if seasons_until != 1 else ""]
+			lbl_wra.add_theme_font_size_override("font_size", 11)
+			lbl_wra.add_theme_color_override("font_color",
+				Color(1.0, 0.4, 0.1) if seasons_until == 1 else Color(1.0, 0.75, 0.1))
+			lbl_wra.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			left.add_child(lbl_wra)
 	var btn_col = VBoxContainer.new()
 	btn_col.alignment = BoxContainer.ALIGNMENT_CENTER
 	hbox.add_child(btn_col)

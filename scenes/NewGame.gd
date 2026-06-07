@@ -1,4 +1,5 @@
 extends Control
+## Version: S15.2 — emits log_updated after setup_new_game so TDL renders immediately.
 
 var team_name_input: LineEdit
 var player_name_input: LineEdit
@@ -212,6 +213,7 @@ func _on_start_pressed() -> void:
 	var budget = int(budget_text) if budget_text.is_valid_int() and int(budget_text) > 0 else 50000
 
 	GameState.setup_new_game(team_name, nat, player_name, budget)
+	GameState.emit_signal("log_updated")  ## Ensures TDL renders immediately on first MainHub load
 	get_tree().change_scene_to_file("res://scenes/MainHub.tscn")
 
 func _fmt_budget(n: int) -> String:

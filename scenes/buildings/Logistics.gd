@@ -1,4 +1,5 @@
 extends Control
+## Version: S15.2 — Car indicator uses championship max_cars not garage limit fallback.
 ## Logistics Center — Tab redesign
 ## Tabs: STOCKS & CONSUMABLES | PARTS WAREHOUSE | BUY RACING CAR
 
@@ -403,7 +404,8 @@ func _build_tab_buy_car(parent: VBoxContainer) -> void:
 			var cars_in_champ = GameState.player_team_cars.filter(
 				func(c): return c.championship_id == champ.id).size()
 			var min_c = reg.get("min_cars", 1)
-			var max_c = reg.get("max_cars", max_cars)
+			## Use the championship's own max_cars — do NOT fall back to garage limit here
+			var max_c = reg.get("max_cars", 2)
 			var crow = HBoxContainer.new()
 			crow.add_theme_constant_override("separation", 10)
 			sv.add_child(crow)

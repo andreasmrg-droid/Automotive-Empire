@@ -1,4 +1,5 @@
 extends Control
+## Version: S15.2 — Build/upgrade costs reduced to Garage standards (build 10wks/30K, upgrade 4wks/15K).
 
 var _crew_container: VBoxContainer
 
