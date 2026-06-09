@@ -4836,6 +4836,16 @@ func advance_week() -> void:
 		_fmt_int(int(_net)),
 		_fmt_int(int(player_team.balance)),
 		"%d wks" % _runway if _runway < 999 else "Stable"])
+		
+	if player_team.balance < 0:
+		weeks_in_negative += 1
+		if weeks_in_negative >= 8 and not bankruptcy_screen_shown:
+			bankruptcy_screen_shown = true
+			emit_signal("bankruptcy_triggered")
+	else:
+		if weeks_in_negative > 0:
+			add_log("✅ Balance recovered. Bankruptcy counter reset.")
+			weeks_in_negative = 0
 
 	emit_signal("week_advanced", current_week)
 	emit_signal("log_updated")
