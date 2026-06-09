@@ -1,6 +1,5 @@
 extends Control
-## Version: S15.1 — WRA-gated manufacturing flow; column layout restructured;
-##                    inventory uses dict format; install/remove via GameState.install/remove_part_on_car.
+## Version: S17.2 — Blueprint ownership panel added (col D); INSTALLED ON CARS uses get_installed_parts_for_car.
 ## CNC Parts Plant
 ## Layout: Header | 3-column body
 ##   Left   — Production queue + Start new job
@@ -110,6 +109,13 @@ func _build_ui() -> void:
 	body.add_child(col_c)
 	_build_info_column(col_c)
 
+	# Column D — Blueprint ownership grid
+	var col_d = VBoxContainer.new()
+	col_d.custom_minimum_size = Vector2(200, 0)
+	col_d.add_theme_constant_override("separation", 10)
+	body.add_child(col_d)
+	_build_blueprint_ownership_column(col_d)
+
 
 func _build_queue_card(job: Dictionary) -> PanelContainer:
 	var pct = 1.0 - float(job["weeks_remaining"]) / float(job["weeks_total"])
@@ -183,8 +189,7 @@ func _build_inventory_column(parent: VBoxContainer) -> void:
 
 	var any_installed = false
 	for car in GameState.player_team_cars:
-		if not car.has_meta("installed_cnc_parts"): continue
-		var installed = car.get_meta("installed_cnc_parts")
+		var installed = GameState.get_installed_parts_for_car(car.id)
 		if installed.is_empty(): continue
 		any_installed = true
 		var car_name = car.car_name if car.car_name != "" else "Car %d" % car.car_number
@@ -365,7 +370,13 @@ func _build_info_column(parent: VBoxContainer) -> void:
 		var in_prod = false
 		for job in GameState.cnc_production_queue:
 			if job["part"] == part: in_prod = true; break
-		var in_inv  = GameState.cnc_parts_inventory.get(part, 0) > 0
+		var in_inv = false
+		for inv_key in GameState.cnc_parts_inventory:
+			var item = GameState.cnc_parts_inventory[inv_key]
+			var item_part = item.get("part", "") if item is Dictionary else inv_key
+			var qty = item.get("quantity", 0) if item is Dictionary else int(item)
+			if item_part == part and qty > 0:
+				in_inv = true; break
 
 		var row = HBoxContainer.new()
 		row.add_theme_constant_override("separation", 8)
@@ -389,7 +400,14 @@ func _build_info_column(parent: VBoxContainer) -> void:
 
 		if in_inv:
 			var lbl_stk = Label.new()
-			lbl_stk.text = "×%d" % GameState.cnc_parts_inventory.get(part, 0)
+			## Sum quantity across all inv keys matching this part name
+			var total_qty = 0
+			for inv_key in GameState.cnc_parts_inventory:
+				var item = GameState.cnc_parts_inventory[inv_key]
+				var item_part = item.get("part", "") if item is Dictionary else inv_key
+				if item_part == part:
+					total_qty += item.get("quantity", 0) if item is Dictionary else int(item)
+			lbl_stk.text = "×%d" % total_qty
 			lbl_stk.add_theme_font_size_override("font_size", 12)
 			lbl_stk.add_theme_color_override("font_color", Color(0.5, 0.9, 0.5))
 			row.add_child(lbl_stk)
@@ -532,6 +550,113 @@ func _fmt(n: int) -> String:
 
 func _on_back() -> void:
 	get_tree().change_scene_to_file("res://scenes/Campus.tscn")
+
+## ═══════════════════════════════════════════════════════════════════════════
+## S17.2 — BLUEPRINT OWNERSHIP PANEL
+## Shows which blueprints are owned, in CNC queue, or manufactured.
+## ═══════════════════════════════════════════════════════════════════════════
+
+func _build_blueprint_ownership_column(parent: VBoxContainer) -> void:
+	parent.add_child(_section_header("BLUEPRINT OWNERSHIP", Color(0.7, 0.8, 1.0)))
+
+	var legend = Label.new()
+	legend.text = "✅ owned  🔧 not mfg  📦 in warehouse  🔩 installed"
+	legend.add_theme_font_size_override("font_size", 9)
+	legend.modulate = Color(0.5, 0.5, 0.5)
+	legend.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	parent.add_child(legend)
+
+	var champs = GameState.active_championships
+	if champs.is_empty():
+		var lbl = Label.new()
+		lbl.text = "No active championships."
+		lbl.modulate = Color(0.5, 0.5, 0.5)
+		parent.add_child(lbl)
+		return
+
+	const PCODES = ["AER","ENG","GRB","SUS","BRK","CHS"]
+	const PCODE_TO_PART = {"AER":"Aero","ENG":"Engine","GRB":"Gearbox",
+		"SUS":"Suspension","BRK":"Brakes","CHS":"Chassis"}
+
+	for champ in champs:
+		var lbl_c = Label.new()
+		lbl_c.text = champ.championship_name
+		lbl_c.add_theme_font_size_override("font_size", 11)
+		lbl_c.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
+		parent.add_child(lbl_c)
+
+		## Build lookup: which pcodes have approved blueprints
+		var approved_pcodes: Dictionary = {}  ## pcode → Array of bp_ids
+		for app in GameState.wra_approved_blueprints:
+			var bp_id = app.get("blueprint_id", "")
+			var bp = GameState.known_blueprints.get(bp_id, {})
+			if bp.get("championship_id", "") != champ.id: continue
+			var pcode = GameState._part_name_to_pcode(bp.get("part", ""))
+			if pcode == "": continue
+			if pcode not in approved_pcodes: approved_pcodes[pcode] = []
+			approved_pcodes[pcode].append(bp_id)
+
+		## Build lookup: which pcodes are manufactured (in warehouse)
+		var warehouse_pcodes: Dictionary = {}
+		for inv_key in GameState.cnc_parts_inventory:
+			var item = GameState.cnc_parts_inventory[inv_key]
+			if not item is Dictionary: continue
+			if item.get("championship_id","") != champ.id: continue
+			if item.get("quantity",0) <= 0: continue
+			var pcode = item.get("part_code","")
+			if pcode == "": pcode = GameState._part_name_to_pcode(item.get("part",""))
+			if pcode != "": warehouse_pcodes[pcode] = true
+
+		## Build lookup: installed on cars
+		var installed_pcodes: Dictionary = {}
+		for car in GameState.player_team_cars:
+			if car.championship_id != champ.id: continue
+			var inst = GameState.get_installed_parts_for_car(car.id)
+			for pcode in inst: installed_pcodes[pcode] = true
+
+		for pcode in PCODES:
+			var part_name = PCODE_TO_PART.get(pcode, pcode)
+			var row = HBoxContainer.new()
+			row.add_theme_constant_override("separation", 4)
+			parent.add_child(row)
+
+			var lbl_p = Label.new()
+			lbl_p.text = pcode
+			lbl_p.add_theme_font_size_override("font_size", 10)
+			lbl_p.custom_minimum_size = Vector2(32, 0)
+			lbl_p.add_theme_color_override("font_color", PART_COLORS.get(part_name, Color(0.6,0.6,0.6)))
+			row.add_child(lbl_p)
+
+			var status = Label.new()
+			status.add_theme_font_size_override("font_size", 11)
+			status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+			if pcode in installed_pcodes:
+				status.text = "🔩 installed"
+				status.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
+			elif pcode in warehouse_pcodes:
+				status.text = "📦 in warehouse"
+				status.add_theme_color_override("font_color", Color(0.5, 0.75, 1.0))
+			elif pcode in approved_pcodes:
+				status.text = "✅ ready to mfg"
+				status.add_theme_color_override("font_color", Color(1.0, 0.8, 0.2))
+			else:
+				## Check known_blueprints (owned but not yet WRA approved)
+				var has_bp = false
+				for bp_id in GameState.known_blueprints:
+					var bp = GameState.known_blueprints[bp_id]
+					if bp.get("championship_id","") == champ.id \
+							and GameState._part_name_to_pcode(bp.get("part","")) == pcode:
+						has_bp = true; break
+				if has_bp:
+					status.text = "🔧 bp owned"
+					status.add_theme_color_override("font_color", Color(0.7, 0.7, 0.4))
+				else:
+					status.text = "⬜ none"
+					status.modulate = Color(0.4, 0.4, 0.4)
+			row.add_child(status)
+
+		parent.add_child(_hsep())
 
 ## ═══════════════════════════════════════════════════════════════════════════
 ## S15 — WRA APPROVED BLUEPRINTS COLUMN

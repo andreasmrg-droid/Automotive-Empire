@@ -1,7 +1,5 @@
 extends Control
-## Version: S15.2 — Strategist/TP assign shows championship picker (not auto-assign);
-##                    TP buttons disable when championship already has a TP;
-##                    assignment display uses championship registry lookup not active_championship.
+## Version: S17.1 — Walk-away gating on available staff; pending assignment shown in My Staff rows.
 
 # ── State ─────────────────────────────────────────────────────────────────────
 var current_tab: String = "my_staff"
@@ -220,7 +218,12 @@ func _make_my_staff_row(staff) -> PanelContainer:
 		var _reg = GameState.CHAMPIONSHIP_REGISTRY.get(staff.assigned_championship, {})
 		assign_text = _reg.get("name", staff.assigned_championship)
 	else:
-		assign_text = "⚠ Unassigned"
+		var pending_champ = GameState.get_pending_assignment_for(staff.id)
+		if pending_champ != "":
+			var _preg = GameState.CHAMPIONSHIP_REGISTRY.get(pending_champ, {})
+			assign_text = "⏳ %s (next wk)" % _preg.get("name", pending_champ)
+		else:
+			assign_text = "⚠ Unassigned"
 	var assign_color = Color(0.6, 0.6, 0.6) if assign_text == "Team Level" \
 		else (Color(0.4, 0.9, 0.4) if assign_text != "⚠ Unassigned" \
 		else Color(1.0, 0.6, 0.2))
@@ -260,12 +263,16 @@ func _make_my_staff_row(staff) -> PanelContainer:
 		btn_row.add_child(assign_btn)
 
 	var renew_btn = Button.new()
-	renew_btn.text = "📋 Renew (5 seasons)"
+	renew_btn.text = "📋 Renegotiate"
 	renew_btn.custom_minimum_size = Vector2(145, 28)
 	renew_btn.pressed.connect(func():
-		GameState.renew_staff_contract(s_id, 5)
-		_refresh_list()
-	)
+		var neg = GameState.generate_staff_opening_offer(s_id)
+		if neg.is_empty(): return
+		GameState.start_negotiation(neg)
+		var panel = preload("res://scenes/ContractNegotiation.tscn").instantiate()
+		get_tree().current_scene.add_child(panel)
+		panel.open(GameState.active_negotiation)
+		panel.closed.connect(func(): _refresh_list()))
 	btn_row.add_child(renew_btn)
 
 	var release_btn = Button.new()
@@ -323,22 +330,33 @@ func _make_available_staff_row(staff) -> PanelContainer:
 	btn_row.add_child(view_btn)
 
 	var hire_btn = Button.new()
-	hire_btn.custom_minimum_size = Vector2(80, 28)
+	hire_btn.custom_minimum_size = Vector2(160, 28)
 
-	# Check slot availability for limited roles
+	# Evaluate both blocking conditions up front
 	var slot_msg = _get_slot_message(staff.role)
-	if slot_msg != "":
+	var is_unavailable = not GameState.is_subject_available(s_id)
+
+	if is_unavailable:
+		hire_btn.text = "🚫 Not Interested"
+		hire_btn.disabled = true
+		hire_btn.tooltip_text = "Not available for 2 seasons after walking away."
+	elif slot_msg != "":
 		hire_btn.text = "⚠ No Slot"
 		hire_btn.disabled = true
 		hire_btn.tooltip_text = slot_msg
 	else:
-		hire_btn.text = "✅ Hire"
+		hire_btn.text = "📋 Negotiate Contract"
 		hire_btn.pressed.connect(func():
-			if GameState.hire_staff(s_id):
+			var neg = GameState.generate_staff_opening_offer(s_id)
+			if neg.is_empty(): return
+			GameState.start_negotiation(neg)
+			var panel = preload("res://scenes/ContractNegotiation.tscn").instantiate()
+			get_tree().current_scene.add_child(panel)
+			panel.open(GameState.active_negotiation)
+			panel.closed.connect(func():
 				tab_my_btn.text = "👥 My Staff (%d)" % GameState.get_all_player_staff().size()
 				tab_all_btn.text = "🌍 Available Staff (%d)" % GameState.get_all_available_staff().size()
-				_refresh_list()
-		)
+				_refresh_list()))
 	btn_row.add_child(hire_btn)
 
 	return card
@@ -476,33 +494,45 @@ func _show_staff_card(staff_id: String) -> void:
 		btn_row.add_child(assign_btn)
 
 		var renew_btn = Button.new()
-		renew_btn.text = "📋 Renew Contract"
+		renew_btn.text = "📋 Renegotiate"
 		renew_btn.custom_minimum_size = Vector2(140, 32)
 		renew_btn.pressed.connect(func():
-			GameState.renew_staff_contract(staff_id, 5)
-			card_overlay.queue_free()
-			card_overlay = null
-			_refresh_list()
-		)
+			var neg = GameState.generate_staff_opening_offer(staff_id)
+			if neg.is_empty(): return
+			GameState.start_negotiation(neg)
+			card_overlay.queue_free(); card_overlay = null
+			var panel = preload("res://scenes/ContractNegotiation.tscn").instantiate()
+			get_tree().current_scene.add_child(panel)
+			panel.open(GameState.active_negotiation)
+			panel.closed.connect(func(): _refresh_list()))
 		btn_row.add_child(renew_btn)
 	elif staff.contract_team == "":
 		var slot_msg = _get_slot_message(staff.role)
+		var is_unavailable = not GameState.is_subject_available(staff_id)
 		var hire_btn = Button.new()
-		hire_btn.custom_minimum_size = Vector2(100, 32)
-		if slot_msg != "":
+		hire_btn.custom_minimum_size = Vector2(160, 32)
+		if is_unavailable:
+			hire_btn.text = "🚫 Not Interested"
+			hire_btn.disabled = true
+			hire_btn.tooltip_text = "Not available for 2 seasons after walking away."
+		elif slot_msg != "":
 			hire_btn.text = "⚠ No Slot"
 			hire_btn.disabled = true
 			hire_btn.tooltip_text = slot_msg
 		else:
-			hire_btn.text = "✅ Hire"
+			hire_btn.text = "📋 Negotiate Contract"
 			hire_btn.pressed.connect(func():
-				if GameState.hire_staff(staff_id):
-					card_overlay.queue_free()
-					card_overlay = null
+				var neg = GameState.generate_staff_opening_offer(staff_id)
+				if neg.is_empty(): return
+				GameState.start_negotiation(neg)
+				card_overlay.queue_free(); card_overlay = null
+				var panel = preload("res://scenes/ContractNegotiation.tscn").instantiate()
+				get_tree().current_scene.add_child(panel)
+				panel.open(GameState.active_negotiation)
+				panel.closed.connect(func():
 					tab_my_btn.text = "👥 My Staff (%d)" % GameState.get_all_player_staff().size()
 					tab_all_btn.text = "🌍 Available Staff (%d)" % GameState.get_all_available_staff().size()
-					_refresh_list()
-			)
+					_refresh_list()))
 		btn_row.add_child(hire_btn)
 
 # ── Assign popup ──────────────────────────────────────────────────────────────
@@ -596,23 +626,36 @@ func _show_assign_popup(staff_id: String) -> void:
 		lbl.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 		vbox.add_child(lbl)
 
-		if GameState.active_championships.is_empty():
+		## Strategist not needed for GK or Rally disciplines
+		const NO_STRATEGIST = ["GK", "Rally"]
+		var eligible_champs = []
+		for champ in GameState.active_championships:
+			var reg = GameState.CHAMPIONSHIP_REGISTRY.get(champ.id, {})
+			var disc = reg.get("discipline", "")
+			if staff.role == "Race Strategist" and disc in NO_STRATEGIST:
+				continue
+			eligible_champs.append(champ)
+
+		if eligible_champs.is_empty():
 			var lbl_none = Label.new()
-			lbl_none.text = "No active championships this season."
+			lbl_none.text = "No eligible championships.\n(Strategist not needed for GK or Rally.)" \
+				if staff.role == "Race Strategist" else "No active championships."
 			lbl_none.modulate = Color(0.5, 0.5, 0.5)
+			lbl_none.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			vbox.add_child(lbl_none)
 		else:
-			for champ in GameState.active_championships:
+			for champ in eligible_champs:
 				var reg = GameState.CHAMPIONSHIP_REGISTRY.get(champ.id, {})
 				var champ_name = reg.get("name", champ.id)
 
-				## For TP: disable button if another TP is already assigned to this championship
+				## For TP: disable if another TP is already assigned here
 				var already_has_tp = false
 				if staff.role == "Team Principal":
 					for sid2 in GameState.all_staff:
 						var s2 = GameState.all_staff[sid2]
-						if s2.id == s_id: continue
-						if s2.role == "Team Principal" and s2.contract_team == GameState.player_team.id \
+						if s2.id == staff_id: continue
+						if s2.role == "Team Principal" \
+								and s2.contract_team == GameState.player_team.id \
 								and s2.assigned_championship == champ.id:
 							already_has_tp = true
 							break
@@ -631,13 +674,25 @@ func _show_assign_popup(staff_id: String) -> void:
 					btn.modulate = Color(0.5, 0.5, 0.5)
 				else:
 					btn.text = "→ %s" % champ_name
+					var cid = champ.id
 					btn.pressed.connect(func():
-						GameState.assign_staff_to_championship(s_id, champ.id)
+						GameState.assign_staff_to_championship(staff_id, cid)
 						card_overlay.queue_free()
 						card_overlay = null
-						_refresh_list()
-					)
+						_refresh_list())
 				vbox.add_child(btn)
+
+		## Unassign option
+		if staff.assigned_championship != "":
+			var btn_unassign = Button.new()
+			btn_unassign.text = "✕ Unassign"
+			btn_unassign.modulate = Color(0.9, 0.4, 0.4)
+			btn_unassign.pressed.connect(func():
+				staff.assigned_championship = ""
+				card_overlay.queue_free()
+				card_overlay = null
+				_refresh_list())
+			vbox.add_child(btn_unassign)
 
 	# Team-level roles: CFO, Designer — no specific assignment needed
 	else:

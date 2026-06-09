@@ -1,6 +1,5 @@
 extends Control
-## Version: S15.1 — L1/L2 level badges; Current/Next Season labels; Send to WRA button on done blueprints;
-##                    RE→L2 unlock hint in P3; RE completion notification.
+## Version: S17.2 — Blueprint ownership grid added per championship (P1+P3 combined visual).
 ## R&D Design Studio
 ## P1 — All part blueprints, all championships, no filter
 ## P2 — Upgrade Open parts of owned cars only
@@ -168,6 +167,13 @@ func _build_ui() -> void:
 	col_c.add_theme_constant_override("separation", 8)
 	body.add_child(col_c)
 	_build_catalog_column(col_c)
+
+	## Blueprint ownership grid — right-most column
+	var col_d = VBoxContainer.new()
+	col_d.custom_minimum_size = Vector2(220, 0)
+	col_d.add_theme_constant_override("separation", 8)
+	body.add_child(col_d)
+	_build_blueprint_grid_column(col_d)
 
 
 # ─── Column A ─────────────────────────────────────────────────────────────────
@@ -968,3 +974,157 @@ func _fmt(n: int) -> String:
 
 func _on_back() -> void:
 	get_tree().change_scene_to_file("res://scenes/Campus.tscn")
+
+# ─── Blueprint Ownership Grid ─────────────────────────────────────────────────
+## Shows P1 (BP) and P3 (RE) status per part per championship.
+## Legend: ✅ owned  🔬 in progress  ⏳ WRA pending  🟢 WRA approved  ⬜ not started
+func _build_blueprint_grid_column(parent: VBoxContainer) -> void:
+	parent.add_child(_section_header("BLUEPRINT STATUS", Color(0.7, 0.8, 1.0)))
+
+	## Legend
+	var legend = Label.new()
+	legend.text = "✅ owned  🔬 active  ⏳ WRA  🟢 approved"
+	legend.add_theme_font_size_override("font_size", 9)
+	legend.modulate = Color(0.5, 0.5, 0.5)
+	parent.add_child(legend)
+
+	var champs = GameState.active_championships
+	if champs.is_empty():
+		parent.add_child(_lbl_empty("No active championships."))
+		return
+
+	for champ in champs:
+		var grid_data = GameState.get_blueprint_grid(champ.id)
+
+		## Championship header
+		var lbl_champ = Label.new()
+		lbl_champ.text = champ.championship_name
+		lbl_champ.add_theme_font_size_override("font_size", 11)
+		lbl_champ.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
+		parent.add_child(lbl_champ)
+
+		## Grid: header row
+		var grid = GridContainer.new()
+		grid.columns = 8  ## part name + L1 L2 L3 L4 L5 + RE + spacer
+		grid.add_theme_constant_override("h_separation", 4)
+		grid.add_theme_constant_override("v_separation", 3)
+		parent.add_child(grid)
+
+		## Header labels
+		for hdr_text in ["", "L1","L2","L3","L4","L5","RE",""]:
+			var h = Label.new()
+			h.text = hdr_text
+			h.add_theme_font_size_override("font_size", 9)
+			h.add_theme_color_override("font_color", Color(0.5,0.5,0.5))
+			h.custom_minimum_size = Vector2(22, 0)
+			h.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			grid.add_child(h)
+
+		## Part rows
+		const PCODES = ["AER","ENG","GRB","SUS","BRK","CHS"]
+		const PSHORT = {"AER":"AER","ENG":"ENG","GRB":"GRB","SUS":"SUS","BRK":"BRK","CHS":"CHS"}
+		for pcode in PCODES:
+			var pd = grid_data.get(pcode, {})
+			var p_color = PART_COLORS.get(CONST_PCODE_TO_PART.get(pcode,""), Color(0.6,0.6,0.6))
+
+			## Part name cell
+			var lbl_p = Label.new()
+			lbl_p.text = PSHORT.get(pcode, pcode)
+			lbl_p.add_theme_font_size_override("font_size", 9)
+			lbl_p.add_theme_color_override("font_color", p_color)
+			lbl_p.custom_minimum_size = Vector2(30, 0)
+			grid.add_child(lbl_p)
+
+			## L1–L5 cells
+			for lvl in [1,2,3,4,5]:
+				var cell = Label.new()
+				cell.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				cell.custom_minimum_size = Vector2(22, 0)
+				cell.add_theme_font_size_override("font_size", 11)
+				var owned_levels: Array = pd.get("bp_levels", [])
+				if lvl in owned_levels:
+					cell.text = "✅"
+				elif _is_level_wra_approved(pcode, lvl, champ.id):
+					cell.text = "🟢"
+				elif _is_level_wra_pending(pcode, lvl, champ.id):
+					cell.text = "⏳"
+				elif _is_level_in_progress(pcode, lvl, champ.id):
+					cell.text = "🔬"
+				else:
+					cell.text = "⬜"
+					cell.modulate = Color(0.4,0.4,0.4)
+				grid.add_child(cell)
+
+			## RE cell
+			var re_cell = Label.new()
+			re_cell.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			re_cell.custom_minimum_size = Vector2(22, 0)
+			re_cell.add_theme_font_size_override("font_size", 11)
+			var re_done: bool = pd.get("re", false)
+			if re_done:
+				re_cell.text = "✅"
+			elif _is_re_wra_approved(pcode, champ.id):
+				re_cell.text = "🟢"
+			elif _is_re_wra_pending(pcode, champ.id):
+				re_cell.text = "⏳"
+			elif _is_re_in_progress(pcode, champ.id):
+				re_cell.text = "🔬"
+			else:
+				re_cell.text = "⬜"
+				re_cell.modulate = Color(0.4,0.4,0.4)
+			grid.add_child(re_cell)
+
+			## Empty spacer cell
+			grid.add_child(Control.new())
+
+		parent.add_child(_hsep())
+
+const CONST_PCODE_TO_PART = {"AER":"Aero","ENG":"Engine","GRB":"Gearbox",
+	"SUS":"Suspension","BRK":"Brakes","CHS":"Chassis"}
+
+func _is_level_wra_approved(pcode: String, lvl: int, champ_id: String) -> bool:
+	for app in GameState.wra_approved_blueprints:
+		var bp = GameState.known_blueprints.get(app.get("blueprint_id",""), {})
+		if bp.get("championship_id","") == champ_id and bp.get("pillar",0) == 1 \
+				and GameState._part_name_to_pcode(bp.get("part","")) == pcode \
+				and bp.get("level",0) == lvl: return true
+	return false
+
+func _is_level_wra_pending(pcode: String, lvl: int, champ_id: String) -> bool:
+	for sub in GameState.active_wra_submissions:
+		var bp = GameState.known_blueprints.get(sub.get("blueprint_id",""), {})
+		if bp.get("championship_id","") == champ_id and bp.get("pillar",0) == 1 \
+				and GameState._part_name_to_pcode(bp.get("part","")) == pcode \
+				and bp.get("level",0) == lvl: return true
+	return false
+
+func _is_level_in_progress(pcode: String, lvl: int, champ_id: String) -> bool:
+	for t in GameState.active_rnd_tasks:
+		var tid = t.get("task_id","")
+		var td = GameState.RND_TASKS.get(tid, {})
+		if td.get("championship_id","") == champ_id and td.get("pillar",0) == 1 \
+				and GameState._part_name_to_pcode(td.get("part","")) == pcode \
+				and td.get("level",0) == lvl: return true
+	return false
+
+func _is_re_wra_approved(pcode: String, champ_id: String) -> bool:
+	for app in GameState.wra_approved_blueprints:
+		var bp = GameState.known_blueprints.get(app.get("blueprint_id",""), {})
+		if bp.get("championship_id","") == champ_id and bp.get("pillar",0) == 3 \
+				and GameState._part_name_to_pcode(bp.get("part","")) == pcode: return true
+	return false
+
+func _is_re_wra_pending(pcode: String, champ_id: String) -> bool:
+	for sub in GameState.active_wra_submissions:
+		var bp = GameState.known_blueprints.get(sub.get("blueprint_id",""), {})
+		if bp.get("championship_id","") == champ_id and bp.get("pillar",0) == 3 \
+				and GameState._part_name_to_pcode(bp.get("part","")) == pcode: return true
+	return false
+
+func _is_re_in_progress(pcode: String, champ_id: String) -> bool:
+	for t in GameState.active_rnd_tasks:
+		var tid = t.get("task_id","")
+		var td = GameState.RND_TASKS.get(tid, {})
+		if td.get("championship_id","") == champ_id and td.get("pillar",0) == 3 \
+				and GameState._part_name_to_pcode(td.get("part","")) == pcode: return true
+	return false

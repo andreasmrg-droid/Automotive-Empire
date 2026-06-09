@@ -1,5 +1,6 @@
 class_name Driver
 extends Resource
+## Version: S16.2 — Added track_knowledge dict keyed by track_id. Grows per event at that track.
 
 # Identity
 @export var id: String = ""
@@ -13,6 +14,12 @@ extends Resource
 @export var academy_team: String = ""
 @export var contract_team: String = ""
 @export var contract_seasons_remaining: int = 0
+## Contract financial terms — set during negotiation
+@export var weekly_salary: float = 0.0
+@export var win_bonus: int = 0
+@export var podium_bonus: int = 0
+@export var championship_bonus: int = 0
+@export var release_clause: int = 0
 
 # Championships entered this season
 @export var active_championships: Array = []
@@ -64,6 +71,11 @@ const ADAPTATION_CEILINGS = {
 # ── Status ────────────────────────────────────────────────────────────────────
 @export var morale: float = 100.0
 @export var seasons_without_contract: int = 0
+
+## Per-track knowledge — keyed by track_id (stable slug from track name).
+## Grows each time this driver races at that track. Used in lap time formula.
+## Format: { "super_karting_raceway": 12.5, "croatia": 45.0, ... }
+@export var track_knowledge: Dictionary = {}
 
 # ── Identity helpers ──────────────────────────────────────────────────────────
 
@@ -194,3 +206,13 @@ func get_effective_race_craft() -> float:
 
 func get_effective_consistency() -> float:
 	return consistency * get_adaptation_multiplier()
+
+## Returns this driver's knowledge of a specific track (0–100).
+func get_track_knowledge(track_id: String) -> float:
+	return clamp(track_knowledge.get(track_id, 0.0), 0.0, 100.0)
+
+## Called after a race — grows knowledge at this specific track.
+## growth_amount: 3–8 per event depending on result quality.
+func update_track_knowledge(track_id: String, growth_amount: float) -> void:
+	var current = track_knowledge.get(track_id, 0.0)
+	track_knowledge[track_id] = min(100.0, current + growth_amount)

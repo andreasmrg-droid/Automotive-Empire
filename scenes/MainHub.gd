@@ -1,5 +1,5 @@
 extends Control
-## Version: S15.2 — TDL destinations added for R&D→WRA→CNC→Garage pipeline and new-game car prompt.
+## Version: S17.1 — Fix E: _ready redirects to BeginOfSeason when pending_season_screen == begin_of_season (set by BeginOfSeason nav buttons).
 
 @onready var title_label = $Layout/TitleLabel
 @onready var week_label = $Layout/WeekLabel
@@ -37,9 +37,15 @@ var notif_dim: ColorRect = null
 var tab_cars_btn: Button
 var cars_panel: ScrollContainer
 var cars_box: VBoxContainer
+var menu_popup: PanelContainer
 
 
 func _ready() -> void:
+	## Fix E: if we navigated away from BeginOfSeason to a building, come back here
+	if GameState.pending_season_screen == "begin_of_season":
+		get_tree().change_scene_to_file("res://scenes/BeginOfSeason.tscn")
+		return
+
 	# Layout fills screen
 	$Layout.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
@@ -92,24 +98,12 @@ func _ready() -> void:
 	notif_button.pressed.connect(_on_notif_pressed)
 	top_bar.add_child(notif_button)
 
-	# Save / Load / Quit buttons (right side)
-	var save_btn = Button.new()
-	save_btn.text = "💾 Save"
-	save_btn.custom_minimum_size = Vector2(90, 35)
-	save_btn.pressed.connect(_on_save_pressed)
-	top_bar.add_child(save_btn)
-
-	var load_btn = Button.new()
-	load_btn.text = "📂 Load"
-	load_btn.custom_minimum_size = Vector2(90, 35)
-	load_btn.pressed.connect(_on_load_pressed)
-	top_bar.add_child(load_btn)
-
-	var quit_btn = Button.new()
-	quit_btn.text = "❌ Quit"
-	quit_btn.custom_minimum_size = Vector2(90, 35)
-	quit_btn.pressed.connect(_on_quit_pressed)
-	top_bar.add_child(quit_btn)
+	# Menu button — top right, opens centred popup overlay
+	var menu_top_btn = Button.new()
+	menu_top_btn.text = "☰ Menu"
+	menu_top_btn.custom_minimum_size = Vector2(90, 35)
+	menu_top_btn.pressed.connect(_show_menu_popup)
+	top_bar.add_child(menu_top_btn)
 
 	# ── NOTIFICATION PANEL (hidden by default) ────────────────────────
 	notif_panel = PanelContainer.new()
@@ -251,6 +245,27 @@ func _ready() -> void:
 
 	balance_label.visible = false
 
+	## Restore advance button state if we're mid-season-transition
+	if GameState.pending_season_screen == "end_of_season":
+		## Came back from EndOfSeason — show "Start Season N" button
+		advance_button.text = "Start Season %d ▶" % (GameState.current_season + 1)
+		advance_button.disabled = false
+		if advance_button.pressed.is_connected(_on_advance_pressed):
+			advance_button.pressed.disconnect(_on_advance_pressed)
+		if not advance_button.pressed.is_connected(_on_new_season_pressed):
+			advance_button.pressed.connect(_on_new_season_pressed)
+		advance_to_race_button.disabled = true
+		advance_to_race_button.text = "⏭ Next Race"
+	elif GameState.pending_season_screen == "begin_of_season":
+		## Came back from BeginOfSeason — normal week advance mode
+		advance_button.text = "Advance Week ▶"
+		if advance_button.pressed.is_connected(_on_new_season_pressed):
+			advance_button.pressed.disconnect(_on_new_season_pressed)
+		if not advance_button.pressed.is_connected(_on_advance_pressed):
+			advance_button.pressed.connect(_on_advance_pressed)
+		advance_to_race_button.disabled = false
+		GameState.pending_season_screen = ""
+
 func _build_tabs() -> void:
 	tab_row.add_theme_constant_override("separation", 2)
 
@@ -271,13 +286,14 @@ func _build_tabs() -> void:
 	tab_driver_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tab_driver_btn.pressed.connect(func(): _show_tab("mydriver"))
 	tab_row.add_child(tab_driver_btn)
+
 	tab_cars_btn = Button.new()
 	tab_cars_btn.text = "🔩 Cars"
 	tab_cars_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tab_cars_btn.pressed.connect(func(): _show_tab("cars"))
 	tab_row.add_child(tab_cars_btn)
 
-	# Cars panel — ScrollContainer so it handles many cars gracefully
+	# Cars panel
 	cars_panel = ScrollContainer.new()
 	cars_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	cars_panel.visible = false
@@ -1088,25 +1104,13 @@ func _on_week_advanced(_week: int) -> void:
 	_show_tab(current_tab)
 
 func _on_season_ended(_season: int) -> void:
-	advance_button.text = "Start Season %d ▶" % (GameState.current_season + 1)
-	advance_button.disabled = false
-	advance_button.pressed.disconnect(_on_advance_pressed)
-	advance_button.pressed.connect(_on_new_season_pressed)
-	advance_to_race_button.disabled = true
-	advance_to_race_button.text = "⏭ Next Race"
-	_update_display()
-	_refresh_log()
-	_show_tab(current_tab)
+	## Show EndOfSeason screen instead of just updating the button
+	get_tree().change_scene_to_file("res://scenes/EndOfSeason.tscn")
 
 func _on_new_season_pressed() -> void:
 	GameState.start_new_season()
-	advance_button.text = "Advance Week ▶"
-	advance_button.pressed.disconnect(_on_new_season_pressed)
-	advance_button.pressed.connect(_on_advance_pressed)
-	advance_to_race_button.disabled = false
-	_update_display()
-	_refresh_log()
-	_show_tab("drivers")
+	## Show BeginOfSeason screen
+	get_tree().change_scene_to_file("res://scenes/BeginOfSeason.tscn")
 
 func _on_campus_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/Campus.tscn")
@@ -1152,12 +1156,311 @@ func _on_quit_pressed() -> void:
 			get_tree().quit()
 	)
 
+func _show_menu_popup() -> void:
+	## Remove any existing popup
+	if menu_popup != null and is_instance_valid(menu_popup):
+		menu_popup.queue_free()
+
+	## Dim overlay
+	var dim = ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.65)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.gui_input.connect(func(event):
+		if event is InputEventMouseButton and event.pressed:
+			menu_popup.queue_free()
+			menu_popup = null)
+	add_child(dim)
+
+	## Centred card
+	menu_popup = PanelContainer.new()
+	menu_popup.custom_minimum_size = Vector2(340, 0)
+	## Position: horizontally left of centre, vertically upper quarter
+	menu_popup.set_anchor(SIDE_LEFT,   0.5)
+	menu_popup.set_anchor(SIDE_RIGHT,  0.5)
+	menu_popup.set_anchor(SIDE_TOP,    0.15)
+	menu_popup.set_anchor(SIDE_BOTTOM, 0.15)
+	menu_popup.offset_left   = -250
+	menu_popup.offset_right  = 0
+	menu_popup.offset_top    = 0
+	menu_popup.offset_bottom = 0
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.10, 0.11, 0.15)
+	style.border_width_left = 2; style.border_width_right = 2
+	style.border_width_top = 2; style.border_width_bottom = 2
+	style.border_color = Color(0.30, 0.38, 0.52)
+	style.corner_radius_top_left = 8; style.corner_radius_top_right = 8
+	style.corner_radius_bottom_left = 8; style.corner_radius_bottom_right = 8
+	style.content_margin_left = 20; style.content_margin_right = 20
+	style.content_margin_top = 18; style.content_margin_bottom = 18
+	menu_popup.add_theme_stylebox_override("panel", style)
+	add_child(menu_popup)
+
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	menu_popup.add_child(vbox)
+
+	## Header row
+	var hdr = HBoxContainer.new()
+	var lbl = Label.new()
+	lbl.text = "☰  MENU"
+	lbl.add_theme_font_size_override("font_size", 18)
+	lbl.add_theme_color_override("font_color", Color.WHITE)
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hdr.add_child(lbl)
+	var close_btn = Button.new()
+	close_btn.text = "✕"
+	close_btn.custom_minimum_size = Vector2(32, 32)
+	close_btn.flat = true
+	close_btn.pressed.connect(func():
+		dim.queue_free()
+		menu_popup.queue_free()
+		menu_popup = null)
+	hdr.add_child(close_btn)
+	vbox.add_child(hdr)
+	vbox.add_child(HSeparator.new())
+
+	## Game info strip
+	for row in [
+		[Locale.t("lbl_season") + ":", "%d" % GameState.current_season],
+		[Locale.t("lbl_week") + ":",   "%d / 52" % GameState.current_week],
+		["Team:",    GameState.player_team.team_name if GameState.player_team else "—"],
+		["Balance:", "CR %s" % GameState._fmt_int(int(GameState.player_team.balance if GameState.player_team else 0))],
+	]:
+		var r = HBoxContainer.new()
+		r.add_theme_constant_override("separation", 8)
+		var k = Label.new(); k.text = row[0]
+		k.custom_minimum_size = Vector2(80, 0)
+		k.add_theme_font_size_override("font_size", 12)
+		k.modulate = Color(0.5, 0.5, 0.5)
+		r.add_child(k)
+		var v = Label.new(); v.text = row[1]
+		v.add_theme_font_size_override("font_size", 12)
+		r.add_child(v)
+		vbox.add_child(r)
+
+	vbox.add_child(HSeparator.new())
+
+	## Action buttons
+	const ACTIONS = [
+		["🏁  New Game",    "new_game", Color(0.15, 0.38, 0.55)],
+		["💾  Save Game",   "save",     Color(0.14, 0.42, 0.18)],
+		["📂  Load Game",   "load",     Color(0.18, 0.22, 0.30)],
+		["⚙   Settings",   "settings", Color(0.22, 0.18, 0.30)],
+		["❌  Quit",        "quit",     Color(0.40, 0.12, 0.12)],
+	]
+	for action in ACTIONS:
+		var btn = Button.new()
+		btn.text = action[0]
+		btn.custom_minimum_size = Vector2(0, 44)
+		btn.add_theme_font_size_override("font_size", 15)
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var btn_style = StyleBoxFlat.new()
+		btn_style.bg_color = action[2]
+		btn_style.corner_radius_top_left = 5; btn_style.corner_radius_top_right = 5
+		btn_style.corner_radius_bottom_left = 5; btn_style.corner_radius_bottom_right = 5
+		btn_style.content_margin_top = 4; btn_style.content_margin_bottom = 4
+		btn.add_theme_stylebox_override("normal", btn_style)
+		var hover = btn_style.duplicate()
+		hover.bg_color = action[2].lightened(0.12)
+		btn.add_theme_stylebox_override("hover", hover)
+		var action_id = action[1]
+		var dim_ref = dim
+		btn.pressed.connect(func():
+			dim_ref.queue_free()
+			menu_popup.queue_free()
+			menu_popup = null
+			_on_menu_action(action_id))
+		vbox.add_child(btn)
+
+func _on_menu_action(action: String) -> void:
+	match action:
+		"new_game":
+			_show_confirmation(
+				"Start a new game?\nAll unsaved progress will be lost.",
+				func(): get_tree().change_scene_to_file("res://scenes/NewGame.tscn"))
+		"save":
+			GameState.save_game()
+			_show_notification("✅ " + Locale.t("menu_saved"))
+		"load":
+			_show_load_picker()
+		"settings":
+			_show_notification("⚙ Settings coming soon.")
+		"quit":
+			_show_confirmation(
+				Locale.t("menu_quit_confirm"),
+				func(): get_tree().quit())
+
 func _make_resource_label(_prefix: String, color: Color) -> Label:
 	var label = Label.new()
 	label.add_theme_font_size_override("font_size", 15)
 	label.add_theme_color_override("font_color", color)
 	label.custom_minimum_size = Vector2(130, 0)
 	return label
+
+
+func _read_save_meta(path: String) -> Dictionary:
+	if not FileAccess.file_exists(path): return {}
+	var file = FileAccess.open(path, FileAccess.READ)
+	if not file: return {}
+	var txt = file.get_as_text()
+	file.close()
+	var json = JSON.new()
+	if json.parse(txt) != OK: return {}
+	var data = json.get_data()
+	if not data is Dictionary: return {}
+	return {
+		"season":   data.get("current_season", 0),
+		"week":     data.get("current_week", 0),
+		"balance":  data.get("player_team", {}).get("balance", 0.0) \
+			if data.get("player_team") is Dictionary else 0.0,
+		"team":     data.get("player_team", {}).get("team_name", "?") \
+			if data.get("player_team") is Dictionary else "?",
+		"modified": FileAccess.get_modified_time(path),
+	}
+
+
+func _show_load_picker() -> void:
+	if menu_popup != null and is_instance_valid(menu_popup):
+		menu_popup.queue_free()
+
+	var dim = ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.65)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(dim)
+
+	menu_popup = PanelContainer.new()
+	menu_popup.custom_minimum_size = Vector2(420, 0)
+	menu_popup.set_anchor(SIDE_LEFT,   0.5)
+	menu_popup.set_anchor(SIDE_RIGHT,  0.5)
+	menu_popup.set_anchor(SIDE_TOP,    0.15)
+	menu_popup.set_anchor(SIDE_BOTTOM, 0.15)
+	menu_popup.offset_left   = -250
+	menu_popup.offset_right  = 0
+	menu_popup.offset_top    = 0
+	menu_popup.offset_bottom = 0
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.10, 0.11, 0.15)
+	style.border_width_left = 2; style.border_width_right = 2
+	style.border_width_top = 2; style.border_width_bottom = 2
+	style.border_color = Color(0.30, 0.38, 0.52)
+	style.corner_radius_top_left = 8; style.corner_radius_top_right = 8
+	style.corner_radius_bottom_left = 8; style.corner_radius_bottom_right = 8
+	style.content_margin_left = 20; style.content_margin_right = 20
+	style.content_margin_top = 18; style.content_margin_bottom = 18
+	menu_popup.add_theme_stylebox_override("panel", style)
+	add_child(menu_popup)
+
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	menu_popup.add_child(vbox)
+
+	## Header
+	var hdr = HBoxContainer.new()
+	var lbl_title = Label.new()
+	lbl_title.text = "📂  LOAD GAME"
+	lbl_title.add_theme_font_size_override("font_size", 16)
+	lbl_title.add_theme_color_override("font_color", Color.WHITE)
+	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hdr.add_child(lbl_title)
+	var close_btn = Button.new()
+	close_btn.text = "✕"; close_btn.flat = true
+	close_btn.custom_minimum_size = Vector2(32, 32)
+	close_btn.pressed.connect(func():
+		dim.queue_free()
+		menu_popup.queue_free(); menu_popup = null)
+	hdr.add_child(close_btn)
+	vbox.add_child(hdr)
+	vbox.add_child(HSeparator.new())
+
+	## Slot list
+	const SLOTS = [
+		["Manual Save", "user://save_game.json"],
+		["Autosave 1",  "user://autosave_0.json"],
+		["Autosave 2",  "user://autosave_1.json"],
+		["Autosave 3",  "user://autosave_2.json"],
+		["Autosave 4",  "user://autosave_3.json"],
+	]
+
+	var any_found = false
+	for slot in SLOTS:
+		var label = slot[0]
+		var path  = slot[1]
+		var meta  = _read_save_meta(path)
+
+		var sp = PanelContainer.new()
+		sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var sp_style = StyleBoxFlat.new()
+		sp_style.bg_color = Color(0.13, 0.16, 0.22) if not meta.is_empty() \
+			else Color(0.09, 0.10, 0.13)
+		sp_style.corner_radius_top_left = 5; sp_style.corner_radius_top_right = 5
+		sp_style.corner_radius_bottom_left = 5; sp_style.corner_radius_bottom_right = 5
+		sp_style.content_margin_left = 12; sp_style.content_margin_right = 12
+		sp_style.content_margin_top = 8; sp_style.content_margin_bottom = 8
+		sp.add_theme_stylebox_override("panel", sp_style)
+
+		var row = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		sp.add_child(row)
+
+		var info = VBoxContainer.new()
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		info.add_theme_constant_override("separation", 3)
+		row.add_child(info)
+
+		var lbl_slot = Label.new()
+		lbl_slot.text = label
+		lbl_slot.add_theme_font_size_override("font_size", 13)
+		lbl_slot.add_theme_color_override("font_color",
+			Color(0.8, 0.88, 1.0) if not meta.is_empty() else Color(0.4, 0.4, 0.4))
+		info.add_child(lbl_slot)
+
+		if meta.is_empty():
+			var lbl_e = Label.new()
+			lbl_e.text = "— empty —"
+			lbl_e.add_theme_font_size_override("font_size", 11)
+			lbl_e.modulate = Color(0.35, 0.35, 0.35)
+			info.add_child(lbl_e)
+		else:
+			any_found = true
+			var lbl_d = Label.new()
+			lbl_d.text = "%s  ·  S%d W%d  ·  CR %s" % [
+				meta["team"], meta["season"], meta["week"],
+				GameState._fmt_int(int(meta["balance"]))]
+			lbl_d.add_theme_font_size_override("font_size", 11)
+			lbl_d.modulate = Color(0.6, 0.6, 0.6)
+			info.add_child(lbl_d)
+
+			var ts = int(meta["modified"])
+			var lbl_t = Label.new()
+			lbl_t.text = Time.get_datetime_string_from_unix_time(ts).left(16).replace("T", "  ")
+			lbl_t.add_theme_font_size_override("font_size", 10)
+			lbl_t.modulate = Color(0.38, 0.38, 0.38)
+			info.add_child(lbl_t)
+
+			var btn = Button.new()
+			btn.text = "Load"
+			btn.custom_minimum_size = Vector2(70, 32)
+			btn.add_theme_font_size_override("font_size", 13)
+			var load_path = path
+			btn.pressed.connect(func():
+				dim.queue_free()
+				menu_popup.queue_free(); menu_popup = null
+				GameState.load_game(load_path)
+				_update_display()
+				_refresh_log()
+				_show_tab("drivers"))
+			row.add_child(btn)
+
+		vbox.add_child(sp)
+
+	if not any_found:
+		var lbl_none = Label.new()
+		lbl_none.text = "No save files found."
+		lbl_none.modulate = Color(0.5, 0.5, 0.5)
+		lbl_none.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vbox.add_child(lbl_none)
 
 func _refresh_cars() -> void:
 	for child in cars_box.get_children():
@@ -1400,9 +1703,11 @@ func _get_todo_destination(task: String) -> String:
 	## Car condition
 	if "condition critical" in task or "Garage" in task:
 		return "res://scenes/buildings/Garage.tscn"
-	## Contracts
+	## Contracts — driver tasks have no role in brackets, staff tasks do e.g. "(Race Mechanic)"
 	if "contract expires" in task:
-		return "res://scenes/Staff.tscn"
+		if "(" in task:  ## Has a role in brackets → staff
+			return "res://scenes/Staff.tscn"
+		return "res://scenes/Drivers.tscn"
 	## R&D → WRA → CNC → Garage pipeline
 	if "submit to WRA" in task or "Blueprint ready" in task:
 		return "res://scenes/buildings/HQ.tscn"
@@ -1512,10 +1817,9 @@ func _show_bankruptcy_screen() -> void:
 	center.add_child(btn_dismiss)
 
 func _bankruptcy_btn(title: String, desc: String, border_color: Color) -> Button:
-	## Returns a styled Button so .pressed can be connected directly.
-	## Visual: left accent border + title + desc, dark background.
 	var btn = Button.new()
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn.custom_minimum_size = Vector2(0, 70)
 	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 
 	var style_normal = StyleBoxFlat.new()
@@ -1525,7 +1829,7 @@ func _bankruptcy_btn(title: String, desc: String, border_color: Color) -> Button
 	style_normal.corner_radius_top_left = 5; style_normal.corner_radius_top_right = 5
 	style_normal.corner_radius_bottom_left = 5; style_normal.corner_radius_bottom_right = 5
 	style_normal.content_margin_left = 16; style_normal.content_margin_right = 16
-	style_normal.content_margin_top = 10; style_normal.content_margin_bottom = 10
+	style_normal.content_margin_top = 12; style_normal.content_margin_bottom = 12
 	btn.add_theme_stylebox_override("normal", style_normal)
 
 	var style_hover = style_normal.duplicate()
@@ -1536,10 +1840,11 @@ func _bankruptcy_btn(title: String, desc: String, border_color: Color) -> Button
 	style_pressed_sb.bg_color = Color(0.08, 0.09, 0.12)
 	btn.add_theme_stylebox_override("pressed", style_pressed_sb)
 
-	## Embed title + desc as a VBoxContainer inside the Button
 	var vb = VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 3)
+	vb.add_theme_constant_override("separation", 5)
 	vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vb.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	btn.add_child(vb)
 
 	var lt = Label.new()
@@ -1552,7 +1857,7 @@ func _bankruptcy_btn(title: String, desc: String, border_color: Color) -> Button
 	var ld = Label.new()
 	ld.text = desc
 	ld.add_theme_font_size_override("font_size", 11)
-	ld.modulate = Color(0.65, 0.65, 0.65)
+	ld.add_theme_color_override("font_color", Color(0.65, 0.65, 0.65))
 	ld.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	ld.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vb.add_child(ld)

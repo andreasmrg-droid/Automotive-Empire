@@ -1,8 +1,14 @@
 extends Node
-## Version: S15.2 — CEO salary 1%; RE 25% quality penalty; sponsor slot cap enforced;
-##                    sponsor offers expire 2-4 weeks; FU/SP TDL + auto-repair skip after last race;
-##                    WRA registration notification fixed (next_season math + seasons_in_cycle guard);
-##                    PitCrewArena build_cost 30K/10wks, upgrade 15K/4wks.
+## Version: S17.2 — Season wipe: car_installed_parts + cnc_parts_inventory cleared; provider parts slot-aware;
+##                    per-part condition degradation; bankruptcy fires on zero-expense negative balance too;
+##                    install_provider_part / remove_provider_part / swap_part_on_car added.
+##                    Driver.track_knowledge dict + update_track_knowledge(). Staff.track_knowledge_by_track
+##                    + get_track_knowledge_for() + update_track_knowledge(). Lap time formula uses
+##                    per-track knowledge for driver (-1% at TK100) and staff synergy.
+##                    Post-race growth now keyed to track_id. Save/load extended for both resources.
+##                    start_negotiation, submit_negotiation_offer, abandon_negotiation,
+##                    _apply_negotiation_result. Driver weekly_salary now per-driver.
+##                    Driver.gd/Staff.gd extended with bonus + release_clause fields.
 ##                    get_cnc_manufacturing_weeks/cr, calculate_final_reliability, _cnc_inv_key.
 ##                    Fixed _advance_cnc_production inventory format. RE completion now notifies WRA + P1 L2.
 
@@ -16,6 +22,13 @@ var player_team: Team = null
 var player_name: String = "Andreas"
 var player_team_name: String = "My Racing Team"
 var player_team_nationality: String = "British"
+## P18 New Game fields — set via setup_new_game, used in HQ, race sim, CEO card
+var ceo_sex:              String = "Male"
+var ceo_age:              int    = 30
+var team_color_primary:   Color  = Color(0.85, 0.15, 0.15)
+var team_color_secondary: Color  = Color(0.95, 0.95, 0.95)
+var game_difficulty:      String = "Realistic"
+var _starting_champ_id:   String = "C-001"  ## Set by setup_new_game, used by _setup_championship
 
 # All teams in the player's championship
 var all_teams: Array = []
@@ -87,6 +100,9 @@ var sponsor_no_points_streak: int = 0
 var pending_staff_filter:   String = ""  # e.g. "Team Principal", "CFO" — StaffHub reads this on _ready
 var pending_rnd_pillar:     int    = 1   # RnDStudio reads this to restore tab selection
 var pending_rnd_champ_id:   String = ""  # RnDStudio reads this to restore championship selection
+## Delayed championship assignments for TP/Strategist (applied at start of next week)
+## Format: { staff_id: champ_id }
+var pending_staff_assignments: Dictionary = {}
 
 # Resources
 var research_points: float = 0.0
@@ -118,7 +134,8 @@ var active_wra_submissions:  Array = []
 var wra_approved_blueprints: Array = []
 var wra_rejected_blueprints: Array = []
 ## CNC
-var car_installed_parts:  Dictionary = {}
+var car_installed_parts:  Dictionary = {}  ## CNC parts: { car_id: { pcode: {rel,qual,bp_id,part} } }
+var car_provider_parts:   Dictionary = {}  ## Provider (L0) parts: { car_id: { pcode: {condition} } }
 var pending_cnc_blueprint: String = ""
 ## Supply Contracts
 var active_supply_contracts: Array = []
@@ -137,6 +154,9 @@ var current_loan:           float  = 0.0
 var _prev_week_balance:     float  = 0.0
 ## Navigation
 var pending_hq_tab: String = ""
+## Set by _end_season / start_new_season so MainHub knows which screen to show on next load.
+## Values: "" (normal), "end_of_season", "begin_of_season"
+var pending_season_screen: String = ""
 
 ## CNC Production Queue: Array of Dicts
 ## {id, part, championship_id, weeks_total, weeks_remaining, cr_cost, quantity}
@@ -165,7 +185,37 @@ var part_inventory: Dictionary = {}
 
 # Part costs per championship (from CNC sheet — buy price per unit)
 const PART_COSTS = {
-	"C-001": {"Engine": 1950, "Aero": 1625, "Brakes": 487, "Suspension": 650, "Chassis": 1137, "Gearbox": 650},
+	## GK series — small, inexpensive kart parts
+	"C-001": {"Engine":  1950, "Aero":  1625, "Brakes":   487, "Suspension":   650, "Chassis":  1137, "Gearbox":   650},
+	"C-002": {"Engine":  3200, "Aero":  2800, "Brakes":   750, "Suspension":  1100, "Chassis":  1900, "Gearbox":  1100},
+	"C-003": {"Engine":  5500, "Aero":  4800, "Brakes":  1200, "Suspension":  1800, "Chassis":  3200, "Gearbox":  1800},
+	"C-004": {"Engine":  9000, "Aero":  8000, "Brakes":  2000, "Suspension":  3000, "Chassis":  5500, "Gearbox":  3000},
+	## Rally series
+	"C-005": {"Engine": 18000, "Aero": 12000, "Brakes":  5000, "Suspension":  8000, "Chassis": 15000, "Gearbox":  9000},
+	"C-006": {"Engine": 32000, "Aero": 22000, "Brakes":  9000, "Suspension": 14000, "Chassis": 27000, "Gearbox": 16000},
+	"C-007": {"Engine": 55000, "Aero": 38000, "Brakes": 15000, "Suspension": 24000, "Chassis": 46000, "Gearbox": 28000},
+	"C-008": {"Engine":120000, "Aero": 85000, "Brakes": 32000, "Suspension": 52000, "Chassis":100000, "Gearbox": 62000},
+	## Touring Car series
+	"C-009": {"Engine": 22000, "Aero": 18000, "Brakes":  7000, "Suspension": 11000, "Chassis": 19000, "Gearbox": 13000},
+	"C-010": {"Engine": 48000, "Aero": 40000, "Brakes": 15000, "Suspension": 24000, "Chassis": 42000, "Gearbox": 28000},
+	## Open Wheel series
+	"C-011": {"Engine": 28000, "Aero": 32000, "Brakes":  9000, "Suspension": 15000, "Chassis": 24000, "Gearbox": 18000},
+	"C-012": {"Engine": 65000, "Aero": 72000, "Brakes": 20000, "Suspension": 34000, "Chassis": 58000, "Gearbox": 42000},
+	"C-013": {"Engine":140000, "Aero":160000, "Brakes": 44000, "Suspension": 72000, "Chassis":128000, "Gearbox": 92000},
+	## Stock Car series
+	"C-014": {"Engine": 35000, "Aero": 15000, "Brakes": 12000, "Suspension": 18000, "Chassis": 28000, "Gearbox": 22000},
+	"C-015": {"Engine": 62000, "Aero": 26000, "Brakes": 21000, "Suspension": 32000, "Chassis": 50000, "Gearbox": 40000},
+	"C-016": {"Engine":110000, "Aero": 45000, "Brakes": 36000, "Suspension": 56000, "Chassis": 88000, "Gearbox": 70000},
+	"C-017": {"Engine":200000, "Aero": 80000, "Brakes": 65000, "Suspension":100000, "Chassis":160000, "Gearbox":125000},
+	## Endurance series
+	"C-018": {"Engine": 42000, "Aero": 36000, "Brakes": 14000, "Suspension": 22000, "Chassis": 38000, "Gearbox": 26000},
+	"C-019": {"Engine": 90000, "Aero": 78000, "Brakes": 30000, "Suspension": 48000, "Chassis": 82000, "Gearbox": 56000},
+	"C-020": {"Engine":200000, "Aero":175000, "Brakes": 66000, "Suspension":108000, "Chassis":185000, "Gearbox":125000},
+	## Formula series
+	"C-021": {"Engine": 45000, "Aero": 52000, "Brakes": 14000, "Suspension": 24000, "Chassis": 40000, "Gearbox": 30000},
+	"C-022": {"Engine":100000, "Aero":115000, "Brakes": 30000, "Suspension": 52000, "Chassis": 88000, "Gearbox": 66000},
+	"C-023": {"Engine":220000, "Aero":255000, "Brakes": 66000, "Suspension":115000, "Chassis":195000, "Gearbox":145000},
+	"C-024": {"Engine":520000, "Aero":600000, "Brakes":155000, "Suspension":270000, "Chassis":460000, "Gearbox":340000},
 }
 
 const PARTS_LIST = ["Aero", "Engine", "Gearbox", "Suspension", "Brakes", "Chassis"]
@@ -239,28 +289,30 @@ const PIT_CREW_REQUIRED = {
 
 ## Notification destination scene paths (S20)
 const NOTIFICATION_DESTINATIONS: Dictionary = {
-	"hq":            "res://scenes/buildings/HQ.tscn",
-	"logistics":     "res://scenes/buildings/Logistics.tscn",
-	"garage":        "res://scenes/buildings/Garage.tscn",
-	"rnd_studio":    "res://scenes/buildings/RnDStudio.tscn",
-	"cnc_plant":     "res://scenes/buildings/CNCPlant.tscn",
-	"staff_hub":     "res://scenes/Staff.tscn",
-	"drivers":       "res://scenes/Drivers.tscn",
-	"wra_office":    "res://scenes/buildings/HQ.tscn",
-	"racing_center": "res://scenes/buildings/RacingDept.tscn",
-	"campus":        "res://scenes/campus.tscn",
+	"hq":             "res://scenes/buildings/HQ.tscn",
+	"logistics":      "res://scenes/buildings/Logistics.tscn",
+	"garage":         "res://scenes/buildings/Garage.tscn",
+	"rnd_studio":     "res://scenes/buildings/RnDStudio.tscn",
+	"cnc_plant":      "res://scenes/buildings/CNCPlant.tscn",
+	"staff_hub":      "res://scenes/Staff.tscn",
+	"drivers":        "res://scenes/Drivers.tscn",
+	"wra_office":     "res://scenes/buildings/HQ.tscn",
+	"racing_center":  "res://scenes/buildings/RacingDept.tscn",
+	"campus":         "res://scenes/campus.tscn",
+	"financial_dept": "res://scenes/FinancialDept.tscn",
 }
 const NOTIFICATION_DESTINATION_LABELS: Dictionary = {
-	"hq":            "Go to HQ \u2192",
-	"logistics":     "Go to Logistics \u2192",
-	"garage":        "Go to Garage \u2192",
-	"rnd_studio":    "Go to R&D Studio \u2192",
-	"cnc_plant":     "Go to CNC Plant \u2192",
-	"staff_hub":     "Go to Staff Hub \u2192",
-	"drivers":       "Go to Drivers \u2192",
-	"wra_office":    "Go to WRA Office \u2192",
-	"racing_center": "Go to Racing Center \u2192",
-	"campus":        "Go to Campus \u2192",
+	"hq":             "Go to HQ \u2192",
+	"logistics":      "Go to Logistics \u2192",
+	"garage":         "Go to Garage \u2192",
+	"rnd_studio":     "Go to R&D Studio \u2192",
+	"cnc_plant":      "Go to CNC Plant \u2192",
+	"staff_hub":      "Go to Staff Hub \u2192",
+	"drivers":        "Go to Drivers \u2192",
+	"wra_office":     "Go to WRA Office \u2192",
+	"racing_center":  "Go to Racing Center \u2192",
+	"campus":         "Go to Campus \u2192",
+	"financial_dept": "Go to Financial Dept \u2192",
 }
 
 ## Championship short codes — used in RnD task ID generation
@@ -308,319 +360,324 @@ const CHAMPIONSHIP_REGISTRY = {
 ## Rally (C-005 to C-008): "laps" = total race distance km (staged rally format).
 ## Endurance (C-018 to C-020 / EPC): "laps" = hours of racing.
 ## All others: "laps" = number of racing laps, "lap_km" = km per lap.
+## Converts a track name to a stable lowercase slug used as track_id.
+## "Super Karting Raceway" → "super_karting_raceway"
+static func track_slug(name: String) -> String:
+	return name.to_lower().replace(" ", "_").replace("-", "_").replace("'", "").replace(",", "")
+
 const CHAMPIONSHIP_CALENDARS = {
 	"C-001": [ # GK Regional
-		{"round":1,"name":"Super Karting Raceway","week":6,"rain":0,"laps":20,"lap_km":0.42,"audience":120},
-		{"round":2,"name":"Riverside Kart Park","week":12,"rain":20,"laps":20,"lap_km":0.51,"audience":95},
-		{"round":3,"name":"The Brickyard Junior","week":18,"rain":0,"laps":24,"lap_km":0.40,"audience":150},
-		{"round":4,"name":"Ocean Breeze Arena","week":24,"rain":100,"laps":20,"lap_km":0.39,"audience":40},
-		{"round":5,"name":"Pinnacle Heights","week":32,"rain":10,"laps":20,"lap_km":0.55,"audience":180},
-		{"round":6,"name":"Metro Kart Complex","week":40,"rain":40,"laps":20,"lap_km":0.66,"audience":310},
+		{"round":1,"name":"Super Karting Raceway","track_id":"super_karting_raceway",    "week":6, "rain":0,  "laps":20,"lap_km":0.42,"audience":120},
+		{"round":2,"name":"Riverside Kart Park","track_id":"riverside_kart_park",       "week":12,"rain":20, "laps":20,"lap_km":0.51,"audience":95},
+		{"round":3,"name":"The Brickyard Junior","track_id":"the_brickyard_junior",      "week":18,"rain":0,  "laps":24,"lap_km":0.40,"audience":150},
+		{"round":4,"name":"Ocean Breeze Arena","track_id":"ocean_breeze_arena",         "week":24,"rain":100,"laps":20,"lap_km":0.39,"audience":40},
+		{"round":5,"name":"Pinnacle Heights","track_id":"pinnacle_heights",             "week":32,"rain":10, "laps":20,"lap_km":0.55,"audience":180},
+		{"round":6,"name":"Metro Kart Complex","track_id":"metro_kart_complex",         "week":40,"rain":40, "laps":20,"lap_km":0.66,"audience":310},
 	],
 	"C-002": [ # GK National
-		{"round":1,"name":"Super Karting Raceway","week":4,"rain":0,"laps":18,"lap_km":0.90,"audience":1200},
-		{"round":2,"name":"Valley International Karting","week":8,"rain":5,"laps":18,"lap_km":1.05,"audience":1450},
-		{"round":3,"name":"Ocean Breeze Arena","week":12,"rain":0,"laps":16,"lap_km":1.10,"audience":1900},
-		{"round":4,"name":"Black Tarmac Challenge","week":16,"rain":15,"laps":20,"lap_km":0.80,"audience":1650},
-		{"round":5,"name":"Speedway Center","week":20,"rain":0,"laps":20,"lap_km":0.95,"audience":2100},
-		{"round":6,"name":"High Plains Raceway","week":24,"rain":0,"laps":20,"lap_km":1.00,"audience":2300},
-		{"round":7,"name":"Kartland","week":28,"rain":45,"laps":15,"lap_km":1.02,"audience":850},
-		{"round":8,"name":"Metro Kart Complex","week":32,"rain":100,"laps":16,"lap_km":0.90,"audience":550},
-		{"round":9,"name":"PF International Kart Circuit","week":36,"rain":0,"laps":20,"lap_km":1.10,"audience":3400},
-		{"round":10,"name":"Trackhouse Motorplex","week":40,"rain":0,"laps":24,"lap_km":1.20,"audience":4800},
+		{"round":1, "name":"Super Karting Raceway",        "track_id":"super_karting_raceway",        "week":4, "rain":0,  "laps":18,"lap_km":0.90,"audience":1200},
+		{"round":2, "name":"Valley International Karting", "track_id":"valley_international_karting", "week":8, "rain":5,  "laps":18,"lap_km":1.05,"audience":1450},
+		{"round":3, "name":"Ocean Breeze Arena",           "track_id":"ocean_breeze_arena",           "week":12,"rain":0,  "laps":16,"lap_km":1.10,"audience":1900},
+		{"round":4, "name":"Black Tarmac Challenge",       "track_id":"black_tarmac_challenge",       "week":16,"rain":15, "laps":20,"lap_km":0.80,"audience":1650},
+		{"round":5, "name":"Speedway Center",              "track_id":"speedway_center",              "week":20,"rain":0,  "laps":20,"lap_km":0.95,"audience":2100},
+		{"round":6, "name":"High Plains Raceway",          "track_id":"high_plains_raceway",          "week":24,"rain":0,  "laps":20,"lap_km":1.00,"audience":2300},
+		{"round":7, "name":"Kartland",                     "track_id":"kartland",                     "week":28,"rain":45, "laps":15,"lap_km":1.02,"audience":850},
+		{"round":8, "name":"Metro Kart Complex",           "track_id":"metro_kart_complex",           "week":32,"rain":100,"laps":16,"lap_km":0.90,"audience":550},
+		{"round":9, "name":"PF International Kart Circuit","track_id":"pf_international_kart_circuit","week":36,"rain":0,  "laps":20,"lap_km":1.10,"audience":3400},
+		{"round":10,"name":"Trackhouse Motorplex","track_id":"trackhouse_motorplex",        "week":40,"rain":0,  "laps":24,"lap_km":1.20,"audience":4800},
 	],
 	"C-003": [ # GK Continental
-		{"round":1,"name":"Le Castellet","week":9,"rain":0,"laps":27,"lap_km":5.80,"audience":6500},
-		{"round":2,"name":"Spa","week":17,"rain":20,"laps":25,"lap_km":7.00,"audience":7200},
-		{"round":3,"name":"Chemnitz","week":25,"rain":15,"laps":24,"lap_km":4.20,"audience":8900},
-		{"round":4,"name":"Le Mans","week":33,"rain":25,"laps":26,"lap_km":13.60,"audience":14500},
+		{"round":1,"name":"Le Castellet","track_id":"le_castellet","week":9, "rain":0, "laps":27,"lap_km":5.80,"audience":6500},
+		{"round":2,"name":"Spa","track_id":"spa",        "week":17,"rain":20,"laps":25,"lap_km":7.00,"audience":7200},
+		{"round":3,"name":"Chemnitz","track_id":"chemnitz",   "week":25,"rain":15,"laps":24,"lap_km":4.20,"audience":8900},
+		{"round":4,"name":"Le Mans","track_id":"le_mans",    "week":33,"rain":25,"laps":26,"lap_km":13.60,"audience":14500},
 	],
 	"C-004": [ # GK World
-		{"round":1,"name":"Lemans Karting International","week":40,"rain":0,"laps":28,"lap_km":1.20,"audience":22000},
+		{"round":1,"name":"Lemans Karting International","track_id":"lemans_karting_international","week":40,"rain":0,"laps":28,"lap_km":1.20,"audience":22000},
 	],
 	"C-005": [ # RALLY4
-		{"round":1,"name":"Sweden","week":7,"rain":100,"laps":305,"lap_km":1.0,"audience":45000},
-		{"round":2,"name":"Croatia","week":15,"rain":80,"laps":289,"lap_km":1.0,"audience":62000},
-		{"round":3,"name":"Portugal","week":19,"rain":0,"laps":345,"lap_km":1.0,"audience":88000},
-		{"round":4,"name":"Finland","week":31,"rain":20,"laps":320,"lap_km":1.0,"audience":115000},
-		{"round":5,"name":"Chile","week":37,"rain":60,"laps":313,"lap_km":1.0,"audience":38000},
+		{"round":1,"name":"Sweden","track_id":"sweden", "week":7, "rain":100,"laps":305,"lap_km":1.0,"audience":45000},
+		{"round":2,"name":"Croatia","track_id":"croatia","week":15,"rain":80, "laps":289,"lap_km":1.0,"audience":62000},
+		{"round":3,"name":"Portugal","track_id":"portugal","week":19,"rain":0,  "laps":345,"lap_km":1.0,"audience":88000},
+		{"round":4,"name":"Finland","track_id":"finland","week":31,"rain":20, "laps":320,"lap_km":1.0,"audience":115000},
+		{"round":5,"name":"Chile","track_id":"chile",  "week":37,"rain":60, "laps":313,"lap_km":1.0,"audience":38000},
 	],
 	"C-006": [ # RALLY3
-		{"round":1,"name":"Monte-Carlo","week":4,"rain":0,"laps":325,"lap_km":1.0,"audience":95000},
-		{"round":2,"name":"Kenya","week":11,"rain":0,"laps":368,"lap_km":1.0,"audience":140000},
-		{"round":3,"name":"Croatia","week":15,"rain":80,"laps":300,"lap_km":1.0,"audience":85000},
-		{"round":4,"name":"Islas Canarias","week":17,"rain":10,"laps":225,"lap_km":1.0,"audience":110000},
-		{"round":5,"name":"Greece","week":26,"rain":0,"laps":310,"lap_km":1.0,"audience":78000},
-		{"round":6,"name":"Paraguay","week":35,"rain":0,"laps":319,"lap_km":1.0,"audience":64000},
-		{"round":7,"name":"Sardegna","week":41,"rain":50,"laps":332,"lap_km":1.0,"audience":125000},
+		{"round":1,"name":"Monte-Carlo","track_id":"monte_carlo",   "week":4, "rain":0, "laps":325,"lap_km":1.0,"audience":95000},
+		{"round":2,"name":"Kenya","track_id":"kenya",         "week":11,"rain":0, "laps":368,"lap_km":1.0,"audience":140000},
+		{"round":3,"name":"Croatia","track_id":"croatia",       "week":15,"rain":80,"laps":300,"lap_km":1.0,"audience":85000},
+		{"round":4,"name":"Islas Canarias","track_id":"islas_canarias","week":17,"rain":10,"laps":225,"lap_km":1.0,"audience":110000},
+		{"round":5,"name":"Greece","track_id":"greece",        "week":26,"rain":0, "laps":310,"lap_km":1.0,"audience":78000},
+		{"round":6,"name":"Paraguay","track_id":"paraguay",      "week":35,"rain":0, "laps":319,"lap_km":1.0,"audience":64000},
+		{"round":7,"name":"Sardegna","track_id":"sardegna",      "week":41,"rain":50,"laps":332,"lap_km":1.0,"audience":125000},
 	],
 	"C-007": [ # RALLY2
-		{"round":1,"name":"Monte-Carlo","week":4,"rain":50,"laps":339,"lap_km":1.0,"audience":185000},
-		{"round":2,"name":"Sweden","week":7,"rain":80,"laps":301,"lap_km":1.0,"audience":120000},
-		{"round":3,"name":"Kenya","week":11,"rain":0,"laps":351,"lap_km":1.0,"audience":260000},
-		{"round":4,"name":"Croatia","week":15,"rain":30,"laps":300,"lap_km":1.0,"audience":145000},
-		{"round":5,"name":"Islas Canarias","week":17,"rain":0,"laps":322,"lap_km":1.0,"audience":165000},
-		{"round":6,"name":"Portugal","week":19,"rain":0,"laps":330,"lap_km":1.0,"audience":310000},
-		{"round":7,"name":"Japan","week":22,"rain":20,"laps":303,"lap_km":1.0,"audience":190000},
-		{"round":8,"name":"Greece","week":26,"rain":0,"laps":329,"lap_km":1.0,"audience":155000},
-		{"round":9,"name":"Estonia","week":29,"rain":30,"laps":315,"lap_km":1.0,"audience":135000},
-		{"round":10,"name":"Finland","week":31,"rain":0,"laps":317,"lap_km":1.0,"audience":380000},
-		{"round":11,"name":"Paraguay","week":35,"rain":0,"laps":310,"lap_km":1.0,"audience":110000},
-		{"round":12,"name":"Chile","week":37,"rain":60,"laps":312,"lap_km":1.0,"audience":95000},
-		{"round":13,"name":"Sardegna","week":40,"rain":40,"laps":320,"lap_km":1.0,"audience":175000},
-		{"round":14,"name":"Saudi Arabia","week":46,"rain":0,"laps":335,"lap_km":1.0,"audience":115000},
+		{"round":1, "name":"Monte-Carlo",    "track_id":"monte_carlo",    "week":4, "rain":50,"laps":339,"lap_km":1.0,"audience":185000},
+		{"round":2, "name":"Sweden",         "track_id":"sweden",         "week":7, "rain":80,"laps":301,"lap_km":1.0,"audience":120000},
+		{"round":3, "name":"Kenya",          "track_id":"kenya",          "week":11,"rain":0, "laps":351,"lap_km":1.0,"audience":260000},
+		{"round":4, "name":"Croatia",        "track_id":"croatia",        "week":15,"rain":30,"laps":300,"lap_km":1.0,"audience":145000},
+		{"round":5, "name":"Islas Canarias", "track_id":"islas_canarias", "week":17,"rain":0, "laps":322,"lap_km":1.0,"audience":165000},
+		{"round":6, "name":"Portugal",       "track_id":"portugal",       "week":19,"rain":0, "laps":330,"lap_km":1.0,"audience":310000},
+		{"round":7, "name":"Japan",          "track_id":"japan",          "week":22,"rain":20,"laps":303,"lap_km":1.0,"audience":190000},
+		{"round":8, "name":"Greece",         "track_id":"greece",         "week":26,"rain":0, "laps":329,"lap_km":1.0,"audience":155000},
+		{"round":9, "name":"Estonia",        "track_id":"estonia",        "week":29,"rain":30,"laps":315,"lap_km":1.0,"audience":135000},
+		{"round":10,"name":"Finland","track_id":"finland",       "week":31,"rain":0, "laps":317,"lap_km":1.0,"audience":380000},
+		{"round":11,"name":"Paraguay","track_id":"paraguay",      "week":35,"rain":0, "laps":310,"lap_km":1.0,"audience":110000},
+		{"round":12,"name":"Chile","track_id":"chile",         "week":37,"rain":60,"laps":312,"lap_km":1.0,"audience":95000},
+		{"round":13,"name":"Sardegna","track_id":"sardegna",      "week":40,"rain":40,"laps":320,"lap_km":1.0,"audience":175000},
+		{"round":14,"name":"Saudi Arabia","track_id":"saudi_arabia",  "week":46,"rain":0, "laps":335,"lap_km":1.0,"audience":115000},
 	],
 	"C-008": [ # Premier Rally (WRC)
-		{"round":1,"name":"Monte-Carlo","week":4,"rain":50,"laps":339,"lap_km":1.0,"audience":310000},
-		{"round":2,"name":"Sweden","week":7,"rain":80,"laps":301,"lap_km":1.0,"audience":220000},
-		{"round":3,"name":"Kenya","week":11,"rain":0,"laps":351,"lap_km":1.0,"audience":480000},
-		{"round":4,"name":"Croatia","week":15,"rain":30,"laps":300,"lap_km":1.0,"audience":245000},
-		{"round":5,"name":"Islas Canarias","week":17,"rain":0,"laps":322,"lap_km":1.0,"audience":285000},
-		{"round":6,"name":"Portugal","week":19,"rain":0,"laps":330,"lap_km":1.0,"audience":520000},
-		{"round":7,"name":"Japan","week":22,"rain":20,"laps":303,"lap_km":1.0,"audience":340000},
-		{"round":8,"name":"Greece","week":26,"rain":0,"laps":329,"lap_km":1.0,"audience":290000},
-		{"round":9,"name":"Estonia","week":29,"rain":30,"laps":315,"lap_km":1.0,"audience":260000},
-		{"round":10,"name":"Finland","week":31,"rain":0,"laps":317,"lap_km":1.0,"audience":680000},
-		{"round":11,"name":"Paraguay","week":35,"rain":0,"laps":310,"lap_km":1.0,"audience":215000},
-		{"round":12,"name":"Chile","week":37,"rain":60,"laps":312,"lap_km":1.0,"audience":185000},
-		{"round":13,"name":"Sardegna","week":40,"rain":40,"laps":320,"lap_km":1.0,"audience":345000},
-		{"round":14,"name":"Saudi Arabia","week":46,"rain":0,"laps":335,"lap_km":1.0,"audience":240000},
+		{"round":1,"name":"Monte-Carlo","track_id":"monte_carlo","week":4,"rain":50,"laps":339,"lap_km":1.0,"audience":310000},
+		{"round":2,"name":"Sweden","track_id":"sweden","week":7,"rain":80,"laps":301,"lap_km":1.0,"audience":220000},
+		{"round":3,"name":"Kenya","track_id":"kenya","week":11,"rain":0,"laps":351,"lap_km":1.0,"audience":480000},
+		{"round":4,"name":"Croatia","track_id":"croatia","week":15,"rain":30,"laps":300,"lap_km":1.0,"audience":245000},
+		{"round":5,"name":"Islas Canarias","track_id":"islas_canarias","week":17,"rain":0,"laps":322,"lap_km":1.0,"audience":285000},
+		{"round":6,"name":"Portugal","track_id":"portugal","week":19,"rain":0,"laps":330,"lap_km":1.0,"audience":520000},
+		{"round":7,"name":"Japan","track_id":"japan","week":22,"rain":20,"laps":303,"lap_km":1.0,"audience":340000},
+		{"round":8,"name":"Greece","track_id":"greece","week":26,"rain":0,"laps":329,"lap_km":1.0,"audience":290000},
+		{"round":9,"name":"Estonia","track_id":"estonia","week":29,"rain":30,"laps":315,"lap_km":1.0,"audience":260000},
+		{"round":10,"name":"Finland","track_id":"finland","week":31,"rain":0,"laps":317,"lap_km":1.0,"audience":680000},
+		{"round":11,"name":"Paraguay","track_id":"paraguay","week":35,"rain":0,"laps":310,"lap_km":1.0,"audience":215000},
+		{"round":12,"name":"Chile","track_id":"chile","week":37,"rain":60,"laps":312,"lap_km":1.0,"audience":185000},
+		{"round":13,"name":"Sardegna","track_id":"sardegna","week":40,"rain":40,"laps":320,"lap_km":1.0,"audience":345000},
+		{"round":14,"name":"Saudi Arabia","track_id":"saudi_arabia","week":46,"rain":0,"laps":335,"lap_km":1.0,"audience":240000},
 	],
 	"C-009": [ # TC Sport (GT4)
-		{"round":1,"name":"Paul Ricard Opening Cup","week":8,"rain":0,"laps":32,"lap_km":5.8,"audience":12500},
-		{"round":2,"name":"Brands Hatch GP Challenge","week":14,"rain":30,"laps":37,"lap_km":3.9,"audience":18200},
-		{"round":3,"name":"Misano Night Sprint","week":20,"rain":0,"laps":35,"lap_km":4.2,"audience":14900},
-		{"round":4,"name":"Spa Mid-Season Classic","week":26,"rain":70,"laps":26,"lap_km":7.0,"audience":28000},
-		{"round":5,"name":"Hockenheimring Ring Battle","week":34,"rain":0,"laps":34,"lap_km":4.5,"audience":21500},
-		{"round":6,"name":"Barcelona","week":42,"rain":0,"laps":33,"lap_km":4.6,"audience":34200},
+		{"round":1,"name":"Paul Ricard Opening Cup","track_id":"paul_ricard_opening_cup","week":8,"rain":0,"laps":32,"lap_km":5.8,"audience":12500},
+		{"round":2,"name":"Brands Hatch GP Challenge","track_id":"brands_hatch_gp_challenge","week":14,"rain":30,"laps":37,"lap_km":3.9,"audience":18200},
+		{"round":3,"name":"Misano Night Sprint","track_id":"misano_night_sprint","week":20,"rain":0,"laps":35,"lap_km":4.2,"audience":14900},
+		{"round":4,"name":"Spa Mid-Season Classic","track_id":"spa_mid_season_classic","week":26,"rain":70,"laps":26,"lap_km":7.0,"audience":28000},
+		{"round":5,"name":"Hockenheimring Ring Battle","track_id":"hockenheimring_ring_battle","week":34,"rain":0,"laps":34,"lap_km":4.5,"audience":21500},
+		{"round":6,"name":"Barcelona","track_id":"barcelona","week":42,"rain":0,"laps":33,"lap_km":4.6,"audience":34200},
 	],
 	"C-010": [ # TC Elite (GT3)
-		{"round":1,"name":"Bathurst 12 Hour","week":5,"rain":0,"laps":12,"lap_km":6.2,"audience":53000},
-		{"round":2,"name":"24h Nürburgring","week":22,"rain":75,"laps":24,"lap_km":25.4,"audience":235000},
-		{"round":3,"name":"24h Le Mans","week":24,"rain":35,"laps":24,"lap_km":13.6,"audience":332000},
-		{"round":4,"name":"24h Spa","week":26,"rain":45,"laps":24,"lap_km":7.0,"audience":85000},
-		{"round":5,"name":"Indianapolis 8 Hour","week":40,"rain":20,"laps":8,"lap_km":3.9,"audience":38000},
-		{"round":6,"name":"Kyalami 9 Hour","week":48,"rain":30,"laps":9,"lap_km":4.5,"audience":42500},
+		{"round":1,"name":"Bathurst 12 Hour","track_id":"bathurst_12_hour","week":5,"rain":0,"laps":12,"lap_km":6.2,"audience":53000},
+		{"round":2,"name":"24h Nürburgring","track_id":"24h_nürburgring","week":22,"rain":75,"laps":24,"lap_km":25.4,"audience":235000},
+		{"round":3,"name":"24h Le Mans","track_id":"24h_le_mans","week":24,"rain":35,"laps":24,"lap_km":13.6,"audience":332000},
+		{"round":4,"name":"24h Spa","track_id":"24h_spa","week":26,"rain":45,"laps":24,"lap_km":7.0,"audience":85000},
+		{"round":5,"name":"Indianapolis 8 Hour","track_id":"indianapolis_8_hour","week":40,"rain":20,"laps":8,"lap_km":3.9,"audience":38000},
+		{"round":6,"name":"Kyalami 9 Hour","track_id":"kyalami_9_hour","week":48,"rain":30,"laps":9,"lap_km":4.5,"audience":42500},
 	],
 	"C-011": [ # OWC Next Gen (USF Pro 2000)
-		{"round":1,"name":"St. Petersburg","week":10,"rain":0,"laps":25,"lap_km":1.8,"audience":42000},
-		{"round":2,"name":"Louisiana","week":14,"rain":10,"laps":15,"lap_km":4.3,"audience":11500},
-		{"round":3,"name":"Indianapolis","week":19,"rain":20,"laps":15,"lap_km":4.1,"audience":28000},
-		{"round":4,"name":"Freedom 90","week":21,"rain":0,"laps":75,"lap_km":1.1,"audience":14000},
-		{"round":5,"name":"Elkhart Lake","week":25,"rain":0,"laps":12,"lap_km":6.4,"audience":55000},
-		{"round":6,"name":"Lexington","week":27,"rain":50,"laps":20,"lap_km":3.4,"audience":32400},
-		{"round":7,"name":"Toronto","week":31,"rain":0,"laps":21,"lap_km":2.8,"audience":48000},
-		{"round":8,"name":"Portland","week":33,"rain":0,"laps":23,"lap_km":3.2,"audience":22500},
+		{"round":1,"name":"St. Petersburg","track_id":"st_petersburg","week":10,"rain":0,"laps":25,"lap_km":1.8,"audience":42000},
+		{"round":2,"name":"Louisiana","track_id":"louisiana","week":14,"rain":10,"laps":15,"lap_km":4.3,"audience":11500},
+		{"round":3,"name":"Indianapolis","track_id":"indianapolis","week":19,"rain":20,"laps":15,"lap_km":4.1,"audience":28000},
+		{"round":4,"name":"Freedom 90","track_id":"freedom_90","week":21,"rain":0,"laps":75,"lap_km":1.1,"audience":14000},
+		{"round":5,"name":"Elkhart Lake","track_id":"elkhart_lake","week":25,"rain":0,"laps":12,"lap_km":6.4,"audience":55000},
+		{"round":6,"name":"Lexington","track_id":"lexington","week":27,"rain":50,"laps":20,"lap_km":3.4,"audience":32400},
+		{"round":7,"name":"Toronto","track_id":"toronto","week":31,"rain":0,"laps":21,"lap_km":2.8,"audience":48000},
+		{"round":8,"name":"Portland","track_id":"portland","week":33,"rain":0,"laps":23,"lap_km":3.2,"audience":22500},
 	],
 	"C-012": [ # OWC Dev (Indy NXT)
-		{"round":1,"name":"Sakhir","week":9,"rain":0,"laps":22,"lap_km":5.4,"audience":95000},
-		{"round":2,"name":"Albert Park","week":11,"rain":20,"laps":23,"lap_km":5.3,"audience":125000},
-		{"round":3,"name":"Imola","week":20,"rain":15,"laps":22,"lap_km":4.9,"audience":88000},
-		{"round":4,"name":"Monaco","week":21,"rain":5,"laps":27,"lap_km":3.4,"audience":110000},
-		{"round":5,"name":"Barcelona","week":22,"rain":0,"laps":25,"lap_km":4.7,"audience":92000},
-		{"round":6,"name":"Spielberg","week":26,"rain":15,"laps":24,"lap_km":4.3,"audience":105000},
-		{"round":7,"name":"Silverstone","week":27,"rain":45,"laps":22,"lap_km":5.9,"audience":140000},
-		{"round":8,"name":"Spa-Francorchamps","week":30,"rain":45,"laps":15,"lap_km":7.0,"audience":115000},
-		{"round":9,"name":"Hungaroring","week":31,"rain":0,"laps":24,"lap_km":4.4,"audience":98000},
-		{"round":10,"name":"Monza","week":35,"rain":5,"laps":22,"lap_km":5.8,"audience":135000},
-		{"round":11,"name":"Baku","week":37,"rain":0,"laps":20,"lap_km":6.0,"audience":68000},
-		{"round":12,"name":"Lusail","week":47,"rain":0,"laps":21,"lap_km":5.4,"audience":42000},
-		{"round":13,"name":"Yas Marina","week":48,"rain":0,"laps":22,"lap_km":5.3,"audience":95000},
-		{"round":14,"name":"Sakhir Sprint","week":15,"rain":0,"laps":19,"lap_km":5.4,"audience":90000},
+		{"round":1,"name":"Sakhir","track_id":"sakhir","week":9,"rain":0,"laps":22,"lap_km":5.4,"audience":95000},
+		{"round":2,"name":"Albert Park","track_id":"albert_park","week":11,"rain":20,"laps":23,"lap_km":5.3,"audience":125000},
+		{"round":3,"name":"Imola","track_id":"imola","week":20,"rain":15,"laps":22,"lap_km":4.9,"audience":88000},
+		{"round":4,"name":"Monaco","track_id":"monaco","week":21,"rain":5,"laps":27,"lap_km":3.4,"audience":110000},
+		{"round":5,"name":"Barcelona","track_id":"barcelona","week":22,"rain":0,"laps":25,"lap_km":4.7,"audience":92000},
+		{"round":6,"name":"Spielberg","track_id":"spielberg","week":26,"rain":15,"laps":24,"lap_km":4.3,"audience":105000},
+		{"round":7,"name":"Silverstone","track_id":"silverstone","week":27,"rain":45,"laps":22,"lap_km":5.9,"audience":140000},
+		{"round":8,"name":"Spa-Francorchamps","track_id":"spa_francorchamps","week":30,"rain":45,"laps":15,"lap_km":7.0,"audience":115000},
+		{"round":9,"name":"Hungaroring","track_id":"hungaroring","week":31,"rain":0,"laps":24,"lap_km":4.4,"audience":98000},
+		{"round":10,"name":"Monza","track_id":"monza","week":35,"rain":5,"laps":22,"lap_km":5.8,"audience":135000},
+		{"round":11,"name":"Baku","track_id":"baku","week":37,"rain":0,"laps":20,"lap_km":6.0,"audience":68000},
+		{"round":12,"name":"Lusail","track_id":"lusail","week":47,"rain":0,"laps":21,"lap_km":5.4,"audience":42000},
+		{"round":13,"name":"Yas Marina","track_id":"yas_marina","week":48,"rain":0,"laps":22,"lap_km":5.3,"audience":95000},
+		{"round":14,"name":"Sakhir Sprint","track_id":"sakhir_sprint","week":15,"rain":0,"laps":19,"lap_km":5.4,"audience":90000},
 	],
 	"C-013": [ # OWC Pro (Indy NTT)
-		{"round":1,"name":"St. Petersburg","week":9,"rain":0,"laps":100,"lap_km":1.8,"audience":145000},
-		{"round":2,"name":"Long Beach","week":16,"rain":0,"laps":85,"lap_km":3.1,"audience":192000},
-		{"round":3,"name":"Alabama","week":17,"rain":15,"laps":90,"lap_km":3.5,"audience":82000},
-		{"round":4,"name":"Sonsio","week":19,"rain":0,"laps":85,"lap_km":4.1,"audience":68000},
-		{"round":5,"name":"Indianapolis 500","week":21,"rain":0,"laps":200,"lap_km":4.0,"audience":345000},
-		{"round":6,"name":"Detroit","week":22,"rain":100,"laps":100,"lap_km":2.6,"audience":110000},
-		{"round":7,"name":"XPEL Grand Prix","week":23,"rain":0,"laps":55,"lap_km":6.4,"audience":125000},
-		{"round":8,"name":"Monterey","week":25,"rain":0,"laps":95,"lap_km":3.6,"audience":84000},
-		{"round":9,"name":"Toronto","week":29,"rain":50,"laps":85,"lap_km":2.8,"audience":95000},
-		{"round":10,"name":"Homefront 250","week":32,"rain":0,"laps":250,"lap_km":1.4,"audience":48000},
-		{"round":11,"name":"One Step 250","week":33,"rain":0,"laps":250,"lap_km":1.4,"audience":52000},
-		{"round":12,"name":"GOMEX Indy 250","week":34,"rain":0,"laps":260,"lap_km":1.5,"audience":41000},
-		{"round":13,"name":"Portland Grand","week":35,"rain":0,"laps":110,"lap_km":3.2,"audience":46000},
-		{"round":14,"name":"Milwaukee Mile 1","week":36,"rain":0,"laps":250,"lap_km":1.6,"audience":31000},
-		{"round":15,"name":"Milwaukee Mile 2","week":37,"rain":0,"laps":250,"lap_km":1.6,"audience":35000},
-		{"round":16,"name":"Music City Grand Prix","week":38,"rain":0,"laps":206,"lap_km":1.6,"audience":68000},
-		{"round":17,"name":"Nashville Fall","week":46,"rain":0,"laps":180,"lap_km":2.1,"audience":72000},
+		{"round":1,"name":"St. Petersburg","track_id":"st_petersburg","week":9,"rain":0,"laps":100,"lap_km":1.8,"audience":145000},
+		{"round":2,"name":"Long Beach","track_id":"long_beach","week":16,"rain":0,"laps":85,"lap_km":3.1,"audience":192000},
+		{"round":3,"name":"Alabama","track_id":"alabama","week":17,"rain":15,"laps":90,"lap_km":3.5,"audience":82000},
+		{"round":4,"name":"Sonsio","track_id":"sonsio","week":19,"rain":0,"laps":85,"lap_km":4.1,"audience":68000},
+		{"round":5,"name":"Indianapolis 500","track_id":"indianapolis_500","week":21,"rain":0,"laps":200,"lap_km":4.0,"audience":345000},
+		{"round":6,"name":"Detroit","track_id":"detroit","week":22,"rain":100,"laps":100,"lap_km":2.6,"audience":110000},
+		{"round":7,"name":"XPEL Grand Prix","track_id":"xpel_grand_prix","week":23,"rain":0,"laps":55,"lap_km":6.4,"audience":125000},
+		{"round":8,"name":"Monterey","track_id":"monterey","week":25,"rain":0,"laps":95,"lap_km":3.6,"audience":84000},
+		{"round":9,"name":"Toronto","track_id":"toronto","week":29,"rain":50,"laps":85,"lap_km":2.8,"audience":95000},
+		{"round":10,"name":"Homefront 250","track_id":"homefront_250","week":32,"rain":0,"laps":250,"lap_km":1.4,"audience":48000},
+		{"round":11,"name":"One Step 250","track_id":"one_step_250","week":33,"rain":0,"laps":250,"lap_km":1.4,"audience":52000},
+		{"round":12,"name":"GOMEX Indy 250","track_id":"gomex_indy_250","week":34,"rain":0,"laps":260,"lap_km":1.5,"audience":41000},
+		{"round":13,"name":"Portland Grand","track_id":"portland_grand","week":35,"rain":0,"laps":110,"lap_km":3.2,"audience":46000},
+		{"round":14,"name":"Milwaukee Mile 1","track_id":"milwaukee_mile_1","week":36,"rain":0,"laps":250,"lap_km":1.6,"audience":31000},
+		{"round":15,"name":"Milwaukee Mile 2","track_id":"milwaukee_mile_2","week":37,"rain":0,"laps":250,"lap_km":1.6,"audience":35000},
+		{"round":16,"name":"Music City Grand Prix","track_id":"music_city_grand_prix","week":38,"rain":0,"laps":206,"lap_km":1.6,"audience":68000},
+		{"round":17,"name":"Nashville Fall","track_id":"nashville_fall","week":46,"rain":0,"laps":180,"lap_km":2.1,"audience":72000},
 	],
 	"C-014": [ # SC Dev (ARCA)
-		{"round":1,"name":"Florida 250","week":7,"rain":0,"laps":100,"lap_km":4.0,"audience":68000},
-		{"round":2,"name":"Fr8Auctions 208","week":8,"rain":0,"laps":135,"lap_km":1.6,"audience":41000},
-		{"round":3,"name":"Foundation 200","week":9,"rain":0,"laps":134,"lap_km":2.4,"audience":34500},
-		{"round":4,"name":"Bristol Dirt Track","week":11,"rain":0,"laps":150,"lap_km":0.9,"audience":52000},
-		{"round":5,"name":"XPEL 225","week":12,"rain":10,"laps":42,"lap_km":5.5,"audience":64000},
-		{"round":6,"name":"SpeedyCash 250","week":15,"rain":0,"laps":167,"lap_km":2.4,"audience":38000},
-		{"round":7,"name":"Long John Silvers 200","week":16,"rain":0,"laps":200,"lap_km":0.8,"audience":43000},
-		{"round":8,"name":"Heart of America 200","week":18,"rain":0,"laps":134,"lap_km":2.4,"audience":29000},
-		{"round":9,"name":"South Carolina 200","week":19,"rain":0,"laps":147,"lap_km":2.2,"audience":58000},
-		{"round":10,"name":"North Wilkesboro 250","week":20,"rain":100,"laps":250,"lap_km":1.0,"audience":22500},
-		{"round":11,"name":"NC Education 200","week":21,"rain":0,"laps":134,"lap_km":2.4,"audience":47000},
-		{"round":12,"name":"Toyota 200","week":22,"rain":0,"laps":160,"lap_km":1.5,"audience":39000},
-		{"round":13,"name":"Clean Harbors 250","week":25,"rain":0,"laps":250,"lap_km":0.5,"audience":24000},
-		{"round":14,"name":"Rackley Roofing 200","week":26,"rain":0,"laps":150,"lap_km":1.6,"audience":31500},
-		{"round":15,"name":"CRC Brakleen 150","week":29,"rain":0,"laps":60,"lap_km":4.0,"audience":55000},
-		{"round":16,"name":"Worldwide Express 250","week":31,"rain":0,"laps":250,"lap_km":0.9,"audience":36000},
-		{"round":17,"name":"Lucas Oil 200","week":32,"rain":10,"laps":200,"lap_km":1.1,"audience":18200},
-		{"round":18,"name":"Clean Harbors 175","week":35,"rain":0,"laps":175,"lap_km":1.6,"audience":21000},
-		{"round":19,"name":"UNOH 200","week":38,"rain":0,"laps":200,"lap_km":0.9,"audience":62000},
-		{"round":20,"name":"Kansas Fall 200","week":39,"rain":0,"laps":134,"lap_km":2.4,"audience":33000},
+		{"round":1,"name":"Florida 250","track_id":"florida_250","week":7,"rain":0,"laps":100,"lap_km":4.0,"audience":68000},
+		{"round":2,"name":"Fr8Auctions 208","track_id":"fr8auctions_208","week":8,"rain":0,"laps":135,"lap_km":1.6,"audience":41000},
+		{"round":3,"name":"Foundation 200","track_id":"foundation_200","week":9,"rain":0,"laps":134,"lap_km":2.4,"audience":34500},
+		{"round":4,"name":"Bristol Dirt Track","track_id":"bristol_dirt_track","week":11,"rain":0,"laps":150,"lap_km":0.9,"audience":52000},
+		{"round":5,"name":"XPEL 225","track_id":"xpel_225","week":12,"rain":10,"laps":42,"lap_km":5.5,"audience":64000},
+		{"round":6,"name":"SpeedyCash 250","track_id":"speedycash_250","week":15,"rain":0,"laps":167,"lap_km":2.4,"audience":38000},
+		{"round":7,"name":"Long John Silvers 200","track_id":"long_john_silvers_200","week":16,"rain":0,"laps":200,"lap_km":0.8,"audience":43000},
+		{"round":8,"name":"Heart of America 200","track_id":"heart_of_america_200","week":18,"rain":0,"laps":134,"lap_km":2.4,"audience":29000},
+		{"round":9,"name":"South Carolina 200","track_id":"south_carolina_200","week":19,"rain":0,"laps":147,"lap_km":2.2,"audience":58000},
+		{"round":10,"name":"North Wilkesboro 250","track_id":"north_wilkesboro_250","week":20,"rain":100,"laps":250,"lap_km":1.0,"audience":22500},
+		{"round":11,"name":"NC Education 200","track_id":"nc_education_200","week":21,"rain":0,"laps":134,"lap_km":2.4,"audience":47000},
+		{"round":12,"name":"Toyota 200","track_id":"toyota_200","week":22,"rain":0,"laps":160,"lap_km":1.5,"audience":39000},
+		{"round":13,"name":"Clean Harbors 250","track_id":"clean_harbors_250","week":25,"rain":0,"laps":250,"lap_km":0.5,"audience":24000},
+		{"round":14,"name":"Rackley Roofing 200","track_id":"rackley_roofing_200","week":26,"rain":0,"laps":150,"lap_km":1.6,"audience":31500},
+		{"round":15,"name":"CRC Brakleen 150","track_id":"crc_brakleen_150","week":29,"rain":0,"laps":60,"lap_km":4.0,"audience":55000},
+		{"round":16,"name":"Worldwide Express 250","track_id":"worldwide_express_250","week":31,"rain":0,"laps":250,"lap_km":0.9,"audience":36000},
+		{"round":17,"name":"Lucas Oil 200","track_id":"lucas_oil_200","week":32,"rain":10,"laps":200,"lap_km":1.1,"audience":18200},
+		{"round":18,"name":"Clean Harbors 175","track_id":"clean_harbors_175","week":35,"rain":0,"laps":175,"lap_km":1.6,"audience":21000},
+		{"round":19,"name":"UNOH 200","track_id":"unoh_200","week":38,"rain":0,"laps":200,"lap_km":0.9,"audience":62000},
+		{"round":20,"name":"Kansas Fall 200","track_id":"kansas_fall_200","week":39,"rain":0,"laps":134,"lap_km":2.4,"audience":33000},
 	],
 	"C-015": [ # SC Truck (Craftsman Trucks) — abbreviated
-		{"round":1,"name":"Florida 250","week":6,"rain":0,"laps":100,"lap_km":4.0,"audience":62000},
-		{"round":2,"name":"Fr8Auctions 208","week":8,"rain":0,"laps":135,"lap_km":1.6,"audience":38000},
-		{"round":3,"name":"Focused Health 250","week":9,"rain":10,"laps":46,"lap_km":5.5,"audience":74000},
-		{"round":4,"name":"Phoenix 200","week":10,"rain":0,"laps":200,"lap_km":1.6,"audience":62000},
-		{"round":5,"name":"Las Vegas 300","week":11,"rain":0,"laps":134,"lap_km":2.4,"audience":48000},
-		{"round":6,"name":"Darlington 200","week":12,"rain":0,"laps":147,"lap_km":2.0,"audience":68000},
-		{"round":7,"name":"Martinsville 250","week":13,"rain":0,"laps":250,"lap_km":0.8,"audience":46000},
-		{"round":8,"name":"Rockingham 200","week":14,"rain":0,"laps":200,"lap_km":1.6,"audience":38000},
-		{"round":9,"name":"Bristol 300","week":15,"rain":0,"laps":300,"lap_km":0.9,"audience":72000},
-		{"round":10,"name":"Kansas 300","week":16,"rain":0,"laps":200,"lap_km":2.4,"audience":39000},
-		{"round":11,"name":"Talladega 300","week":17,"rain":0,"laps":113,"lap_km":4.3,"audience":115000},
-		{"round":12,"name":"Charlotte 300","week":21,"rain":0,"laps":200,"lap_km":2.4,"audience":78000},
-		{"round":13,"name":"Nashville 250","week":22,"rain":0,"laps":250,"lap_km":1.6,"audience":48000},
-		{"round":14,"name":"Pocono 225","week":24,"rain":0,"laps":90,"lap_km":4.0,"audience":62000},
-		{"round":15,"name":"San Diego 200","week":25,"rain":0,"laps":60,"lap_km":4.1,"audience":82000},
-		{"round":16,"name":"Sonoma 250","week":26,"rain":10,"laps":79,"lap_km":3.2,"audience":41500},
-		{"round":17,"name":"Chicagoland 300","week":27,"rain":0,"laps":200,"lap_km":1.6,"audience":59000},
-		{"round":18,"name":"Atlanta 300","week":28,"rain":0,"laps":163,"lap_km":2.5,"audience":61000},
-		{"round":19,"name":"Iowa 250","week":32,"rain":0,"laps":250,"lap_km":1.4,"audience":24000},
-		{"round":20,"name":"Wawa 250","week":35,"rain":0,"laps":100,"lap_km":4.0,"audience":86000},
-		{"round":21,"name":"Darlington Fall 200","week":36,"rain":0,"laps":147,"lap_km":2.0,"audience":71000},
-		{"round":22,"name":"Homestead-Miami","week":45,"rain":0,"laps":200,"lap_km":2.4,"audience":58000},
-		{"round":23,"name":"Phoenix Playoff","week":47,"rain":0,"laps":200,"lap_km":1.6,"audience":68000},
+		{"round":1,"name":"Florida 250","track_id":"florida_250","week":6,"rain":0,"laps":100,"lap_km":4.0,"audience":62000},
+		{"round":2,"name":"Fr8Auctions 208","track_id":"fr8auctions_208","week":8,"rain":0,"laps":135,"lap_km":1.6,"audience":38000},
+		{"round":3,"name":"Focused Health 250","track_id":"focused_health_250","week":9,"rain":10,"laps":46,"lap_km":5.5,"audience":74000},
+		{"round":4,"name":"Phoenix 200","track_id":"phoenix_200","week":10,"rain":0,"laps":200,"lap_km":1.6,"audience":62000},
+		{"round":5,"name":"Las Vegas 300","track_id":"las_vegas_300","week":11,"rain":0,"laps":134,"lap_km":2.4,"audience":48000},
+		{"round":6,"name":"Darlington 200","track_id":"darlington_200","week":12,"rain":0,"laps":147,"lap_km":2.0,"audience":68000},
+		{"round":7,"name":"Martinsville 250","track_id":"martinsville_250","week":13,"rain":0,"laps":250,"lap_km":0.8,"audience":46000},
+		{"round":8,"name":"Rockingham 200","track_id":"rockingham_200","week":14,"rain":0,"laps":200,"lap_km":1.6,"audience":38000},
+		{"round":9,"name":"Bristol 300","track_id":"bristol_300","week":15,"rain":0,"laps":300,"lap_km":0.9,"audience":72000},
+		{"round":10,"name":"Kansas 300","track_id":"kansas_300","week":16,"rain":0,"laps":200,"lap_km":2.4,"audience":39000},
+		{"round":11,"name":"Talladega 300","track_id":"talladega_300","week":17,"rain":0,"laps":113,"lap_km":4.3,"audience":115000},
+		{"round":12,"name":"Charlotte 300","track_id":"charlotte_300","week":21,"rain":0,"laps":200,"lap_km":2.4,"audience":78000},
+		{"round":13,"name":"Nashville 250","track_id":"nashville_250","week":22,"rain":0,"laps":250,"lap_km":1.6,"audience":48000},
+		{"round":14,"name":"Pocono 225","track_id":"pocono_225","week":24,"rain":0,"laps":90,"lap_km":4.0,"audience":62000},
+		{"round":15,"name":"San Diego 200","track_id":"san_diego_200","week":25,"rain":0,"laps":60,"lap_km":4.1,"audience":82000},
+		{"round":16,"name":"Sonoma 250","track_id":"sonoma_250","week":26,"rain":10,"laps":79,"lap_km":3.2,"audience":41500},
+		{"round":17,"name":"Chicagoland 300","track_id":"chicagoland_300","week":27,"rain":0,"laps":200,"lap_km":1.6,"audience":59000},
+		{"round":18,"name":"Atlanta 300","track_id":"atlanta_300","week":28,"rain":0,"laps":163,"lap_km":2.5,"audience":61000},
+		{"round":19,"name":"Iowa 250","track_id":"iowa_250","week":32,"rain":0,"laps":250,"lap_km":1.4,"audience":24000},
+		{"round":20,"name":"Wawa 250","track_id":"wawa_250","week":35,"rain":0,"laps":100,"lap_km":4.0,"audience":86000},
+		{"round":21,"name":"Darlington Fall 200","track_id":"darlington_fall_200","week":36,"rain":0,"laps":147,"lap_km":2.0,"audience":71000},
+		{"round":22,"name":"Homestead-Miami","track_id":"homestead_miami","week":45,"rain":0,"laps":200,"lap_km":2.4,"audience":58000},
+		{"round":23,"name":"Phoenix Playoff","track_id":"phoenix_playoff","week":47,"rain":0,"laps":200,"lap_km":1.6,"audience":68000},
 	],
 	"C-016": [ # SC Challenge (Xfinity) — key rounds
-		{"round":1,"name":"Daytona","week":6,"rain":0,"laps":120,"lap_km":4.0,"audience":145000},
-		{"round":2,"name":"Las Vegas","week":11,"rain":0,"laps":200,"lap_km":2.4,"audience":85000},
-		{"round":3,"name":"Phoenix","week":12,"rain":0,"laps":200,"lap_km":1.6,"audience":72000},
-		{"round":4,"name":"Bristol","week":15,"rain":0,"laps":300,"lap_km":0.9,"audience":95000},
-		{"round":5,"name":"Talladega","week":17,"rain":0,"laps":113,"lap_km":4.3,"audience":125000},
-		{"round":6,"name":"Charlotte","week":21,"rain":0,"laps":200,"lap_km":2.4,"audience":92000},
-		{"round":7,"name":"Nashville","week":22,"rain":0,"laps":300,"lap_km":1.6,"audience":68000},
-		{"round":8,"name":"Chicagoland","week":27,"rain":0,"laps":200,"lap_km":1.6,"audience":78000},
-		{"round":9,"name":"Indianapolis","week":29,"rain":0,"laps":100,"lap_km":4.0,"audience":115000},
-		{"round":10,"name":"Michigan","week":30,"rain":0,"laps":100,"lap_km":3.2,"audience":58000},
-		{"round":11,"name":"Iowa","week":32,"rain":0,"laps":250,"lap_km":1.4,"audience":32000},
-		{"round":12,"name":"Pocono","week":34,"rain":0,"laps":90,"lap_km":4.0,"audience":74000},
-		{"round":13,"name":"Darlington","week":36,"rain":0,"laps":200,"lap_km":2.0,"audience":88000},
-		{"round":14,"name":"Talladega Fall","week":43,"rain":0,"laps":113,"lap_km":4.3,"audience":135000},
-		{"round":15,"name":"Martinsville Fall","week":44,"rain":0,"laps":250,"lap_km":0.8,"audience":62000},
-		{"round":16,"name":"Phoenix Finale","week":45,"rain":0,"laps":200,"lap_km":1.6,"audience":85000},
-		{"round":17,"name":"Homestead Finale","week":46,"rain":0,"laps":200,"lap_km":2.4,"audience":74000},
+		{"round":1,"name":"Daytona","track_id":"daytona","week":6,"rain":0,"laps":120,"lap_km":4.0,"audience":145000},
+		{"round":2,"name":"Las Vegas","track_id":"las_vegas","week":11,"rain":0,"laps":200,"lap_km":2.4,"audience":85000},
+		{"round":3,"name":"Phoenix","track_id":"phoenix","week":12,"rain":0,"laps":200,"lap_km":1.6,"audience":72000},
+		{"round":4,"name":"Bristol","track_id":"bristol","week":15,"rain":0,"laps":300,"lap_km":0.9,"audience":95000},
+		{"round":5,"name":"Talladega","track_id":"talladega","week":17,"rain":0,"laps":113,"lap_km":4.3,"audience":125000},
+		{"round":6,"name":"Charlotte","track_id":"charlotte","week":21,"rain":0,"laps":200,"lap_km":2.4,"audience":92000},
+		{"round":7,"name":"Nashville","track_id":"nashville","week":22,"rain":0,"laps":300,"lap_km":1.6,"audience":68000},
+		{"round":8,"name":"Chicagoland","track_id":"chicagoland","week":27,"rain":0,"laps":200,"lap_km":1.6,"audience":78000},
+		{"round":9,"name":"Indianapolis","track_id":"indianapolis","week":29,"rain":0,"laps":100,"lap_km":4.0,"audience":115000},
+		{"round":10,"name":"Michigan","track_id":"michigan","week":30,"rain":0,"laps":100,"lap_km":3.2,"audience":58000},
+		{"round":11,"name":"Iowa","track_id":"iowa","week":32,"rain":0,"laps":250,"lap_km":1.4,"audience":32000},
+		{"round":12,"name":"Pocono","track_id":"pocono","week":34,"rain":0,"laps":90,"lap_km":4.0,"audience":74000},
+		{"round":13,"name":"Darlington","track_id":"darlington","week":36,"rain":0,"laps":200,"lap_km":2.0,"audience":88000},
+		{"round":14,"name":"Talladega Fall","track_id":"talladega_fall","week":43,"rain":0,"laps":113,"lap_km":4.3,"audience":135000},
+		{"round":15,"name":"Martinsville Fall","track_id":"martinsville_fall","week":44,"rain":0,"laps":250,"lap_km":0.8,"audience":62000},
+		{"round":16,"name":"Phoenix Finale","track_id":"phoenix_finale","week":45,"rain":0,"laps":200,"lap_km":1.6,"audience":85000},
+		{"round":17,"name":"Homestead Finale","track_id":"homestead_finale","week":46,"rain":0,"laps":200,"lap_km":2.4,"audience":74000},
 	],
 	"C-017": [ # SC Cup (NASCAR Cup) — key rounds
-		{"round":1,"name":"Daytona 500","week":6,"rain":0,"laps":200,"lap_km":4.0,"audience":285000},
-		{"round":2,"name":"Las Vegas","week":11,"rain":0,"laps":267,"lap_km":2.4,"audience":145000},
-		{"round":3,"name":"Phoenix","week":12,"rain":0,"laps":312,"lap_km":1.6,"audience":125000},
-		{"round":4,"name":"Bristol","week":15,"rain":0,"laps":500,"lap_km":0.9,"audience":165000},
-		{"round":5,"name":"Talladega","week":17,"rain":0,"laps":188,"lap_km":4.3,"audience":205000},
-		{"round":6,"name":"Charlotte 600","week":21,"rain":0,"laps":400,"lap_km":2.4,"audience":175000},
-		{"round":7,"name":"Nashville","week":22,"rain":0,"laps":300,"lap_km":1.6,"audience":128000},
-		{"round":8,"name":"Indianapolis","week":29,"rain":0,"laps":200,"lap_km":4.0,"audience":215000},
-		{"round":9,"name":"Michigan","week":30,"rain":0,"laps":200,"lap_km":3.2,"audience":98000},
-		{"round":10,"name":"Daytona Summer","week":33,"rain":10,"laps":160,"lap_km":4.0,"audience":185000},
-		{"round":11,"name":"Pocono","week":34,"rain":0,"laps":160,"lap_km":4.0,"audience":115000},
-		{"round":12,"name":"Darlington","week":36,"rain":0,"laps":367,"lap_km":2.0,"audience":145000},
-		{"round":13,"name":"Talladega Fall","week":43,"rain":0,"laps":188,"lap_km":4.3,"audience":220000},
-		{"round":14,"name":"Martinsville Fall","week":44,"rain":0,"laps":500,"lap_km":0.8,"audience":145000},
-		{"round":15,"name":"Phoenix Championship","week":45,"rain":0,"laps":312,"lap_km":1.6,"audience":185000},
-		{"round":16,"name":"Homestead Finale","week":46,"rain":0,"laps":267,"lap_km":2.4,"audience":165000},
+		{"round":1,"name":"Daytona 500","track_id":"daytona_500","week":6,"rain":0,"laps":200,"lap_km":4.0,"audience":285000},
+		{"round":2,"name":"Las Vegas","track_id":"las_vegas","week":11,"rain":0,"laps":267,"lap_km":2.4,"audience":145000},
+		{"round":3,"name":"Phoenix","track_id":"phoenix","week":12,"rain":0,"laps":312,"lap_km":1.6,"audience":125000},
+		{"round":4,"name":"Bristol","track_id":"bristol","week":15,"rain":0,"laps":500,"lap_km":0.9,"audience":165000},
+		{"round":5,"name":"Talladega","track_id":"talladega","week":17,"rain":0,"laps":188,"lap_km":4.3,"audience":205000},
+		{"round":6,"name":"Charlotte 600","track_id":"charlotte_600","week":21,"rain":0,"laps":400,"lap_km":2.4,"audience":175000},
+		{"round":7,"name":"Nashville","track_id":"nashville","week":22,"rain":0,"laps":300,"lap_km":1.6,"audience":128000},
+		{"round":8,"name":"Indianapolis","track_id":"indianapolis","week":29,"rain":0,"laps":200,"lap_km":4.0,"audience":215000},
+		{"round":9,"name":"Michigan","track_id":"michigan","week":30,"rain":0,"laps":200,"lap_km":3.2,"audience":98000},
+		{"round":10,"name":"Daytona Summer","track_id":"daytona_summer","week":33,"rain":10,"laps":160,"lap_km":4.0,"audience":185000},
+		{"round":11,"name":"Pocono","track_id":"pocono","week":34,"rain":0,"laps":160,"lap_km":4.0,"audience":115000},
+		{"round":12,"name":"Darlington","track_id":"darlington","week":36,"rain":0,"laps":367,"lap_km":2.0,"audience":145000},
+		{"round":13,"name":"Talladega Fall","track_id":"talladega_fall","week":43,"rain":0,"laps":188,"lap_km":4.3,"audience":220000},
+		{"round":14,"name":"Martinsville Fall","track_id":"martinsville_fall","week":44,"rain":0,"laps":500,"lap_km":0.8,"audience":145000},
+		{"round":15,"name":"Phoenix Championship","track_id":"phoenix_championship","week":45,"rain":0,"laps":312,"lap_km":1.6,"audience":185000},
+		{"round":16,"name":"Homestead Finale","track_id":"homestead_finale","week":46,"rain":0,"laps":267,"lap_km":2.4,"audience":165000},
 	],
 	"C-018": [ # EPC Series (LMP3 / F4)
-		{"round":1,"name":"Brands Hatch Indy","week":14,"rain":0,"laps":24,"lap_km":1.9,"audience":14000},
-		{"round":2,"name":"Donington National","week":18,"rain":20,"laps":18,"lap_km":3.2,"audience":12200},
-		{"round":3,"name":"Thruxton High-Speed","week":22,"rain":60,"laps":17,"lap_km":3.8,"audience":16500},
-		{"round":4,"name":"Oulton Park Island","week":26,"rain":45,"laps":15,"lap_km":3.6,"audience":18900},
-		{"round":5,"name":"Croft Circuit Shootout","week":32,"rain":0,"laps":16,"lap_km":3.4,"audience":11000},
-		{"round":6,"name":"Silverstone National","week":38,"rain":20,"laps":21,"lap_km":2.6,"audience":28500},
+		{"round":1,"name":"Brands Hatch Indy","track_id":"brands_hatch_indy","week":14,"rain":0,"laps":24,"lap_km":1.9,"audience":14000},
+		{"round":2,"name":"Donington National","track_id":"donington_national","week":18,"rain":20,"laps":18,"lap_km":3.2,"audience":12200},
+		{"round":3,"name":"Thruxton High-Speed","track_id":"thruxton_high_speed","week":22,"rain":60,"laps":17,"lap_km":3.8,"audience":16500},
+		{"round":4,"name":"Oulton Park Island","track_id":"oulton_park_island","week":26,"rain":45,"laps":15,"lap_km":3.6,"audience":18900},
+		{"round":5,"name":"Croft Circuit Shootout","track_id":"croft_circuit_shootout","week":32,"rain":0,"laps":16,"lap_km":3.4,"audience":11000},
+		{"round":6,"name":"Silverstone National","track_id":"silverstone_national","week":38,"rain":20,"laps":21,"lap_km":2.6,"audience":28500},
 	],
 	"C-019": [ # EPC League (LMP2 / F3)
-		{"round":1,"name":"Sakhir","week":9,"rain":0,"laps":19,"lap_km":5.4,"audience":95000},
-		{"round":2,"name":"Albert Park","week":11,"rain":20,"laps":20,"lap_km":5.3,"audience":125000},
-		{"round":3,"name":"Imola","week":20,"rain":15,"laps":18,"lap_km":4.9,"audience":88000},
-		{"round":4,"name":"Monaco","week":21,"rain":5,"laps":23,"lap_km":3.4,"audience":110000},
-		{"round":5,"name":"Barcelona","week":22,"rain":0,"laps":21,"lap_km":4.7,"audience":92000},
-		{"round":6,"name":"Spielberg","week":26,"rain":15,"laps":21,"lap_km":4.3,"audience":105000},
-		{"round":7,"name":"Silverstone","week":27,"rain":45,"laps":18,"lap_km":5.9,"audience":140000},
-		{"round":8,"name":"Spa-Francorchamps","week":30,"rain":45,"laps":12,"lap_km":7.0,"audience":115000},
-		{"round":9,"name":"Hungaroring","week":31,"rain":0,"laps":19,"lap_km":4.4,"audience":98000},
-		{"round":10,"name":"Monza","week":35,"rain":5,"laps":18,"lap_km":5.8,"audience":135000},
+		{"round":1,"name":"Sakhir","track_id":"sakhir","week":9,"rain":0,"laps":19,"lap_km":5.4,"audience":95000},
+		{"round":2,"name":"Albert Park","track_id":"albert_park","week":11,"rain":20,"laps":20,"lap_km":5.3,"audience":125000},
+		{"round":3,"name":"Imola","track_id":"imola","week":20,"rain":15,"laps":18,"lap_km":4.9,"audience":88000},
+		{"round":4,"name":"Monaco","track_id":"monaco","week":21,"rain":5,"laps":23,"lap_km":3.4,"audience":110000},
+		{"round":5,"name":"Barcelona","track_id":"barcelona","week":22,"rain":0,"laps":21,"lap_km":4.7,"audience":92000},
+		{"round":6,"name":"Spielberg","track_id":"spielberg","week":26,"rain":15,"laps":21,"lap_km":4.3,"audience":105000},
+		{"round":7,"name":"Silverstone","track_id":"silverstone","week":27,"rain":45,"laps":18,"lap_km":5.9,"audience":140000},
+		{"round":8,"name":"Spa-Francorchamps","track_id":"spa_francorchamps","week":30,"rain":45,"laps":12,"lap_km":7.0,"audience":115000},
+		{"round":9,"name":"Hungaroring","track_id":"hungaroring","week":31,"rain":0,"laps":19,"lap_km":4.4,"audience":98000},
+		{"round":10,"name":"Monza","track_id":"monza","week":35,"rain":5,"laps":18,"lap_km":5.8,"audience":135000},
 	],
 	"C-020": [ # EPC Hyper (WEC)
-		{"round":1,"name":"Bathurst 12 Hour","week":5,"rain":0,"laps":12,"lap_km":6.2,"audience":53000},
-		{"round":2,"name":"Sebring 1000","week":10,"rain":20,"laps":18,"lap_km":5.9,"audience":48000},
-		{"round":3,"name":"Spa 6 Hour","week":18,"rain":50,"laps":6,"lap_km":7.0,"audience":65000},
-		{"round":4,"name":"24h Le Mans","week":24,"rain":35,"laps":24,"lap_km":13.6,"audience":385000},
-		{"round":5,"name":"Monza 6 Hour","week":33,"rain":10,"laps":6,"lap_km":5.8,"audience":78000},
-		{"round":6,"name":"Fuji 6 Hour","week":39,"rain":20,"laps":6,"lap_km":4.6,"audience":42000},
-		{"round":7,"name":"Bahrain 8 Hour","week":49,"rain":0,"laps":8,"lap_km":5.4,"audience":38000},
+		{"round":1,"name":"Bathurst 12 Hour","track_id":"bathurst_12_hour","week":5,"rain":0,"laps":12,"lap_km":6.2,"audience":53000},
+		{"round":2,"name":"Sebring 1000","track_id":"sebring_1000","week":10,"rain":20,"laps":18,"lap_km":5.9,"audience":48000},
+		{"round":3,"name":"Spa 6 Hour","track_id":"spa_6_hour","week":18,"rain":50,"laps":6,"lap_km":7.0,"audience":65000},
+		{"round":4,"name":"24h Le Mans","track_id":"24h_le_mans","week":24,"rain":35,"laps":24,"lap_km":13.6,"audience":385000},
+		{"round":5,"name":"Monza 6 Hour","track_id":"monza_6_hour","week":33,"rain":10,"laps":6,"lap_km":5.8,"audience":78000},
+		{"round":6,"name":"Fuji 6 Hour","track_id":"fuji_6_hour","week":39,"rain":20,"laps":6,"lap_km":4.6,"audience":42000},
+		{"round":7,"name":"Bahrain 8 Hour","track_id":"bahrain_8_hour","week":49,"rain":0,"laps":8,"lap_km":5.4,"audience":38000},
 	],
 	"C-021": [ # GP4 (F4)
-		{"round":1,"name":"Brands Hatch Indy","week":14,"rain":0,"laps":24,"lap_km":1.9,"audience":14000},
-		{"round":2,"name":"Donington National","week":18,"rain":20,"laps":18,"lap_km":3.2,"audience":12200},
-		{"round":3,"name":"Thruxton High-Speed","week":22,"rain":60,"laps":17,"lap_km":3.8,"audience":16500},
-		{"round":4,"name":"Oulton Park Island","week":26,"rain":45,"laps":15,"lap_km":3.6,"audience":18900},
-		{"round":5,"name":"Croft Circuit Shootout","week":32,"rain":0,"laps":16,"lap_km":3.4,"audience":11000},
-		{"round":6,"name":"Silverstone National","week":38,"rain":20,"laps":21,"lap_km":2.6,"audience":28500},
+		{"round":1,"name":"Brands Hatch Indy","track_id":"brands_hatch_indy","week":14,"rain":0,"laps":24,"lap_km":1.9,"audience":14000},
+		{"round":2,"name":"Donington National","track_id":"donington_national","week":18,"rain":20,"laps":18,"lap_km":3.2,"audience":12200},
+		{"round":3,"name":"Thruxton High-Speed","track_id":"thruxton_high_speed","week":22,"rain":60,"laps":17,"lap_km":3.8,"audience":16500},
+		{"round":4,"name":"Oulton Park Island","track_id":"oulton_park_island","week":26,"rain":45,"laps":15,"lap_km":3.6,"audience":18900},
+		{"round":5,"name":"Croft Circuit Shootout","track_id":"croft_circuit_shootout","week":32,"rain":0,"laps":16,"lap_km":3.4,"audience":11000},
+		{"round":6,"name":"Silverstone National","track_id":"silverstone_national","week":38,"rain":20,"laps":21,"lap_km":2.6,"audience":28500},
 	],
 	"C-022": [ # GP3 (F3)
-		{"round":1,"name":"Sakhir","week":9,"rain":0,"laps":19,"lap_km":5.4,"audience":95000},
-		{"round":2,"name":"Albert Park","week":11,"rain":20,"laps":20,"lap_km":5.3,"audience":125000},
-		{"round":3,"name":"Imola","week":20,"rain":15,"laps":18,"lap_km":4.9,"audience":88000},
-		{"round":4,"name":"Monaco","week":21,"rain":5,"laps":23,"lap_km":3.4,"audience":110000},
-		{"round":5,"name":"Barcelona","week":22,"rain":0,"laps":21,"lap_km":4.7,"audience":92000},
-		{"round":6,"name":"Spielberg","week":26,"rain":15,"laps":21,"lap_km":4.3,"audience":105000},
-		{"round":7,"name":"Silverstone","week":27,"rain":45,"laps":18,"lap_km":5.9,"audience":140000},
-		{"round":8,"name":"Spa-Francorchamps","week":30,"rain":45,"laps":12,"lap_km":7.0,"audience":115000},
-		{"round":9,"name":"Hungaroring","week":31,"rain":0,"laps":19,"lap_km":4.4,"audience":98000},
-		{"round":10,"name":"Monza","week":35,"rain":5,"laps":18,"lap_km":5.8,"audience":135000},
+		{"round":1,"name":"Sakhir","track_id":"sakhir","week":9,"rain":0,"laps":19,"lap_km":5.4,"audience":95000},
+		{"round":2,"name":"Albert Park","track_id":"albert_park","week":11,"rain":20,"laps":20,"lap_km":5.3,"audience":125000},
+		{"round":3,"name":"Imola","track_id":"imola","week":20,"rain":15,"laps":18,"lap_km":4.9,"audience":88000},
+		{"round":4,"name":"Monaco","track_id":"monaco","week":21,"rain":5,"laps":23,"lap_km":3.4,"audience":110000},
+		{"round":5,"name":"Barcelona","track_id":"barcelona","week":22,"rain":0,"laps":21,"lap_km":4.7,"audience":92000},
+		{"round":6,"name":"Spielberg","track_id":"spielberg","week":26,"rain":15,"laps":21,"lap_km":4.3,"audience":105000},
+		{"round":7,"name":"Silverstone","track_id":"silverstone","week":27,"rain":45,"laps":18,"lap_km":5.9,"audience":140000},
+		{"round":8,"name":"Spa-Francorchamps","track_id":"spa_francorchamps","week":30,"rain":45,"laps":12,"lap_km":7.0,"audience":115000},
+		{"round":9,"name":"Hungaroring","track_id":"hungaroring","week":31,"rain":0,"laps":19,"lap_km":4.4,"audience":98000},
+		{"round":10,"name":"Monza","track_id":"monza","week":35,"rain":5,"laps":18,"lap_km":5.8,"audience":135000},
 	],
 	"C-023": [ # GP2 (F2)
-		{"round":1,"name":"Sakhir","week":9,"rain":0,"laps":23,"lap_km":5.4,"audience":97000},
-		{"round":2,"name":"Jeddah","week":10,"rain":0,"laps":20,"lap_km":6.2,"audience":85000},
-		{"round":3,"name":"Albert Park","week":11,"rain":20,"laps":22,"lap_km":5.3,"audience":131000},
-		{"round":4,"name":"Imola","week":20,"rain":15,"laps":25,"lap_km":4.9,"audience":92000},
-		{"round":5,"name":"Monaco","week":21,"rain":5,"laps":30,"lap_km":3.4,"audience":115000},
-		{"round":6,"name":"Barcelona","week":22,"rain":0,"laps":26,"lap_km":4.7,"audience":96000},
-		{"round":7,"name":"Spielberg","week":26,"rain":15,"laps":28,"lap_km":4.3,"audience":108000},
-		{"round":8,"name":"Silverstone","week":27,"rain":45,"laps":21,"lap_km":5.9,"audience":144000},
-		{"round":9,"name":"Spa-Francorchamps","week":30,"rain":45,"laps":18,"lap_km":7.0,"audience":120000},
-		{"round":10,"name":"Hungaroring","week":31,"rain":0,"laps":28,"lap_km":4.4,"audience":99000},
-		{"round":11,"name":"Monza","week":35,"rain":5,"laps":21,"lap_km":5.8,"audience":140000},
-		{"round":12,"name":"Baku","week":37,"rain":0,"laps":21,"lap_km":6.0,"audience":72000},
-		{"round":13,"name":"Lusail","week":47,"rain":0,"laps":22,"lap_km":5.4,"audience":45000},
-		{"round":14,"name":"Yas Marina","week":48,"rain":0,"laps":23,"lap_km":5.3,"audience":115000},
+		{"round":1,"name":"Sakhir","track_id":"sakhir","week":9,"rain":0,"laps":23,"lap_km":5.4,"audience":97000},
+		{"round":2,"name":"Jeddah","track_id":"jeddah","week":10,"rain":0,"laps":20,"lap_km":6.2,"audience":85000},
+		{"round":3,"name":"Albert Park","track_id":"albert_park","week":11,"rain":20,"laps":22,"lap_km":5.3,"audience":131000},
+		{"round":4,"name":"Imola","track_id":"imola","week":20,"rain":15,"laps":25,"lap_km":4.9,"audience":92000},
+		{"round":5,"name":"Monaco","track_id":"monaco","week":21,"rain":5,"laps":30,"lap_km":3.4,"audience":115000},
+		{"round":6,"name":"Barcelona","track_id":"barcelona","week":22,"rain":0,"laps":26,"lap_km":4.7,"audience":96000},
+		{"round":7,"name":"Spielberg","track_id":"spielberg","week":26,"rain":15,"laps":28,"lap_km":4.3,"audience":108000},
+		{"round":8,"name":"Silverstone","track_id":"silverstone","week":27,"rain":45,"laps":21,"lap_km":5.9,"audience":144000},
+		{"round":9,"name":"Spa-Francorchamps","track_id":"spa_francorchamps","week":30,"rain":45,"laps":18,"lap_km":7.0,"audience":120000},
+		{"round":10,"name":"Hungaroring","track_id":"hungaroring","week":31,"rain":0,"laps":28,"lap_km":4.4,"audience":99000},
+		{"round":11,"name":"Monza","track_id":"monza","week":35,"rain":5,"laps":21,"lap_km":5.8,"audience":140000},
+		{"round":12,"name":"Baku","track_id":"baku","week":37,"rain":0,"laps":21,"lap_km":6.0,"audience":72000},
+		{"round":13,"name":"Lusail","track_id":"lusail","week":47,"rain":0,"laps":22,"lap_km":5.4,"audience":45000},
+		{"round":14,"name":"Yas Marina","track_id":"yas_marina","week":48,"rain":0,"laps":23,"lap_km":5.3,"audience":115000},
 	],
 	"C-024": [ # GP1 (F1)
-		{"round":1,"name":"Australian Grand Prix","week":10,"rain":0,"laps":58,"lap_km":5.3,"audience":145000},
-		{"round":2,"name":"Chinese Grand Prix","week":11,"rain":10,"laps":56,"lap_km":5.5,"audience":110000},
-		{"round":3,"name":"Suzuka","week":13,"rain":35,"laps":53,"lap_km":5.8,"audience":125000},
-		{"round":4,"name":"Sakhir","week":15,"rain":0,"laps":57,"lap_km":5.4,"audience":98000},
-		{"round":5,"name":"Jeddah","week":16,"rain":0,"laps":50,"lap_km":6.2,"audience":85000},
-		{"round":6,"name":"Imola","week":18,"rain":20,"laps":57,"lap_km":4.9,"audience":92000},
-		{"round":7,"name":"Montréal","week":21,"rain":40,"laps":70,"lap_km":4.4,"audience":135000},
-		{"round":8,"name":"Monaco","week":23,"rain":5,"laps":78,"lap_km":3.4,"audience":68000},
-		{"round":9,"name":"Barcelona","week":24,"rain":0,"laps":66,"lap_km":4.7,"audience":115000},
-		{"round":10,"name":"Spielberg","week":26,"rain":0,"laps":71,"lap_km":4.3,"audience":105000},
-		{"round":11,"name":"Silverstone","week":27,"rain":45,"laps":52,"lap_km":5.9,"audience":145000},
-		{"round":12,"name":"Hungaroring","week":31,"rain":0,"laps":70,"lap_km":4.4,"audience":95000},
-		{"round":13,"name":"Spa-Francorchamps","week":32,"rain":45,"laps":44,"lap_km":7.0,"audience":105000},
-		{"round":14,"name":"Zandvoort","week":33,"rain":30,"laps":72,"lap_km":4.3,"audience":105000},
-		{"round":15,"name":"Monza","week":35,"rain":5,"laps":53,"lap_km":5.8,"audience":140000},
-		{"round":16,"name":"Baku","week":37,"rain":0,"laps":51,"lap_km":6.0,"audience":72000},
-		{"round":17,"name":"Singapore","week":39,"rain":20,"laps":62,"lap_km":5.1,"audience":125000},
-		{"round":18,"name":"Austin","week":41,"rain":30,"laps":56,"lap_km":5.5,"audience":138000},
-		{"round":19,"name":"Mexico City","week":42,"rain":10,"laps":71,"lap_km":4.3,"audience":115000},
-		{"round":20,"name":"São Paulo","week":43,"rain":40,"laps":71,"lap_km":4.3,"audience":108000},
-		{"round":21,"name":"Las Vegas","week":46,"rain":0,"laps":50,"lap_km":6.2,"audience":95000},
-		{"round":22,"name":"Lusail","week":47,"rain":0,"laps":57,"lap_km":5.4,"audience":62000},
-		{"round":23,"name":"Yas Marina","week":48,"rain":0,"laps":58,"lap_km":5.3,"audience":115000},
-		{"round":24,"name":"Abu Dhabi","week":49,"rain":0,"laps":58,"lap_km":5.3,"audience":110000},
+		{"round":1,"name":"Australian Grand Prix","track_id":"australian_grand_prix","week":10,"rain":0,"laps":58,"lap_km":5.3,"audience":145000},
+		{"round":2,"name":"Chinese Grand Prix","track_id":"chinese_grand_prix","week":11,"rain":10,"laps":56,"lap_km":5.5,"audience":110000},
+		{"round":3,"name":"Suzuka","track_id":"suzuka","week":13,"rain":35,"laps":53,"lap_km":5.8,"audience":125000},
+		{"round":4,"name":"Sakhir","track_id":"sakhir","week":15,"rain":0,"laps":57,"lap_km":5.4,"audience":98000},
+		{"round":5,"name":"Jeddah","track_id":"jeddah","week":16,"rain":0,"laps":50,"lap_km":6.2,"audience":85000},
+		{"round":6,"name":"Imola","track_id":"imola","week":18,"rain":20,"laps":57,"lap_km":4.9,"audience":92000},
+		{"round":7,"name":"Montréal","track_id":"montréal","week":21,"rain":40,"laps":70,"lap_km":4.4,"audience":135000},
+		{"round":8,"name":"Monaco","track_id":"monaco","week":23,"rain":5,"laps":78,"lap_km":3.4,"audience":68000},
+		{"round":9,"name":"Barcelona","track_id":"barcelona","week":24,"rain":0,"laps":66,"lap_km":4.7,"audience":115000},
+		{"round":10,"name":"Spielberg","track_id":"spielberg","week":26,"rain":0,"laps":71,"lap_km":4.3,"audience":105000},
+		{"round":11,"name":"Silverstone","track_id":"silverstone","week":27,"rain":45,"laps":52,"lap_km":5.9,"audience":145000},
+		{"round":12,"name":"Hungaroring","track_id":"hungaroring","week":31,"rain":0,"laps":70,"lap_km":4.4,"audience":95000},
+		{"round":13,"name":"Spa-Francorchamps","track_id":"spa_francorchamps","week":32,"rain":45,"laps":44,"lap_km":7.0,"audience":105000},
+		{"round":14,"name":"Zandvoort","track_id":"zandvoort","week":33,"rain":30,"laps":72,"lap_km":4.3,"audience":105000},
+		{"round":15,"name":"Monza","track_id":"monza","week":35,"rain":5,"laps":53,"lap_km":5.8,"audience":140000},
+		{"round":16,"name":"Baku","track_id":"baku","week":37,"rain":0,"laps":51,"lap_km":6.0,"audience":72000},
+		{"round":17,"name":"Singapore","track_id":"singapore","week":39,"rain":20,"laps":62,"lap_km":5.1,"audience":125000},
+		{"round":18,"name":"Austin","track_id":"austin","week":41,"rain":30,"laps":56,"lap_km":5.5,"audience":138000},
+		{"round":19,"name":"Mexico City","track_id":"mexico_city","week":42,"rain":10,"laps":71,"lap_km":4.3,"audience":115000},
+		{"round":20,"name":"São Paulo","track_id":"são_paulo","week":43,"rain":40,"laps":71,"lap_km":4.3,"audience":108000},
+		{"round":21,"name":"Las Vegas","track_id":"las_vegas","week":46,"rain":0,"laps":50,"lap_km":6.2,"audience":95000},
+		{"round":22,"name":"Lusail","track_id":"lusail","week":47,"rain":0,"laps":57,"lap_km":5.4,"audience":62000},
+		{"round":23,"name":"Yas Marina","track_id":"yas_marina","week":48,"rain":0,"laps":58,"lap_km":5.3,"audience":115000},
+		{"round":24,"name":"Abu Dhabi","track_id":"abu_dhabi","week":49,"rain":0,"laps":58,"lap_km":5.3,"audience":110000},
 	],
 }
 func get_car_delivery_week(champ_id: String) -> int:
@@ -1107,12 +1164,12 @@ func _setup_campus() -> void:
 			"max_level": 7,
 			"construction_weeks_remaining": 0,
 			"weekly_maintenance": 850,
-			"weekly_income": 0,
+			"weekly_income": 0,  ## Calculated dynamically: upkeep × 1.02 (see get_building_income)
 			"build_cost": 55000,
 			"build_time": 12,
 			"upgrade_cost": 18000,
 			"upgrade_time": 6,
-			"effects": "Enables income from Karting, Gravel, Oval and Race Track buildings.\n+10% track income per PRC level."
+			"effects": "Enables income from Karting, Gravel, Oval and Race Track buildings.\n+10% track income per PRC level.\nPassive income = upkeep × 1.02 (scales with level)."
 		},
 		# Merchandise Store: team shop. Real small branded retail fit-out: CR 20K-CR 60K.
 		# Cheapest income building — first thing a player should consider building.
@@ -1385,11 +1442,13 @@ func _update_sponsor_performance(race_results: Array) -> void:
 func _apply_weekly_expenses() -> void:
 	var player_expenses = 0.0
 
-	# Driver salaries — from championship base salary
-	var driver_salary = 50.0
-	if active_championship != null and active_championship.id != "":
-		driver_salary = _get_championship_driver_salary()
-	player_expenses += player_team.drivers.size() * driver_salary
+	# Driver salaries — use per-driver negotiated salary, fall back to championship rate
+	for driver_id in player_team.drivers:
+		var driver = all_drivers.get(driver_id)
+		if driver == null: continue
+		var sal = driver.weekly_salary if driver.weekly_salary > 0 \
+				else _get_championship_driver_salary()
+		player_expenses += sal
 
 	# Staff salaries — sum all hired staff
 	for staff_id in all_staff:
@@ -1401,33 +1460,30 @@ func _apply_weekly_expenses() -> void:
 	## P&L summary logged in advance_week() after all income/expense functions run
 
 	# Bankruptcy — escalating warnings, screen after 8 consecutive weeks negative
-	if player_expenses > 0:
-		if player_team.balance < 0:
-			weeks_in_negative += 1
-			## Escalating notification urgency
-			if weeks_in_negative >= 6:
-				add_notification("Critical",
-					"🚨 CRITICAL: %d weeks insolvent (CR %s). Team collapse imminent!" % [
-						weeks_in_negative, _fmt_int(int(player_team.balance))])
-			elif weeks_in_negative >= 3:
-				add_notification("Critical",
-					"🚨 BANKRUPTCY RISK: %d weeks negative (CR %s). Sell assets or find sponsors now." % [
-						weeks_in_negative, _fmt_int(int(player_team.balance))])
-			else:
-				add_notification("High",
-					"⚠ Balance negative (CR %s). Address this urgently." % _fmt_int(int(player_team.balance)))
-			## Trigger bankruptcy options screen after 8 weeks (~2 months)
-			if weeks_in_negative >= 8 and not bankruptcy_screen_shown:
-				bankruptcy_screen_shown = true
-				emit_signal("bankruptcy_triggered")
+	if player_team.balance < 0:
+		weeks_in_negative += 1
+		if weeks_in_negative >= 6:
+			add_notification("Critical",
+				"🚨 CRITICAL: %d weeks insolvent (CR %s). Team collapse imminent!" % [
+					weeks_in_negative, _fmt_int(int(player_team.balance))])
+		elif weeks_in_negative >= 3:
+			add_notification("Critical",
+				"🚨 BANKRUPTCY RISK: %d weeks negative (CR %s). Sell assets or find sponsors now." % [
+					weeks_in_negative, _fmt_int(int(player_team.balance))])
 		else:
-			weeks_in_negative = 0
-			bankruptcy_screen_shown = false
-			if player_team.balance < player_expenses * 4:
-				add_notification("High",
-					"⚠ Low funds: CR %s covers ~%d weeks. Consider selling assets or finding sponsors." % [
-						_fmt_int(int(player_team.balance)),
-						int(player_team.balance / player_expenses)])
+			add_notification("High",
+				"⚠ Balance negative (CR %s). Address this urgently." % _fmt_int(int(player_team.balance)))
+		if weeks_in_negative >= 8 and not bankruptcy_screen_shown:
+			bankruptcy_screen_shown = true
+			emit_signal("bankruptcy_triggered")
+	else:
+		weeks_in_negative = 0
+		bankruptcy_screen_shown = false
+		if player_expenses > 0 and player_team.balance < player_expenses * 4:
+			add_notification("High",
+				"⚠ Low funds: CR %s covers ~%d weeks. Consider selling assets or finding sponsors." % [
+					_fmt_int(int(player_team.balance)),
+					int(player_team.balance / player_expenses)])
 
 	# AI teams — simple salary model (unchanged)
 	for team in all_teams:
@@ -1582,9 +1638,134 @@ const CAR_TELEMETRY = {
 }
 
 func _setup_cars() -> void:
-	## Cars are created independently via add_car() — not tied to driver hire.
-	## At game start, player has no cars. They must build cars via the Garage.
 	player_team_cars = []
+	_give_starting_assets(_starting_champ_id)
+
+func _give_starting_assets(champ_id: String) -> void:
+	var reg = CHAMPIONSHIP_REGISTRY.get(champ_id, {})
+	var discipline = reg.get("discipline", "GK")
+
+	## ── 1. Car + entry fee deducted ─────────────────────────────────────────
+	var car_cost  = get_provider_car_cost(champ_id)
+	var entry_fee = reg.get("entry_fee", 0)
+	player_team.balance -= float(car_cost + entry_fee)
+	add_car(champ_id)
+
+	## ── 2. Campus buildings per discipline ──────────────────────────────────
+	if discipline in ["Rally", "SC", "GP"]:
+		if "Pit Crew Arena" in campus_buildings:
+			campus_buildings["Pit Crew Arena"]["built"] = true
+			campus_buildings["Pit Crew Arena"]["level"] = 1
+	if discipline in ["SC", "GP"]:
+		if "Ops Sim" in campus_buildings:
+			campus_buildings["Ops Sim"]["built"] = true
+			campus_buildings["Ops Sim"]["level"] = 1
+
+	## ── 3. Starting TP ───────────────────────────────────────────────────────
+	var tp = _create_starting_staff("Team Principal", 55.0, 70.0)
+	tp.contract_team = player_team.id
+	tp.contract_seasons_remaining = 3
+	tp.assigned_championship = champ_id
+	all_staff[tp.id] = tp
+
+	## ── 4. Starting Driver ───────────────────────────────────────────────────
+	var driver = _find_and_sign_starting_driver(discipline, champ_id)
+
+	## ── 5. Starting Mechanic ─────────────────────────────────────────────────
+	var mech = _create_starting_staff("Race Mechanic", 40.0, 65.0)
+	mech.contract_team = player_team.id
+	mech.contract_seasons_remaining = 3
+	all_staff[mech.id] = mech
+	if not player_team_cars.is_empty():
+		player_team_cars[0].mechanic_id = mech.id
+
+	## ── 6. Pit Crew (Rally, SC, GP) ─────────────────────────────────────────
+	if discipline in ["Rally", "SC", "GP"]:
+		var crew = _create_starting_staff("Pit Crew", 35.0, 55.0)
+		crew.contract_team = player_team.id
+		crew.contract_seasons_remaining = 3
+		all_staff[crew.id] = crew
+		if not player_team_cars.is_empty():
+			player_team_cars[0].pit_crew_id = crew.id
+
+	## ── 7. Strategist (SC, GP) ───────────────────────────────────────────────
+	if discipline in ["SC", "GP"]:
+		var strat = _create_starting_staff("Race Strategist", 45.0, 65.0)
+		strat.contract_team = player_team.id
+		strat.contract_seasons_remaining = 3
+		strat.assigned_championship = champ_id
+		all_staff[strat.id] = strat
+
+	## ── 8. Assign driver to car ──────────────────────────────────────────────
+	if driver != null and not player_team_cars.is_empty():
+		player_team_cars[0].driver_id = driver.id
+
+	add_log("🏎 Starting assets ready for %s." % reg.get("name", champ_id))
+	add_log("💰 Remaining balance: CR %s" % _fmt_int(int(player_team.balance)))
+
+
+func _create_starting_staff(role: String, skill_min: float, skill_max: float) -> Staff:
+	var nats = ["British","Italian","German","French","Spanish","Finnish","Brazilian"]
+	var nat  = nats[randi() % nats.size()]
+	var sex  = "Male" if randf() > 0.35 else "Female"
+	var name_data = NameGenerator.get_full_name(nat, sex)
+	var s = Staff.new()
+	s.id         = "S-START-%s-%d" % [role.replace(" ","_").to_lower(), randi() % 9999]
+	s.first_name = name_data["first"]
+	s.last_name  = name_data["last"]
+	s.nationality = nat
+	s.sex        = sex
+	s.age        = randi_range(24, 38)
+	s.role       = role
+	var skill    = randf_range(skill_min, skill_max)
+	match role:
+		"Team Principal":
+			s.race_strategy     = skill
+			s.race_pace_reading = skill * 0.9
+			s.car_setup_oversight = skill * 0.8
+		"Race Mechanic":
+			s.car_setup        = skill
+			s.track_knowledge  = randf_range(10.0, 30.0)
+			s.repair_skill     = skill * 0.85
+		"Pit Crew":
+			s.pit_stop_speed   = skill
+			s.teamwork         = skill * 0.9
+		"Race Strategist":
+			s.race_strategy    = skill
+			s.qualifying_timing= skill * 0.85
+			s.race_pace_reading= skill * 0.8
+	var sal_range = STAFF_BASE_SALARIES.get(role, {"min": 200.0, "max": 500.0})
+	s.weekly_salary = sal_range["min"] + \
+		(sal_range["max"] - sal_range["min"]) * (skill / 100.0)
+	return s
+
+
+func _find_and_sign_starting_driver(discipline: String, champ_id: String) -> Driver:
+	var reg     = CHAMPIONSHIP_REGISTRY.get(champ_id, {})
+	var min_age = reg.get("min_age", 8)
+	var max_age = reg.get("max_age", 99)
+	var candidates: Array = []
+	for d_id in all_drivers:
+		var d = all_drivers[d_id]
+		if d.contract_team != "": continue
+		if d.age < min_age or d.age > max_age: continue
+		if d.active_discipline != discipline: continue
+		candidates.append(d)
+	if candidates.is_empty():
+		push_warning("[GameState] No starting driver for discipline %s" % discipline)
+		return null
+	candidates.sort_custom(func(a, b): return a.get_overall_skill() < b.get_overall_skill())
+	var pick = candidates[clamp(candidates.size() / 3, 0, candidates.size() - 1)]
+	pick.contract_team = player_team.id
+	pick.contract_seasons_remaining = 1
+	var sal = _get_championship_driver_salary()
+	pick.weekly_salary = sal * 1.2
+	pick.win_bonus     = int(sal * 52 * 0.3)
+	pick.podium_bonus  = int(sal * 52 * 0.1)
+	player_team.drivers.append(pick.id)
+	if active_championship != null:
+		active_championship.standings[pick.id] = 0
+	return pick
 
 func get_car_for_driver(driver_id: String) -> Car:
 	for car in player_team_cars:
@@ -1613,8 +1794,10 @@ func _setup_part_inventory() -> void:
 	for part in PARTS_LIST:
 		part_inventory[champ_id][part] = 3  # Start with 3 of each
 
-func get_part_stock(part_name: String) -> int:
-	var champ_id = active_championship.id
+func get_part_stock(part_name: String, champ_id: String = "") -> int:
+	if champ_id == "":
+		if active_championship == null: return 0
+		champ_id = active_championship.id
 	if not champ_id in part_inventory:
 		return 0
 	return part_inventory[champ_id].get(part_name, 0)
@@ -1803,6 +1986,341 @@ func _generate_staff_attributes(staff: Staff, base_quality: float) -> void:
 			staff.qualifying_timing   = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
 			staff.track_knowledge     = clamp(randf_range(5.0, 35.0), 5.0, 95.0)
 			staff.discipline_adaptation["GK"] = clamp(q * 0.4, 1.0, 100.0)
+
+## ═══════════════════════════════════════════════════════════════════════════
+## CONTRACT NEGOTIATION SYSTEM (S16.1)
+## GDD §6: 3-5 rounds, plain text counters, "Not Interested" from round 1.
+## Used by Driver contracts, Staff contracts, and Sponsor renegotiation.
+## ═══════════════════════════════════════════════════════════════════════════
+
+## Active negotiation state. One at a time.
+var active_negotiation: Dictionary = {}
+
+## Signals for the UI
+signal negotiation_updated()
+signal negotiation_concluded(accepted: bool, subject_id: String, subject_type: String)
+
+## ── Opening offer generation ─────────────────────────────────────────────────
+
+## Generate the opening offer for a Driver contract negotiation.
+## Returns a Dictionary with all contract terms at the driver's "ask" level.
+func generate_driver_opening_offer(driver_id: String) -> Dictionary:
+	var driver = all_drivers.get(driver_id)
+	if driver == null: return {}
+	var skill = driver.get_overall_skill()
+	var tier = _get_active_championship_tier()
+	## Base weekly salary: skill-scaled, tier-adjusted
+	var base_sal = _calc_driver_ask_salary(skill, tier)
+	## Bonus asks: scale with skill
+	var win_ask       = int(base_sal * 52 * clamp(skill / 100.0, 0.1, 1.0) * 0.6)
+	var podium_ask    = int(win_ask * 0.35)
+	var champ_ask     = int(win_ask * 1.5)
+	var release_ask   = int(base_sal * 52 * 0.8)
+	## Duration: better drivers want shorter contracts (more options)
+	var duration_ask  = 3 if skill >= 70 else (2 if skill >= 50 else 1)
+	## CFO improves our opening position
+	var cfo = get_cfo()
+	var cfo_bonus = (cfo.sponsor_negotiation / 100.0) * 0.15 if cfo else 0.0
+	return {
+		"subject_id":    driver_id,
+		"subject_type":  "driver",
+		"round":         1,
+		"max_rounds":    randi_range(3, 5),
+		"their_ask": {
+			"weekly_salary":        base_sal,
+			"win_bonus":            win_ask,
+			"podium_bonus":         podium_ask,
+			"championship_bonus":   champ_ask,
+			"release_clause":       release_ask,
+			"duration_seasons":     duration_ask,
+		},
+		"player_offer": {
+			"weekly_salary":        round(base_sal * (0.75 - cfo_bonus)),
+			"win_bonus":            round(win_ask * 0.5),
+			"podium_bonus":         round(podium_ask * 0.5),
+			"championship_bonus":   round(champ_ask * 0.5),
+			"release_clause":       round(release_ask * 0.5),
+			"duration_seasons":     duration_ask,
+		},
+		"status":  "active",  ## active | accepted | rejected
+		"history": [],
+		"cfo_bonus": cfo_bonus,
+	}
+
+## Generate opening offer for a Staff contract.
+func generate_staff_opening_offer(staff_id: String) -> Dictionary:
+	var staff = all_staff.get(staff_id)
+	if staff == null: return {}
+	var skill = staff.get_primary_skill()
+	var salary_range = STAFF_BASE_SALARIES.get(staff.role, {"min": 200.0, "max": 500.0})
+	var ask_sal = salary_range["min"] + (salary_range["max"] - salary_range["min"]) * (skill / 100.0)
+	## If this is a currently hired staff we're renewing, their existing salary is the floor
+	if staff.contract_team == player_team.id:
+		ask_sal = max(ask_sal, staff.weekly_salary * 1.05)
+	var champ_ask   = int(ask_sal * 52 * 0.3)
+	var perf_ask    = int(ask_sal * 52 * 0.2)
+	var release_ask = int(ask_sal * 52 * 0.6)
+	var duration_ask = 3 if skill >= 70 else (2 if skill >= 50 else 1)
+	var cfo = get_cfo()
+	var cfo_bonus = (cfo.sponsor_negotiation / 100.0) * 0.15 if cfo else 0.0
+	return {
+		"subject_id":    staff_id,
+		"subject_type":  "staff",
+		"round":         1,
+		"max_rounds":    randi_range(3, 5),
+		"their_ask": {
+			"weekly_salary":      ask_sal,
+			"championship_bonus": champ_ask,
+			"performance_bonus":  perf_ask,
+			"release_clause":     release_ask,
+			"duration_seasons":   duration_ask,
+		},
+		"player_offer": {
+			"weekly_salary":      round(ask_sal * (0.75 - cfo_bonus)),
+			"championship_bonus": round(champ_ask * 0.5),
+			"performance_bonus":  round(perf_ask * 0.5),
+			"release_clause":     round(release_ask * 0.5),
+			"duration_seasons":   duration_ask,
+		},
+		"status":   "active",
+		"history":  [],
+		"cfo_bonus": cfo_bonus,
+	}
+
+## Generate opening offer for a Sponsor (counter-offer negotiation).
+func generate_sponsor_negotiation(sponsor_id: String) -> Dictionary:
+	var offer = null
+	for o in sponsor_offers:
+		if o.get("sponsor_id","") == sponsor_id: offer = o; break
+	if offer == null: return {}
+	var cfo = get_cfo()
+	var cfo_bonus = (cfo.sponsor_negotiation / 100.0) * 0.2 if cfo else 0.0
+	var base: Dictionary = {}
+	match offer.get("type", 1):
+		1: base = {"weekly_payment": offer.get("weekly_payment", 0), "seasons_remaining": offer.get("seasons_remaining", 1)}
+		2: base = {"win_bonus": offer.get("win_bonus", 0), "podium_bonus": offer.get("podium_bonus", 0),
+				"season_bonus": offer.get("season_bonus", 0), "seasons_remaining": offer.get("seasons_remaining", 1)}
+		3: base = {"commitment_total": offer.get("commitment_total", 0), "seasons_remaining": offer.get("seasons_remaining", 1)}
+	var player_counter = {}
+	for k in base:
+		if k == "seasons_remaining":
+			player_counter[k] = base[k]
+		elif k.ends_with("_total") or k.ends_with("_payment") or k.ends_with("_bonus"):
+			player_counter[k] = int(base[k] * (1.0 + cfo_bonus))
+	return {
+		"subject_id":   sponsor_id,
+		"subject_type": "sponsor",
+		"round":        1,
+		"max_rounds":   randi_range(2, 4),
+		"their_ask":    base,
+		"player_offer": player_counter,
+		"status":       "active",
+		"history":      [],
+		"cfo_bonus":    cfo_bonus,
+		"offer_data":   offer,
+	}
+
+## ── Negotiation flow ─────────────────────────────────────────────────────────
+
+## Start a negotiation. Stores state in active_negotiation.
+func start_negotiation(neg: Dictionary) -> void:
+	active_negotiation = neg
+	emit_signal("negotiation_updated")
+
+## Player submits their current offer. Returns the outcome.
+## outcome: "accepted" | "counter" | "rejected"
+func submit_negotiation_offer(player_offer: Dictionary) -> String:
+	if active_negotiation.is_empty(): return "rejected"
+	active_negotiation["player_offer"] = player_offer
+	active_negotiation["history"].append({
+		"round": active_negotiation["round"],
+		"player": player_offer.duplicate(),
+		"their": active_negotiation["their_ask"].duplicate(),
+	})
+	var outcome = _evaluate_offer(active_negotiation)
+	active_negotiation["round"] += 1
+	if outcome == "accepted" or active_negotiation["round"] > active_negotiation["max_rounds"]:
+		if outcome != "accepted": outcome = "rejected"
+		active_negotiation["status"] = outcome
+		_apply_negotiation_result(active_negotiation, outcome == "accepted")
+		emit_signal("negotiation_concluded", outcome == "accepted",
+			active_negotiation["subject_id"], active_negotiation["subject_type"])
+	else:
+		## Generate counter-offer: they move slightly toward player
+		_apply_counter_offer(active_negotiation)
+		emit_signal("negotiation_updated")
+	return outcome
+
+## Walk away — player ends negotiation.
+## Subjects who walked away from negotiation — unavailable for N seasons
+## Format: { subject_id: season_available_again }
+var walked_away_subjects: Dictionary = {}
+
+func abandon_negotiation() -> void:
+	if active_negotiation.is_empty(): return
+	var subject_id   = active_negotiation.get("subject_id", "")
+	var subject_type = active_negotiation.get("subject_type", "")
+	## Mark unavailable for 2 seasons
+	if subject_id != "":
+		walked_away_subjects[subject_id] = current_season + 2
+		var name_str = _get_subject_display_name(subject_id, subject_type)
+		add_notification("Normal", "%s is no longer interested for 2 seasons." % name_str)
+	active_negotiation["status"] = "rejected"
+	emit_signal("negotiation_concluded", false, subject_id, subject_type)
+	active_negotiation = {}
+	emit_signal("log_updated")
+
+func is_subject_available(subject_id: String) -> bool:
+	if subject_id not in walked_away_subjects: return true
+	return current_season >= walked_away_subjects[subject_id]
+
+func _get_subject_display_name(subject_id: String, subject_type: String) -> String:
+	match subject_type:
+		"driver":
+			var d = all_drivers.get(subject_id)
+			return d.full_name() if d else subject_id
+		"staff":
+			var s = all_staff.get(subject_id)
+			return s.full_name() if s else subject_id
+		"sponsor":
+			for o in sponsor_offers:
+				if o.get("sponsor_id","") == subject_id: return o.get("name", subject_id)
+	return subject_id
+
+## ── Internal helpers ─────────────────────────────────────────────────────────
+
+func _get_active_championship_tier() -> int:
+	if active_championship == null: return 1
+	return active_championship.tier
+
+func _calc_driver_ask_salary(skill: float, tier: int) -> float:
+	## Base weekly: tier 1 starts at ~50, tier 4 at ~2850
+	const TIER_BASES = {1: 50.0, 2: 250.0, 3: 900.0, 4: 2850.0}
+	var base = TIER_BASES.get(tier, 50.0)
+	return round((base + base * (skill / 100.0) * 1.5) / 10.0) * 10.0
+
+## Evaluate whether the player's offer is acceptable.
+## Returns "accepted", "counter", or "rejected".
+func _evaluate_offer(neg: Dictionary) -> String:
+	var player = neg["player_offer"]
+	var ask    = neg["their_ask"]
+	var round_n = neg["round"]
+	var max_r   = neg["max_rounds"]
+	## Calculate how close the offer is to their ask (0=nothing, 1=full ask)
+	var ratio = _calc_offer_ratio(player, ask)
+	## Acceptance threshold: 80% of ask at round 1, drops to 65% by last round
+	var threshold = lerp(0.80, 0.65, float(round_n - 1) / float(max(max_r - 1, 1)))
+	if ratio >= threshold: return "accepted"
+	## Hard reject: below 40% and in last 2 rounds
+	if ratio < 0.40 and round_n >= max_r - 1: return "rejected"
+	return "counter"
+
+func _calc_offer_ratio(player: Dictionary, ask: Dictionary) -> float:
+	var total_ratio = 0.0
+	var count = 0
+	for key in ask:
+		if key == "duration_seasons": continue
+		if ask[key] <= 0: continue
+		var p_val = float(player.get(key, 0))
+		var a_val = float(ask[key])
+		total_ratio += clamp(p_val / a_val, 0.0, 1.0)
+		count += 1
+	return total_ratio / float(max(count, 1))
+
+## Move their ask slightly toward player's offer.
+func _apply_counter_offer(neg: Dictionary) -> void:
+	var player = neg["player_offer"]
+	var ask    = neg["their_ask"]
+	var progress = float(neg["round"]) / float(neg["max_rounds"])
+	## They concede up to 25% of the gap over the full negotiation
+	for key in ask:
+		if key == "duration_seasons": continue
+		if ask[key] <= 0: continue
+		var gap = ask[key] - player.get(key, 0)
+		if gap > 0:
+			var concession = gap * 0.10 * progress
+			neg["their_ask"][key] = max(player.get(key, 0), ask[key] - concession)
+
+## Apply the result — actually hire/set contract terms.
+func _apply_negotiation_result(neg: Dictionary, accepted: bool) -> void:
+	if not accepted: return
+	var terms = neg["player_offer"]
+	match neg["subject_type"]:
+		"driver":
+			var driver = all_drivers.get(neg["subject_id"])
+			if driver == null: return
+			## Check slot first
+			var max_d = get_max_drivers()
+			if driver.contract_team == "" and player_team.drivers.size() >= max_d:
+				add_notification("High", "Racing Dept full — can't sign %s." % driver.full_name())
+				return
+			driver.contract_team = player_team.id
+			driver.contract_seasons_remaining = terms.get("duration_seasons", 1)
+			driver.weekly_salary       = terms.get("weekly_salary", 50.0)
+			driver.win_bonus           = terms.get("win_bonus", 0)
+			driver.podium_bonus        = terms.get("podium_bonus", 0)
+			driver.championship_bonus  = terms.get("championship_bonus", 0)
+			driver.release_clause      = terms.get("release_clause", 0)
+			if not neg["subject_id"] in player_team.drivers:
+				player_team.drivers.append(neg["subject_id"])
+				if active_championship:
+					active_championship.standings[neg["subject_id"]] = 0
+			add_log("✅ %s signed: CR %.0f/wk, %d seasons, Win:CR %s, Podium:CR %s" % [
+				driver.full_name(), driver.weekly_salary, driver.contract_seasons_remaining,
+				_fmt_int(driver.win_bonus), _fmt_int(driver.podium_bonus)])
+			add_notification("Normal", "%s signed. Assign them to a car in the Garage." % driver.full_name())
+		"staff":
+			var staff = all_staff.get(neg["subject_id"])
+			if staff == null: return
+			## Slot checks (same as hire_staff)
+			if staff.contract_team == "":
+				if staff.role == "Team Principal":
+					var existing = get_player_staff_by_role("Team Principal")
+					if existing.size() >= get_hq_tp_slots():
+						add_notification("High", "TP slots full. Upgrade HQ."); return
+				elif staff.role == "CFO":
+					if get_player_staff_by_role("CFO").size() >= 1:
+						add_notification("High", "You already have a CFO."); return
+			staff.contract_team = player_team.id
+			staff.contract_seasons_remaining = terms.get("duration_seasons", 1)
+			staff.weekly_salary        = terms.get("weekly_salary", staff.weekly_salary)
+			staff.championship_bonus   = terms.get("championship_bonus", 0)
+			staff.performance_bonus    = terms.get("performance_bonus", 0)
+			staff.release_clause       = terms.get("release_clause", 0)
+			if staff.role == "Pit Crew" and staff.crew_number == 0:
+				staff.crew_number = get_player_staff_by_role("Pit Crew").size()
+			add_log("✅ %s (%s) signed: CR %.0f/wk, %d seasons" % [
+				staff.full_name(), staff.role, staff.weekly_salary, staff.contract_seasons_remaining])
+			add_notification("Normal", "%s (%s) joined your team." % [staff.full_name(), staff.role])
+		"sponsor":
+			sign_sponsor(neg["subject_id"])
+	emit_signal("log_updated")
+
+## ── Weekly salary payment (driver) ──────────────────────────────────────────
+## Called from advance_week. Replaces the old flat weekly_driver_salary approach.
+## If driver has no individual weekly_salary set, falls back to championship rate.
+func _pay_driver_salaries_weekly() -> void:
+	for driver_id in player_team.drivers:
+		var driver = all_drivers.get(driver_id)
+		if driver == null: continue
+		var sal = driver.weekly_salary if driver.weekly_salary > 0 \
+				else _get_championship_driver_salary()
+		player_team.balance -= sal
+
+## Pay driver race bonuses after a race result.
+func pay_driver_race_bonuses(race_results: Array) -> void:
+	for entry in race_results:
+		var driver = entry.get("driver")
+		if driver == null: continue
+		if driver.contract_team != player_team.id: continue
+		var pos = entry.get("position", 99)
+		var bonus = 0
+		if pos == 1:   bonus = driver.win_bonus
+		elif pos <= 3: bonus = driver.podium_bonus
+		if bonus > 0:
+			player_team.balance -= bonus
+			add_log("🏆 Race bonus paid: %s — CR %s (P%d)" % [
+				driver.full_name(), _fmt_int(bonus), pos])
 
 func hire_staff(staff_id: String) -> bool:
 	if not staff_id in all_staff:
@@ -2125,12 +2643,71 @@ func assign_staff_to_car(staff_id: String, car_id: String) -> void:
 			car.pit_crew_id = staff_id
 	add_log("🔧 %s assigned to Car %s" % [staff.full_name(), car_id])
 
+func unassign_driver_from_car(car_id: String) -> void:
+	var car = get_car_by_id(car_id)
+	if not car: return
+	if car.driver_id == "": return
+	var drv = all_drivers.get(car.driver_id)
+	add_log("↩ %s unassigned from %s" % [
+		drv.full_name() if drv else car.driver_id,
+		car.car_name if car.car_name != "" else "Car %d" % car.car_number])
+	car.driver_id = ""
+	emit_signal("log_updated")
+
+func unassign_mechanic_from_car(car_id: String) -> void:
+	var car = get_car_by_id(car_id)
+	if not car: return
+	if car.mechanic_id == "": return
+	var mech = all_staff.get(car.mechanic_id)
+	if mech:
+		mech.assigned_car_id = ""
+		add_log("↩ %s unassigned from %s" % [
+			mech.full_name(),
+			car.car_name if car.car_name != "" else "Car %d" % car.car_number])
+	car.mechanic_id = ""
+	emit_signal("log_updated")
+
 func assign_staff_to_championship(staff_id: String, champ_id: String) -> void:
-	if not staff_id in all_staff:
-		return
+	if not staff_id in all_staff: return
 	var staff = all_staff[staff_id]
-	staff.assigned_championship = champ_id
-	add_log("📋 %s assigned to %s" % [staff.full_name(), active_championship.championship_name])
+	## Guard: TP slot — only one TP per championship
+	if staff.role == "Team Principal":
+		for sid2 in all_staff:
+			var s2 = all_staff[sid2]
+			if s2.id == staff_id: continue
+			if s2.role == "Team Principal" and s2.contract_team == player_team.id \
+					and s2.assigned_championship == champ_id:
+				add_notification("High",
+					"Championship already has a Team Principal assigned.")
+				return
+	var reg = CHAMPIONSHIP_REGISTRY.get(champ_id, {})
+	var champ_name = reg.get("name", champ_id)
+	## TP and Strategist: queue for next week (prevents mid-race exploitation)
+	if staff.role in ["Team Principal", "Race Strategist"]:
+		pending_staff_assignments[staff_id] = champ_id
+		add_log("📋 %s queued to join %s — effective next week." % [staff.full_name(), champ_name])
+		add_notification("Normal",
+			"%s will be assigned to %s from next week." % [staff.full_name(), champ_name])
+	else:
+		## Mechanic / Pit Crew: immediate (no advantage to delay)
+		staff.assigned_championship = champ_id
+		add_log("📋 %s assigned to %s" % [staff.full_name(), champ_name])
+
+func _apply_pending_staff_assignments() -> void:
+	if pending_staff_assignments.is_empty(): return
+	for sid in pending_staff_assignments.keys():
+		if not sid in all_staff: continue
+		var s = all_staff[sid]
+		var cid: String = pending_staff_assignments[sid]
+		s.assigned_championship = cid
+		var reg = CHAMPIONSHIP_REGISTRY.get(cid, {})
+		add_log("📋 %s now active at %s." % [s.full_name(), reg.get("name", cid)])
+	pending_staff_assignments.clear()
+
+func get_pending_assignment_for(sid: String) -> String:
+	return pending_staff_assignments.get(sid, "")
+
+
 
 func get_player_staff_by_role(role: String) -> Array:
 	var result = []
@@ -2254,16 +2831,20 @@ func _check_race_requirements_for(champ: Championship) -> void:
 func get_pending_tasks() -> Array[String]:
 	var tasks: Array[String] = []
 
-	## Step 1 — No car for registered championships (always first)
-	var champs_without_car: Array = []
+	## Step 1 — No car for ACTIVE championships (not next-season registrations)
+	var active_champ_ids: Array = []
+	for champ in active_championships:
+		active_champ_ids.append(champ.id)
+
 	for reg_champ_id in player_registered_championships:
+		if not reg_champ_id in active_champ_ids:
+			continue  ## Next-season registration — BeginOfSeason handles it
 		var has_car = false
 		for car in player_team_cars:
 			if car.championship_id == reg_champ_id:
 				has_car = true
 				break
 		if not has_car:
-			champs_without_car.append(reg_champ_id)
 			var reg = CHAMPIONSHIP_REGISTRY.get(reg_champ_id, {})
 			tasks.append("🏎 No car for %s — buy one at Logistics Center." % reg.get("name", reg_champ_id))
 
@@ -2334,12 +2915,19 @@ func get_pending_tasks() -> Array[String]:
 			tasks.append("📋 %s (%s) contract expires soon." % [staff.full_name(), staff.role])
 
 	## Step 8 — R&D → WRA → CNC → Garage pipeline
-	## 8a: Blueprints completed but not yet submitted to WRA
+	## 8a: Blueprints ready but not yet submitted to WRA
+	## - Next-season blueprints (P1/P3): always remind
+	## - Current-season P2 upgrades: also remind (need WRA this season)
 	for bp_id in known_blueprints:
 		if not is_blueprint_submitted(bp_id) and not is_blueprint_approved(bp_id):
 			var bp = known_blueprints[bp_id]
-			tasks.append("📐 Blueprint ready: '%s' — submit to WRA for approval." % bp.get("name", bp_id))
-			break  ## One reminder is enough; player can see the rest in HQ
+			var bp_season = bp.get("season", current_season)
+			var bp_pillar = bp.get("pillar", 1)
+			var is_next_season = bp_season > current_season
+			var is_current_p2  = bp_pillar == 2 and bp_season == current_season
+			if is_next_season or is_current_p2:
+				tasks.append("📐 Blueprint ready: '%s' — submit to WRA for approval." % bp.get("name", bp_id))
+				break
 
 	## 8b: WRA-approved blueprints waiting to be manufactured
 	var unqueued_approvals = wra_approved_blueprints.filter(func(app):
@@ -2406,7 +2994,8 @@ func _setup_car_conditions() -> void:
 ## Returns true if any active championship has at least one race remaining this season.
 func has_remaining_races_this_season() -> bool:
 	for champ in active_championships:
-		if champ.get_next_race() != null:
+		var next_race = champ.get_next_race()
+		if not next_race.is_empty():
 			return true
 	return false
 
@@ -2420,7 +3009,27 @@ func _degrade_car_conditions(laps: int, dns_driver_ids: Array = []) -> void:
 			add_log("🔩 Car %d condition unchanged (DNS)" % car.car_number)
 			continue
 		car.condition = max(0.0, car.condition - loss)
-		add_log("🔩 Car %d condition after race: %.0f%% (-%0.1f%% over %d laps)" % [
+		## Degrade per-part condition for CNC installed parts
+		if car.id in car_installed_parts:
+			for pcode in car_installed_parts[car.id]:
+				var pd = car_installed_parts[car.id][pcode]
+				pd["condition"] = max(0.0, pd.get("condition", 100.0) - loss)
+				if pd["condition"] <= 0.0:
+					add_notification("Critical",
+						"🔩 %s TERMINAL DAMAGE on %s! Slot empty — car cannot race." % [
+						pcode, car.car_name if car.car_name != "" else "Car %d" % car.car_number])
+					car_installed_parts[car.id].erase(pcode)
+		## Degrade per-part condition for provider parts
+		if car.id in car_provider_parts:
+			for pcode in car_provider_parts[car.id].keys():
+				var pd = car_provider_parts[car.id][pcode]
+				pd["condition"] = max(0.0, pd.get("condition", 100.0) - loss)
+				if pd["condition"] <= 0.0:
+					add_notification("Critical",
+						"🔩 %s TERMINAL DAMAGE on %s! Slot empty — buy provider parts at Logistics." % [
+						pcode, car.car_name if car.car_name != "" else "Car %d" % car.car_number])
+					car_provider_parts[car.id].erase(pcode)
+		add_log("🔩 Car %d condition after race: %.0f%% (−%.1f%% over %d laps)" % [
 			car.car_number, car.condition, loss, laps])
 
 func _auto_repair_cars_post_race() -> void:
@@ -2715,8 +3324,12 @@ func get_weekly_expenses() -> float:
 		var s = all_staff[s_id]
 		if s.contract_team == player_team.id:
 			total += s.weekly_salary
-	if active_championship != null and active_championship.id != "":
-		total += player_team.drivers.size() * _get_championship_driver_salary()
+	## Use per-driver negotiated salary; fall back to championship rate
+	for driver_id in player_team.drivers:
+		var driver = all_drivers.get(driver_id)
+		if driver == null: continue
+		total += driver.weekly_salary if driver.weekly_salary > 0 \
+				else _get_championship_driver_salary()
 	for bname in campus_buildings:
 		var b = campus_buildings[bname]
 		if b.get("level", 0) > 0:
@@ -2864,6 +3477,9 @@ func _advance_cnc_production() -> void:
 				"part_code":      pcode,
 				"championship_id": cid,
 			}
+		## Remove from wra_approved_blueprints so TDL step 8b clears
+		wra_approved_blueprints = wra_approved_blueprints.filter(
+			func(app): return app.get("blueprint_id","") != bp_id)
 		add_log("✅ CNC complete: %dx %s (%s) — Rel:%.0f%% Qual:%.2f× → warehouse." % [
 			qty, part, pcode, rel, qual])
 		add_notification("High",
@@ -2887,11 +3503,9 @@ func assign_cnc_part_to_car(car_id: String, part: String) -> bool:
 	cnc_parts_inventory[part] = available - 1
 	if cnc_parts_inventory[part] <= 0:
 		cnc_parts_inventory.erase(part)
-	if not car.has_meta("installed_cnc_parts"):
-		car.set_meta("installed_cnc_parts", {})
-	var installed = car.get_meta("installed_cnc_parts")
-	installed[part] = installed.get(part, 0) + 1
-	car.set_meta("installed_cnc_parts", installed)
+	if not car_id in car_installed_parts:
+		car_installed_parts[car_id] = {}
+	car_installed_parts[car_id][part] = car_installed_parts[car_id].get(part, 0) + 1
 	var cname = car.car_name if car.car_name != "" else "Car %d" % car.car_number
 	add_log("🔩 %s CNC part installed on %s." % [part, cname])
 	add_notification("Normal", "%s CNC part installed on %s." % [part, cname])
@@ -2900,29 +3514,24 @@ func assign_cnc_part_to_car(car_id: String, part: String) -> bool:
 
 ## Removes a CNC part from a car and returns it to inventory.
 func remove_cnc_part_from_car(car_id: String, part: String) -> bool:
-	var car = null
-	for c in player_team_cars:
-		if c.id == car_id: car = c; break
-	if car == null: return false
-	if not car.has_meta("installed_cnc_parts"): return false
-	var installed = car.get_meta("installed_cnc_parts")
+	if not car_id in car_installed_parts: return false
+	var installed = car_installed_parts[car_id]
 	if not part in installed or installed[part] <= 0: return false
 	installed[part] -= 1
 	if installed[part] <= 0: installed.erase(part)
-	car.set_meta("installed_cnc_parts", installed)
 	cnc_parts_inventory[part] = cnc_parts_inventory.get(part, 0) + 1
-	var cname = car.car_name if car.car_name != "" else "Car %d" % car.car_number
+	var car = null
+	for c in player_team_cars:
+		if c.id == car_id: car = c; break
+	var cname = car.car_name if car and car.car_name != "" else "Car"
 	add_log("🔩 %s CNC part removed from %s → back to inventory." % [part, cname])
 	emit_signal("log_updated")
 	return true
 
 ## Returns a lap-time improvement fraction (0.0–0.08) for a car based on CNC parts installed.
 func get_cnc_part_bonus(car_id: String) -> float:
-	var car = null
-	for c in player_team_cars:
-		if c.id == car_id: car = c; break
-	if car == null or not car.has_meta("installed_cnc_parts"): return 0.0
-	var installed = car.get_meta("installed_cnc_parts")
+	var installed = car_installed_parts.get(car_id, {})
+	if installed.is_empty(): return 0.0
 	var total = 0.0
 	for part in installed:
 		var qty: int = installed[part]
@@ -3032,12 +3641,7 @@ func start_cnc_job(blueprint_id: String, quantity: int = 1,
 ## Returns the installed CNC parts dict for a car.
 ## Format: { "AER": {reliability, quality, blueprint_id}, ... }
 func get_installed_parts_for_car(car_id: String) -> Dictionary:
-	var car = null
-	for c in player_team_cars:
-		if c.id == car_id: car = c; break
-	if car == null: return {}
-	if not car.has_meta("installed_cnc_parts"): return {}
-	return car.get_meta("installed_cnc_parts")
+	return car_installed_parts.get(car_id, {})
 
 ## Install a CNC part from inventory onto a car.
 func install_part_on_car(car_id: String, champ_id: String, pcode: String) -> bool:
@@ -3056,15 +3660,14 @@ func install_part_on_car(car_id: String, champ_id: String, pcode: String) -> boo
 	item["quantity"] -= 1
 	if item["quantity"] <= 0:
 		cnc_parts_inventory.erase(inv_key)
-	if not car.has_meta("installed_cnc_parts"):
-		car.set_meta("installed_cnc_parts", {})
-	var installed = car.get_meta("installed_cnc_parts")
-	installed[pcode] = {
-		"reliability": item.get("reliability", 60.0),
-		"quality":     item.get("quality", 1.0),
+	if not car_id in car_installed_parts:
+		car_installed_parts[car_id] = {}
+	car_installed_parts[car_id][pcode] = {
+		"reliability":  item.get("reliability", 60.0),
+		"quality":      item.get("quality", 1.0),
 		"blueprint_id": item.get("blueprint_id", ""),
+		"part":         item.get("part", ""),
 	}
-	car.set_meta("installed_cnc_parts", installed)
 	var cname = car.car_name if car.car_name != "" else "Car %d" % car.car_number
 	add_log("🔩 %s CNC part installed on %s. Rel:%.0f%% Qual:%.2f×" % [
 		pcode, cname, item.get("reliability", 60.0), item.get("quality", 1.0)])
@@ -3074,34 +3677,244 @@ func install_part_on_car(car_id: String, champ_id: String, pcode: String) -> boo
 
 ## Remove a CNC part from a car and return it to inventory.
 func remove_part_from_car(car_id: String, pcode: String) -> bool:
-	var car = null
-	for c in player_team_cars:
-		if c.id == car_id: car = c; break
-	if car == null: return false
-	if not car.has_meta("installed_cnc_parts"): return false
-	var installed = car.get_meta("installed_cnc_parts")
+	if not car_id in car_installed_parts: return false
+	var installed = car_installed_parts[car_id]
 	if not pcode in installed: return false
 	var part_data = installed[pcode]
 	installed.erase(pcode)
-	car.set_meta("installed_cnc_parts", installed)
+	var car = null
+	for c in player_team_cars:
+		if c.id == car_id: car = c; break
 	## Return to inventory
-	var champ_id = car.championship_id
-	var inv_key = _cnc_inv_key(champ_id, pcode)
+	var champ_id = car.championship_id if car else part_data.get("championship_id", "")
+	var inv_key = _cnc_inv_key(champ_id, pcode) if champ_id != "" else pcode
 	if inv_key in cnc_parts_inventory:
 		cnc_parts_inventory[inv_key]["quantity"] += 1
 	else:
 		cnc_parts_inventory[inv_key] = {
-			"quantity":    1,
+			"quantity":       1,
 			"reliability": part_data.get("reliability", 60.0),
 			"quality":     part_data.get("quality", 1.0),
 			"blueprint_id": part_data.get("blueprint_id", ""),
+			"part":         part_data.get("part", ""),
 			"part_code":   pcode,
 			"championship_id": champ_id,
 		}
-	var cname = car.car_name if car.car_name != "" else "Car %d" % car.car_number
+	var cname = car.car_name if car and car.car_name != "" else "Car"
 	add_log("🔩 %s CNC part removed from %s → back in warehouse." % [pcode, cname])
 	emit_signal("log_updated")
 	return true
+
+## Install a provider (L0) part from part_inventory into a car slot.
+func install_provider_part(car_id: String, champ_id: String, pcode: String) -> bool:
+	const PCODE_TO_NAME = {"AER":"Aero","ENG":"Engine","GRB":"Gearbox",
+		"SUS":"Suspension","BRK":"Brakes","CHS":"Chassis"}
+	var part_name = PCODE_TO_NAME.get(pcode, pcode)
+	if get_part_stock(part_name, champ_id) <= 0:
+		add_notification("High", "No %s provider parts in stock." % part_name)
+		return false
+	var car = null
+	for c in player_team_cars:
+		if c.id == car_id: car = c; break
+	if car == null: return false
+	## If a CNC part is already in this slot, remove it first (back to warehouse)
+	if car_id in car_installed_parts and pcode in car_installed_parts[car_id]:
+		remove_part_from_car(car_id, pcode)
+	## If a provider part is already in slot, return it to stock
+	if car_id in car_provider_parts and pcode in car_provider_parts[car_id]:
+		part_inventory[champ_id][part_name] = part_inventory.get(champ_id, {}).get(part_name, 0) + 1
+	## Deduct from stock and slot it
+	part_inventory[champ_id][part_name] -= 1
+	if not car_id in car_provider_parts:
+		car_provider_parts[car_id] = {}
+	## Provider part starts at condition based on current WRA cycle baseline
+	var base_rel = _get_provider_part_base_rel(champ_id)
+	car_provider_parts[car_id][pcode] = {
+		"condition": 100.0,
+		"reliability": base_rel,
+		"quality": _get_provider_part_base_qual(champ_id),
+		"part": part_name,
+		"part_code": pcode,
+	}
+	var cname = car.car_name if car.car_name != "" else "Car %d" % car.car_number
+	add_log("🔩 L0 %s provider part installed on %s." % [part_name, cname])
+	emit_signal("log_updated")
+	return true
+
+## Remove a provider part from a car slot and return to stock.
+func remove_provider_part(car_id: String, pcode: String) -> bool:
+	if not car_id in car_provider_parts: return false
+	if not pcode in car_provider_parts[car_id]: return false
+	const PCODE_TO_NAME = {"AER":"Aero","ENG":"Engine","GRB":"Gearbox",
+		"SUS":"Suspension","BRK":"Brakes","CHS":"Chassis"}
+	var part_name = PCODE_TO_NAME.get(pcode, pcode)
+	var car = null
+	for c in player_team_cars:
+		if c.id == car_id: car = c; break
+	var champ_id = car.championship_id if car else ""
+	car_provider_parts[car_id].erase(pcode)
+	if champ_id != "":
+		if not champ_id in part_inventory: part_inventory[champ_id] = {}
+		part_inventory[champ_id][part_name] = part_inventory[champ_id].get(part_name, 0) + 1
+	var cname = car.car_name if car and car.car_name != "" else "Car"
+	add_log("🔩 L0 %s removed from %s → back in stock." % [part_name, cname])
+	emit_signal("log_updated")
+	return true
+
+## Swap a CNC part onto a car — removes whatever is in the slot first (back to stock/inventory).
+func swap_part_on_car(car_id: String, champ_id: String, pcode: String) -> bool:
+	## Remove existing CNC part in slot (if any)
+	if car_id in car_installed_parts and pcode in car_installed_parts[car_id]:
+		remove_part_from_car(car_id, pcode)
+	## Remove existing provider part in slot (if any)
+	elif car_id in car_provider_parts and pcode in car_provider_parts[car_id]:
+		remove_provider_part(car_id, pcode)
+	## Install the new CNC part
+	return install_part_on_car(car_id, champ_id, pcode)
+
+## Get all parts for a car — merges CNC installed + provider installed.
+## Returns { pcode: { type:"cnc"|"provider", rel, qual, level, part_name, condition } }
+func get_all_parts_for_car(car_id: String) -> Dictionary:
+	var result: Dictionary = {}
+	var cnc = car_installed_parts.get(car_id, {})
+	var prov = car_provider_parts.get(car_id, {})
+	const PCODE_TO_NAME = {"AER":"Aero","ENG":"Engine","GRB":"Gearbox",
+		"SUS":"Suspension","BRK":"Brakes","CHS":"Chassis"}
+	for pcode in ["AER","ENG","GRB","SUS","BRK","CHS"]:
+		if pcode in cnc:
+			var d = cnc[pcode]
+			var lvl = 0
+			var bp_id = d.get("blueprint_id", "")
+			if bp_id != "":
+				lvl = known_blueprints.get(bp_id, {}).get("level", 1)
+			result[pcode] = {
+				"type": "cnc",
+				"part_name": PCODE_TO_NAME.get(pcode, pcode),
+				"level": lvl,
+				"reliability": d.get("reliability", 60.0),
+				"quality": d.get("quality", 1.0),
+				"condition": d.get("condition", 100.0),
+				"blueprint_id": bp_id,
+			}
+		elif pcode in prov:
+			var d = prov[pcode]
+			result[pcode] = {
+				"type": "provider",
+				"part_name": PCODE_TO_NAME.get(pcode, pcode),
+				"level": 0,
+				"reliability": d.get("reliability", 60.0),
+				"quality": d.get("quality", 1.0),
+				"condition": d.get("condition", 100.0),
+				"blueprint_id": "",
+			}
+	return result
+
+## Returns the provider part base reliability for a championship this season.
+## Season 1 of cycle = 60, +5 per season, capped at 90.
+func _get_provider_part_base_rel(champ_id: String) -> float:
+	var season_in_cycle = current_season - wra_cycle_start_season
+	return clamp(60.0 + season_in_cycle * 5.0, 60.0, 90.0)
+
+## Returns the provider part base quality for a championship this season.
+func _get_provider_part_base_qual(_champ_id: String) -> float:
+	var season_in_cycle = current_season - wra_cycle_start_season
+	return clamp(0.90 + season_in_cycle * 0.02, 0.90, 1.10)
+
+## Returns available CNC inventory items for a given pcode + championship as array of inv_keys.
+func get_cnc_stock_for_slot(champ_id: String, pcode: String) -> Array:
+	const PCODE_TO_PART = {"AER":"Aero","ENG":"Engine","GRB":"Gearbox",
+		"SUS":"Suspension","BRK":"Brakes","CHS":"Chassis"}
+	var part_name = PCODE_TO_PART.get(pcode, pcode)
+	var result: Array = []
+	for inv_key in cnc_parts_inventory:
+		var item = cnc_parts_inventory[inv_key]
+		if not item is Dictionary: continue
+		if item.get("quantity", 0) <= 0: continue
+		if item.get("championship_id", "") != champ_id: continue
+		var item_pcode = item.get("part_code", "")
+		var item_part  = item.get("part", "")
+		if item_pcode == pcode or item_part == part_name:
+			result.append(inv_key)
+	return result
+
+## Returns the display label for a CNC inventory item: "Blueprint Name  L2"
+func get_cnc_part_label(inv_key: String) -> String:
+	var item = cnc_parts_inventory.get(inv_key, {})
+	if not item is Dictionary: return inv_key
+	var bp_id = item.get("blueprint_id", "")
+	var lvl = 0
+	var bp_name = item.get("part", inv_key)
+	if bp_id != "" and bp_id in known_blueprints:
+		var bp = known_blueprints[bp_id]
+		lvl = bp.get("level", 0)
+		bp_name = bp.get("name", bp_name)
+	var qty = item.get("quantity", 1)
+	return "%s  L%d  (×%d)" % [bp_name, lvl, qty]
+
+## Returns the blueprint grid status for a championship.
+## { pcode: { "BP": [done_levels], "RE": bool, "in_progress": [task_ids], "wra_pending": [bp_ids], "wra_approved": [bp_ids] } }
+func get_blueprint_grid(champ_id: String) -> Dictionary:
+	const PCODES = ["AER","ENG","GRB","SUS","BRK","CHS"]
+	const PCODE_TO_PART = {"AER":"Aero","ENG":"Engine","GRB":"Gearbox",
+		"SUS":"Suspension","BRK":"Brakes","CHS":"Chassis"}
+	var result: Dictionary = {}
+	for pcode in PCODES:
+		result[pcode] = {"bp_levels": [], "re": false, "in_progress": [], "wra_pending": [], "wra_approved": []}
+
+	## Scan known_blueprints
+	for bp_id in known_blueprints:
+		var bp = known_blueprints[bp_id]
+		if bp.get("championship_id", "") != champ_id: continue
+		var pcode = _part_name_to_pcode(bp.get("part", ""))
+		if pcode == "": continue
+		var pillar = bp.get("pillar", 1)
+		var lvl = bp.get("level", 1)
+		if pillar == 1:
+			if lvl not in result[pcode]["bp_levels"]:
+				result[pcode]["bp_levels"].append(lvl)
+		elif pillar == 3:
+			result[pcode]["re"] = true
+
+	## Scan active R&D tasks
+	for task in active_rnd_tasks:
+		var tid = task.get("task_id", "")
+		var tdata = RND_TASKS.get(tid, {})
+		if tdata.get("championship_id", task.get("championship_id","")) != champ_id: continue
+		var pcode = _part_name_to_pcode(tdata.get("part", ""))
+		if pcode == "" or pcode not in result: continue
+		result[pcode]["in_progress"].append(tid)
+
+	## Scan WRA submissions
+	for sub in active_wra_submissions:
+		var bp_id = sub.get("blueprint_id", "")
+		if not bp_id in known_blueprints: continue
+		var bp = known_blueprints[bp_id]
+		if bp.get("championship_id", "") != champ_id: continue
+		var pcode = _part_name_to_pcode(bp.get("part", ""))
+		if pcode == "" or pcode not in result: continue
+		result[pcode]["wra_pending"].append(bp_id)
+
+	## Scan WRA approved
+	for app in wra_approved_blueprints:
+		var bp_id = app.get("blueprint_id", "")
+		if not bp_id in known_blueprints: continue
+		var bp = known_blueprints[bp_id]
+		if bp.get("championship_id", "") != champ_id: continue
+		var pcode = _part_name_to_pcode(bp.get("part", ""))
+		if pcode == "" or pcode not in result: continue
+		result[pcode]["wra_approved"].append(bp_id)
+
+	return result
+
+func _part_name_to_pcode(part_name: String) -> String:
+	match part_name:
+		"Aero":       return "AER"
+		"Engine":     return "ENG"
+		"Gearbox":    return "GRB"
+		"Suspension": return "SUS"
+		"Brakes":     return "BRK"
+		"Chassis":    return "CHS"
+	return ""
 
 ## Returns the combined Pillar 1/2/3 R&D lap bonus for a descriptive key.
 func get_rnd_perf_bonus_summary() -> String:
@@ -3287,18 +4100,15 @@ func get_rnd_bonus(effect_key: String) -> float:
 	return player_team.get_meta("rnd_bonuses").get(effect_key, 0.0)
 
 func get_upgrade_cost(building: Dictionary) -> int:
-	var base = building["upgrade_cost"]
-	var level = building["level"]
+	var base  = building["upgrade_cost"]
+	var level = max(0, building["level"] - 1)  ## L1→2 = base, L2→3 = base×1.5, etc.
 	var scaled = base * pow(1.5, level)
 	return int(round(scaled / 500.0) * 500)
 
 ## Returns the scaled upgrade time for the next level.
-## Adds 1 week every 3 levels on top of the base time.
 func get_upgrade_time(building: Dictionary) -> int:
-	# Upgrade time scales with level: base × (1 + level × 0.3), rounded up
-	# Level 1→2: base × 1.3, Level 5→6: base × 2.5, Level 10→11: base × 4.0
-	var base = building["upgrade_time"]
-	var level = building["level"]
+	var base  = building["upgrade_time"]
+	var level = max(0, building["level"] - 1)  ## L1→2 = base, scales from there
 	return max(base, int(ceil(base * (1.0 + level * 0.3))))
 
 ## Weekly income increment per level — from Excel Buildings sheet Effects_Per_Level column.
@@ -3322,6 +4132,12 @@ const TRACK_BUILDINGS = ["Karting Track", "Gravel Track", "Oval Track", "Race Tr
 ## PRC level multiplies track income by (1 + prc_level × 0.10).
 func get_building_income(building: Dictionary) -> int:
 	var bname = building["name"]
+	if not building.get("built", false) or building.get("level", 0) <= 0:
+		return 0
+	## Public Racing Club: income = upkeep × 1.02, scales with level
+	if bname == "Public Racing Club":
+		var maintenance = get_building_maintenance(building)
+		return int(maintenance * 1.02)
 	# Museum: income scales with player race wins — 0 wins = 0 income
 	if bname == "Museum":
 		if not building.get("built", false):
@@ -3474,7 +4290,13 @@ func _apply_campus_income() -> void:
 	player_team.balance -= total_maintenance
 	## Suppressed from log — shown as part of weekly P&L summary instead
 
-func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: String, p_starting_budget: int = 50000) -> void:
+func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: String,
+		p_starting_budget: int = 50000,
+		p_ceo_sex: String = "Male", p_ceo_age: int = 30,
+		p_color_primary: Color = Color(0.85, 0.15, 0.15),
+		p_color_secondary: Color = Color(0.95, 0.95, 0.95),
+		p_difficulty: String = "Realistic",
+		p_starting_champ: String = "C-001") -> void:
 	current_week = 1
 	current_season = 1
 	weekly_log = []
@@ -3489,14 +4311,22 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 	wra_cycle_start_season = 1
 	cnc_production_queue = []
 	cnc_parts_inventory = {}
+	car_provider_parts  = {}
 	research_points = 0.0
 	all_teams = []
 	all_drivers = {}
 	all_staff = {}
+	## Assign all params BEFORE calling setup functions that depend on them
+	player_name              = p_player_name
+	player_team_name         = p_team_name
+	player_team_nationality  = p_nationality
+	ceo_sex                  = p_ceo_sex
+	ceo_age                  = p_ceo_age
+	team_color_primary       = p_color_primary
+	team_color_secondary     = p_color_secondary
+	game_difficulty          = p_difficulty
+	_starting_champ_id       = p_starting_champ
 	_setup_championship()
-	player_name = p_player_name
-	player_team_name = p_team_name
-	player_team_nationality = p_nationality
 	_setup_player_team()
 	player_team.balance = float(p_starting_budget)
 	_generate_drivers()
@@ -3508,41 +4338,42 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 	_setup_part_inventory()
 	_generate_available_staff(60)
 	add_log("Welcome to Automotive Empire!")
-	add_log("Season %d — GK Regional Championship" % current_season)
+	var start_champ_name = CHAMPIONSHIP_REGISTRY.get(_starting_champ_id, {}).get("name", "Championship")
+	add_log("Season %d — %s" % [current_season, start_champ_name])
 
 func _setup_championship() -> void:
 	active_championships.clear()
+	var cid = _starting_champ_id
+	var reg = CHAMPIONSHIP_REGISTRY.get(cid, CHAMPIONSHIP_REGISTRY["C-001"])
 	var champ = Championship.new()
-	champ.id = "C-001"
-	champ.championship_name = "GK Regional Championship"
-	champ.discipline = "GK"
-	champ.tier = 1
-	champ.min_age = 8
-	champ.max_age = 16
-	champ.entry_fee_per_race = 1500.0
-	champ.num_races = 6
-	champ.points_system = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
-	champ.prize_1st = 300.0
-	champ.prize_2nd = 150.0
-	champ.prize_3rd = 75.0
-	champ.sp_per_10_pct_damage = 100
-	champ.fuel_per_car_per_race = 15.0
+	champ.id = cid
+	champ.championship_name = reg["name"]
+	champ.discipline        = reg.get("discipline", "GK")
+	champ.tier              = reg.get("tier", 1)
+	champ.min_age           = reg.get("min_age", 8)
+	champ.max_age           = reg.get("max_age", 99)
+	champ.entry_fee_per_race = float(reg.get("entry_fee", 9000)) / max(reg.get("num_races", 6), 1)
+	champ.num_races          = reg.get("num_races", 6)
+	champ.points_system      = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
+	champ.prize_1st  = 300.0
+	champ.prize_2nd  = 150.0
+	champ.prize_3rd  = 75.0
+	champ.sp_per_10_pct_damage   = 100
+	champ.fuel_per_car_per_race  = 15.0
 	champ.condition_loss_per_lap = 0.5
-	champ.condition_loss_per_stage = 0.0
-	champ.repair_time_per_1pct = 0.0
-	champ.has_mid_race_repairs = false
+	champ.condition_loss_per_stage    = 0.0
+	champ.repair_time_per_1pct        = 0.0
+	champ.has_mid_race_repairs        = false
 	champ.service_park_every_n_stages = 0
-	champ.pit_stop_repair_pct = 0.0
-
+	champ.pit_stop_repair_pct         = 0.0
 	champ.calendar = []
-	for race in CHAMPIONSHIP_CALENDARS.get("C-001", []):
+	for race in CHAMPIONSHIP_CALENDARS.get(cid, CHAMPIONSHIP_CALENDARS.get("C-001", [])):
 		champ.calendar.append({
 			"round": race["round"], "name": race["name"], "week": race["week"],
 			"rain_probability": race["rain"], "laps": race["laps"],
 			"lap_km": race.get("lap_km", 1.0), "audience": race["audience"],
 		})
 	active_championships.append(champ)
-	# player_registered_championships starts empty — player must register via ChampionshipSelect
 	player_registered_championships = []
 
 func _setup_player_team() -> void:
@@ -3919,6 +4750,13 @@ func advance_week() -> void:
 
 	current_week += 1
 
+	## Apply any pending TP/Strategist championship assignments (queued last week)
+	_apply_pending_staff_assignments()
+
+	## Autosave every 13 weeks — 4 rotating slots
+	if current_week % 13 == 0:
+		_autosave()
+
 	## Snapshot balance before all changes for P&L calculation
 	var _balance_before = player_team.balance
 
@@ -4049,17 +4887,25 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 		# Using race_pace_reading as the general TP race-day multiplier
 		tp_factor = 1.0 + tp.race_pace_reading / 200.0
 
-	# Effective attributes
-	var mech_setup:   float = 0.0
-	var mech_track:   float = 0.0
-	var strat_pace:   float = 0.0
-	var strat_track:  float = 0.0
+	## Get the track_id for this race — used for per-track knowledge lookups
+	var current_track_id: String = race_data.get("track_id", "")
+
+	# Effective attributes — use per-track knowledge when track_id is known
+	var mech_setup:  float = 0.0
+	var mech_track:  float = 0.0
+	var strat_pace:  float = 0.0
+	var strat_track: float = 0.0
 	if mechanic != null:
-		mech_setup = mechanic.car_setup    * tp_factor
-		mech_track = mechanic.track_knowledge * tp_factor
+		mech_setup = mechanic.car_setup * tp_factor
+		## Use per-track knowledge if available, fall back to flat track_knowledge
+		var mech_tk = mechanic.get_track_knowledge_for(current_track_id) \
+				if current_track_id != "" else mechanic.track_knowledge
+		mech_track = mech_tk * tp_factor
 	if strategist != null:
-		strat_pace  = strategist.race_strategy  * tp_factor
-		strat_track = strategist.track_knowledge * tp_factor
+		strat_pace  = strategist.race_strategy * tp_factor
+		var strat_tk = strategist.get_track_knowledge_for(current_track_id) \
+				if current_track_id != "" else strategist.track_knowledge
+		strat_track = strat_tk * tp_factor
 
 	# Final Staff_Synergy_Factor for player cars
 	var staff_synergy: float = 1.0 \
@@ -4170,6 +5016,13 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 
 		var lap_time = base_time * pace_factor * wet_factor * focus_factor * (1.0 + fitness_penalty)
 
+		## Driver track knowledge bonus — up to -1% for a fully known track (100 TK)
+		## A driver who has raced here before is naturally quicker through confidence.
+		if current_track_id != "" and driver.id in player_team.drivers:
+			var driver_tk = driver.get_track_knowledge(current_track_id)
+			var tk_bonus = (driver_tk / 100.0) * 0.01   ## 0→0%, 100→1%
+			lap_time *= (1.0 - tk_bonus)
+
 		# Apply Staff_Synergy_Factor for player drivers — max ±0.8%
 		if driver.id in player_team.drivers:
 			lap_time /= (1.0 + (staff_synergy - 1.0) * 0.5)
@@ -4245,7 +5098,7 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 		driver_times[i]["is_player"] = driver.id in player_team.drivers
  
 		# Update driver stats
-		_update_driver_stats_after_race(driver, standing_position, race_data["laps"], is_wet, race_drivers.size())
+		_update_driver_stats_after_race(driver, standing_position, race_data["laps"], is_wet, race_drivers.size(), race_data.get("track_id", ""))
 
 		# Record stat deltas for RaceResults display
 		if driver.id in pre_race_stats:
@@ -4259,7 +5112,7 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 			}
  
 	# ── Update mechanic + strategist stats ───────────────────────────────────
-	_update_staff_stats_after_race(race_data["laps"])
+	_update_staff_stats_after_race(race_data["laps"], race_data.get("track_id", ""))
 
 	# ── DNS entries: add to last_race_results with 0 pts ─────
 	# This ensures they appear in the Results screen (last place, DNS label)
@@ -4338,7 +5191,7 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 	# Switch to race results scene
 	get_tree().change_scene_to_file("res://scenes/RaceResults.tscn")
 
-func _update_driver_stats_after_race(driver: Driver, standing_position: int, laps: int, is_wet: bool, grid_size: int) -> void:
+func _update_driver_stats_after_race(driver: Driver, standing_position: int, laps: int, is_wet: bool, grid_size: int, track_id: String = "") -> void:
 	# Fitness drops
 	var fitness_drop = laps * 0.4
 	driver.fitness = max(0.0, driver.fitness - fitness_drop)
@@ -4354,6 +5207,14 @@ func _update_driver_stats_after_race(driver: Driver, standing_position: int, lap
 	# Feedback improves slightly with experience
 	if driver.feedback < driver.potential:
 		driver.feedback = min(driver.potential, driver.feedback + exp_gain * 0.08)
+
+	## Per-track knowledge — driver learns this specific track each visit
+	if track_id != "":
+		var tk_gain = 4.0 + randf_range(0.0, 4.0)
+		## Better finishing positions = more learning (focused race)
+		if standing_position == 1:   tk_gain *= 1.3
+		elif standing_position <= 3: tk_gain *= 1.15
+		driver.update_track_knowledge(track_id, tk_gain)
 
 	# Marketability — affected by result
 	driver.update_marketability_after_race(standing_position, grid_size, false)
@@ -4385,7 +5246,7 @@ func _update_driver_stats_after_race(driver: Driver, standing_position: int, lap
 		driver.morale = max(0.0, driver.morale - 5.0)
 
 
-func _update_staff_stats_after_race(_laps: int) -> void:
+func _update_staff_stats_after_race(_laps: int, track_id: String = "") -> void:
 	last_race_staff_deltas = []
 	var improvement = 0.08 + randf_range(0.0, 0.12)
 	for car in player_team_cars:
@@ -4395,7 +5256,11 @@ func _update_staff_stats_after_race(_laps: int) -> void:
 			var pre_track = mech.track_knowledge
 			if mech.car_setup < 100.0:
 				mech.car_setup = min(100.0, mech.car_setup + improvement * 0.6)
-			if mech.track_knowledge < 100.0:
+			## Per-track knowledge: grows faster at a known track, slower at new ones
+			if track_id != "":
+				mech.update_track_knowledge(track_id, improvement * 6.0)
+			elif mech.track_knowledge < 100.0:
+				## Fallback: flat growth (legacy path, no track_id)
 				mech.track_knowledge = min(100.0, mech.track_knowledge + improvement * 0.4)
 			var d_setup = mech.car_setup - pre_setup
 			var d_track = mech.track_knowledge - pre_track
@@ -4409,7 +5274,9 @@ func _update_staff_stats_after_race(_laps: int) -> void:
 		var pre_track = strat.track_knowledge
 		if strat.race_strategy < 100.0:
 			strat.race_strategy = min(100.0, strat.race_strategy + improvement * 0.5)
-		if strat.track_knowledge < 100.0:
+		if track_id != "":
+			strat.update_track_knowledge(track_id, improvement * 5.0)
+		elif strat.track_knowledge < 100.0:
 			strat.track_knowledge = min(100.0, strat.track_knowledge + improvement * 0.3)
 		var d_strat = strat.race_strategy - pre_strat
 		var d_track = strat.track_knowledge - pre_track
@@ -4481,11 +5348,13 @@ func _end_season() -> void:
 	emit_signal("log_updated")
 	_process_sponsors_season_end()
 	_process_supply_contracts_season_end()
+	pending_season_screen = "end_of_season"
 
 func start_new_season() -> void:
 	current_season += 1
 	current_week = 1
 	weekly_log = []
+	pending_season_screen = "begin_of_season"
 
 	_process_off_season()
 
@@ -4496,6 +5365,10 @@ func start_new_season() -> void:
 		var s = all_staff[staff_id]
 		if s.assigned_car_id != "":
 			s.assigned_car_id = ""
+	## Wipe all installed parts (CNC and provider) and warehouse inventory
+	car_installed_parts.clear()
+	car_provider_parts.clear()
+	cnc_parts_inventory.clear()
 	add_log("🏎 All cars retired for Season %d. Buy or build new cars before Race 1." % current_season)
 
 	# ── AI team car regeneration ─────────────────────────────────────────────
@@ -4520,16 +5393,24 @@ func start_new_season() -> void:
 	else:
 		for champ_id in player_registered_championships:
 			if champ_id in prev_by_id:
-				# Re-use existing championship object, reset for new season
 				var existing = prev_by_id[champ_id]
 				existing.reset_for_new_season()
 				active_championships.append(existing)
 			else:
-				# Newly registered championship
 				var new_champ = _create_championship(champ_id)
 				if new_champ:
 					active_championships.append(new_champ)
 					add_log("🏆 Now competing in: %s" % new_champ.championship_name)
+		## Fire no-car notification for any registered champ without a car
+		for champ_id in player_registered_championships:
+			var has_car = false
+			for car in player_team_cars:
+				if car.championship_id == champ_id: has_car = true; break
+			if not has_car:
+				var reg = CHAMPIONSHIP_REGISTRY.get(champ_id, {})
+				add_notification("High",
+					"🏎 No car for %s — buy or manufacture one before Race 1." % reg.get("name", champ_id),
+					"logistics")
 
 	# Delivery deadline notifications
 	for champ in active_championships:
@@ -4726,6 +5607,23 @@ func _process_off_season() -> void:
 			all_drivers[new_driver.id] = new_driver
 			team.drivers.append(new_driver.id)
 
+func _autosave() -> void:
+	## Save to main slot first, then copy to rotating autosave slot
+	## 4 rotating slots: autosave_0.json … autosave_3.json
+	save_game()
+	var total_weeks = (current_season - 1) * max_weeks + current_week
+	var slot = (total_weeks / 13) % 4
+	var src_path  = "user://save_game.json"
+	var dest_path = "user://autosave_%d.json" % slot
+	if FileAccess.file_exists(src_path):
+		var data = FileAccess.get_file_as_string(src_path)
+		var file = FileAccess.open(dest_path, FileAccess.WRITE)
+		if file:
+			file.store_string(data)
+			file.close()
+	add_log("💾 Autosave slot %d — S%d W%d" % [slot, current_season, current_week])
+	add_notification("Normal", "💾 Game autosaved (slot %d)." % slot)
+
 func save_game() -> void:
 	var save_data = {
 		"version": 1,
@@ -4760,9 +5658,13 @@ func save_game() -> void:
 		"rnd_bonuses":          player_team.get_meta("rnd_bonuses") if player_team.has_meta("rnd_bonuses") else {},
 		"cnc_production_queue": cnc_production_queue,
 		"cnc_parts_inventory":  cnc_parts_inventory,
+		"car_installed_parts":  car_installed_parts,
+		"car_provider_parts":   car_provider_parts,
 		"research_points":      research_points,
 		"player_team_cars": _serialize_cars(),
 		"all_staff": _serialize_staff(),
+		"walked_away_subjects":      walked_away_subjects,
+		"pending_staff_assignments": pending_staff_assignments,
 	}
 
 	# Save all teams
@@ -4790,6 +5692,12 @@ func save_game() -> void:
 			"age": d.age,
 			"sex": d.sex,
 			"contract_team": d.contract_team,
+			"contract_seasons_remaining": d.contract_seasons_remaining,
+			"weekly_salary":      d.weekly_salary,
+			"win_bonus":          d.win_bonus,
+			"podium_bonus":       d.podium_bonus,
+			"championship_bonus": d.championship_bonus,
+			"release_clause":     d.release_clause,
 			"active_discipline": d.active_discipline,
 			"discipline_change_season": d.discipline_change_season,
 			"pace": d.pace,
@@ -4807,6 +5715,7 @@ func save_game() -> void:
 			"seasons_without_contract": d.seasons_without_contract,
 			"discipline_adaptation": d.discipline_adaptation,
 			"peak_adaptation": d.peak_adaptation,
+			"track_knowledge": d.track_knowledge,
 		}
 
 	# Write to file
@@ -4818,14 +5727,14 @@ func save_game() -> void:
 	else:
 		push_error("[Save] Could not open save file for writing")
 
-func load_game() -> void:
-	if not FileAccess.file_exists("user://save_game.json"):
-		add_log("No save file found.")
+func load_game(path: String = "user://save_game.json") -> void:
+	if not FileAccess.file_exists(path):
+		add_log("No save file found at: %s" % path)
 		return
 
-	var file = FileAccess.open("user://save_game.json", FileAccess.READ)
+	var file = FileAccess.open(path, FileAccess.READ)
 	if not file:
-		push_error("[Load] Could not open save file")
+		push_error("[Load] Could not open save file: %s" % path)
 		return
 
 	var json_string = file.get_as_text()
@@ -4858,7 +5767,11 @@ func load_game() -> void:
 	_rebuild_seasonal_rnd_tasks()
 	if "cnc_production_queue" in data: cnc_production_queue = data["cnc_production_queue"]
 	if "cnc_parts_inventory"  in data: cnc_parts_inventory  = data["cnc_parts_inventory"]
+	if "car_installed_parts"  in data: car_installed_parts  = data["car_installed_parts"]
+	if "car_provider_parts"   in data: car_provider_parts   = data["car_provider_parts"]
 	if "research_points"      in data: research_points      = float(data["research_points"])
+	if "walked_away_subjects"      in data: walked_away_subjects      = data["walked_away_subjects"]
+	if "pending_staff_assignments" in data: pending_staff_assignments = data["pending_staff_assignments"]
 
 	# Restore championship
 	_setup_championship()
@@ -4899,6 +5812,12 @@ func load_game() -> void:
 		d.age = dd["age"]
 		d.sex = dd["sex"]
 		d.contract_team = dd["contract_team"]
+		d.contract_seasons_remaining = dd.get("contract_seasons_remaining", 0)
+		d.weekly_salary       = dd.get("weekly_salary", 0.0)
+		d.win_bonus           = dd.get("win_bonus", 0)
+		d.podium_bonus        = dd.get("podium_bonus", 0)
+		d.championship_bonus  = dd.get("championship_bonus", 0)
+		d.release_clause      = dd.get("release_clause", 0)
 		d.active_discipline = dd["active_discipline"]
 		d.discipline_change_season = dd["discipline_change_season"]
 		d.pace = dd["pace"]
@@ -4916,6 +5835,7 @@ func load_game() -> void:
 		d.seasons_without_contract = dd["seasons_without_contract"]
 		d.discipline_adaptation = dd["discipline_adaptation"]
 		d.peak_adaptation = dd["peak_adaptation"]
+		d.track_knowledge = dd.get("track_knowledge", {})
 		all_drivers[driver_id] = d
 
 	# Restore cars
@@ -5018,6 +5938,11 @@ func _serialize_staff() -> Dictionary:
 			"reliability": s.reliability, "parts_knowledge": s.parts_knowledge,
 			"practice_scheduling": s.practice_scheduling,
 			"qualifying_timing": s.qualifying_timing,
+			"championship_bonus": s.championship_bonus,
+			"performance_bonus":  s.performance_bonus,
+			"release_clause":     s.release_clause,
+			"crew_number": s.crew_number,
+			"track_knowledge_by_track": s.track_knowledge_by_track,
 		}
 	return result
 
@@ -5073,7 +5998,12 @@ func _deserialize_staff(data_dict: Dictionary) -> void:
 		s.reliability = sd.get("reliability", 0.0)
 		s.parts_knowledge = sd.get("parts_knowledge", 0.0)
 		s.practice_scheduling = sd.get("practice_scheduling", 0.0)
-		s.qualifying_timing = sd.get("qualifying_timing", 0.0)
+		s.qualifying_timing   = sd.get("qualifying_timing", 0.0)
+		s.championship_bonus  = sd.get("championship_bonus", 0)
+		s.performance_bonus   = sd.get("performance_bonus", 0)
+		s.release_clause      = sd.get("release_clause", 0)
+		s.crew_number         = sd.get("crew_number", 0)
+		s.track_knowledge_by_track = sd.get("track_knowledge_by_track", {})
 		all_staff[staff_id] = s
 		# Track counter for future generation
 		var num_part = sd["id"].trim_prefix("ST-").to_int()
@@ -5277,7 +6207,7 @@ func _generate_passive_sponsor_offers() -> void:
 	for i in range(randi_range(1, 3)):
 		var offer = _generate_sponsor_offer(randi_range(1, 3), randi_range(1, max_tier))
 		sponsor_offers.append(offer)
-		add_notification("Normal", "New sponsor offer: %s. View in HQ." % offer.name, "hq")
+		add_notification("Normal", "New sponsor offer: %s. View in Sponsors tab." % offer.name, "financial_dept")
 
 func start_cfo_sponsor_search() -> bool:
 	if cfo_search_active: return false
@@ -5322,10 +6252,10 @@ func _advance_cfo_search() -> void:
 	## Notify player each time a new offer arrives
 	if num == 1:
 		add_notification("High",
-			"CFO found a new sponsor offer: %s. View in HQ." % sponsor_offers[-1].name, "hq")
+			"CFO found a new sponsor offer: %s. View in Sponsors tab." % sponsor_offers[-1].name, "financial_dept")
 	else:
 		add_notification("High",
-			"CFO found %d new sponsor offers this week. View in HQ." % num, "hq")
+			"CFO found %d new sponsor offers this week. View in Sponsors tab." % num, "financial_dept")
 	add_log("📋 CFO: %d new sponsor offer%s this week." % [num, "s" if num != 1 else ""])
 	## Reset countdown for next offer cycle
 	var cfo = null
@@ -5485,12 +6415,7 @@ func submit_to_wra(blueprint_id: String) -> bool:
 	var bp = known_blueprints[blueprint_id]
 	var cid = bp.get("championship_id", "")
 	var tier = _get_championship_tier(cid)
-	var fee = {1:500,2:1500,3:4000,4:10000}.get(tier, 500)
 	var weeks = {1:2,2:3,3:5,4:6}.get(tier, 2)
-	if player_team.balance < fee:
-		add_notification("High", "Insufficient funds for WRA fee (CR %s)." % _fmt_int(fee))
-		return false
-	player_team.balance -= fee
 	active_wra_submissions.append({
 		"blueprint_id":    blueprint_id,
 		"championship_id": cid,
@@ -5500,8 +6425,8 @@ func submit_to_wra(blueprint_id: String) -> bool:
 		"weeks_remaining": weeks,
 		"tier":            tier,
 	})
-	add_log("📋 WRA submission: %s. Fee CR %s. Decision in %d weeks." % [
-		bp.get("name", blueprint_id), _fmt_int(fee), weeks])
+	add_log("📋 WRA submission: %s. Decision in %d weeks." % [
+		bp.get("name", blueprint_id), weeks])
 	add_notification("Normal",
 		"Blueprint submitted to WRA: '%s'. Decision in %d weeks." % [
 			bp.get("name", blueprint_id), weeks])

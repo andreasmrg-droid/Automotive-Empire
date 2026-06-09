@@ -1,38 +1,41 @@
 extends Control
-## Version: S15.2 — New scene. Beginning of season screen.
-## Shows season number, registered championships, and a mandatory TDL to get each ready.
-## Triggered from MainHub when current_week == 1 and current_season > 1,
-## OR immediately after season rollover in advance_week().
+## Version: S17.1 — Fix E: navigating to buildings sets pending_season_screen so MainHub redirects back.
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_ui()
 
+
 func _build_ui() -> void:
+	var bg = ColorRect.new()
+	bg.color = Color(0.06, 0.07, 0.09)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(bg)
+
 	var margin = MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	for s in ["margin_left","margin_right"]:
 		margin.add_theme_constant_override(s, 60)
 	for s in ["margin_top","margin_bottom"]:
-		margin.add_theme_constant_override(s, 40)
+		margin.add_theme_constant_override(s, 36)
 	add_child(margin)
 
 	var root = VBoxContainer.new()
-	root.add_theme_constant_override("separation", 20)
+	root.add_theme_constant_override("separation", 18)
 	margin.add_child(root)
 
 	# ── Title ─────────────────────────────────────────────────────────────────
 	var lbl_season = Label.new()
 	lbl_season.text = "🏁  SEASON %d BEGINS" % GameState.current_season
-	lbl_season.add_theme_font_size_override("font_size", 36)
+	lbl_season.add_theme_font_size_override("font_size", 38)
 	lbl_season.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
 	lbl_season.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(lbl_season)
 
 	var lbl_sub = Label.new()
-	lbl_sub.text = "Week 1 of 52  ·  Your empire awaits."
-	lbl_sub.add_theme_font_size_override("font_size", 15)
-	lbl_sub.modulate = Color(0.6, 0.6, 0.6)
+	lbl_sub.text = "Week 1 of 52  ·  Build your legacy."
+	lbl_sub.add_theme_font_size_override("font_size", 14)
+	lbl_sub.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
 	lbl_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(lbl_sub)
 
@@ -40,78 +43,56 @@ func _build_ui() -> void:
 
 	# ── Two columns ───────────────────────────────────────────────────────────
 	var cols = HBoxContainer.new()
-	cols.add_theme_constant_override("separation", 30)
+	cols.add_theme_constant_override("separation", 28)
 	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(cols)
 
-	# Left: Championship readiness checklist
 	var left = VBoxContainer.new()
 	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	left.add_theme_constant_override("separation", 12)
 	cols.add_child(left)
 
-	var lbl_champs = Label.new()
-	lbl_champs.text = "REGISTERED CHAMPIONSHIPS"
-	lbl_champs.add_theme_font_size_override("font_size", 13)
-	lbl_champs.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
-	left.add_child(lbl_champs)
+	left.add_child(_section_lbl("🏆  CHAMPIONSHIPS THIS SEASON"))
 
 	if GameState.active_championships.is_empty():
 		var lbl_none = Label.new()
-		lbl_none.text = "No championships registered.\nGo to Championship Registration to sign up."
-		lbl_none.modulate = Color(0.6, 0.6, 0.6)
-		lbl_none.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lbl_none.text = "No championships active. Register first."
+		lbl_none.modulate = Color(0.55, 0.55, 0.55)
 		left.add_child(lbl_none)
-		var btn_reg = Button.new()
-		btn_reg.text = "🏆 Championship Registration →"
-		btn_reg.custom_minimum_size = Vector2(0, 36)
-		btn_reg.pressed.connect(func():
-			get_tree().change_scene_to_file("res://scenes/ChampionshipSelect.tscn"))
+		var btn_reg = _action_btn("🏆 Championship Registration →", Color(0.15, 0.40, 0.65))
+		btn_reg.pressed.connect(func(): _go("res://scenes/ChampionshipSelect.tscn"))
 		left.add_child(btn_reg)
 	else:
 		for champ in GameState.active_championships:
-			left.add_child(_build_champ_checklist(champ))
+			left.add_child(_build_champ_card(champ))
 
-	# Right: Season TDL + Financial snapshot
 	var right = VBoxContainer.new()
-	right.custom_minimum_size = Vector2(320, 0)
+	right.custom_minimum_size = Vector2(310, 0)
 	right.add_theme_constant_override("separation", 12)
 	cols.add_child(right)
 
-	var lbl_tdl = Label.new()
-	lbl_tdl.text = "SEASON TO-DO LIST"
-	lbl_tdl.add_theme_font_size_override("font_size", 13)
-	lbl_tdl.add_theme_color_override("font_color", Color(1.0, 0.8, 0.3))
-	right.add_child(lbl_tdl)
-
-	right.add_child(_build_season_tdl())
-
+	right.add_child(_section_lbl("📋  SEASON TO-DO"))
+	right.add_child(_build_tdl())
 	right.add_child(HSeparator.new())
-
-	var lbl_fin = Label.new()
-	lbl_fin.text = "FINANCIAL SNAPSHOT"
-	lbl_fin.add_theme_font_size_override("font_size", 13)
-	lbl_fin.add_theme_color_override("font_color", Color(0.5, 0.9, 0.5))
-	right.add_child(lbl_fin)
-
+	right.add_child(_section_lbl("💰  FINANCES"))
 	right.add_child(_build_finance_panel())
 
 	# ── Footer ────────────────────────────────────────────────────────────────
 	root.add_child(HSeparator.new())
-	var btn_continue = Button.new()
-	btn_continue.text = "▶  START SEASON %d" % GameState.current_season
-	btn_continue.custom_minimum_size = Vector2(0, 50)
-	btn_continue.add_theme_font_size_override("font_size", 20)
-	var style_btn = StyleBoxFlat.new()
-	style_btn.bg_color = Color(0.15, 0.45, 0.15)
-	style_btn.corner_radius_top_left = 6; style_btn.corner_radius_top_right = 6
-	style_btn.corner_radius_bottom_left = 6; style_btn.corner_radius_bottom_right = 6
-	btn_continue.add_theme_stylebox_override("normal", style_btn)
-	btn_continue.pressed.connect(_on_continue)
-	root.add_child(btn_continue)
+	var btn_start = Button.new()
+	btn_start.text = "▶  START SEASON %d" % GameState.current_season
+	btn_start.custom_minimum_size = Vector2(0, 52)
+	btn_start.add_theme_font_size_override("font_size", 22)
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.14, 0.48, 0.18)
+	style.corner_radius_top_left = 6; style.corner_radius_top_right = 6
+	style.corner_radius_bottom_left = 6; style.corner_radius_bottom_right = 6
+	btn_start.add_theme_stylebox_override("normal", style)
+	btn_start.pressed.connect(_on_start)
+	root.add_child(btn_start)
 
 
-func _build_champ_checklist(champ) -> PanelContainer:
+func _build_champ_card(champ) -> PanelContainer:
 	var panel = _card_panel(Color(0.10, 0.12, 0.16))
 	var vbox = VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 7)
@@ -119,188 +100,191 @@ func _build_champ_checklist(champ) -> PanelContainer:
 
 	var reg = GameState.CHAMPIONSHIP_REGISTRY.get(champ.id, {})
 	var lbl_name = Label.new()
-	lbl_name.text = "🏆 %s" % champ.championship_name
+	lbl_name.text = "🏆 %s  ·  Tier %d  ·  %d races" % [
+		champ.championship_name, reg.get("tier", 1), champ.num_races]
 	lbl_name.add_theme_font_size_override("font_size", 14)
 	lbl_name.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
 	vbox.add_child(lbl_name)
 
-	var lbl_info = Label.new()
-	lbl_info.text = "%d races  ·  %s discipline  ·  Tier %d" % [
-		champ.num_races, champ.discipline, reg.get("tier", 1)]
-	lbl_info.add_theme_font_size_override("font_size", 11)
-	lbl_info.modulate = Color(0.55, 0.55, 0.55)
-	vbox.add_child(lbl_info)
-
-	# Readiness checks
-	var checks = _get_champ_readiness(champ)
-	for check in checks:
+	for check in _get_readiness(champ):
 		var row = HBoxContainer.new()
-		row.add_theme_constant_override("separation", 6)
+		row.add_theme_constant_override("separation", 7)
 		var icon = Label.new()
 		icon.text = "✅" if check["ok"] else "⚠"
 		icon.add_theme_font_size_override("font_size", 12)
 		row.add_child(icon)
-		var lbl_c = Label.new()
-		lbl_c.text = check["text"]
-		lbl_c.add_theme_font_size_override("font_size", 12)
-		lbl_c.add_theme_color_override("font_color",
+		var lbl = Label.new()
+		lbl.text = check["text"]
+		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_color_override("font_color",
 			Color(0.5, 0.9, 0.5) if check["ok"] else Color(1.0, 0.55, 0.2))
-		lbl_c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(lbl_c)
+		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(lbl)
 		if not check["ok"] and check.get("dest", "") != "":
 			var btn = Button.new()
 			btn.text = "Fix →"
-			btn.custom_minimum_size = Vector2(58, 24)
+			btn.custom_minimum_size = Vector2(54, 22)
 			btn.add_theme_font_size_override("font_size", 10)
 			var d = check["dest"]
-			btn.pressed.connect(func(): get_tree().change_scene_to_file(d))
+			btn.pressed.connect(func(): _go(d))
 			row.add_child(btn)
 		vbox.add_child(row)
 
 	return panel
 
 
-func _get_champ_readiness(champ) -> Array:
+func _get_readiness(champ) -> Array:
 	var checks = []
 	var car = null
 	for c in GameState.player_team_cars:
-		if c.championship_id == champ.id:
-			car = c; break
+		if c.championship_id == champ.id: car = c; break
 
-	# Car
 	if car:
-		checks.append({"ok": true, "text": "Car: %s (Cond: %.0f%%)" % [
-			car.car_name if car.car_name != "" else "Car %d" % car.car_number, car.condition]})
-		# Driver
+		var cname = car.car_name if car.car_name != "" else "Car %d" % car.car_number
+		checks.append({"ok": true, "text": "Car: %s  (%.0f%%)" % [cname, car.condition]})
 		var drv = GameState.all_drivers.get(car.driver_id)
 		if drv:
 			checks.append({"ok": true, "text": "Driver: %s" % drv.full_name()})
 		else:
 			checks.append({"ok": false, "text": "No driver assigned",
 				"dest": "res://scenes/buildings/Garage.tscn"})
-		# Mechanic
 		if car.mechanic_id != "":
-			var mech = GameState.all_staff.get(car.mechanic_id)
-			checks.append({"ok": true, "text": "Mechanic: %s" % (mech.full_name() if mech else "Assigned")})
+			var m = GameState.all_staff.get(car.mechanic_id)
+			checks.append({"ok": true, "text": "Mechanic: %s" % (m.full_name() if m else "Assigned")})
 		else:
 			checks.append({"ok": false, "text": "No mechanic assigned",
 				"dest": "res://scenes/buildings/Garage.tscn"})
-		# Pit crew (non-GK only)
 		if GameState.get_pit_crew_required(champ.id):
-			if car.pit_crew_id != "" and car.pit_crew_id != "N/A":
-				checks.append({"ok": true, "text": "Pit crew assigned"})
-			else:
-				checks.append({"ok": false, "text": "No pit crew — DNS risk",
-					"dest": "res://scenes/buildings/PitCrewArena.tscn"})
+			var ok = car.pit_crew_id != "" and car.pit_crew_id != "N/A"
+			checks.append({"ok": ok,
+				"text": "Pit crew assigned" if ok else "No pit crew — DNS risk",
+				"dest": "res://scenes/buildings/PitCrewArena.tscn"})
 	else:
 		checks.append({"ok": false, "text": "No car — buy at Logistics",
 			"dest": "res://scenes/buildings/Logistics.tscn"})
 
-	# Formula: need next-season blueprint
 	if champ.id in ["C-021","C-022","C-023","C-024"]:
 		var code = GameState.CHAMP_CODES.get(champ.id, "")
 		var has_bp = false
 		for bp_id in GameState.completed_rnd_tasks:
-			if bp_id.begins_with("BP-%s-" % code) and "S%d-L1" % GameState.current_season in bp_id:
+			if bp_id.begins_with("BP-%s-" % code) and ("S%d-L1" % GameState.current_season) in bp_id:
 				has_bp = true; break
-		if has_bp:
-			checks.append({"ok": true, "text": "Season blueprint: ready"})
-		else:
-			checks.append({"ok": false, "text": "Season blueprint required (Formula)",
-				"dest": "res://scenes/buildings/RnDStudio.tscn"})
-
+		checks.append({"ok": has_bp,
+			"text": "Season blueprint: %s" % ("ready ✓" if has_bp else "REQUIRED (Formula)"),
+			"dest": "res://scenes/buildings/RnDStudio.tscn"})
 	return checks
 
 
-func _build_season_tdl() -> VBoxContainer:
+func _build_tdl() -> VBoxContainer:
 	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 6)
-
-	const TDL_ITEMS = [
-		["🏆", "Register for championships (off-season)", "res://scenes/ChampionshipSelect.tscn"],
-		["🏎", "Buy/check car for each championship", "res://scenes/buildings/Logistics.tscn"],
-		["👤", "Sign/renew driver contracts", "res://scenes/Drivers.tscn"],
-		["🔧", "Hire/renew mechanic & staff contracts", "res://scenes/Staff.tscn"],
-		["🔬", "Start R&D tasks for this season", "res://scenes/buildings/RnDStudio.tscn"],
-		["📐", "Submit completed blueprints to WRA", "res://scenes/buildings/HQ.tscn"],
-		["⚙", "Manufacture WRA-approved parts in CNC", "res://scenes/buildings/CNCPlant.tscn"],
-		["🔩", "Install CNC parts on cars (Garage)", "res://scenes/buildings/Garage.tscn"],
-		["🤝", "Review sponsor offers (HQ)", "res://scenes/buildings/HQ.tscn"],
-		["⛽", "Stock up on fuel and spare parts", "res://scenes/buildings/Logistics.tscn"],
+	vbox.add_theme_constant_override("separation", 5)
+	const ITEMS = [
+		["🏆", "Register championships",      "res://scenes/ChampionshipSelect.tscn"],
+		["🏎", "Buy / check cars",             "res://scenes/buildings/Logistics.tscn"],
+		["👤", "Sign / renew driver contracts","res://scenes/Drivers.tscn"],
+		["🔧", "Hire / renew staff contracts", "res://scenes/Staff.tscn"],
+		["🔬", "Start R&D tasks",              "res://scenes/buildings/RnDStudio.tscn"],
+		["📐", "Submit blueprints to WRA",     "res://scenes/buildings/HQ.tscn"],
+		["⚙",  "Manufacture WRA-approved parts","res://scenes/buildings/CNCPlant.tscn"],
+		["🔩", "Install CNC parts (Garage)",   "res://scenes/buildings/Garage.tscn"],
+		["🤝", "Review sponsor offers",        "res://scenes/buildings/HQ.tscn"],
+		["⛽", "Stock fuel & spare parts",     "res://scenes/buildings/Logistics.tscn"],
 	]
-
-	for item in TDL_ITEMS:
+	for item in ITEMS:
 		var row = HBoxContainer.new()
 		row.add_theme_constant_override("separation", 6)
-		var icon = Label.new(); icon.text = item[0]
-		icon.add_theme_font_size_override("font_size", 13)
-		row.add_child(icon)
-		var lbl = Label.new()
-		lbl.text = item[1]
+		var ic = Label.new(); ic.text = item[0]
+		ic.add_theme_font_size_override("font_size", 13)
+		row.add_child(ic)
+		var lbl = Label.new(); lbl.text = item[1]
 		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_color_override("font_color", Color(0.78, 0.78, 0.78))
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		lbl.modulate = Color(0.8, 0.8, 0.8)
 		row.add_child(lbl)
-		var btn = Button.new()
-		btn.text = "→"
-		btn.custom_minimum_size = Vector2(28, 22)
+		var btn = Button.new(); btn.text = "→"
+		btn.custom_minimum_size = Vector2(26, 22)
 		btn.add_theme_font_size_override("font_size", 10)
 		var d = item[2]
-		btn.pressed.connect(func(): get_tree().change_scene_to_file(d))
+		btn.pressed.connect(func(): _go(d))
 		row.add_child(btn)
 		vbox.add_child(row)
-
 	return vbox
 
 
 func _build_finance_panel() -> VBoxContainer:
 	var vbox = VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 5)
-
 	var team = GameState.player_team
-	var weekly_exp = GameState.get_weekly_expenses()
-	var runway = GameState.get_runway_weeks()
-
-	for row_data in [
-		["Balance", "CR %s" % GameState._fmt_int(int(team.balance)),
+	for data in [
+		["Balance",       "CR %s" % _fmt(int(team.balance)),
 			Color(0.4, 0.9, 0.4) if team.balance >= 0 else Color(1.0, 0.4, 0.4)],
-		["Est. Weekly Expenses", "CR %s" % GameState._fmt_int(int(weekly_exp)), Color(1.0, 0.6, 0.4)],
-		["Runway", "%s weeks" % runway if runway < 999 else "Stable", Color(0.7, 0.7, 0.7)],
-		["Active Sponsors", "%d / %d slots" % [
+		["Wkly Expenses", "CR %s" % _fmt(int(GameState.get_weekly_expenses())), Color(1.0, 0.6, 0.4)],
+		["Runway",        "%d wks" % GameState.get_runway_weeks()
+			if GameState.get_runway_weeks() < 999 else "Stable", Color(0.7, 0.7, 0.7)],
+		["Sponsors",      "%d / %d slots" % [
 			GameState.active_sponsors.size(), GameState.get_hq_sponsor_slots()], Color(0.6, 0.8, 1.0)],
-		["Reputation", "%.0f / 100" % team.reputation, Color(0.9, 0.8, 0.3)],
+		["Reputation",    "%.0f / 100" % team.reputation, Color(0.9, 0.8, 0.3)],
 	]:
 		var row = HBoxContainer.new()
 		row.add_theme_constant_override("separation", 8)
-		var l = Label.new(); l.text = row_data[0]
-		l.custom_minimum_size = Vector2(160, 0)
-		l.add_theme_font_size_override("font_size", 12)
-		l.modulate = Color(0.55, 0.55, 0.55)
-		row.add_child(l)
-		var v = Label.new(); v.text = row_data[1]
+		var k = Label.new(); k.text = data[0]
+		k.custom_minimum_size = Vector2(120, 0)
+		k.add_theme_font_size_override("font_size", 12)
+		k.modulate = Color(0.45, 0.45, 0.45)
+		row.add_child(k)
+		var v = Label.new(); v.text = data[1]
 		v.add_theme_font_size_override("font_size", 12)
-		v.add_theme_color_override("font_color", row_data[2])
+		v.add_theme_color_override("font_color", data[2])
 		row.add_child(v)
 		vbox.add_child(row)
-
 	return vbox
 
 
-func _on_continue() -> void:
+func _on_start() -> void:
+	GameState.pending_season_screen = ""
 	get_tree().change_scene_to_file("res://scenes/MainHub.tscn")
 
+## Navigate away while keeping pending_season_screen so MainHub returns here.
+func _go(scene_path: String) -> void:
+	GameState.pending_season_screen = "begin_of_season"
+	get_tree().change_scene_to_file(scene_path)
+
+
+func _section_lbl(text: String) -> Label:
+	var l = Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", 13)
+	l.add_theme_color_override("font_color", Color(0.5, 0.75, 1.0))
+	return l
 
 func _card_panel(bg: Color) -> PanelContainer:
 	var panel = PanelContainer.new()
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var style = StyleBoxFlat.new()
 	style.bg_color = bg
-	style.border_width_left = 2; style.border_width_right = 2
-	style.border_width_top = 2; style.border_width_bottom = 2
-	style.border_color = Color(0.22, 0.28, 0.38)
+	style.border_width_left = 1; style.border_width_right = 1
+	style.border_width_top = 1; style.border_width_bottom = 1
+	style.border_color = Color(0.20, 0.25, 0.35)
 	style.corner_radius_top_left = 5; style.corner_radius_top_right = 5
 	style.corner_radius_bottom_left = 5; style.corner_radius_bottom_right = 5
 	style.content_margin_left = 14; style.content_margin_right = 14
 	style.content_margin_top = 10; style.content_margin_bottom = 10
 	panel.add_theme_stylebox_override("panel", style)
 	return panel
+
+func _action_btn(text: String, bg: Color) -> Button:
+	var btn = Button.new()
+	btn.text = text
+	btn.custom_minimum_size = Vector2(0, 34)
+	btn.add_theme_font_size_override("font_size", 13)
+	var style = StyleBoxFlat.new()
+	style.bg_color = bg
+	style.corner_radius_top_left = 4; style.corner_radius_top_right = 4
+	style.corner_radius_bottom_left = 4; style.corner_radius_bottom_right = 4
+	btn.add_theme_stylebox_override("normal", style)
+	return btn
+
+func _fmt(n: int) -> String:
+	if n >= 1000000: return "%.2fM" % (n / 1000000.0)
+	if n >= 1000:    return "%dK" % (n / 1000)
+	return str(n)

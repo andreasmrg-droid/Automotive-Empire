@@ -1,742 +1,1349 @@
 extends Control
-## Version: S15.1 — refresh() called on _build_ui completion; null guards added
+## Version: S17.1 — WRA submit rows no longer show CR fee. Tab label "WRA & Registration" renamed.
 
-# ── Node refs ─────────────────────────────────────────────────────────────────
-var _stats_container: VBoxContainer
-var _cfo_panel: PanelContainer
+var _current_tab: String = "overview"
+var _tab_buttons: Dictionary = {}
+var _content_area: ScrollContainer
 
-# ── Lifecycle ─────────────────────────────────────────────────────────────────
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_ui()
-	GameState.log_updated.connect(func():
-		## Only rebuild center column (WRA + Sponsors) to avoid full rebuild on every log
-		_refresh_center_column())
+	GameState.log_updated.connect(func(): _show_tab(_current_tab))
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ROOT LAYOUT
+# ══════════════════════════════════════════════════════════════════════════════
 
 func _build_ui() -> void:
-	for child in get_children():
-		child.queue_free()
+	for c in get_children(): c.queue_free()
 	await get_tree().process_frame
 
 	var margin = MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left",   28)
-	margin.add_theme_constant_override("margin_right",  28)
-	margin.add_theme_constant_override("margin_top",    20)
-	margin.add_theme_constant_override("margin_bottom", 20)
+	for s in ["margin_left","margin_right"]:
+		margin.add_theme_constant_override(s, 28)
+	for s in ["margin_top","margin_bottom"]:
+		margin.add_theme_constant_override(s, 18)
 	add_child(margin)
 
-	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 16)
-	margin.add_child(vbox)
+	var root = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 12)
+	margin.add_child(root)
 
-	# ── Header ────────────────────────────────────────────────────────────────
+	# Header
 	var header = HBoxContainer.new()
-	header.add_theme_constant_override("separation", 16)
-	vbox.add_child(header)
+	header.add_theme_constant_override("separation", 12)
+	root.add_child(header)
 
 	var lbl_title = Label.new()
-	lbl_title.text = "🏛 HEADQUARTERS"
+	lbl_title.text = "🏛  HEADQUARTERS"
 	lbl_title.add_theme_font_size_override("font_size", 22)
+	lbl_title.add_theme_color_override("font_color", Color.WHITE)
 	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(lbl_title)
 
 	var building = GameState.campus_buildings.get("Headquarters", {})
-	var lbl_level = Label.new()
-	lbl_level.text = "Level %d" % building.get("level", 1)
-	lbl_level.add_theme_font_size_override("font_size", 14)
-	lbl_level.modulate = Color(0.4, 0.9, 0.5)
-	header.add_child(lbl_level)
+	var lbl_lv = Label.new()
+	lbl_lv.text = "Level %d" % building.get("level", 1)
+	lbl_lv.add_theme_font_size_override("font_size", 13)
+	lbl_lv.add_theme_color_override("font_color", Color(0.4, 0.9, 0.5))
+	header.add_child(lbl_lv)
 
 	var btn_back = Button.new()
 	btn_back.text = "← Back"
-	btn_back.custom_minimum_size = Vector2(100, 36)
-	btn_back.pressed.connect(_on_back)
+	btn_back.custom_minimum_size = Vector2(90, 34)
+	btn_back.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/campus.tscn"))
 	header.add_child(btn_back)
 
-	vbox.add_child(HSeparator.new())
+	root.add_child(HSeparator.new())
 
-	# ── Two-column layout ─────────────────────────────────────────────────────
-	var columns = HBoxContainer.new()
-	columns.add_theme_constant_override("separation", 20)
-	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	vbox.add_child(columns)
+	# Tab bar
+	var tab_bar = HBoxContainer.new()
+	tab_bar.add_theme_constant_override("separation", 4)
+	root.add_child(tab_bar)
 
-	# Left column — team overview + staff slots
-	# ── Left column: Staff (narrow) ──────────────────────────────────────────
+	_tab_buttons = {}
+	for tab in [["overview","📊  Overview"], ["sponsors","💰  Financial Department"], ["wra","📋  World Racing Association"]]:
+		var btn = Button.new()
+		btn.text = tab[1]
+		btn.custom_minimum_size = Vector2(0, 36)
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.add_theme_font_size_override("font_size", 13)
+		var tid = tab[0]
+		btn.pressed.connect(func(): _show_tab(tid))
+		tab_bar.add_child(btn)
+		_tab_buttons[tab[0]] = btn
+
+	# Content scroll area
+	_content_area = ScrollContainer.new()
+	_content_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_content_area.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	root.add_child(_content_area)
+
+	_show_tab("overview")
+
+
+func _show_tab(tab: String) -> void:
+	_current_tab = tab
+
+	# Update tab button styles
+	for tid in _tab_buttons:
+		var btn = _tab_buttons[tid]
+		var active = tid == tab
+		var style = StyleBoxFlat.new()
+		style.bg_color = Color(0.18, 0.28, 0.45) if active else Color(0.10, 0.12, 0.15)
+		style.border_width_bottom = 3 if active else 0
+		style.border_color = Color(0.4, 0.75, 1.0)
+		style.corner_radius_top_left = 4; style.corner_radius_top_right = 4
+		style.content_margin_left = 12; style.content_margin_right = 12
+		style.content_margin_top = 6; style.content_margin_bottom = 6
+		btn.add_theme_stylebox_override("normal", style)
+
+	# Clear content
+	for c in _content_area.get_children(): c.queue_free()
+	await get_tree().process_frame
+
+	var content = VBoxContainer.new()
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.add_theme_constant_override("separation", 16)
+	_content_area.add_child(content)
+
+	match tab:
+		"overview":  _build_overview(content)
+		"sponsors":  _build_sponsors_tab(content)
+		"wra":       _build_wra_tab(content)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 1 — OVERVIEW
+# ══════════════════════════════════════════════════════════════════════════════
+
+func _build_overview(parent: VBoxContainer) -> void:
+	var cols = HBoxContainer.new()
+	cols.add_theme_constant_override("separation", 20)
+	parent.add_child(cols)
+
+	# ── Left column ───────────────────────────────────────────────────────────
 	var left = VBoxContainer.new()
-	left.add_theme_constant_override("separation", 14)
-	left.custom_minimum_size = Vector2(360, 0)
+	left.custom_minimum_size = Vector2(320, 0)
 	left.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	columns.add_child(left)
+	left.add_theme_constant_override("separation", 14)
+	cols.add_child(left)
 
-	# Team overview panel
-	left.add_child(_section_label("TEAM OVERVIEW"))
-	_stats_container = VBoxContainer.new()
-	_stats_container.add_theme_constant_override("separation", 6)
-	left.add_child(_stats_container)
-
-	var btn_row = HBoxContainer.new()
-	btn_row.add_theme_constant_override("separation", 8)
-	left.add_child(btn_row)
-
-	var btn_hof = Button.new()
-	btn_hof.text = "🏆 Hall of Fame"
-	btn_hof.custom_minimum_size = Vector2(0, 34)
-	btn_hof.pressed.connect(func():
-		get_tree().change_scene_to_file("res://scenes/HallOfFame.tscn"))
-	btn_row.add_child(btn_hof)
-
-	var btn_drivers = Button.new()
-	btn_drivers.text = "🏎 Drivers"
-	btn_drivers.custom_minimum_size = Vector2(0, 34)
-	btn_drivers.pressed.connect(func():
-		get_tree().change_scene_to_file("res://scenes/Drivers.tscn"))
-	btn_row.add_child(btn_drivers)
-
-	var btn_staff = Button.new()
-	btn_staff.text = "👤 Staff"
-	btn_staff.custom_minimum_size = Vector2(0, 34)
-	btn_staff.pressed.connect(func():
-		get_tree().change_scene_to_file("res://scenes/Staff.tscn"))
-	btn_row.add_child(btn_staff)
-
-	var btn_finance = Button.new()
-	btn_finance.text = "💰 Financial Dept"
-	btn_finance.custom_minimum_size = Vector2(0, 34)
-	btn_finance.pressed.connect(func():
-		get_tree().change_scene_to_file("res://scenes/FinancialDept.tscn"))
-	btn_row.add_child(btn_finance)
+	# CEO card
+	left.add_child(_section_label("CEO"))
+	left.add_child(_build_ceo_card())
 
 	left.add_child(HSeparator.new())
 
-	# CEO slot (player — display only)
-	left.add_child(_section_label("EXECUTIVE STAFF"))
-	left.add_child(_build_ceo_slot())
+	# Quick finances
+	left.add_child(_section_label("FINANCES"))
+	left.add_child(_build_finance_strip())
 
-	left.add_child(_spacer_v(8))
+	left.add_child(HSeparator.new())
 
-	# TP slots — 1 per HQ level, shown dynamically
-	var tp_section_lbl = _section_label("TEAM PRINCIPAL SLOTS  (1 per HQ level)")
-	left.add_child(tp_section_lbl)
-	var tp_slots_container = VBoxContainer.new()
-	tp_slots_container.name = "TPSlotsContainer"
-	tp_slots_container.add_theme_constant_override("separation", 6)
-	left.add_child(tp_slots_container)
+	# Building effects
+	left.add_child(_section_label("HQ EFFECTS"))
+	left.add_child(_build_effects_card())
 
-	left.add_child(_spacer_v(8))
-
-	# CFO slot (always 1)
-	_cfo_panel = _build_staff_slot("CFO", "💼")
-	left.add_child(_cfo_panel)
-
-	# Right column — effects + loan placeholder
-	# ── Center column: WRA Office + Sponsors ─────────────────────────────────
-	var center_scroll = ScrollContainer.new()
-	center_scroll.name = "CenterScroll"
-	center_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	center_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	columns.add_child(center_scroll)
-
+	# ── Center column ─────────────────────────────────────────────────────────
 	var center = VBoxContainer.new()
-	center.add_theme_constant_override("separation", 14)
 	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	center_scroll.add_child(center)
+	center.add_theme_constant_override("separation", 14)
+	cols.add_child(center)
 
-	center.add_child(_section_label("WRA OFFICE"))
-	center.add_child(_build_wra_office())
+	# Active championships
+	center.add_child(_section_label("ACTIVE CHAMPIONSHIPS"))
+	center.add_child(_build_champs_strip())
 
 	center.add_child(HSeparator.new())
 
-	center.add_child(_section_label("SPONSORS"))
-	center.add_child(_build_sponsors_section())
+	# Drivers at a glance
+	center.add_child(_section_label("DRIVERS"))
+	center.add_child(_build_drivers_strip())
 
-	# ── Right column: Building Effects + Loans (narrow) ──────────────────────
+	center.add_child(HSeparator.new())
+
+	# All staff
+	center.add_child(_section_label("STAFF"))
+	center.add_child(_build_staff_grid())
+
+	# ── Right column ──────────────────────────────────────────────────────────
 	var right = VBoxContainer.new()
-	right.add_theme_constant_override("separation", 14)
-	right.custom_minimum_size = Vector2(280, 0)
+	right.custom_minimum_size = Vector2(260, 0)
 	right.size_flags_horizontal = Control.SIZE_SHRINK_END
-	columns.add_child(right)
+	right.add_theme_constant_override("separation", 14)
+	cols.add_child(right)
 
-	right.add_child(_section_label("BUILDING EFFECTS"))
-	right.add_child(_build_effects_panel())
+	# TP slots
+	right.add_child(_section_label("TEAM PRINCIPAL SLOTS"))
+	right.add_child(_build_tp_slots())
 
 	right.add_child(HSeparator.new())
 
-	right.add_child(_section_label("LOANS"))
-	right.add_child(_build_loan_placeholder())
+	# CFO slot
+	right.add_child(_section_label("CFO"))
+	right.add_child(_build_cfo_slot())
 
-	## Populate dynamic slots now that the tree is built
-	refresh()
+	right.add_child(HSeparator.new())
 
-# ── Refresh ───────────────────────────────────────────────────────────────────
-func refresh() -> void:
-	if _stats_container == null or not is_instance_valid(_stats_container): return
-	_refresh_stats()
-	_refresh_tp_slots()
-	if _cfo_panel == null or not is_instance_valid(_cfo_panel): return
-	_refresh_staff_slot(_cfo_panel, "CFO", "💼")
+	# Nav buttons
+	right.add_child(_section_label("NAVIGATE"))
+	right.add_child(_build_nav_buttons())
 
-func _refresh_tp_slots() -> void:
-	var container = get_node_or_null("TPSlotsContainer")
-	# Find it in the tree (it's nested inside the columns layout)
-	container = _find_node_by_name(self, "TPSlotsContainer")
-	if container == null:
-		return
-	for child in container.get_children():
-		child.queue_free()
 
+func _build_ceo_card() -> PanelContainer:
+	var panel = _card(Color(0.11, 0.13, 0.18))
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 5)
+	panel.add_child(vbox)
+
+	var name_row = HBoxContainer.new()
+	name_row.add_theme_constant_override("separation", 8)
+	var icon = Label.new(); icon.text = "👔"
+	icon.add_theme_font_size_override("font_size", 20)
+	name_row.add_child(icon)
+	var name_vb = VBoxContainer.new()
+	var lbl_role = Label.new(); lbl_role.text = "CEO  (You)"
+	lbl_role.add_theme_font_size_override("font_size", 10)
+	lbl_role.modulate = Color(0.5, 0.5, 0.5)
+	name_vb.add_child(lbl_role)
+	var lbl_name = Label.new()
+	lbl_name.text = GameState.player_name if GameState.player_name != "" else "CEO"
+	lbl_name.add_theme_font_size_override("font_size", 15)
+	lbl_name.add_theme_color_override("font_color", Color.WHITE)
+	name_vb.add_child(lbl_name)
+	name_row.add_child(name_vb)
+	vbox.add_child(name_row)
+	vbox.add_child(HSeparator.new())
+
+	for row_data in [
+		["Age",         "%d" % GameState.ceo_age,              Color(0.75, 0.75, 0.75)],
+		["Sex",         GameState.ceo_sex,                     Color(0.75, 0.75, 0.75)],
+		["Nationality", GameState.player_team_nationality,     Color(0.75, 0.75, 0.75)],
+		["Salary",      "1% of weekly net profit",            Color(0.65, 0.65, 0.65)],
+		["Accumulated", "CR %s" % _fmt(int(GameState.ceo_accumulated_salary)),
+			Color(0.95, 0.82, 0.3)],
+	]:
+		vbox.add_child(_kv_row(row_data[0], row_data[1], 90, row_data[2]))
+
+	return panel
+
+
+func _build_finance_strip() -> PanelContainer:
+	var panel = _card(Color(0.09, 0.12, 0.10))
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 5)
+	panel.add_child(vbox)
+
+	var team = GameState.player_team
+	var expenses = GameState.get_weekly_expenses()
+	var runway = GameState.get_runway_weeks()
+
+	for row_data in [
+		["Balance",    "CR %s" % _fmt(int(team.balance)),
+			Color(0.4, 0.9, 0.4) if team.balance >= 0 else Color(1.0, 0.35, 0.35)],
+		["Wkly Cost",  "CR %s" % _fmt(int(expenses)), Color(1.0, 0.55, 0.35)],
+		["Runway",     "%d wks" % runway if runway < 999 else "Stable",
+			Color(0.4,0.9,0.4) if runway >= 8 else Color(1.0,0.6,0.1) if runway >= 4 else Color(1.0,0.3,0.3)],
+		["Reputation", "%.0f / 100" % team.reputation, Color(0.9, 0.8, 0.3)],
+	]:
+		vbox.add_child(_kv_row(row_data[0], row_data[1], 90, row_data[2]))
+
+	return panel
+
+
+func _build_effects_card() -> PanelContainer:
+	var panel = _card(Color(0.10, 0.10, 0.14))
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 5)
+	panel.add_child(vbox)
+	var b = GameState.campus_buildings.get("Headquarters", {})
+	var lv = b.get("level", 1)
+	for rd in [
+		["+%d%% Marketability" % lv,         Color(0.6, 0.8, 1.0)],
+		["%d Sponsor Slots" % (1 + lv / 2),  Color(0.6, 0.8, 1.0)],
+		["%d TP Slot%s" % [GameState.get_hq_tp_slots(), "s" if GameState.get_hq_tp_slots() != 1 else ""],
+			Color(0.6, 0.8, 1.0)],
+		["Loan Tier %d" % min(lv / 3 + 1, 5), Color(0.6, 0.8, 1.0)],
+	]:
+		var lbl = Label.new(); lbl.text = rd[0]
+		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_color_override("font_color", rd[1])
+		vbox.add_child(lbl)
+	return panel
+
+
+func _build_champs_strip() -> VBoxContainer:
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
+
+	if GameState.active_championships.is_empty():
+		var lbl = Label.new()
+		lbl.text = "No active championships. Register via World Racing Association tab."
+		lbl.modulate = Color(0.5, 0.5, 0.5)
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lbl.add_theme_font_size_override("font_size", 12)
+		vbox.add_child(lbl)
+		return vbox
+
+	for champ in GameState.active_championships:
+		var card = _card(Color(0.10, 0.13, 0.18))
+		var inner = HBoxContainer.new()
+		inner.add_theme_constant_override("separation", 12)
+		card.add_child(inner)
+
+		var info = VBoxContainer.new()
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		inner.add_child(info)
+
+		var lbl_name = Label.new()
+		lbl_name.text = "🏆 %s" % champ.championship_name
+		lbl_name.add_theme_font_size_override("font_size", 13)
+		lbl_name.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
+		info.add_child(lbl_name)
+
+		var sorted = champ.get_standings_sorted()
+		var player_pos = 0; var player_pts = 0
+		for i in range(sorted.size()):
+			if sorted[i].get("driver_id","") in GameState.player_team.drivers:
+				if player_pos == 0 or sorted[i]["points"] > player_pts:
+					player_pos = i + 1; player_pts = sorted[i]["points"]
+
+		var races_done = champ.current_round
+		var lbl_detail = Label.new()
+		lbl_detail.text = "P%d  ·  %d pts  ·  Round %d / %d" % [
+			player_pos, player_pts, races_done, champ.num_races]
+		lbl_detail.add_theme_font_size_override("font_size", 11)
+		lbl_detail.modulate = Color(0.55, 0.55, 0.55)
+		info.add_child(lbl_detail)
+
+		vbox.add_child(card)
+
+	return vbox
+
+
+func _build_drivers_strip() -> VBoxContainer:
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 6)
+
+	if GameState.player_team.drivers.is_empty():
+		var lbl = Label.new(); lbl.text = "No drivers signed."
+		lbl.modulate = Color(0.5, 0.5, 0.5)
+		lbl.add_theme_font_size_override("font_size", 12)
+		vbox.add_child(lbl)
+		return vbox
+
+	for d_id in GameState.player_team.drivers:
+		var d = GameState.all_drivers.get(d_id)
+		if not d: continue
+		var row = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+
+		var lbl_name = Label.new()
+		lbl_name.text = d.full_name()
+		lbl_name.custom_minimum_size = Vector2(150, 0)
+		lbl_name.add_theme_font_size_override("font_size", 12)
+		lbl_name.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
+		row.add_child(lbl_name)
+
+		for stat in [["Pace", d.pace],["Wet", d.wet],["Focus", d.focus],["Craft", d.race_craft]]:
+			var sl = Label.new()
+			sl.text = "%s %.0f" % [stat[0], stat[1]]
+			sl.add_theme_font_size_override("font_size", 11)
+			sl.add_theme_color_override("font_color", _skill_col(stat[1]))
+			sl.custom_minimum_size = Vector2(68, 0)
+			row.add_child(sl)
+
+		var lbl_sal = Label.new()
+		lbl_sal.text = "CR %s/wk" % _fmt(int(d.weekly_salary)) if d.weekly_salary > 0 else "—"
+		lbl_sal.add_theme_font_size_override("font_size", 11)
+		lbl_sal.modulate = Color(0.5, 0.5, 0.5)
+		row.add_child(lbl_sal)
+
+		vbox.add_child(row)
+
+	return vbox
+
+
+func _build_staff_grid() -> VBoxContainer:
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 5)
+
+	var hired = []
+	for sid in GameState.all_staff:
+		var s = GameState.all_staff[sid]
+		if s.contract_team == GameState.player_team.id:
+			hired.append(s)
+
+	if hired.is_empty():
+		var lbl = Label.new(); lbl.text = "No staff hired."
+		lbl.modulate = Color(0.5, 0.5, 0.5)
+		lbl.add_theme_font_size_override("font_size", 12)
+		vbox.add_child(lbl)
+		return vbox
+
+	## Group by role
+	var by_role: Dictionary = {}
+	for s in hired:
+		if not s.role in by_role: by_role[s.role] = []
+		by_role[s.role].append(s)
+
+	const ROLE_ORDER = ["Team Principal","CFO","Race Strategist","Race Mechanic","Designer","Pit Crew"]
+	var roles_shown = []
+	for r in ROLE_ORDER:
+		if r in by_role: roles_shown.append(r)
+	for r in by_role:
+		if not r in roles_shown: roles_shown.append(r)
+
+	for role in roles_shown:
+		var staffs = by_role[role]
+		var sec = Label.new()
+		sec.text = role.to_upper()
+		sec.add_theme_font_size_override("font_size", 10)
+		sec.modulate = Color(0.4, 0.4, 0.4)
+		vbox.add_child(sec)
+
+		for s in staffs:
+			var row = HBoxContainer.new()
+			row.add_theme_constant_override("separation", 8)
+
+			var lbl_n = Label.new()
+			lbl_n.text = s.full_name()
+			lbl_n.custom_minimum_size = Vector2(150, 0)
+			lbl_n.add_theme_font_size_override("font_size", 12)
+			lbl_n.add_theme_color_override("font_color", Color(0.82, 0.82, 0.82))
+			row.add_child(lbl_n)
+
+			var lbl_sk = Label.new()
+			lbl_sk.text = "%s %.0f" % [s.get_primary_skill_label(), s.get_primary_skill()]
+			lbl_sk.add_theme_font_size_override("font_size", 12)
+			lbl_sk.add_theme_color_override("font_color", _skill_col(s.get_primary_skill()))
+			lbl_sk.custom_minimum_size = Vector2(100, 0)
+			row.add_child(lbl_sk)
+
+			var lbl_c = Label.new()
+			lbl_c.text = "%d season%s" % [s.contract_seasons_remaining,
+				"s" if s.contract_seasons_remaining != 1 else ""]
+			lbl_c.add_theme_font_size_override("font_size", 11)
+			lbl_c.add_theme_color_override("font_color",
+				Color(1.0, 0.4, 0.4) if s.contract_seasons_remaining <= 1
+				else Color(0.5, 0.5, 0.5))
+			row.add_child(lbl_c)
+
+			vbox.add_child(row)
+
+	return vbox
+
+
+func _build_tp_slots() -> VBoxContainer:
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
 	var max_tp = GameState.get_hq_tp_slots()
 	var hired_tp = GameState.get_player_staff_by_role("Team Principal")
-	for i in range(max_tp):
-		var slot = _build_tp_slot(i, hired_tp)
-		container.add_child(slot)
 
-func _build_tp_slot(index: int, hired_tp: Array) -> PanelContainer:
-	var panel = PanelContainer.new()
-	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for i in range(max_tp):
+		var card = _card(Color(0.10, 0.12, 0.16))
+		var inner = VBoxContainer.new()
+		inner.add_theme_constant_override("separation", 4)
+		card.add_child(inner)
+
+		if i < hired_tp.size():
+			var tp = hired_tp[i]
+			var lbl_n = Label.new()
+			lbl_n.text = "🧑‍💼 " + tp.full_name()
+			lbl_n.add_theme_font_size_override("font_size", 13)
+			lbl_n.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
+			inner.add_child(lbl_n)
+			var lbl_s = Label.new()
+			lbl_s.text = "Strat %.0f  ·  Pace %.0f  ·  CR %s/wk" % [
+				tp.race_strategy, tp.race_pace_reading, _fmt(int(tp.weekly_salary))]
+			lbl_s.add_theme_font_size_override("font_size", 11)
+			lbl_s.modulate = Color(0.55, 0.55, 0.55)
+			inner.add_child(lbl_s)
+
+			## Assignment
+			var reg = GameState.CHAMPIONSHIP_REGISTRY.get(tp.assigned_championship, {})
+			var lbl_a = Label.new()
+			lbl_a.text = "→ %s" % reg.get("name", tp.assigned_championship) \
+				if tp.assigned_championship != "" else "⚠ Not assigned"
+			lbl_a.add_theme_font_size_override("font_size", 11)
+			lbl_a.add_theme_color_override("font_color",
+				Color(0.4, 0.85, 0.4) if tp.assigned_championship != ""
+				else Color(1.0, 0.6, 0.2))
+			inner.add_child(lbl_a)
+
+			var btn_row = HBoxContainer.new()
+			btn_row.add_theme_constant_override("separation", 4)
+			inner.add_child(btn_row)
+			var btn_assign = Button.new()
+			btn_assign.text = "Assign →"
+			btn_assign.add_theme_font_size_override("font_size", 10)
+			btn_assign.custom_minimum_size = Vector2(70, 22)
+			var tp_id = tp.id
+			btn_assign.pressed.connect(func(): _show_tp_assign_popup(tp_id))
+			btn_row.add_child(btn_assign)
+			var btn_rel = Button.new()
+			btn_rel.text = "Release"
+			btn_rel.add_theme_font_size_override("font_size", 10)
+			btn_rel.custom_minimum_size = Vector2(60, 22)
+			btn_rel.modulate = Color(1.0, 0.45, 0.45)
+			var tid = tp.id
+			btn_rel.pressed.connect(func():
+				GameState.release_staff(tid)
+				_show_tab("overview"))
+			btn_row.add_child(btn_rel)
+		else:
+			var lbl_e = Label.new()
+			lbl_e.text = "TP Slot %d — Empty" % (i + 1)
+			lbl_e.modulate = Color(0.45, 0.45, 0.45)
+			lbl_e.add_theme_font_size_override("font_size", 12)
+			inner.add_child(lbl_e)
+			var btn_h = Button.new()
+			btn_h.text = "Hire TP →"
+			btn_h.add_theme_font_size_override("font_size", 11)
+			btn_h.pressed.connect(func():
+				GameState.pending_staff_filter = "Team Principal"
+				get_tree().change_scene_to_file("res://scenes/Staff.tscn"))
+			inner.add_child(btn_h)
+
+		vbox.add_child(card)
+
+	return vbox
+
+
+var _tp_popup: PanelContainer = null
+
+func _show_tp_assign_popup(tp_id: String) -> void:
+	if _tp_popup != null and is_instance_valid(_tp_popup):
+		_tp_popup.queue_free()
+
+	var dim = ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.6)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(dim)
+
+	_tp_popup = PanelContainer.new()
+	_tp_popup.custom_minimum_size = Vector2(300, 0)
+	_tp_popup.set_anchor(SIDE_LEFT,   0.5)
+	_tp_popup.set_anchor(SIDE_RIGHT,  0.5)
+	_tp_popup.set_anchor(SIDE_TOP,    0.15)
+	_tp_popup.set_anchor(SIDE_BOTTOM, 0.15)
+	_tp_popup.offset_left   = -250
+	_tp_popup.offset_right  = 0
+	_tp_popup.offset_top    = 0
+	_tp_popup.offset_bottom = 0
 	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.11, 0.12, 0.15)
+	style.bg_color = Color(0.10, 0.12, 0.17)
 	style.border_width_left = 2; style.border_width_right = 2
 	style.border_width_top = 2; style.border_width_bottom = 2
-	style.border_color = Color(0.25, 0.25, 0.30)
-	style.corner_radius_top_left = 4; style.corner_radius_top_right = 4
-	style.corner_radius_bottom_left = 4; style.corner_radius_bottom_right = 4
+	style.border_color = Color(0.30, 0.50, 0.80)
+	style.corner_radius_top_left = 6; style.corner_radius_top_right = 6
+	style.corner_radius_bottom_left = 6; style.corner_radius_bottom_right = 6
+	style.content_margin_left = 16; style.content_margin_right = 16
+	style.content_margin_top = 14; style.content_margin_bottom = 14
+	_tp_popup.add_theme_stylebox_override("panel", style)
+	add_child(_tp_popup)
+
+	var vb = VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 8)
+	_tp_popup.add_child(vb)
+
+	var tp = GameState.all_staff.get(tp_id)
+	var hdr = HBoxContainer.new()
+	var lbl = Label.new()
+	lbl.text = "Assign %s to championship:" % (tp.full_name() if tp else "TP")
+	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hdr.add_child(lbl)
+	var close = Button.new()
+	close.text = "✕"; close.flat = true
+	close.custom_minimum_size = Vector2(28, 28)
+	close.pressed.connect(func(): dim.queue_free(); _tp_popup.queue_free(); _tp_popup = null)
+	hdr.add_child(close)
+	vb.add_child(hdr)
+	vb.add_child(HSeparator.new())
+
+	if GameState.active_championships.is_empty():
+		var e = Label.new()
+		e.text = "No active championships."
+		e.modulate = Color(0.5, 0.5, 0.5)
+		vb.add_child(e)
+	else:
+		for champ in GameState.active_championships:
+			var reg = GameState.CHAMPIONSHIP_REGISTRY.get(champ.id, {})
+			var champ_name = reg.get("name", champ.id)
+			var slot_taken = false
+			for sid in GameState.all_staff:
+				var s = GameState.all_staff[sid]
+				if s.id == tp_id: continue
+				if s.role == "Team Principal" and s.contract_team == GameState.player_team.id \
+						and s.assigned_championship == champ.id:
+					slot_taken = true; break
+			var btn = Button.new()
+			btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			btn.custom_minimum_size = Vector2(0, 34)
+			if slot_taken:
+				btn.text = "🔒 %s (slot taken)" % champ_name
+				btn.disabled = true; btn.modulate = Color(0.5, 0.5, 0.5)
+			elif tp != null and tp.assigned_championship == champ.id:
+				btn.text = "✅ %s (current)" % champ_name
+				btn.disabled = true
+			else:
+				btn.text = "→ %s" % champ_name
+				var cid = champ.id
+				btn.pressed.connect(func():
+					GameState.assign_staff_to_championship(tp_id, cid)
+					dim.queue_free(); _tp_popup.queue_free(); _tp_popup = null
+					_show_tab("overview"))
+			vb.add_child(btn)
+
+	if tp != null and tp.assigned_championship != "":
+		var btn_u = Button.new()
+		btn_u.text = "✕ Unassign"
+		btn_u.modulate = Color(0.9, 0.4, 0.4)
+		btn_u.pressed.connect(func():
+			tp.assigned_championship = ""
+			dim.queue_free(); _tp_popup.queue_free(); _tp_popup = null
+			_show_tab("overview"))
+		vb.add_child(btn_u)
+
+
+func _build_cfo_slot() -> PanelContainer:
+	var panel = _card(Color(0.10, 0.12, 0.16))
+	var inner = VBoxContainer.new()
+	inner.add_theme_constant_override("separation", 4)
+	panel.add_child(inner)
+
+	var cfos = GameState.get_player_staff_by_role("CFO")
+	if not cfos.is_empty():
+		var cfo = cfos[0]
+		var lbl_n = Label.new()
+		lbl_n.text = "💼 " + cfo.full_name()
+		lbl_n.add_theme_font_size_override("font_size", 13)
+		lbl_n.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
+		inner.add_child(lbl_n)
+		var lbl_s = Label.new()
+		lbl_s.text = "FinMgmt %.0f  ·  Neg %.0f  ·  Sales %.0f" % [
+			cfo.budget_planning, cfo.sponsor_negotiation, cfo.sales_skill]
+		lbl_s.add_theme_font_size_override("font_size", 11)
+		lbl_s.modulate = Color(0.55, 0.55, 0.55)
+		inner.add_child(lbl_s)
+		var lbl_c = Label.new()
+		lbl_c.text = "CR %s/wk  ·  %d season%s left" % [
+			_fmt(int(cfo.weekly_salary)), cfo.contract_seasons_remaining,
+			"s" if cfo.contract_seasons_remaining != 1 else ""]
+		lbl_c.add_theme_font_size_override("font_size", 11)
+		lbl_c.modulate = Color(0.5, 0.5, 0.5)
+		inner.add_child(lbl_c)
+		var btn_rel = Button.new()
+		btn_rel.text = "Release CFO"
+		btn_rel.add_theme_font_size_override("font_size", 11)
+		btn_rel.modulate = Color(1.0, 0.45, 0.45)
+		var cid = cfo.id
+		btn_rel.pressed.connect(func():
+			GameState.release_staff(cid)
+			_show_tab("overview"))
+		inner.add_child(btn_rel)
+
+		## Sponsor search button
+		var btn_search = Button.new()
+		if GameState.cfo_search_active:
+			btn_search.text = "⏹ Stop Sponsor Search"
+			btn_search.modulate = Color(1.0, 0.6, 0.4)
+			btn_search.pressed.connect(func():
+				GameState.stop_cfo_sponsor_search()
+				_show_tab("overview"))
+		else:
+			btn_search.text = "🔍 Search for Sponsors"
+			btn_search.pressed.connect(func():
+				GameState.start_cfo_sponsor_search()
+				_show_tab("overview"))
+		btn_search.add_theme_font_size_override("font_size", 11)
+		inner.add_child(btn_search)
+	else:
+		var lbl_e = Label.new()
+		lbl_e.text = "— No CFO hired —"
+		lbl_e.modulate = Color(0.9, 0.5, 0.15)
+		lbl_e.add_theme_font_size_override("font_size", 13)
+		inner.add_child(lbl_e)
+		var btn_h = Button.new()
+		btn_h.text = "Hire CFO →"
+		btn_h.add_theme_font_size_override("font_size", 11)
+		btn_h.pressed.connect(func():
+			GameState.pending_staff_filter = "CFO"
+			get_tree().change_scene_to_file("res://scenes/Staff.tscn"))
+		inner.add_child(btn_h)
+
+	return panel
+
+
+func _build_nav_buttons() -> VBoxContainer:
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 6)
+	for btn_data in [
+		["🏆 Hall of Fame",   "res://scenes/HallOfFame.tscn"],
+		["🏎 Drivers",        "res://scenes/Drivers.tscn"],
+		["👤 Staff Hub",      "res://scenes/Staff.tscn"],
+	]:
+		var btn = Button.new()
+		btn.text = btn_data[0]
+		btn.custom_minimum_size = Vector2(0, 32)
+		btn.add_theme_font_size_override("font_size", 12)
+		var dest = btn_data[1]
+		btn.pressed.connect(func(): get_tree().change_scene_to_file(dest))
+		vbox.add_child(btn)
+	return vbox
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 2 — SPONSORS
+# ══════════════════════════════════════════════════════════════════════════════
+
+func _build_sponsors_tab(parent: VBoxContainer) -> void:
+	## ── Top row: Income / Expenses / Indicators ─────────────────────────────
+	var cols = HBoxContainer.new()
+	cols.add_theme_constant_override("separation", 12)
+	parent.add_child(cols)
+
+	cols.add_child(_build_fin_income())
+	cols.add_child(_build_fin_expenses())
+	cols.add_child(_build_fin_indicators())
+
+	parent.add_child(HSeparator.new())
+
+	## ── Sponsors ─────────────────────────────────────────────────────────────
+	## Slot bar
+	var slot_row = HBoxContainer.new()
+	slot_row.add_theme_constant_override("separation", 10)
+	parent.add_child(slot_row)
+
+	var max_slots  = GameState.get_hq_sponsor_slots()
+	var used_slots = GameState.active_sponsors.size()
+	var lbl_slots  = Label.new()
+	lbl_slots.text = "Sponsor Slots:  %d / %d" % [used_slots, max_slots]
+	lbl_slots.add_theme_font_size_override("font_size", 14)
+	lbl_slots.add_theme_color_override("font_color",
+		Color(0.4, 0.9, 0.4) if used_slots < max_slots else Color(1.0, 0.55, 0.2))
+	slot_row.add_child(lbl_slots)
+	var bar = HBoxContainer.new()
+	bar.add_theme_constant_override("separation", 3)
+	slot_row.add_child(bar)
+	for i in range(max_slots):
+		var sq = ColorRect.new()
+		sq.custom_minimum_size = Vector2(18, 18)
+		sq.color = Color(0.3, 0.75, 0.3) if i < used_slots else Color(0.25, 0.28, 0.35)
+		bar.add_child(sq)
+
+	parent.add_child(HSeparator.new())
+
+	## Sponsors in two columns: active + offers/search
+	var sp_cols = HBoxContainer.new()
+	sp_cols.add_theme_constant_override("separation", 16)
+	parent.add_child(sp_cols)
+
+	## Left: active sponsors
+	var sp_left = VBoxContainer.new()
+	sp_left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sp_left.add_theme_constant_override("separation", 8)
+	sp_cols.add_child(sp_left)
+
+	sp_left.add_child(_section_label("ACTIVE SPONSORS  (%d)" % GameState.active_sponsors.size()))
+	if GameState.active_sponsors.is_empty():
+		var lbl = Label.new(); lbl.text = "No active sponsors."
+		lbl.modulate = Color(0.5, 0.5, 0.5)
+		lbl.add_theme_font_size_override("font_size", 12)
+		sp_left.add_child(lbl)
+	else:
+		for sp in GameState.active_sponsors:
+			sp_left.add_child(_build_active_sponsor_card(sp))
+
+	## Right: offers + CFO search
+	var sp_right = VBoxContainer.new()
+	sp_right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sp_right.add_theme_constant_override("separation", 8)
+	sp_cols.add_child(sp_right)
+
+	sp_right.add_child(_section_label("PENDING OFFERS  (%d)" % GameState.sponsor_offers.size()))
+	if GameState.sponsor_offers.is_empty():
+		var lbl = Label.new(); lbl.text = "No offers pending."
+		lbl.modulate = Color(0.5, 0.5, 0.5)
+		lbl.add_theme_font_size_override("font_size", 12)
+		sp_right.add_child(lbl)
+	else:
+		for offer in GameState.sponsor_offers:
+			sp_right.add_child(_build_sponsor_offer_card(offer))
+
+	sp_right.add_child(HSeparator.new())
+	sp_right.add_child(_section_label("CFO SPONSOR SEARCH"))
+	sp_right.add_child(_build_cfo_search_panel())
+
+	parent.add_child(HSeparator.new())
+
+	## CFO Proposals
+	parent.add_child(_section_label("CFO PROPOSALS"))
+	parent.add_child(_build_cfo_proposals_panel())
+
+
+func _build_fin_income() -> PanelContainer:
+	var panel = _fin_panel(Color(0.3, 0.7, 0.3))
+	var vbox = panel.get_child(0)
+	var lbl = Label.new(); lbl.text = "WEEKLY INCOME"
+	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
+	vbox.add_child(lbl); vbox.add_child(HSeparator.new())
+
+	var sponsor_w = 0
+	for sp in GameState.active_sponsors:
+		if sp.get("type",1) == 1: sponsor_w += sp.get("weekly_payment",0)
+	var supply_w = 0
+	for sc in GameState.active_supply_contracts:
+		if sc.active: supply_w += int(sc.parts_per_season / 52.0) * sc.cr_per_part
+	var building_w = 0
+	for bn in GameState.campus_buildings:
+		var b = GameState.campus_buildings[bn]
+		if b.get("level",0) > 0: building_w += b.get("weekly_income",0)
+	var prize_est = _estimate_prize()
+	var total = 0
+	for item in [
+		["Race Prizes (est.)", prize_est,  prize_est > 0],
+		["Sponsors (Type 1)",  sponsor_w,  sponsor_w > 0],
+		["Parts Sales",        supply_w,   supply_w > 0],
+		["Building Income",    building_w, building_w > 0],
+	]:
+		vbox.add_child(_fin_income_row(item[0], item[1], item[2]))
+		if item[2]: total += item[1]
+	vbox.add_child(HSeparator.new())
+	vbox.add_child(_fin_income_row("TOTAL (est.)", total, true))
+	return panel
+
+
+func _build_fin_expenses() -> PanelContainer:
+	var panel = _fin_panel(Color(0.8, 0.3, 0.3))
+	var vbox = panel.get_child(0)
+	var lbl = Label.new(); lbl.text = "WEEKLY EXPENSES"
+	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4))
+	vbox.add_child(lbl); vbox.add_child(HSeparator.new())
+
+	var driver_sal = 0
+	for d_id in GameState.player_team.drivers:
+		var d = GameState.all_drivers.get(d_id)
+		if d: driver_sal += int(d.weekly_salary)
+	var staff_sal = 0
+	for s_id in GameState.all_staff:
+		var s = GameState.all_staff[s_id]
+		if s.contract_team == GameState.player_team.id: staff_sal += int(s.weekly_salary)
+	var maintenance = 0
+	for bn in GameState.campus_buildings:
+		var b = GameState.campus_buildings[bn]
+		if b.get("level",0) > 0: maintenance += b.get("weekly_maintenance",0)
+	var rnd_costs = 0
+	for task in GameState.active_rnd_tasks:
+		rnd_costs += int(task.get("cr",0) / max(1, task.get("weeks",1)))
+	var total = 0
+	for item in [
+		["Driver Salaries",     driver_sal],
+		["Staff Salaries",      staff_sal],
+		["Maintenance",         maintenance],
+		["R&D Projects",        rnd_costs],
+		["Fuel (est.)",         GameState.player_team_cars.size() * 200],
+		["Loan Interest",       int(GameState.current_loan * 0.002)],
+	]:
+		vbox.add_child(_fin_expense_row(item[0], item[1]))
+		total += item[1]
+	vbox.add_child(HSeparator.new())
+	vbox.add_child(_fin_expense_row("TOTAL (est.)", total))
+	return panel
+
+
+func _build_fin_indicators() -> PanelContainer:
+	var panel = _fin_panel(Color(0.3, 0.55, 0.9))
+	var vbox = panel.get_child(0)
+	var lbl = Label.new(); lbl.text = "KEY INDICATORS"
+	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.add_theme_color_override("font_color", Color(0.4, 0.7, 1.0))
+	vbox.add_child(lbl); vbox.add_child(HSeparator.new())
+	var runway = GameState.get_runway_weeks()
+	for ind in [
+		["Company Value",  "CR %s" % _fmt(int(GameState._calculate_company_value())), Color(0.8,0.8,0.8)],
+		["Max Loan",       "CR %s" % _fmt(int(GameState._calculate_max_loan())),      Color(0.6,0.6,0.6)],
+		["Reputation",     "%.0f / 100" % GameState.player_team.reputation,
+			_fin_stat_col(GameState.player_team.reputation)],
+		["CEO Wealth",     "CR %s" % _fmt(int(GameState.ceo_accumulated_salary)),     Color(1.0,0.84,0.0)],
+		["Economy",        GameState.global_economy_state,
+			Color(0.4,0.9,0.4) if GameState.global_economy_state == "Boom"
+			else Color(1.0,0.6,0.1) if GameState.global_economy_state == "Normal"
+			else Color(1.0,0.3,0.3)],
+		["Fuel Price",     "CR %s/unit" % _fmt(int(GameState.current_fuel_price)),    Color(0.7,0.7,0.7)],
+		["Runway",         "%d weeks" % runway if runway < 52 else "Stable",
+			Color(0.4,0.9,0.4) if runway >= 8 else Color(1.0,0.6,0.1) if runway >= 4 else Color(1.0,0.3,0.3)],
+	]:
+		var row = HBoxContainer.new()
+		vbox.add_child(row)
+		var kl = Label.new(); kl.text = ind[0]
+		kl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		kl.add_theme_font_size_override("font_size", 11)
+		kl.modulate = Color(0.6,0.6,0.6)
+		row.add_child(kl)
+		var vl = Label.new(); vl.text = ind[1]
+		vl.add_theme_font_size_override("font_size", 11)
+		vl.add_theme_color_override("font_color", ind[2])
+		vl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		vl.custom_minimum_size = Vector2(110, 0)
+		row.add_child(vl)
+	return panel
+
+
+func _build_cfo_proposals_panel() -> PanelContainer:
+	var panel = _fin_panel(Color(1.0, 0.8, 0.2))
+	panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	var vbox = panel.get_child(0)
+	var cfo = GameState.get_cfo()
+	if not cfo:
+		var e = Label.new()
+		e.text = "No CFO hired — hire one to receive financial proposals."
+		e.modulate = Color(0.45, 0.45, 0.45)
+		e.add_theme_font_size_override("font_size", 12)
+		e.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		vbox.add_child(e)
+		return panel
+	var lbl_c = Label.new()
+	lbl_c.text = "CFO: %s  ·  FinMgmt %.0f  ·  Negotiation %.0f" % [
+		cfo.full_name(), cfo.budget_planning, cfo.sponsor_negotiation]
+	lbl_c.add_theme_font_size_override("font_size", 12)
+	lbl_c.modulate = Color(0.65, 0.65, 0.65)
+	vbox.add_child(lbl_c)
+	vbox.add_child(HSeparator.new())
+	var proposals = _gen_cfo_proposals()
+	if proposals.is_empty():
+		var ok = Label.new()
+		ok.text = "✅ All financial indicators healthy this week."
+		ok.add_theme_font_size_override("font_size", 12)
+		ok.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
+		vbox.add_child(ok)
+	else:
+		for prop in proposals:
+			var lp = Label.new(); lp.text = prop.text
+			lp.add_theme_font_size_override("font_size", 12)
+			lp.add_theme_color_override("font_color", prop.color)
+			lp.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			vbox.add_child(lp)
+	return panel
+
+
+func _gen_cfo_proposals() -> Array:
+	var out = []
+	var runway = GameState.get_runway_weeks()
+	if runway < 4:
+		out.append({"text":"🚨 CRITICAL: Only %d weeks runway." % runway, "color":Color(1.0,0.3,0.3)})
+	elif runway < 8:
+		out.append({"text":"⚠ %d weeks runway. Secure income or cut costs." % runway, "color":Color(1.0,0.6,0.1)})
+	if GameState.fuel_kg < 100:
+		out.append({"text":"⛽ Fuel low (%.0f kg). Buy 2 weeks supply." % GameState.fuel_kg, "color":Color(1.0,0.6,0.1)})
+	if GameState.spare_parts < 20:
+		out.append({"text":"🔧 Spare parts low (%d units). Restock." % GameState.spare_parts, "color":Color(1.0,0.6,0.1)})
+	if GameState.active_sponsors.is_empty() and not GameState.cfo_search_active:
+		out.append({"text":"📋 No active sponsors. Start a search.", "color":Color(0.7,0.7,0.7)})
+	return out
+
+
+## ── Financial tab helper widgets ─────────────────────────────────────────────
+
+func _fin_panel(border_color: Color) -> PanelContainer:
+	var panel = PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_vertical   = Control.SIZE_EXPAND_FILL
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.09, 0.10, 0.13)
+	style.border_width_left = 3; style.border_width_right = 1
+	style.border_width_top = 1; style.border_width_bottom = 1
+	style.border_color = border_color
+	style.corner_radius_top_left = 5; style.corner_radius_top_right = 5
+	style.corner_radius_bottom_left = 5; style.corner_radius_bottom_right = 5
 	style.content_margin_left = 10; style.content_margin_right = 10
 	style.content_margin_top = 8; style.content_margin_bottom = 8
 	panel.add_theme_stylebox_override("panel", style)
-
-	var hbox = HBoxContainer.new()
-	hbox.add_theme_constant_override("separation", 10)
-	panel.add_child(hbox)
-
-	var lbl_icon = Label.new()
-	lbl_icon.text = "🧑‍💼"
-	lbl_icon.add_theme_font_size_override("font_size", 18)
-	hbox.add_child(lbl_icon)
-
-	var vbox = VBoxContainer.new()
-	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vbox.add_theme_constant_override("separation", 4)
-	hbox.add_child(vbox)
-
-	if index < hired_tp.size():
-		var tp = hired_tp[index]
-		var lbl_name = Label.new()
-		lbl_name.text = tp.full_name()
-		lbl_name.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
-		vbox.add_child(lbl_name)
-		var lbl_stats = Label.new()
-		lbl_stats.text = "Strategy %.0f  ·  Pace %.0f  ·  CR %.0f/wk" % [
-			tp.race_strategy, tp.race_pace_reading, tp.weekly_salary]
-		lbl_stats.modulate = Color(0.6, 0.6, 0.6)
-		lbl_stats.add_theme_font_size_override("font_size", 11)
-		vbox.add_child(lbl_stats)
-
-		# Championship assignment dropdown
-		var champ_row = HBoxContainer.new()
-		champ_row.add_theme_constant_override("separation", 6)
-		vbox.add_child(champ_row)
-		var lbl_c = Label.new()
-		lbl_c.text = "Championship:"
-		lbl_c.add_theme_font_size_override("font_size", 11)
-		lbl_c.modulate = Color(0.55, 0.55, 0.55)
-		champ_row.add_child(lbl_c)
-
-		var assigned = tp.assigned_championship
-		# Show current assignment or unassigned
-		if assigned != "" and assigned in GameState.CHAMPIONSHIP_REGISTRY:
-			var reg = GameState.CHAMPIONSHIP_REGISTRY[assigned]
-			var lbl_assigned = Label.new()
-			lbl_assigned.text = reg.get("name", assigned)
-			lbl_assigned.add_theme_font_size_override("font_size", 11)
-			lbl_assigned.add_theme_color_override("font_color", Color(0.4, 0.85, 0.4))
-			champ_row.add_child(lbl_assigned)
-		else:
-			var lbl_none = Label.new()
-			lbl_none.text = "⚠ None assigned"
-			lbl_none.add_theme_font_size_override("font_size", 11)
-			lbl_none.modulate = Color(1.0, 0.6, 0.2)
-			champ_row.add_child(lbl_none)
-
-		# Assign buttons for each active championship
-		var assign_row = HBoxContainer.new()
-		assign_row.add_theme_constant_override("separation", 4)
-		vbox.add_child(assign_row)
-		for champ in GameState.active_championships:
-			var reg = GameState.CHAMPIONSHIP_REGISTRY.get(champ.id, {})
-			var btn_assign = Button.new()
-			btn_assign.text = reg.get("name", champ.id).left(14)
-			btn_assign.add_theme_font_size_override("font_size", 10)
-			btn_assign.custom_minimum_size = Vector2(0, 24)
-			if tp.assigned_championship == champ.id:
-				btn_assign.modulate = Color(0.4, 0.85, 0.4)
-				btn_assign.disabled = true
-			var tid = tp.id; var cid = champ.id
-			btn_assign.pressed.connect(func():
-				var t = GameState.all_staff.get(tid)
-				if t: t.assigned_championship = cid
-				refresh()
-			)
-			assign_row.add_child(btn_assign)
-
-		var btn_release = Button.new()
-		btn_release.text = "Release"
-		btn_release.modulate = Color(1.0, 0.5, 0.5)
-		btn_release.add_theme_font_size_override("font_size", 11)
-		var tid = tp.id
-		btn_release.pressed.connect(func():
-			GameState.release_staff(tid)
-			refresh()
-		)
-		hbox.add_child(btn_release)
-	else:
-		var lbl_empty = Label.new()
-		lbl_empty.text = "TP Slot %d — Empty" % (index + 1)
-		lbl_empty.modulate = Color(0.5, 0.5, 0.5)
-		vbox.add_child(lbl_empty)
-		var btn_hire = Button.new()
-		btn_hire.text = "Hire →"
-		btn_hire.add_theme_font_size_override("font_size", 11)
-		btn_hire.pressed.connect(func():
-			GameState.pending_staff_filter = "Team Principal"
-			get_tree().change_scene_to_file("res://scenes/Staff.tscn")
-		)
-		hbox.add_child(btn_hire)
-
+	var inner = VBoxContainer.new()
+	inner.add_theme_constant_override("separation", 5)
+	panel.add_child(inner)
 	return panel
 
-func _find_node_by_name(node: Node, target_name: String) -> Node:
-	if node.name == target_name:
-		return node
-	for child in node.get_children():
-		var found = _find_node_by_name(child, target_name)
-		if found:
-			return found
-	return null
 
-func _refresh_stats() -> void:
-	for child in _stats_container.get_children():
-		child.queue_free()
-
-	var team = GameState.player_team
-	var champ = GameState.active_championship
-
-	# Season record
-	var sorted = champ.get_standings_sorted()
-	var player_pos = 0
-	var player_pts = 0
-	for i in range(sorted.size()):
-		if sorted[i]["driver_id"] in team.drivers:
-			if player_pos == 0 or sorted[i]["points"] > player_pts:
-				player_pos = i + 1
-				player_pts = sorted[i]["points"]
-
-	var rows = [
-		["Team",          team.team_name,                      Color.WHITE],
-		["Balance",       "CR %s" % _fmt(int(team.balance)),
-			Color(0.3, 0.9, 0.4) if team.balance >= 0 else Color(1.0, 0.3, 0.3)],
-		["Reputation",    "%.0f / 100" % team.reputation,      Color(0.9, 0.8, 0.3)],
-		["Season",        "Season %d  ·  Week %d" % [GameState.current_season, GameState.current_week],
-			Color(0.7, 0.7, 0.7)],
-		["Championship",  "%s  ·  P%d  ·  %d pts" % [
-			champ.championship_name, player_pos, player_pts] if player_pos > 0
-			else champ.championship_name,
-			Color(0.6, 0.85, 1.0)],
-		["Sponsor",
-			"%s  (+CR %s/wk)" % [GameState.active_sponsors[0].name,
-				_fmt(GameState.active_sponsors[0].weekly_payment)]
-			if not GameState.active_sponsors.is_empty() else "None",
-			Color(0.7, 0.7, 0.7)],
-	]
-
-	for row in rows:
-		_stats_container.add_child(_stat_row(row[0], row[1], row[2]))
-
-# ── Staff slot builders ───────────────────────────────────────────────────────
-func _build_ceo_slot() -> PanelContainer:
-	var panel = _card_panel(Color(0.12, 0.14, 0.18))
-	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 4)
-	panel.add_child(vbox)
-
+func _fin_income_row(label: String, amount: int, active: bool) -> HBoxContainer:
 	var row = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	var icon = Label.new()
-	icon.text = "👔"
-	icon.add_theme_font_size_override("font_size", 22)
-	row.add_child(icon)
-	var info = VBoxContainer.new()
-	var lbl_role = Label.new()
-	lbl_role.text = "CEO  (You)"
-	lbl_role.add_theme_font_size_override("font_size", 11)
-	lbl_role.modulate = Color(0.55, 0.55, 0.55)
-	info.add_child(lbl_role)
-	var lbl_name = Label.new()
-	lbl_name.text = GameState.player_name
-	lbl_name.add_theme_font_size_override("font_size", 15)
-	info.add_child(lbl_name)
-	row.add_child(info)
-	vbox.add_child(row)
-
-	return panel
-
-func _build_staff_slot(role: String, icon_text: String) -> PanelContainer:
-	var panel = _card_panel(Color(0.12, 0.14, 0.18))
-	panel.set_meta("role", role)
-	# Content filled by _refresh_staff_slot
-	return panel
-
-func _refresh_staff_slot(panel: PanelContainer, role: String, icon_text: String) -> void:
-	# Clear existing content
-	for child in panel.get_children():
-		child.queue_free()
-
-	var staff_list = GameState.get_player_staff_by_role(role)
-	var staff = staff_list[0] if staff_list.size() > 0 else null
-
-	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 6)
-	panel.add_child(vbox)
-
-	var row = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-
-	var icon = Label.new()
-	icon.text = icon_text
-	icon.add_theme_font_size_override("font_size", 22)
-	row.add_child(icon)
-
-	var info = VBoxContainer.new()
-	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	var lbl_role = Label.new()
-	lbl_role.text = role.to_upper()
-	lbl_role.add_theme_font_size_override("font_size", 10)
-	lbl_role.modulate = Color(0.55, 0.55, 0.55)
-	info.add_child(lbl_role)
-
-	if staff:
-		var lbl_name = Label.new()
-		lbl_name.text = staff.full_name()
-		lbl_name.add_theme_font_size_override("font_size", 15)
-		info.add_child(lbl_name)
-
-		var lbl_detail = Label.new()
-		lbl_detail.text = "%s  ·  $%d/wk  ·  %d seasons left" % [
-			staff.nationality, int(staff.weekly_salary), staff.contract_seasons_remaining]
-		lbl_detail.add_theme_font_size_override("font_size", 11)
-		lbl_detail.modulate = Color(0.6, 0.6, 0.6)
-		info.add_child(lbl_detail)
-	else:
-		var lbl_empty = Label.new()
-		lbl_empty.text = "— No %s hired —" % role
-		lbl_empty.add_theme_font_size_override("font_size", 14)
-		lbl_empty.modulate = Color(0.9, 0.5, 0.15)
-		info.add_child(lbl_empty)
-
-	row.add_child(info)
-
-	# Action buttons
-	var btn_row = HBoxContainer.new()
-	btn_row.add_theme_constant_override("separation", 8)
-	if staff:
-		var btn_release = Button.new()
-		btn_release.text = "Release"
-		btn_release.modulate = Color(1.0, 0.5, 0.5)
-		btn_release.pressed.connect(func(): _on_release_staff(staff.id))
-		btn_row.add_child(btn_release)
-	else:
-		var btn_hire = Button.new()
-		btn_hire.text = "Hire %s →" % role
-		btn_hire.pressed.connect(func(): _go_to_staff(role, true))
-		btn_row.add_child(btn_hire)
-
-	vbox.add_child(row)
-	vbox.add_child(btn_row)
-
-# ── Effects panel ─────────────────────────────────────────────────────────────
-func _build_effects_panel() -> PanelContainer:
-	var panel = _card_panel(Color(0.10, 0.12, 0.15))
-	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 8)
-	panel.add_child(vbox)
-
-	var building = GameState.campus_buildings.get("Headquarters", {})
-	var level = building.get("level", 1)
-	var max_level = building.get("max_level", 26)
-
-	var effects = [
-		["Marketability Bonus", "+%d%%" % level],
-		["Sponsor Slots",       "%d" % (1 + level / 2)],
-		["Loan Tier",           "Tier %d" % min(level / 3 + 1, 5)],
-		["Max Level",           "%d / %d" % [level, max_level]],
-		["Maintenance",         "-$%s/wk" % _fmt(building.get("weekly_maintenance", 0))],
-	]
-
-	for e in effects:
-		vbox.add_child(_stat_row(e[0], e[1], Color(0.8, 0.8, 0.8)))
-
-	return panel
-
-# ── Loan placeholder ──────────────────────────────────────────────────────────
-func _build_loan_placeholder() -> PanelContainer:
-	var panel = _card_panel(Color(0.10, 0.12, 0.15))
-	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 8)
-	panel.add_child(vbox)
-
-	var lbl = Label.new()
-	lbl.text = "Loan management coming in a future update.\nHQ Level determines maximum loan tiers."
-	lbl.modulate = Color(0.5, 0.5, 0.5)
-	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var lbl = Label.new(); lbl.text = label
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lbl.add_theme_font_size_override("font_size", 12)
-	vbox.add_child(lbl)
-
-	var building = GameState.campus_buildings.get("Headquarters", {})
-	var level = building.get("level", 1)
-	var loan_tier = min(level / 3 + 1, 5)
-	var max_loan = [10000, 50000, 150000, 500000, 2000000][loan_tier - 1]
-
-	var lbl_cap = Label.new()
-	lbl_cap.text = "Current loan cap:  $%s  (Tier %d)" % [_fmt(max_loan), loan_tier]
-	lbl_cap.add_theme_font_size_override("font_size", 13)
-	lbl_cap.modulate = Color(0.7, 0.85, 1.0)
-	vbox.add_child(lbl_cap)
-
-	return panel
-
-# ── Actions ───────────────────────────────────────────────────────────────────
-func _go_to_staff(role: String, go_to_hire: bool) -> void:
-	GameState.pending_staff_filter = role
-	if not go_to_hire:
-		# View card — go to My Staff tab with filter
-		GameState.pending_staff_filter = ""  # let StaffHub open normally, filter by role on my tab
-	get_tree().change_scene_to_file("res://scenes/Staff.tscn")
-
-func _on_release_staff(staff_id: String) -> void:
-	var dialog = ConfirmationDialog.new()
-	var staff = GameState.all_staff.get(staff_id)
-	dialog.title = "Release Staff"
-	dialog.dialog_text = "Release %s from the team?" % (staff.full_name() if staff else "this staff member")
-	dialog.ok_button_text = "Release"
-	dialog.cancel_button_text = "Cancel"
-	add_child(dialog)
-	dialog.popup_centered()
-	dialog.confirmed.connect(func():
-		GameState.release_staff(staff_id)
-		dialog.queue_free()
-		refresh()
-	)
-	dialog.canceled.connect(dialog.queue_free)
-
-func _on_back() -> void:
-	get_tree().change_scene_to_file("res://scenes/campus.tscn")
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-func _section_label(text: String) -> Label:
-	var lbl = Label.new()
-	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", 11)
-	lbl.modulate = Color(0.5, 0.5, 0.5)
-	return lbl
-
-func _stat_row(label: String, value: String, value_color: Color = Color.WHITE) -> HBoxContainer:
-	var row = HBoxContainer.new()
-	var lbl = Label.new()
-	lbl.text = label
-	lbl.custom_minimum_size = Vector2(140, 0)
-	lbl.add_theme_font_size_override("font_size", 13)
-	lbl.modulate = Color(0.6, 0.6, 0.6)
+	if not active: lbl.modulate = Color(0.35, 0.35, 0.35)
 	row.add_child(lbl)
 	var val = Label.new()
-	val.text = value
-	val.add_theme_font_size_override("font_size", 13)
-	val.add_theme_color_override("font_color", value_color)
+	val.text = "+CR %s" % _fmt(amount) if amount > 0 else "—"
+	val.add_theme_font_size_override("font_size", 12)
+	val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	val.custom_minimum_size = Vector2(100, 0)
+	val.add_theme_color_override("font_color",
+		Color(0.4, 0.9, 0.4) if amount > 0 else Color(0.35, 0.35, 0.35))
 	row.add_child(val)
 	return row
 
-func _card_panel(bg: Color = Color(0.13, 0.13, 0.15)) -> PanelContainer:
-	var panel = PanelContainer.new()
-	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var style = StyleBoxFlat.new()
-	style.bg_color = bg
-	style.border_width_left   = 2
-	style.border_width_right  = 2
-	style.border_width_top    = 2
-	style.border_width_bottom = 2
-	style.border_color = Color(0.22, 0.22, 0.26)
-	style.corner_radius_top_left     = 6
-	style.corner_radius_top_right    = 6
-	style.corner_radius_bottom_left  = 6
-	style.corner_radius_bottom_right = 6
-	style.content_margin_left   = 14
-	style.content_margin_right  = 14
-	style.content_margin_top    = 12
-	style.content_margin_bottom = 12
-	panel.add_theme_stylebox_override("panel", style)
+
+func _fin_expense_row(label: String, amount: int) -> HBoxContainer:
+	var row = HBoxContainer.new()
+	var lbl = Label.new(); lbl.text = label
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lbl.add_theme_font_size_override("font_size", 12)
+	if amount == 0: lbl.modulate = Color(0.35, 0.35, 0.35)
+	row.add_child(lbl)
+	var val = Label.new()
+	val.text = "-CR %s" % _fmt(amount) if amount > 0 else "—"
+	val.add_theme_font_size_override("font_size", 12)
+	val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	val.custom_minimum_size = Vector2(100, 0)
+	val.add_theme_color_override("font_color",
+		Color(1.0, 0.4, 0.4) if amount > 0 else Color(0.35, 0.35, 0.35))
+	row.add_child(val)
+	return row
+
+
+func _estimate_prize() -> int:
+	if GameState.last_race_results.is_empty(): return 0
+	for entry in GameState.last_race_results:
+		if entry.get("is_player", false) or \
+		   (entry.get("driver") and entry["driver"].id in GameState.player_team.drivers):
+			return int(entry.get("prize", 0))
+	return 0
+
+
+func _fin_stat_col(v: float) -> Color:
+	if v >= 70: return Color(0.4, 0.9, 0.4)
+	if v >= 40: return Color(1.0, 0.8, 0.2)
+	return Color(1.0, 0.4, 0.4)
+
+
+func _build_active_sponsor_card(sp: Dictionary) -> PanelContainer:
+	var panel = _card(Color(0.09, 0.13, 0.10))
+	var inner = HBoxContainer.new()
+	inner.add_theme_constant_override("separation", 10)
+	panel.add_child(inner)
+
+	var info = VBoxContainer.new()
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	inner.add_child(info)
+
+	var lbl_name = Label.new()
+	lbl_name.text = sp.get("name", "Unknown Sponsor")
+	lbl_name.add_theme_font_size_override("font_size", 13)
+	lbl_name.add_theme_color_override("font_color", Color(0.4, 0.9, 0.5))
+	info.add_child(lbl_name)
+
+	var detail = ""
+	match sp.get("type", 1):
+		1: detail = "+CR %s/wk" % _fmt(sp.get("weekly_payment", 0))
+		2: detail = "Win: +CR %s  Podium: +CR %s" % [
+			_fmt(sp.get("win_bonus", 0)), _fmt(sp.get("podium_bonus", 0))]
+		3: detail = "Commitment deal"
+	var lbl_detail = Label.new()
+	lbl_detail.text = detail + "  ·  %d season%s remaining" % [
+		sp.get("seasons_remaining", 0), "s" if sp.get("seasons_remaining", 0) != 1 else ""]
+	lbl_detail.add_theme_font_size_override("font_size", 11)
+	lbl_detail.modulate = Color(0.6, 0.6, 0.6)
+	info.add_child(lbl_detail)
+
+	## Expiry warning
+	if sp.get("seasons_remaining", 99) <= 1:
+		var lbl_exp = Label.new()
+		lbl_exp.text = "⚠ Expires this season"
+		lbl_exp.add_theme_font_size_override("font_size", 11)
+		lbl_exp.add_theme_color_override("font_color", Color(1.0, 0.6, 0.2))
+		info.add_child(lbl_exp)
+
 	return panel
 
-func _spacer_v(height: int) -> Control:
-	var s = Control.new()
-	s.custom_minimum_size = Vector2(0, height)
-	return s
 
-func _fmt(n: int) -> String:
-	var s = str(n)
-	var result = ""
-	var count = 0
-	for i in range(s.length() - 1, -1, -1):
-		if count > 0 and count % 3 == 0:
-			result = "," + result
-		result = s[i] + result
-		count += 1
-	return result
+func _build_sponsor_offer_card(offer: Dictionary) -> PanelContainer:
+	var panel = _card(Color(0.09, 0.10, 0.14))
+	var style = panel.get_theme_stylebox("panel").duplicate()
+	style.border_width_left = 3
+	const TIER_COLORS = [Color(0.3,0.3,0.3), Color(0.3,0.7,0.9), Color(0.9,0.6,0.2), Color(0.6,0.3,0.9)]
+	style.border_color = TIER_COLORS[min(offer.get("type",1), TIER_COLORS.size()-1)]
+	panel.add_theme_stylebox_override("panel", style)
 
-## ═══════════════════════════════════════════════════════════════════════════
-## WRA OFFICE (S14)
-## ═══════════════════════════════════════════════════════════════════════════
+	var inner = VBoxContainer.new()
+	inner.add_theme_constant_override("separation", 4)
+	panel.add_child(inner)
 
-func _refresh_center_column() -> void:
-	var center_scroll = _find_node_by_name(self, "CenterScroll")
-	if center_scroll == null or not is_instance_valid(center_scroll): return
-	if center_scroll.get_child_count() == 0: return
-	var center = center_scroll.get_child(0)
-	if center == null or not is_instance_valid(center): return
-	for child in center.get_children():
-		if is_instance_valid(child): child.queue_free()
-	await get_tree().process_frame
-	if not is_instance_valid(center): return
-	center.add_child(_section_label("WRA OFFICE"))
-	center.add_child(_build_wra_office())
-	center.add_child(HSeparator.new())
-	center.add_child(_section_label("SPONSORS"))
-	center.add_child(_build_sponsors_section())
+	var hdr = HBoxContainer.new()
+	hdr.add_theme_constant_override("separation", 8)
+	inner.add_child(hdr)
 
-func _build_wra_office() -> VBoxContainer:
+	var lbl_name = Label.new()
+	lbl_name.text = offer.get("name", "?")
+	lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lbl_name.add_theme_font_size_override("font_size", 13)
+	hdr.add_child(lbl_name)
+
+	var lbl_t = Label.new()
+	lbl_t.text = "Type %d" % offer.get("type", 1)
+	lbl_t.add_theme_font_size_override("font_size", 10)
+	lbl_t.modulate = Color(0.5, 0.5, 0.5)
+	hdr.add_child(lbl_t)
+
+	var lbl_detail = Label.new()
+	lbl_detail.add_theme_font_size_override("font_size", 11)
+	lbl_detail.modulate = Color(0.65, 0.65, 0.65)
+	match offer.get("type", 1):
+		1: lbl_detail.text = "CR %s/wk  ·  %d seasons" % [
+			_fmt(offer.get("weekly_payment",0)), offer.get("seasons_remaining",1)]
+		2: lbl_detail.text = "Win: CR %s  Podium: CR %s  ·  %d seasons" % [
+			_fmt(offer.get("win_bonus",0)), _fmt(offer.get("podium_bonus",0)),
+			offer.get("seasons_remaining",1)]
+		3:
+			var reg = GameState.CHAMPIONSHIP_REGISTRY.get(offer.get("championship_id",""),{})
+			lbl_detail.text = "[%s]  CR %s total  ·  %d seasons" % [
+				reg.get("name", offer.get("championship_id","")),
+				_fmt(offer.get("commitment_total",0)), offer.get("seasons_remaining",1)]
+	inner.add_child(lbl_detail)
+
+	var btn_row = HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 6)
+	inner.add_child(btn_row)
+
+	var btn_neg = Button.new()
+	btn_neg.text = "📋 Negotiate"
+	btn_neg.custom_minimum_size = Vector2(110, 26)
+	btn_neg.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_neg.pressed.connect(func():
+		var neg = GameState.generate_sponsor_negotiation(offer.sponsor_id)
+		if neg.is_empty():
+			GameState.sign_sponsor(offer.sponsor_id)
+			_show_tab("sponsors")
+			return
+		GameState.start_negotiation(neg)
+		var np = preload("res://scenes/ContractNegotiation.tscn").instantiate()
+		get_tree().current_scene.add_child(np)
+		np.open(GameState.active_negotiation)
+		np.closed.connect(func(): _show_tab("sponsors")))
+	btn_row.add_child(btn_neg)
+
+	var btn_dis = Button.new()
+	btn_dis.text = "✕ Dismiss"
+	btn_dis.custom_minimum_size = Vector2(80, 26)
+	btn_dis.modulate = Color(0.6, 0.6, 0.6)
+	btn_dis.pressed.connect(func():
+		GameState.dismiss_sponsor_offer(offer.sponsor_id)
+		_show_tab("sponsors"))
+	btn_row.add_child(btn_dis)
+
+	return panel
+
+
+func _build_cfo_search_panel() -> PanelContainer:
+	var panel = _card(Color(0.10, 0.11, 0.15))
+	var inner = VBoxContainer.new()
+	inner.add_theme_constant_override("separation", 8)
+	panel.add_child(inner)
+
+	var has_cfo = GameState.get_cfo() != null
+	if GameState.cfo_search_active:
+		var lbl = Label.new()
+		lbl.text = "🔍 CFO is searching...  Next offer in %d week%s." % [
+			GameState.cfo_search_weeks_remaining,
+			"s" if GameState.cfo_search_weeks_remaining != 1 else ""]
+		lbl.add_theme_font_size_override("font_size", 13)
+		lbl.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
+		inner.add_child(lbl)
+		var btn_stop = Button.new()
+		btn_stop.text = "⏹  Stop Search"
+		btn_stop.modulate = Color(1.0, 0.5, 0.5)
+		btn_stop.custom_minimum_size = Vector2(0, 32)
+		btn_stop.pressed.connect(func():
+			GameState.stop_cfo_sponsor_search()
+			_show_tab("sponsors"))
+		inner.add_child(btn_stop)
+	elif has_cfo:
+		var cfo = GameState.get_cfo()
+		var lbl = Label.new()
+		lbl.text = "CFO available (%s — Negotiation %.0f)" % [
+			cfo.full_name(), cfo.sponsor_negotiation]
+		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.modulate = Color(0.65, 0.65, 0.65)
+		inner.add_child(lbl)
+		var btn_start = Button.new()
+		btn_start.text = "🔍  Start Sponsor Search"
+		btn_start.custom_minimum_size = Vector2(0, 34)
+		btn_start.add_theme_font_size_override("font_size", 13)
+		btn_start.pressed.connect(func():
+			GameState.start_cfo_sponsor_search()
+			_show_tab("sponsors"))
+		inner.add_child(btn_start)
+	else:
+		var lbl = Label.new()
+		lbl.text = "No CFO hired. A CFO can search for sponsors on your behalf."
+		lbl.modulate = Color(0.5, 0.5, 0.5)
+		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		inner.add_child(lbl)
+		var btn_hire = Button.new()
+		btn_hire.text = "Hire CFO →"
+		btn_hire.pressed.connect(func():
+			GameState.pending_staff_filter = "CFO"
+			get_tree().change_scene_to_file("res://scenes/Staff.tscn"))
+		inner.add_child(btn_hire)
+
+	return panel
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 3 — WRA & REGISTRATION
+# ══════════════════════════════════════════════════════════════════════════════
+
+func _build_wra_tab(parent: VBoxContainer) -> void:
+	var cols = HBoxContainer.new()
+	cols.add_theme_constant_override("separation", 20)
+	parent.add_child(cols)
+
+	## Left: cycles + submit
+	var left = VBoxContainer.new()
+	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left.add_theme_constant_override("separation", 12)
+	cols.add_child(left)
+
+	left.add_child(_section_label("REGULATION CYCLE STATUS"))
+	left.add_child(_build_wra_cycles())
+
+	left.add_child(HSeparator.new())
+	left.add_child(_section_label("BLUEPRINTS READY TO SUBMIT"))
+	left.add_child(_build_wra_submit())
+
+	## Right: pending + approved + supply + registration
+	var right = VBoxContainer.new()
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right.add_theme_constant_override("separation", 12)
+	cols.add_child(right)
+
+	right.add_child(_section_label("PENDING APPROVAL  (%d)" % GameState.active_wra_submissions.size()))
+	right.add_child(_build_wra_pending())
+
+	right.add_child(HSeparator.new())
+	right.add_child(_section_label("APPROVED — READY TO MANUFACTURE  (%d)" % GameState.wra_approved_blueprints.size()))
+	right.add_child(_build_wra_approved())
+
+	right.add_child(HSeparator.new())
+	right.add_child(_section_label("SUPPLY CONTRACTS  (%d)" % GameState.active_supply_contracts.size()))
+	right.add_child(_build_supply_contracts())
+
+	right.add_child(HSeparator.new())
+	right.add_child(_section_label("CHAMPIONSHIP REGISTRATION"))
+	right.add_child(_build_registration_panel())
+
+
+func _build_wra_cycles() -> VBoxContainer:
 	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 8)
-	_build_wra_cycle_countdowns(vbox)
-	vbox.add_child(HSeparator.new())
-	_build_wra_submit_panel(vbox)
-	vbox.add_child(HSeparator.new())
-	_build_wra_pending_panel(vbox)
-	vbox.add_child(HSeparator.new())
-	_build_wra_approved_panel(vbox)
-	vbox.add_child(HSeparator.new())
-	_build_supply_contracts_panel(vbox)
-	vbox.add_child(HSeparator.new())
-	# Championship registration shortcut
-	var btn_champ = Button.new()
-	btn_champ.text = "🏁 Championship Registration →"
-	btn_champ.custom_minimum_size = Vector2(0, 32)
-	btn_champ.pressed.connect(func():
-		get_tree().change_scene_to_file("res://scenes/ChampionshipSelect.tscn"))
-	vbox.add_child(btn_champ)
-	return vbox
-
-func _build_wra_cycle_countdowns(parent: VBoxContainer) -> void:
-	var lbl = Label.new()
-	lbl.text = "Regulation Cycle Status"
-	lbl.add_theme_font_size_override("font_size", 12)
-	lbl.modulate = Color(0.7, 0.7, 0.7)
-	parent.add_child(lbl)
-	const WRA_GROUPS = {
+	vbox.add_theme_constant_override("separation", 5)
+	const GROUPS = {
 		"Formula":4,"Touring":5,"Karting":6,
-		"Open Wheel":7,"Stock Car":8,"Rally":9,"Endurance":10,
+		"Open Wheel":7,"Stock Car":8,"Rally":9,"Endurance":10
 	}
-	for group in WRA_GROUPS:
-		var length = WRA_GROUPS[group]
+	for group in GROUPS:
+		var length = GROUPS[group]
 		var start = GameState.wra_cycle_starts.get(group, 1)
 		var seasons_in = GameState.current_season - start
 		var seasons_until = length - (seasons_in % length)
+
 		var row = HBoxContainer.new()
 		row.add_theme_constant_override("separation", 8)
-		parent.add_child(row)
-		var lg = Label.new()
-		lg.text = group
-		lg.custom_minimum_size = Vector2(110, 0)
-		lg.add_theme_font_size_override("font_size", 11)
-		row.add_child(lg)
-		var ls = Label.new()
-		ls.add_theme_font_size_override("font_size", 11)
-		if seasons_until == 1:
-			ls.text = "⚠ Resets NEXT SEASON"
-			ls.add_theme_color_override("font_color", Color(1.0, 0.5, 0.1))
-		elif seasons_until == 2:
-			ls.text = "⚠ Resets in 2 seasons"
-			ls.add_theme_color_override("font_color", Color(1.0, 0.8, 0.2))
-		else:
-			ls.text = "Resets in %d seasons" % seasons_until
-			ls.modulate = Color(0.5, 0.5, 0.5)
-		row.add_child(ls)
+		vbox.add_child(row)
 
-func _build_wra_submit_panel(parent: VBoxContainer) -> void:
-	var lbl = Label.new()
-	lbl.text = "Blueprints Ready to Submit"
-	lbl.add_theme_font_size_override("font_size", 12)
-	lbl.modulate = Color(0.7, 0.7, 0.7)
-	parent.add_child(lbl)
-	var submittable: Array = []
+		var lbl_g = Label.new()
+		lbl_g.text = group
+		lbl_g.custom_minimum_size = Vector2(100, 0)
+		lbl_g.add_theme_font_size_override("font_size", 12)
+		row.add_child(lbl_g)
+
+		var lbl_s = Label.new()
+		lbl_s.add_theme_font_size_override("font_size", 12)
+		if seasons_until == 1:
+			lbl_s.text = "⚠ Resets NEXT SEASON"
+			lbl_s.add_theme_color_override("font_color", Color(1.0, 0.45, 0.1))
+		elif seasons_until == 2:
+			lbl_s.text = "⚠ Resets in 2 seasons"
+			lbl_s.add_theme_color_override("font_color", Color(1.0, 0.78, 0.2))
+		else:
+			lbl_s.text = "Resets in %d seasons" % seasons_until
+			lbl_s.modulate = Color(0.45, 0.45, 0.45)
+		row.add_child(lbl_s)
+
+	return vbox
+
+
+func _build_wra_submit() -> VBoxContainer:
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 5)
+	var submittable = []
 	for bp_id in GameState.known_blueprints:
-		if not GameState.is_blueprint_submitted(bp_id) and \
-		   not GameState.is_blueprint_approved(bp_id):
+		if not GameState.is_blueprint_submitted(bp_id) and not GameState.is_blueprint_approved(bp_id):
 			submittable.append(bp_id)
+
 	if submittable.is_empty():
-		var e = Label.new()
-		e.text = "No blueprints available for submission."
+		var e = Label.new(); e.text = "No blueprints awaiting submission."
 		e.modulate = Color(0.45, 0.45, 0.45)
-		e.add_theme_font_size_override("font_size", 11)
-		parent.add_child(e)
-		return
+		e.add_theme_font_size_override("font_size", 12)
+		vbox.add_child(e)
+		return vbox
+
 	for bp_id in submittable:
 		var bp = GameState.known_blueprints[bp_id]
 		var cid = bp.get("championship_id", "")
 		var tier = GameState._get_championship_tier(cid)
-		var fee = GameState.WRA_SUBMISSION_FEE.get(tier, 500)
-		var weeks = GameState.WRA_APPROVAL_WEEKS.get(tier, 2)
-		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
+		var wks  = GameState.WRA_APPROVAL_WEEKS.get(tier, 2)
+		var reg  = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
+
 		var row = HBoxContainer.new()
 		row.add_theme_constant_override("separation", 6)
-		parent.add_child(row)
+		vbox.add_child(row)
+
 		var ln = Label.new()
-		ln.text = "%s [%s]" % [bp.get("name", bp_id), reg.get("name", cid)]
+		ln.text = "%s  [%s]" % [bp.get("name", bp_id), reg.get("name", cid)]
 		ln.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		ln.add_theme_font_size_override("font_size", 11)
 		row.add_child(ln)
+
 		var li = Label.new()
-		li.text = "CR %s | %dwks" % [_fmt(fee), weeks]
+		li.text = "%d wks" % wks
 		li.add_theme_font_size_override("font_size", 10)
-		li.modulate = Color(0.55, 0.55, 0.55)
+		li.modulate = Color(0.5, 0.5, 0.5)
 		row.add_child(li)
+
 		var btn = Button.new()
 		btn.text = "Submit"
-		btn.custom_minimum_size = Vector2(70, 24)
+		btn.custom_minimum_size = Vector2(70, 26)
 		btn.pressed.connect(func():
-			if GameState.submit_to_wra(bp_id): _build_ui())
+			if GameState.submit_to_wra(bp_id): _show_tab("wra"))
 		row.add_child(btn)
 
-func _build_wra_pending_panel(parent: VBoxContainer) -> void:
-	var lbl = Label.new()
-	lbl.text = "Pending Decision (%d)" % GameState.active_wra_submissions.size()
-	lbl.add_theme_font_size_override("font_size", 12)
-	lbl.modulate = Color(0.7, 0.7, 0.7)
-	parent.add_child(lbl)
+	return vbox
+
+
+func _build_wra_pending() -> VBoxContainer:
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 5)
 	if GameState.active_wra_submissions.is_empty():
-		var e = Label.new()
-		e.text = "No pending submissions."
+		var e = Label.new(); e.text = "No pending submissions."
 		e.modulate = Color(0.45, 0.45, 0.45)
-		e.add_theme_font_size_override("font_size", 11)
-		parent.add_child(e)
-		return
+		e.add_theme_font_size_override("font_size", 12)
+		vbox.add_child(e)
+		return vbox
 	for sub in GameState.active_wra_submissions:
-		var bp = GameState.known_blueprints.get(sub.blueprint_id, {})
+		var bp  = GameState.known_blueprints.get(sub.blueprint_id, {})
 		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(sub.championship_id, {})
 		var row = HBoxContainer.new()
 		row.add_theme_constant_override("separation", 6)
-		parent.add_child(row)
+		vbox.add_child(row)
 		var ln = Label.new()
-		ln.text = "%s [%s]" % [bp.get("name", sub.blueprint_id), reg.get("name", sub.championship_id)]
+		ln.text = "%s  [%s]" % [bp.get("name", sub.blueprint_id), reg.get("name", sub.championship_id)]
 		ln.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		ln.add_theme_font_size_override("font_size", 11)
 		row.add_child(ln)
@@ -744,34 +1351,31 @@ func _build_wra_pending_panel(parent: VBoxContainer) -> void:
 		lw.text = "⏳ %d wk%s" % [sub.weeks_remaining, "s" if sub.weeks_remaining != 1 else ""]
 		lw.add_theme_font_size_override("font_size", 11)
 		lw.add_theme_color_override("font_color",
-			Color(1.0, 0.6, 0.1) if sub.weeks_remaining <= 1 else Color(0.55, 0.55, 0.55))
+			Color(1.0, 0.6, 0.1) if sub.weeks_remaining <= 1 else Color(0.5, 0.5, 0.5))
 		row.add_child(lw)
+	return vbox
 
-func _build_wra_approved_panel(parent: VBoxContainer) -> void:
-	var lbl = Label.new()
-	lbl.text = "Approved (%d)" % GameState.wra_approved_blueprints.size()
-	lbl.add_theme_font_size_override("font_size", 12)
-	lbl.modulate = Color(0.7, 0.7, 0.7)
-	parent.add_child(lbl)
+
+func _build_wra_approved() -> VBoxContainer:
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 5)
 	if GameState.wra_approved_blueprints.is_empty():
-		var e = Label.new()
-		e.text = "No approved blueprints yet."
+		var e = Label.new(); e.text = "No approved blueprints yet."
 		e.modulate = Color(0.45, 0.45, 0.45)
-		e.add_theme_font_size_override("font_size", 11)
-		parent.add_child(e)
-		return
+		e.add_theme_font_size_override("font_size", 12)
+		vbox.add_child(e)
+		return vbox
 	for app in GameState.wra_approved_blueprints:
-		var bp = GameState.known_blueprints.get(app.blueprint_id, {})
+		var bp  = GameState.known_blueprints.get(app.blueprint_id, {})
 		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(app.championship_id, {})
 		var row = HBoxContainer.new()
 		row.add_theme_constant_override("separation", 6)
-		parent.add_child(row)
-		var lc = Label.new()
-		lc.text = "✅"
+		vbox.add_child(row)
+		var lc = Label.new(); lc.text = "✅"
 		lc.custom_minimum_size = Vector2(20, 0)
 		row.add_child(lc)
 		var ln = Label.new()
-		ln.text = "%s [%s]" % [bp.get("name", app.blueprint_id), reg.get("name", app.championship_id)]
+		ln.text = "%s  [%s]" % [bp.get("name", app.blueprint_id), reg.get("name", app.championship_id)]
 		ln.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		ln.add_theme_font_size_override("font_size", 11)
 		ln.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
@@ -783,197 +1387,122 @@ func _build_wra_approved_panel(parent: VBoxContainer) -> void:
 			GameState.pending_cnc_blueprint = app.blueprint_id
 			get_tree().change_scene_to_file("res://scenes/buildings/CNCPlant.tscn"))
 		row.add_child(btn)
+	return vbox
 
-func _build_supply_contracts_panel(parent: VBoxContainer) -> void:
-	var lbl = Label.new()
-	lbl.text = "Supply Contracts (%d)" % GameState.active_supply_contracts.size()
-	lbl.add_theme_font_size_override("font_size", 12)
-	lbl.modulate = Color(0.7, 0.7, 0.7)
-	parent.add_child(lbl)
-	if GameState.active_supply_contracts.is_empty():
-		var e = Label.new()
-		e.text = "No active supply contracts."
+
+func _build_supply_contracts() -> VBoxContainer:
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 5)
+	var active = GameState.active_supply_contracts.filter(func(sc): return sc.active)
+	if active.is_empty():
+		var e = Label.new(); e.text = "No active supply contracts."
 		e.modulate = Color(0.45, 0.45, 0.45)
-		e.add_theme_font_size_override("font_size", 11)
-		parent.add_child(e)
-		return
-	for sc in GameState.active_supply_contracts:
-		if not sc.active: continue
+		e.add_theme_font_size_override("font_size", 12)
+		vbox.add_child(e)
+		return vbox
+	for sc in active:
 		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(sc.championship_id, {})
 		var row = HBoxContainer.new()
 		row.add_theme_constant_override("separation", 6)
-		parent.add_child(row)
+		vbox.add_child(row)
 		var ln = Label.new()
-		ln.text = "%s — %s [%s] CR %s/pt %d seasons" % [
+		ln.text = "%s — %s [%s]  CR %s/pt  %d seasons" % [
 			sc.ai_team_name, sc.part_code,
 			reg.get("name", sc.championship_id),
 			_fmt(sc.cr_per_part), sc.seasons_remaining]
 		ln.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		ln.add_theme_font_size_override("font_size", 11)
 		row.add_child(ln)
+		var pct = float(sc.parts_delivered) / float(max(sc.parts_per_season, 1))
 		var prog = Label.new()
 		prog.text = "%d/%d" % [sc.parts_delivered, sc.parts_per_season]
 		prog.add_theme_font_size_override("font_size", 11)
-		var pct = float(sc.parts_delivered) / float(sc.parts_per_season)
 		prog.add_theme_color_override("font_color",
 			Color(0.4,0.9,0.4) if pct >= 0.8 else
 			Color(1.0,0.6,0.1) if pct >= 0.4 else Color(1.0,0.3,0.3))
 		row.add_child(prog)
+	return vbox
 
-## ═══════════════════════════════════════════════════════════════════════════
-## SPONSORS SECTION (S18)
-## ═══════════════════════════════════════════════════════════════════════════
 
-func _build_sponsors_section() -> VBoxContainer:
+func _build_registration_panel() -> VBoxContainer:
 	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 6)
+	vbox.add_theme_constant_override("separation", 8)
 
-	if not GameState.active_sponsors.is_empty():
-		var la = Label.new()
-		la.text = "Active (%d)" % GameState.active_sponsors.size()
-		la.add_theme_font_size_override("font_size", 12)
-		la.modulate = Color(0.7,0.7,0.7)
-		vbox.add_child(la)
-		for sp in GameState.active_sponsors:
-			var row = HBoxContainer.new()
-			row.add_theme_constant_override("separation", 6)
-			vbox.add_child(row)
-			var ln = Label.new()
-			ln.text = sp.name
-			ln.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			ln.add_theme_font_size_override("font_size", 12)
-			ln.add_theme_color_override("font_color", Color(0.4,0.9,0.4))
-			row.add_child(ln)
-			var li = Label.new()
-			li.add_theme_font_size_override("font_size", 10)
-			li.modulate = Color(0.55,0.55,0.55)
-			match sp.type:
-				1: li.text = "CR %s/wk | %d seasons" % [_fmt(sp.weekly_payment), sp.seasons_remaining]
-				2: li.text = "Win:CR %s | %d seasons" % [_fmt(sp.win_bonus), sp.seasons_remaining]
-				3: li.text = "Commitment | %d seasons" % sp.seasons_remaining
-			row.add_child(li)
-		vbox.add_child(HSeparator.new())
+	var reg_count = GameState.player_registered_championships.size()
+	var lbl_info = Label.new()
+	lbl_info.text = "Registered for Season %d:  %d championship%s" % [
+		GameState.current_season + 1, reg_count, "s" if reg_count != 1 else ""]
+	lbl_info.add_theme_font_size_override("font_size", 13)
+	lbl_info.add_theme_color_override("font_color",
+		Color(0.4, 0.9, 0.4) if reg_count > 0 else Color(1.0, 0.6, 0.2))
+	vbox.add_child(lbl_info)
 
-	var lo = Label.new()
-	lo.text = "Offers (%d)" % GameState.sponsor_offers.size()
-	lo.add_theme_font_size_override("font_size", 12)
-	lo.modulate = Color(0.7,0.7,0.7)
-	vbox.add_child(lo)
+	for cid in GameState.player_registered_championships:
+		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
+		var lbl = Label.new()
+		lbl.text = "  ✅ %s" % reg.get("name", cid)
+		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_color_override("font_color", Color(0.4, 0.85, 0.4))
+		vbox.add_child(lbl)
 
-	if GameState.sponsor_offers.is_empty():
-		var e = Label.new()
-		e.text = "No offers. Search below."
-		e.modulate = Color(0.45,0.45,0.45)
-		e.add_theme_font_size_override("font_size", 11)
-		vbox.add_child(e)
-	else:
-		for offer in GameState.sponsor_offers:
-			var card = _build_sponsor_offer_card(offer)
-			vbox.add_child(card)
-
-	if GameState.cfo_search_active:
-		var search_row = HBoxContainer.new()
-		search_row.add_theme_constant_override("separation", 8)
-		vbox.add_child(search_row)
-		var ls = Label.new()
-		ls.text = "🔍 CFO searching... next offer in %d wk%s" % [
-			GameState.cfo_search_weeks_remaining,
-			"s" if GameState.cfo_search_weeks_remaining != 1 else ""]
-		ls.add_theme_font_size_override("font_size", 11)
-		ls.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
-		ls.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		search_row.add_child(ls)
-		var btn_stop = Button.new()
-		btn_stop.text = "⏹ Stop Search"
-		btn_stop.custom_minimum_size = Vector2(110, 28)
-		btn_stop.modulate = Color(1.0, 0.5, 0.5)
-		btn_stop.pressed.connect(func():
-			GameState.stop_cfo_sponsor_search()
-			_build_ui())
-		search_row.add_child(btn_stop)
-	else:
-		## Check if CFO is hired
-		var has_cfo = false
-		for sid in GameState.all_staff:
-			var s = GameState.all_staff[sid]
-			if s.role == "CFO" and s.contract_team == GameState.player_team.id:
-				has_cfo = true
-				break
-		var btn = Button.new()
-		btn.text = "🔍 CFO: Search for Sponsors"
-		btn.custom_minimum_size = Vector2(0, 30)
-		if not has_cfo:
-			btn.modulate = Color(0.5, 0.5, 0.5)
-			btn.tooltip_text = "Hire a CFO first to search for sponsors"
-		btn.pressed.connect(func():
-			if not GameState.start_cfo_sponsor_search():
-				pass  ## GameState shows notification
-			else:
-				_build_ui())
-		vbox.add_child(btn)
+	var btn = Button.new()
+	btn.text = "🏁  Championship Registration →"
+	btn.custom_minimum_size = Vector2(0, 38)
+	btn.add_theme_font_size_override("font_size", 14)
+	btn.pressed.connect(func():
+		get_tree().change_scene_to_file("res://scenes/ChampionshipSelect.tscn"))
+	vbox.add_child(btn)
 
 	return vbox
 
-func _build_sponsor_offer_card(offer: Dictionary) -> PanelContainer:
+
+# ══════════════════════════════════════════════════════════════════════════════
+# HELPERS
+# ══════════════════════════════════════════════════════════════════════════════
+
+func _section_label(text: String) -> Label:
+	var lbl = Label.new()
+	lbl.text = text
+	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.add_theme_color_override("font_color", Color(0.45, 0.55, 0.70))
+	return lbl
+
+func _kv_row(key: String, value: String, key_width: int, val_col: Color = Color.WHITE) -> HBoxContainer:
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	var k = Label.new(); k.text = key
+	k.custom_minimum_size = Vector2(key_width, 0)
+	k.add_theme_font_size_override("font_size", 12)
+	k.modulate = Color(0.45, 0.45, 0.45)
+	row.add_child(k)
+	var v = Label.new(); v.text = value
+	v.add_theme_font_size_override("font_size", 12)
+	v.add_theme_color_override("font_color", val_col)
+	row.add_child(v)
+	return row
+
+func _card(bg: Color = Color(0.11, 0.12, 0.16)) -> PanelContainer:
 	var panel = PanelContainer.new()
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.09, 0.10, 0.13)
-	style.border_width_left = 2
-	var colors = [Color(0.3,0.3,0.3), Color(0.3,0.7,0.9), Color(0.9,0.6,0.2), Color(0.6,0.3,0.9)]
-	style.border_color = colors[offer.type] if offer.type < colors.size() else colors[0]
-	style.corner_radius_top_left = 3; style.corner_radius_top_right = 3
-	style.corner_radius_bottom_left = 3; style.corner_radius_bottom_right = 3
-	style.content_margin_left = 8; style.content_margin_right = 8
-	style.content_margin_top = 6; style.content_margin_bottom = 6
+	style.bg_color = bg
+	style.border_width_left = 1; style.border_width_right = 1
+	style.border_width_top = 1; style.border_width_bottom = 1
+	style.border_color = Color(0.22, 0.26, 0.34)
+	style.corner_radius_top_left = 5; style.corner_radius_top_right = 5
+	style.corner_radius_bottom_left = 5; style.corner_radius_bottom_right = 5
+	style.content_margin_left = 12; style.content_margin_right = 12
+	style.content_margin_top = 10; style.content_margin_bottom = 10
 	panel.add_theme_stylebox_override("panel", style)
-	var vb = VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 4)
-	panel.add_child(vb)
-	var hdr = HBoxContainer.new()
-	hdr.add_theme_constant_override("separation", 6)
-	vb.add_child(hdr)
-	var ln = Label.new()
-	ln.text = offer.name
-	ln.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	ln.add_theme_font_size_override("font_size", 12)
-	hdr.add_child(ln)
-	var lt = Label.new()
-	lt.text = "T%d" % offer.tier
-	lt.add_theme_font_size_override("font_size", 10)
-	lt.modulate = Color(0.5,0.5,0.5)
-	hdr.add_child(lt)
-	var ld = Label.new()
-	ld.add_theme_font_size_override("font_size", 10)
-	match offer.type:
-		1: ld.text = "CR %s/wk | %d seasons" % [_fmt(offer.weekly_payment), offer.seasons_remaining]
-		2: ld.text = "Win:CR %s  Podium:CR %s  Season:CR %s | %d seasons" % [
-			_fmt(offer.win_bonus), _fmt(offer.podium_bonus),
-			_fmt(offer.season_bonus), offer.seasons_remaining]
-		3:
-			var reg = GameState.CHAMPIONSHIP_REGISTRY.get(offer.championship_id, {})
-			ld.text = "Commitment [%s]: CR %s | %d seasons" % [
-				reg.get("name", offer.championship_id),
-				_fmt(offer.commitment_total), offer.seasons_remaining]
-	ld.modulate = Color(0.65,0.65,0.65)
-	vb.add_child(ld)
-	var btn_row = HBoxContainer.new()
-	btn_row.add_theme_constant_override("separation", 6)
-	vb.add_child(btn_row)
-	var btn = Button.new()
-	btn.text = "Sign Sponsor"
-	btn.custom_minimum_size = Vector2(100, 26)
-	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	btn.pressed.connect(func():
-		GameState.sign_sponsor(offer.sponsor_id)
-		_build_ui())
-	btn_row.add_child(btn)
-	var btn_dismiss = Button.new()
-	btn_dismiss.text = "✕ Dismiss"
-	btn_dismiss.custom_minimum_size = Vector2(80, 26)
-	btn_dismiss.modulate = Color(0.6, 0.6, 0.6)
-	btn_dismiss.pressed.connect(func():
-		GameState.dismiss_sponsor_offer(offer.sponsor_id)
-		_build_ui())
-	btn_row.add_child(btn_dismiss)
 	return panel
+
+func _skill_col(v: float) -> Color:
+	if v >= 75: return Color(0.3, 1.0, 0.3)
+	elif v >= 50: return Color(1.0, 0.84, 0.0)
+	elif v >= 30: return Color(1.0, 0.6, 0.2)
+	return Color(0.75, 0.4, 0.4)
+
+func _fmt(n: int) -> String:
+	if n >= 1000000: return "%.2fM" % (n / 1000000.0)
+	if n >= 1000:    return "%dK" % (n / 1000)
+	return str(n)

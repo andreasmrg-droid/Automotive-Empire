@@ -1,4 +1,5 @@
 extends Control
+## Version: S16.5 — Release driver direct (no dialog); walk away gates negotiate button.
 
 # ── State ─────────────────────────────────────────────────────────────────────
 var current_tab: String = "my_drivers"
@@ -229,12 +230,16 @@ func _make_my_driver_row(driver) -> PanelContainer:
 	btn_row.add_child(assign_btn)
 
 	var renew_btn = Button.new()
-	renew_btn.text = "📋 Renew (5 seasons)"
+	renew_btn.text = "📋 Renegotiate"
 	renew_btn.custom_minimum_size = Vector2(140, 28)
 	renew_btn.pressed.connect(func():
-		GameState.renew_driver_contract(d_id, 5)
-		_refresh_list()
-	)
+		var neg = GameState.generate_driver_opening_offer(d_id)
+		if neg.is_empty(): return
+		GameState.start_negotiation(neg)
+		var panel = preload("res://scenes/ContractNegotiation.tscn").instantiate()
+		get_tree().current_scene.add_child(panel)
+		panel.open(GameState.active_negotiation)
+		panel.closed.connect(func(): _refresh_list()))
 	btn_row.add_child(renew_btn)
 
 	var release_btn = Button.new()
@@ -341,13 +346,23 @@ func _make_all_driver_row(driver) -> PanelContainer:
 
 	if not is_mine and not is_taken:
 		var hire_btn = Button.new()
-		hire_btn.text = "✅ Hire Driver"
-		hire_btn.custom_minimum_size = Vector2(110, 28)
-		hire_btn.pressed.connect(func():
-			if GameState.hire_driver(d_id):
-				tab_my_btn.text = "🏎 My Drivers (%d)" % GameState.player_team.drivers.size()
-				_refresh_list()
-		)
+		hire_btn.custom_minimum_size = Vector2(160, 28)
+		if not GameState.is_subject_available(d_id):
+			hire_btn.text = "🚫 Not interested"
+			hire_btn.disabled = true
+			hire_btn.modulate = Color(0.5, 0.5, 0.5)
+		else:
+			hire_btn.text = "📋 Negotiate Contract"
+			hire_btn.pressed.connect(func():
+				var neg = GameState.generate_driver_opening_offer(d_id)
+				if neg.is_empty(): return
+				GameState.start_negotiation(neg)
+				var panel = preload("res://scenes/ContractNegotiation.tscn").instantiate()
+				get_tree().current_scene.add_child(panel)
+				panel.open(GameState.active_negotiation)
+				panel.closed.connect(func():
+					tab_my_btn.text = "🏎 My Drivers (%d)" % GameState.player_team.drivers.size()
+					_refresh_list()))
 		btn_row.add_child(hire_btn)
 	elif is_mine:
 		var assign_btn = Button.new()
@@ -509,26 +524,33 @@ func _show_driver_card(driver_id: String) -> void:
 		btn_row.add_child(assign_btn)
 
 		var renew_btn = Button.new()
-		renew_btn.text = "📋 Renew Contract"
-		renew_btn.custom_minimum_size = Vector2(140, 32)
+		renew_btn.text = "📋 Renegotiate Contract"
+		renew_btn.custom_minimum_size = Vector2(180, 32)
 		renew_btn.pressed.connect(func():
-			GameState.renew_driver_contract(driver_id, 5)
-			card_overlay.queue_free()
-			card_overlay = null
-			_refresh_list()
-		)
+			var neg = GameState.generate_driver_opening_offer(driver_id)
+			if neg.is_empty(): return
+			GameState.start_negotiation(neg)
+			card_overlay.queue_free(); card_overlay = null
+			var panel = preload("res://scenes/ContractNegotiation.tscn").instantiate()
+			get_tree().current_scene.add_child(panel)
+			panel.open(GameState.active_negotiation)
+			panel.closed.connect(func(): _refresh_list()))
 		btn_row.add_child(renew_btn)
 	elif driver.contract_team == "":
 		var hire_btn = Button.new()
-		hire_btn.text = "✅ Hire Driver"
-		hire_btn.custom_minimum_size = Vector2(120, 32)
+		hire_btn.text = "📋 Negotiate Contract"
+		hire_btn.custom_minimum_size = Vector2(180, 32)
 		hire_btn.pressed.connect(func():
-			if GameState.hire_driver(driver_id):
-				card_overlay.queue_free()
-				card_overlay = null
+			var neg = GameState.generate_driver_opening_offer(driver_id)
+			if neg.is_empty(): return
+			GameState.start_negotiation(neg)
+			card_overlay.queue_free(); card_overlay = null
+			var panel = preload("res://scenes/ContractNegotiation.tscn").instantiate()
+			get_tree().current_scene.add_child(panel)
+			panel.open(GameState.active_negotiation)
+			panel.closed.connect(func():
 				tab_my_btn.text = "🏎 My Drivers (%d)" % GameState.player_team.drivers.size()
-				_refresh_list()
-		)
+				_refresh_list()))
 		btn_row.add_child(hire_btn)
 
 # ── Assign car popup ──────────────────────────────────────────────────────────
@@ -610,23 +632,9 @@ func _show_assign_car_popup(driver_id: String) -> void:
 # ── Release confirmation ───────────────────────────────────────────────────────
 
 func _confirm_release_driver(driver_id: String) -> void:
-	var driver = GameState.all_drivers.get(driver_id)
-	if not driver:
-		return
-	var dialog = ConfirmationDialog.new()
-	dialog.title = "Release Driver"
-	dialog.dialog_text = "Release %s from the team?\nThey will become a free agent." % driver.full_name()
-	dialog.ok_button_text = "Release"
-	dialog.cancel_button_text = "Cancel"
-	add_child(dialog)
-	dialog.popup_centered()
-	dialog.confirmed.connect(func():
-		GameState.release_driver(driver_id)
-		tab_my_btn.text = "🏎 My Drivers (%d)" % GameState.player_team.drivers.size()
-		_refresh_list()
-		dialog.queue_free()
-	)
-	dialog.canceled.connect(dialog.queue_free)
+	GameState.release_driver(driver_id)
+	tab_my_btn.text = "🏎 My Drivers (%d)" % GameState.player_team.drivers.size()
+	_refresh_list()
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 

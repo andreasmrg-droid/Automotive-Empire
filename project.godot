@@ -19,6 +19,7 @@ config/features=PackedStringArray("4.6", "Forward Plus")
 GameState="*uid://cqkny5coaun4h"
 NameGenerator="*uid://pfx7i143kqmc"
 NameData="*uid://bhga8nc2rf4tc"
+Locale="*res://autoloads/Locale.gd"
 
 [display]
 

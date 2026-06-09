@@ -1,5 +1,7 @@
 class_name Staff
 extends Resource
+## Version: S16.2 — Added track_knowledge_by_track dict. Flat track_knowledge kept for
+##                    backward compat and UI display (shows best known track).
 
 # ── Identity ──────────────────────────────────────────────────────────────────
 @export var id: String = ""
@@ -22,7 +24,11 @@ extends Resource
 @export var morale: float = 100.0
 @export var weekly_salary: float = 0.0
 @export var contract_seasons_remaining: int = 5
-@export var contract_team: String = ""       # team_id; "" = available for hire
+@export var contract_team: String = ""
+## Contract bonus terms — set during negotiation
+@export var championship_bonus: int = 0
+@export var performance_bonus: int = 0
+@export var release_clause: int = 0       # team_id; "" = available for hire
 @export var assigned_championship: String = "" # championship_id; "" = unassigned
 @export var assigned_car_id: String = ""     # car_id; for Mechanic and Pit Crew
 
@@ -37,6 +43,9 @@ extends Resource
 @export var pit_stops: float = 0.0       # Pit stop execution quality
 @export var car_knowledge: float = 0.0   # Understanding of car systems
 @export var track_knowledge: float = 0.0 # Track-specific setup knowledge; grows per event
+## Per-track knowledge — keyed by track_id. Same system as Driver.
+## Flat track_knowledge above = max of all known tracks (for UI display).
+@export var track_knowledge_by_track: Dictionary = {}
 
 # ── Pit Crew attributes ───────────────────────────────────────────────────────
 @export var pit_stop_speed: float = 0.0  # Speed of pit stop operations
@@ -135,3 +144,17 @@ func get_repair_efficiency() -> float:
 ## tp_skill should be one of the TP's relevant attributes (0-100).
 static func tp_multiplier(tp_skill: float) -> float:
 	return 0.9 + (tp_skill / 100.0) * 0.3
+
+## Returns per-track knowledge (0–100) for a specific track_id.
+func get_track_knowledge_for(track_id: String) -> float:
+	return clamp(track_knowledge_by_track.get(track_id, 0.0), 0.0, 100.0)
+
+## Called after a race — grows knowledge at this track, updates flat display value.
+func update_track_knowledge(track_id: String, growth_amount: float) -> void:
+	var current = track_knowledge_by_track.get(track_id, 0.0)
+	track_knowledge_by_track[track_id] = min(100.0, current + growth_amount)
+	## Update flat track_knowledge to the maximum known track (used for UI + old code)
+	var best = 0.0
+	for v in track_knowledge_by_track.values():
+		if v > best: best = v
+	track_knowledge = best

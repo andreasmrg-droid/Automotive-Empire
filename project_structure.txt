@@ -1,4 +1,4 @@
-Project Structure - 2026-06-07T18:30:39
+Project Structure - 2026-06-08T21:09:47
 =====================================
 
 📁 autoloads/
@@ -8,6 +8,8 @@ Project Structure - 2026-06-07T18:30:39
     📄 NameGenerator.gd.uid
     📄 NameData.gd
     📄 NameData.gd.uid
+    📄 Locale.gd
+    📄 Locale.gd.uid
 📁 data/
 📁 resources/
     📁 scripts/
@@ -117,11 +119,15 @@ Project Structure - 2026-06-07T18:30:39
     📄 Financialdept.gd
     📄 Financialdept.gd.uid
     📄 EndOfSeason.gd
-    📄 BeginOfSeason.gd
     📄 EndOfSeason.gd.uid
+    📄 ContractNegotiation.tscn
+    📄 ContractNegotiation.gd
+    📄 ContractNegotiation.gd.uid
+    📄 EndOfSeason.tscn
+    📄 BeginOfSeason.tscn
+    📄 BeginOfSeason.gd
     📄 BeginOfSeason.gd.uid
 📄 project.godot
 📄 FileStructureExporter.gd
 📄 FileStructureExporter.gd.uid
-📄 project_structure.txt
-📄 project_structure.txt19654246.tmp
+📄 project_structure.txt23736077.tmp
