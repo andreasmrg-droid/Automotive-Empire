@@ -1,5 +1,5 @@
 extends Control
-## Version: S18.3 — Submit offer closes window on counter (weekly flow); close button preserved for manual dismiss.
+## Version: S19.3 — Close on Round 1 before submitting calls cancel_approach_before_submit.
 
 signal closed
 
@@ -85,7 +85,8 @@ func open_approach(ap: Dictionary) -> void:
 	_rebuild_approach()
 
 func _rebuild_approach() -> void:
-	for c in _content.get_children(): c.free()
+	for c in _content.get_children(): c.queue_free()
+	await get_tree().process_frame
 	_fields = {}
 	_lock_btns = {}
 
@@ -129,20 +130,35 @@ func _rebuild_approach() -> void:
 
 	_content.add_child(HSeparator.new())
 
-	## Column headers — 4 cols for drivers (with lock), 3 cols for staff
-	var is_driver = _ap.get("subject_type","driver") == "driver"
+	## Column headers and field order based on subject type
+	var subject_type = _ap.get("subject_type", "driver")
+	var is_driver = subject_type == "driver"
+	var is_sponsor = subject_type == "sponsor"
+
 	if is_driver:
 		_content.add_child(_make_four_col("TERM", "THEIR ASK", "YOUR OFFER", "LOCK", true))
 	else:
-		_content.add_child(_make_three_col("TERM", "THEIR ASK", "YOUR OFFER", true))
+		_content.add_child(_make_four_col("TERM", "THEIR ASK", "YOUR OFFER", "LOCK", true))
 
-	## Fields
+	## Field order
+	var field_order: Array
+	if is_driver:
+		field_order = FIELD_ORDER_DRIVER
+	elif is_sponsor:
+		var sp_type = _ap.get("sponsor_type", 1)
+		match sp_type:
+			1: field_order = FIELD_ORDER_SPONSOR_1
+			2: field_order = FIELD_ORDER_SPONSOR_2
+			3: field_order = FIELD_ORDER_SPONSOR_3
+			_: field_order = FIELD_ORDER_SPONSOR_1
+	else:
+		field_order = FIELD_ORDER_STAFF
+
 	var terms = _ap.get("terms", {})
-	var field_order = FIELD_ORDER_DRIVER if is_driver else FIELD_ORDER_STAFF
 	for key in field_order:
 		if key not in terms: continue
 		var term = terms[key]
-		_content.add_child(_build_approach_field_row(key, term, is_driver))
+		_content.add_child(_build_approach_field_row(key, term, true))
 
 	_content.add_child(HSeparator.new())
 
@@ -166,8 +182,9 @@ func _rebuild_approach() -> void:
 	btn_row.add_child(btn_accept)
 
 	var btn_close = _action_btn("Close ✕", Color(0.25, 0.25, 0.30))
-	btn_close.tooltip_text = "Close panel — negotiation continues next week."
+	btn_close.tooltip_text = "Close without submitting — cancels if no offer made yet."
 	btn_close.pressed.connect(func():
+		GameState.cancel_approach_before_submit(_ap["neg_id"])
 		queue_free()
 		emit_signal("closed"))
 	btn_row.add_child(btn_close)
@@ -333,8 +350,8 @@ func _rebuild() -> void:
 
 	_content.add_child(HSeparator.new())
 
-	## Columns header
-	var col_header = _make_three_col("TERM", "THEIR ASK", "YOUR OFFER", true)
+	## Columns header — 4 cols with LOCK
+	var col_header = _make_four_col("TERM", "THEIR ASK", "YOUR OFFER", "LOCK", true)
 	_content.add_child(col_header)
 
 	## Fields
@@ -419,18 +436,29 @@ func _build_field_row(key: String, ask_val, offer_val) -> HBoxContainer:
 	row.add_child(spin)
 	_fields[key] = spin
 
-	## Difference indicator
-	var lbl_diff = Label.new()
-	lbl_diff.custom_minimum_size = Vector2(80, 0)
-	lbl_diff.add_theme_font_size_override("font_size", 11)
-	if key != "duration_seasons" and key != "seasons_remaining" and ask_val > 0:
-		var pct = int((float(offer_val) / float(ask_val)) * 100.0)
-		lbl_diff.text = "%d%%" % pct
-		lbl_diff.add_theme_color_override("font_color",
-			Color(0.4, 0.9, 0.4) if pct >= 80
-			else Color(0.9, 0.75, 0.2) if pct >= 60
-			else Color(1.0, 0.4, 0.4))
-	row.add_child(lbl_diff)
+	## Lock button — all negotiation types
+	var lock_key = key
+	var is_locked_old = _neg.get("locked_fields", []).has(key)
+	var lock_btn_old = Button.new()
+	lock_btn_old.custom_minimum_size = Vector2(36, 30)
+	lock_btn_old.add_theme_font_size_override("font_size", 14)
+	if is_locked_old:
+		lock_btn_old.text = "🔒"
+		lock_btn_old.tooltip_text = "Locked — click to unlock."
+		lock_btn_old.pressed.connect(func():
+			var lf: Array = _neg.get("locked_fields", [])
+			lf.erase(lock_key)
+			_neg["locked_fields"] = lf
+			_rebuild())
+	else:
+		lock_btn_old.text = "🔓"
+		lock_btn_old.tooltip_text = "Lock this term."
+		lock_btn_old.pressed.connect(func():
+			var lf: Array = _neg.get("locked_fields", [])
+			if lock_key not in lf: lf.append(lock_key)
+			_neg["locked_fields"] = lf
+			_rebuild())
+	row.add_child(lock_btn_old)
 
 	return row
 

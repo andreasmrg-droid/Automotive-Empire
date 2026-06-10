@@ -1,5 +1,5 @@
 extends Control
-## Version: S18.3 — Popup opens immediately after successful approach; cancel sponsor; TDL routing.
+## Version: S18.6 — Renegotiate uses make_renegotiation_approach + open_approach for full lock support.
 
 # ── State ─────────────────────────────────────────────────────────────────────
 var current_tab: String = "my_staff"
@@ -266,12 +266,11 @@ func _make_my_staff_row(staff) -> PanelContainer:
 	renew_btn.text = "📋 Renegotiate"
 	renew_btn.custom_minimum_size = Vector2(145, 28)
 	renew_btn.pressed.connect(func():
-		var neg = GameState.generate_staff_opening_offer(s_id)
-		if neg.is_empty(): return
-		GameState.start_negotiation(neg)
+		var ap = GameState.make_renegotiation_approach(s_id, "staff")
+		if ap.is_empty(): return
 		var panel = preload("res://scenes/ContractNegotiation.tscn").instantiate()
 		get_tree().current_scene.add_child(panel)
-		panel.open(GameState.active_negotiation)
+		panel.open_approach(ap)
 		panel.closed.connect(func(): _refresh_list()))
 	btn_row.add_child(renew_btn)
 
@@ -496,13 +495,12 @@ func _show_staff_card(staff_id: String) -> void:
 		renew_btn.text = "📋 Renegotiate"
 		renew_btn.custom_minimum_size = Vector2(140, 32)
 		renew_btn.pressed.connect(func():
-			var neg = GameState.generate_staff_opening_offer(staff_id)
-			if neg.is_empty(): return
-			GameState.start_negotiation(neg)
+			var ap = GameState.make_renegotiation_approach(staff_id, "staff")
+			if ap.is_empty(): return
 			card_overlay.queue_free(); card_overlay = null
 			var panel = preload("res://scenes/ContractNegotiation.tscn").instantiate()
 			get_tree().current_scene.add_child(panel)
-			panel.open(GameState.active_negotiation)
+			panel.open_approach(ap)
 			panel.closed.connect(func(): _refresh_list()))
 		btn_row.add_child(renew_btn)
 	elif staff.contract_team == "":
@@ -518,7 +516,7 @@ func _show_staff_card(staff_id: String) -> void:
 			hire_btn.text = "⚠ No Slot"
 			hire_btn.disabled = true
 			hire_btn.tooltip_text = slot_msg
-		elif not _has_assigned_tp():
+		elif staff.role not in ["CFO", "Designer"] and not _has_assigned_tp():
 			hire_btn.text = "⚠ No Team Principal"
 			hire_btn.disabled = true
 			hire_btn.tooltip_text = "Assign a Team Principal first."
@@ -551,7 +549,8 @@ func _show_staff_card(staff_id: String) -> void:
 				ap_btn.text = "✅ Pre-signed"
 				ap_btn.disabled = true
 			_:
-				if not _has_assigned_tp():
+				var _needs_tp2 = staff.role not in ["CFO", "Designer"]
+				if _needs_tp2 and not _has_assigned_tp():
 					ap_btn.text = "⚠ No Team Principal"
 					ap_btn.disabled = true
 				else:
@@ -770,7 +769,9 @@ func _add_approach_button(btn_row: HBoxContainer, subject_id: String,
 		_:
 			var is_free_agent = subject.contract_team == ""
 			var on_last_contract = subject.contract_seasons_remaining <= 1 and not is_free_agent
-			var has_tp = _has_assigned_tp()
+			## CFO and Designer are team-level roles — no TP needed
+			var needs_tp = subject.role not in ["CFO", "Designer"]
+			var has_tp = (not needs_tp) or _has_assigned_tp()
 			var slot = GameState.get_slot_projection("staff", subject.role)
 			var slot_msg = _get_slot_message(subject.role)
 

@@ -1,5 +1,5 @@
 extends Control
-## Version: S18.3 — Cancel and Renegotiate buttons on active sponsor cards.
+## Version: S18.8 — Pending Activity Open → button only shown when player_turn==true; waiting state shown otherwise.
 
 var _current_tab: String = "overview"
 var _tab_buttons: Dictionary = {}
@@ -1653,7 +1653,8 @@ func _build_pending_activity() -> VBoxContainer:
 		desc_lbl.add_theme_font_size_override("font_size", 11)
 		desc_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-		match ap.get("status", ""):
+		var status = ap.get("status", "")
+		match status:
 			"approaching":
 				icon_lbl.text = "📤"
 				desc_lbl.text = "Bond approach → %s (%s) · reply next week" % [
@@ -1668,10 +1669,17 @@ func _build_pending_activity() -> VBoxContainer:
 			"negotiating":
 				icon_lbl.text = "📋"
 				var locked = ap.get("locked_fields",[]).size()
-				desc_lbl.text = "Negotiating: %s · Round %d/%d · %d locked" % [
-					ap["subject_name"], ap.get("contract_round",1),
-					ap.get("max_contract_rounds",4), locked]
-				desc_lbl.add_theme_color_override("font_color", Color(0.4, 0.85, 0.55))
+				var is_player_turn = ap.get("player_turn", false)
+				if is_player_turn:
+					desc_lbl.text = "Your turn: %s · Round %d/%d · %d locked" % [
+						ap["subject_name"], ap.get("contract_round",1),
+						ap.get("max_contract_rounds",4), locked]
+					desc_lbl.add_theme_color_override("font_color", Color(0.4, 0.85, 0.55))
+				else:
+					desc_lbl.text = "Waiting reply: %s · Round %d/%d" % [
+						ap["subject_name"], ap.get("contract_round",1),
+						ap.get("max_contract_rounds",4)]
+					desc_lbl.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
 			"agreed":
 				if ap.get("type") == "pre_signed":
 					icon_lbl.text = "✅"
@@ -1686,15 +1694,38 @@ func _build_pending_activity() -> VBoxContainer:
 		row.add_child(icon_lbl)
 		row.add_child(desc_lbl)
 
-		## Action button for items needing player response
-		if ap["status"] in ["bond_incoming"]:
+		## Action button
+		if status == "negotiating":
+			var is_player_turn = ap.get("player_turn", false)
+			if is_player_turn:
+				var btn = Button.new()
+				btn.text = "Open →"
+				btn.custom_minimum_size = Vector2(70, 24)
+				btn.add_theme_font_size_override("font_size", 10)
+				btn.modulate = Color(0.4, 0.85, 0.55)
+				var neg_id = ap["neg_id"]
+				btn.pressed.connect(func():
+					var panel = preload("res://scenes/ContractNegotiation.tscn").instantiate()
+					get_tree().current_scene.add_child(panel)
+					var current_ap = GameState._get_approach(neg_id)
+					panel.open_approach(current_ap)
+					panel.closed.connect(func(): _show_tab("overview")))
+				row.add_child(btn)
+			else:
+				var lbl_wait = Label.new()
+				lbl_wait.text = "⏳ Awaiting reply"
+				lbl_wait.add_theme_font_size_override("font_size", 10)
+				lbl_wait.modulate = Color(0.5, 0.5, 0.5)
+				row.add_child(lbl_wait)
+		elif status == "bond_incoming":
 			var btn = Button.new()
 			btn.text = "Respond →"
-			btn.custom_minimum_size = Vector2(90, 24)
+			btn.custom_minimum_size = Vector2(80, 24)
 			btn.add_theme_font_size_override("font_size", 10)
-			var neg_id = ap["neg_id"]
-			btn.pressed.connect(func():
-				get_tree().change_scene_to_file("res://scenes/Staff.tscn"))
+			btn.modulate = Color(1.0, 0.75, 0.2)
+			var dest = "res://scenes/Drivers.tscn" if ap.get("subject_type") == "driver" \
+				else "res://scenes/Staff.tscn"
+			btn.pressed.connect(func(): get_tree().change_scene_to_file(dest))
 			row.add_child(btn)
 
 		vbox.add_child(row)

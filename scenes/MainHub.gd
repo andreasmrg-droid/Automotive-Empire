@@ -1,5 +1,5 @@
 extends Control
-## Version: S18.3 — TDL routing for contract negotiations and bond responses.
+## Version: S19.0 — TDL → button matches all negotiation task text patterns.
 
 @onready var title_label = $Layout/TitleLabel
 @onready var week_label = $Layout/WeekLabel
@@ -775,16 +775,20 @@ func _refresh_log() -> void:
 					get_tree().change_scene_to_file(d))
 				task_row.add_child(btn_go)
 
-			## Dismiss button
-			var btn_x = Button.new()
-			btn_x.text = "✕"
-			btn_x.custom_minimum_size = Vector2(22, 22)
-			btn_x.add_theme_font_size_override("font_size", 10)
-			btn_x.modulate = Color(0.5, 0.5, 0.5)
-			var tt = task_text
-			btn_x.pressed.connect(func():
-				GameState.dismiss_todo_item(tt))
-			task_row.add_child(btn_x)
+			## Dismiss button — hidden for active negotiations (can't dismiss until resolved)
+			var is_negotiation_task = "Offer sent to" in task_text or \
+				"Negotiations open:" in task_text or "Contract Round" in task_text or \
+				"their reply received" in task_text or "awaiting their reply" in task_text
+			if not is_negotiation_task:
+				var btn_x = Button.new()
+				btn_x.text = "✕"
+				btn_x.custom_minimum_size = Vector2(22, 22)
+				btn_x.add_theme_font_size_override("font_size", 10)
+				btn_x.modulate = Color(0.5, 0.5, 0.5)
+				var tt = task_text
+				btn_x.pressed.connect(func():
+					GameState.dismiss_todo_item(tt))
+				task_row.add_child(btn_x)
 
 	log_box.add_child(HSeparator.new())
 	for message in GameState.weekly_log:
@@ -1708,17 +1712,24 @@ func _get_todo_destination(task: String) -> String:
 		if "(" in task:  ## Has a role in brackets → staff
 			return "res://scenes/Staff.tscn"
 		return "res://scenes/Drivers.tscn"
-	## Contract negotiations and bond responses
-	if "Contract Round" in task or "contract round" in task or "respond" in task:
-		if "driver" in task.to_lower() or "(driver)" in task.to_lower():
-			return "res://scenes/Drivers.tscn"
-		return "res://scenes/Staff.tscn"
-	if "bond offer" in task.to_lower() or "Bond offer" in task or "bond counter" in task.to_lower():
-		if "driver" in task.to_lower():
-			return "res://scenes/Drivers.tscn"
-		return "res://scenes/Staff.tscn"
-	if "wants to approach" in task or "Approach" in task:
-		return "res://scenes/Staff.tscn"
+	## Contract negotiations — always route to HQ (Pending Activity panel)
+	## Match all patterns from get_pending_tasks step 7b
+	if "Negotiations open:" in task or "negotiations open:" in task:
+		return "res://scenes/buildings/HQ.tscn"
+	if "Contract Round" in task or "contract round" in task:
+		return "res://scenes/buildings/HQ.tscn"
+	if "Offer sent to" in task and "reply" in task:
+		return "res://scenes/buildings/HQ.tscn"
+	if "awaiting their reply" in task:
+		return "res://scenes/buildings/HQ.tscn"
+	if "their reply received" in task:
+		return "res://scenes/buildings/HQ.tscn"
+	if "bond offer" in task.to_lower() or "bond approach" in task.to_lower():
+		return "res://scenes/buildings/HQ.tscn"
+	if "💰" in task and "bond" in task.to_lower():
+		return "res://scenes/buildings/HQ.tscn"
+	if "📤 Bond approach" in task:
+		return "res://scenes/buildings/HQ.tscn"
 	## R&D → WRA → CNC → Garage pipeline
 	if "submit to WRA" in task or "Blueprint ready" in task:
 		return "res://scenes/buildings/HQ.tscn"

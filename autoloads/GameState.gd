@@ -1,5 +1,5 @@
 extends Node
-## Version: S18.3 — P4 special projects complete (100 entries); last_action_week set to current_week+1 on contract start so reply comes next week; cancel_sponsor with rep/mktg penalty.
+## Version: S19.3 — cancel_approach_before_submit: closing popup on Round 1 before submitting removes the approach entirely.
 ##                    Driver.track_knowledge dict + update_track_knowledge(). Staff.track_knowledge_by_track
 ##                    + get_track_knowledge_for() + update_track_knowledge(). Lap time formula uses
 ##                    per-track knowledge for driver (-1% at TK100) and staff synergy.
@@ -1784,6 +1784,7 @@ func _find_and_sign_starting_driver(discipline: String, champ_id: String) -> Dri
 	pick.weekly_salary = sal * 1.2
 	pick.win_bonus     = int(sal * 52 * 0.3)
 	pick.podium_bonus  = int(sal * 52 * 0.1)
+	pick.release_clause = int(pick.weekly_salary * 8)  ## 8 weeks salary as default clause
 	player_team.drivers.append(pick.id)
 	if active_championship != null:
 		active_championship.standings[pick.id] = 0
@@ -2114,11 +2115,63 @@ func generate_staff_opening_offer(staff_id: String) -> Dictionary:
 		"cfo_bonus": cfo_bonus,
 	}
 
+## Wrap an existing staff/driver contract into an approach-style dict
+## so renegotiation can use open_approach() with lock support.
+func make_renegotiation_approach(subject_id: String, subject_type: String) -> Dictionary:
+	var neg: Dictionary
+	if subject_type == "driver":
+		neg = generate_driver_opening_offer(subject_id)
+	else:
+		neg = generate_staff_opening_offer(subject_id)
+	if neg.is_empty(): return {}
+
+	var name_str = _get_subject_display_name(subject_id, subject_type)
+	var ap = {
+		"neg_id":            "reneg_%s_%d_%d" % [subject_id, current_season, current_week],
+		"type":              "renegotiation",
+		"subject_id":        subject_id,
+		"subject_type":      subject_type,
+		"subject_name":      name_str,
+		"current_team_id":   player_team.id,
+		"current_team_name": player_team.team_name,
+		"approaching_team":  player_team.id,
+		"needs_bond":        false,
+		"bond_status":       "agreed",  ## No bond for own staff
+		"start_date":        "immediate",
+		"contract_round":    1,
+		"max_contract_rounds": neg["max_rounds"],
+		"last_action_week":  current_week,
+		"patience_weeks":    3,
+		"locked_fields":     [],
+		"player_turn":       true,
+		"status":            "negotiating",
+		"terms":             {},
+		"their_current_ask": {},
+	}
+	for key in neg["their_ask"]:
+		ap["terms"][key] = {
+			"their_ask":    neg["their_ask"][key],
+			"player_offer": neg["player_offer"][key],
+			"locked":       false,
+			"agreed":       false,
+		}
+	ap["their_current_ask"] = neg["their_ask"].duplicate()
+	active_approaches.append(ap)
+	emit_signal("approach_updated")
+	return ap
+
 ## Generate opening offer for a Sponsor (counter-offer negotiation).
 func generate_sponsor_negotiation(sponsor_id: String) -> Dictionary:
+	## Look in active_sponsors (renegotiating an existing deal)
 	var offer = null
-	for o in sponsor_offers:
-		if o.get("sponsor_id","") == sponsor_id: offer = o; break
+	for sp in active_sponsors:
+		if sp.get("sponsor_id","") == sponsor_id:
+			offer = sp; break
+	## Fall back to pending offers (negotiating a new offer)
+	if offer == null:
+		for o in sponsor_offers:
+			if o.get("sponsor_id","") == sponsor_id:
+				offer = o; break
 	if offer == null: return {}
 	var cfo = get_cfo()
 	var cfo_bonus = (cfo.sponsor_negotiation / 100.0) * 0.2 if cfo else 0.0
@@ -2147,10 +2200,52 @@ func generate_sponsor_negotiation(sponsor_id: String) -> Dictionary:
 		"offer_data":   offer,
 	}
 
+## Wrap a sponsor negotiation into approach format so HQ can use open_approach() with locks.
+func make_sponsor_approach(sponsor_id: String) -> Dictionary:
+	var neg = generate_sponsor_negotiation(sponsor_id)
+	if neg.is_empty(): return {}
+	var offer = neg["offer_data"]
+	var ap = {
+		"neg_id":            "sponsor_%s_%d_%d" % [sponsor_id, current_season, current_week],
+		"type":              "sponsor_negotiation",
+		"subject_id":        sponsor_id,
+		"subject_type":      "sponsor",
+		"subject_name":      offer.get("name", "Sponsor"),
+		"current_team_id":   "",
+		"current_team_name": "",
+		"approaching_team":  player_team.id,
+		"needs_bond":        false,
+		"bond_status":       "agreed",
+		"start_date":        "immediate",
+		"contract_round":    1,
+		"max_contract_rounds": neg["max_rounds"],
+		"last_action_week":  current_week,
+		"patience_weeks":    3,
+		"locked_fields":     [],
+		"player_turn":       true,
+		"status":            "negotiating",
+		"terms":             {},
+		"their_current_ask": {},
+		"sponsor_type":      offer.get("type", 1),
+		"offer_data":        offer,
+	}
+	for key in neg["their_ask"]:
+		ap["terms"][key] = {
+			"their_ask":    neg["their_ask"][key],
+			"player_offer": neg["player_offer"].get(key, neg["their_ask"][key]),
+			"locked":       false,
+			"agreed":       false,
+		}
+	ap["their_current_ask"] = neg["their_ask"].duplicate()
+	active_approaches.append(ap)
+	emit_signal("approach_updated")
+	return ap
+
 ## ── Negotiation flow ─────────────────────────────────────────────────────────
 
 ## Start a negotiation. Stores state in active_negotiation.
 func start_negotiation(neg: Dictionary) -> void:
+	if not "locked_fields" in neg: neg["locked_fields"] = []
 	active_negotiation = neg
 	emit_signal("negotiation_updated")
 
@@ -2587,8 +2682,9 @@ func _start_contract_phase(ap: Dictionary) -> void:
 	ap["their_current_ask"] = neg["their_ask"].duplicate()
 	ap["max_contract_rounds"] = neg["max_rounds"]
 	ap["contract_round"] = 1
-	ap["last_action_week"] = current_week + 1  ## First check fires next week — no rounds lost on initiation
+	ap["last_action_week"] = current_week
 	ap["locked_fields"] = []
+	ap["player_turn"] = true  ## Round 1: player opens first
 	## Add start_date as a lockable term
 	ap["terms"]["start_date"] = {
 		"their_ask":    ap["start_date"],
@@ -2612,10 +2708,10 @@ func submit_approach_contract_offer(neg_id: String,
 		if key in ap["terms"]:
 			ap["terms"][key]["locked"] = true
 
-	ap["last_action_week"] = current_week + 1  ## Next silence check starts next week
-	ap["contract_round"] += 1
+	ap["last_action_week"] = current_week
+	ap["player_turn"] = false  ## Waiting for their reply — not the player's turn until next week
 
-	## Evaluate this round
+	## Evaluate BEFORE incrementing round — round shown is the round just played
 	var outcome = _evaluate_approach_offer(ap)
 
 	if outcome == "accepted":
@@ -2623,14 +2719,15 @@ func submit_approach_contract_offer(neg_id: String,
 		_apply_approach_result(ap)
 		emit_signal("approach_updated")
 		return "accepted"
-	elif outcome == "rejected" or ap["contract_round"] > ap["max_contract_rounds"]:
+	elif outcome == "rejected" or ap["contract_round"] >= ap["max_contract_rounds"]:
 		ap["status"] = "failed"
 		var name_str = ap["subject_name"]
 		add_notification("Normal", "Contract negotiations with %s have broken down." % name_str)
 		emit_signal("approach_updated")
 		return "rejected"
 	else:
-		## Counter: they adjust unlocked fields
+		## Counter — do NOT increment round here. Round advances when they reply next week.
+		## _advance_approaches will increment contract_round and set player_turn=true.
 		_apply_approach_counter(ap)
 		emit_signal("approach_updated")
 		return "counter"
@@ -2659,21 +2756,24 @@ func _evaluate_approach_offer(ap: Dictionary) -> String:
 	var total_ratio = 0.0
 	var count = 0
 	for key in ap["terms"]:
-		if key in ["duration_seasons", "start_date"]: continue
+		if key in ["start_date"]: continue  ## start_date is qualitative, handle separately
 		var term = ap["terms"][key]
-		if term["locked"] or term["agreed"]: continue
+		if term.get("locked", false) or term.get("agreed", false): continue
 		var ask = float(term["their_ask"])
 		if ask <= 0: continue
 		var offer = float(term["player_offer"])
+		## For salary/bonuses: ratio = offer/ask (they want MORE, player offers LESS is bad)
+		## For duration: they want LONGER, player offering less is bad
 		total_ratio += clamp(offer / ask, 0.0, 1.0)
 		count += 1
 	if count == 0: return "accepted"
 	var ratio = total_ratio / float(count)
 	var round_n = ap["contract_round"]
 	var max_r = ap["max_contract_rounds"]
-	var threshold = lerp(0.80, 0.65, float(round_n - 1) / float(max(max_r - 1, 1)))
+	## Threshold tightens from 0.85 (round 1) to 0.70 (final round)
+	var threshold = lerp(0.85, 0.70, float(round_n - 1) / float(max(max_r - 1, 1)))
 	if ratio >= threshold: return "accepted"
-	if ratio < 0.40 and round_n >= max_r - 1: return "rejected"
+	if ratio < 0.35 and round_n >= max_r - 1: return "rejected"
 	return "counter"
 
 func _apply_approach_counter(ap: Dictionary) -> void:
@@ -2709,7 +2809,19 @@ func _apply_approach_result(ap: Dictionary) -> void:
 		add_log("✅ %s pre-signed — joins Season %d." % [name_str, current_season + 1])
 		add_notification("Normal",
 			"%s pre-signed and will join at the start of Season %d." % [name_str, current_season + 1],
-			"drivers" if subject_type == "driver" else "staff_hub")
+			"hq")
+		return
+
+	## Sponsor renegotiation — update existing active_sponsor in place
+	if ap.get("type") == "sponsor_negotiation":
+		for sp in active_sponsors:
+			if sp.get("sponsor_id","") == subject_id:
+				for key in ap["terms"]:
+					if key in sp: sp[key] = ap["terms"][key]["player_offer"]
+				break
+		add_log("🤝 Sponsor deal renegotiated: %s." % name_str)
+		add_notification("Normal", "Sponsor deal with %s updated." % name_str, "hq")
+		emit_signal("log_updated")
 		return
 
 	## Immediate — apply contract now using existing _apply_negotiation_result
@@ -2746,30 +2858,41 @@ func _advance_approaches() -> void:
 					"Incoming approach for %s auto-rejected (no response)." % ap["subject_name"])
 				changed = true
 
-		## ── Contract negotiation: patience counter ──────────────────────────
+		## ── Contract negotiation: patience / round advancement ──────────────
 		elif ap["status"] == "negotiating":
 			var weeks_silent = current_week - ap["last_action_week"]
+
 			if weeks_silent >= ap["patience_weeks"]:
+				## Player ignored too long — expired
 				ap["status"] = "expired"
 				add_notification("High",
 					"Negotiations with %s have expired — no response given." % ap["subject_name"])
 				changed = true
+
 			elif weeks_silent >= 1:
-				## Round advances each week with no response
-				ap["contract_round"] += 1
-				ap["last_action_week"] = current_week
-				if ap["contract_round"] > ap["max_contract_rounds"]:
-					ap["status"] = "failed"
-					add_notification("Normal",
-						"Contract negotiations with %s have concluded without a deal." % ap["subject_name"])
-				else:
-					## They also make a counter each week of silence
-					_apply_approach_counter(ap)
+				if ap.get("player_turn", true):
+					## Player's turn but hasn't responded — remind them, don't advance round
+					## Just update last_action_week so we don't fire every week
+					ap["last_action_week"] = current_week
 					add_notification("High",
-						"Contract round %d/%d with %s — respond in Drivers/Staff Hub." % [
-						ap["contract_round"], ap["max_contract_rounds"], ap["subject_name"]],
-						"drivers" if ap["subject_type"] == "driver" else "staff_hub")
-				changed = true
+						"Reminder: Contract Round %d/%d with %s — respond from HQ." % [
+						ap["contract_round"], ap["max_contract_rounds"], ap["subject_name"]], "hq")
+					changed = true
+				else:
+					## Player submitted, other side has had time to reply — advance round
+					ap["contract_round"] = min(ap["contract_round"] + 1, ap["max_contract_rounds"])
+					_apply_approach_counter(ap)
+					ap["player_turn"] = true
+					ap["last_action_week"] = current_week
+					if ap["contract_round"] >= ap["max_contract_rounds"]:
+						ap["status"] = "failed"
+						add_notification("Normal",
+							"Contract negotiations with %s have concluded without a deal." % ap["subject_name"])
+					else:
+						add_notification("High",
+							"Contract Round %d/%d with %s — respond from HQ." % [
+							ap["contract_round"], ap["max_contract_rounds"], ap["subject_name"]], "hq")
+					changed = true
 
 		## ── Pre-signed: activate at season start ────────────────────────────
 		elif ap["type"] == "pre_signed" and current_season > ap.get("signed_season", current_season):
@@ -2843,6 +2966,21 @@ func _get_approach_by_subject(subject_id: String) -> Dictionary:
 			return ap
 	return {}
 
+## Remove an approach that was opened but never submitted (Round 1, player_turn=true).
+## Called when player closes the popup without making any offer.
+func cancel_approach_before_submit(neg_id: String) -> void:
+	for i in range(active_approaches.size()):
+		var ap = active_approaches[i]
+		if ap["neg_id"] == neg_id:
+			## Only cancel if player never submitted — Round 1 and still their turn
+			if ap.get("contract_round", 1) == 1 and ap.get("player_turn", true):
+				active_approaches.remove_at(i)
+				emit_signal("approach_updated")
+			else:
+				## Already submitted at least once — just reset last_action_week
+				ap["last_action_week"] = current_week
+			return
+
 func get_active_approaches_for_display() -> Array:
 	## Returns all approaches that should show in HQ Pending Activity
 	return active_approaches.filter(func(ap):
@@ -2887,20 +3025,19 @@ func _evaluate_offer(neg: Dictionary) -> String:
 	var ask    = neg["their_ask"]
 	var round_n = neg["round"]
 	var max_r   = neg["max_rounds"]
-	## Calculate how close the offer is to their ask (0=nothing, 1=full ask)
-	var ratio = _calc_offer_ratio(player, ask)
-	## Acceptance threshold: 80% of ask at round 1, drops to 65% by last round
-	var threshold = lerp(0.80, 0.65, float(round_n - 1) / float(max(max_r - 1, 1)))
+	var locked  = neg.get("locked_fields", [])
+	var ratio = _calc_offer_ratio(player, ask, locked)
+	var threshold = lerp(0.85, 0.70, float(round_n - 1) / float(max(max_r - 1, 1)))
 	if ratio >= threshold: return "accepted"
-	## Hard reject: below 40% and in last 2 rounds
-	if ratio < 0.40 and round_n >= max_r - 1: return "rejected"
+	if ratio < 0.35 and round_n >= max_r - 1: return "rejected"
 	return "counter"
 
-func _calc_offer_ratio(player: Dictionary, ask: Dictionary) -> float:
+func _calc_offer_ratio(player: Dictionary, ask: Dictionary, locked_fields: Array = []) -> float:
 	var total_ratio = 0.0
 	var count = 0
 	for key in ask:
 		if key == "duration_seasons": continue
+		if key in locked_fields: continue  ## Locked = agreed, skip from ratio
 		if ask[key] <= 0: continue
 		var p_val = float(player.get(key, 0))
 		var a_val = float(ask[key])
@@ -2974,7 +3111,17 @@ func _apply_negotiation_result(neg: Dictionary, accepted: bool) -> void:
 				staff.full_name(), staff.role, staff.weekly_salary, staff.contract_seasons_remaining])
 			add_notification("Normal", "%s (%s) joined your team." % [staff.full_name(), staff.role])
 		"sponsor":
-			sign_sponsor(neg["subject_id"])
+			## sign_sponsor adds the original offer — then overwrite with negotiated terms
+			if sign_sponsor(neg["subject_id"]):
+				var negotiated = neg["player_offer"]
+				## Find the sponsor we just added and update with negotiated values
+				for sp in active_sponsors:
+					if sp.get("sponsor_id","") == neg["subject_id"] or \
+							sp.get("name","") == neg.get("sponsor_name",""):
+						for key in negotiated:
+							if key in sp:
+								sp[key] = negotiated[key]
+						break
 	emit_signal("log_updated")
 
 ## ── Weekly salary payment (driver) ──────────────────────────────────────────
@@ -3616,13 +3763,19 @@ func get_pending_tasks() -> Array[String]:
 			"bond_incoming":
 				tasks.append("💰 %s wants %s — respond to their bond offer." % [
 					ap.get("approaching_team_name","AI Team"), ap["subject_name"]])
+			"approaching":
+				tasks.append("📤 Bond approach sent to %s's team — reply expected next week." % ap["subject_name"])
 			"negotiating":
-				var weeks_silent = current_week - ap.get("last_action_week", current_week)
-				if weeks_silent >= 1:
-					var rounds_left = ap.get("max_contract_rounds",4) - ap.get("contract_round",1)
-					tasks.append("📋 Contract Round %d/%d with %s — respond before it expires (%d rounds left)." % [
-						ap.get("contract_round",1), ap.get("max_contract_rounds",4),
-						ap["subject_name"], rounds_left])
+				var rounds_left = ap.get("max_contract_rounds",4) - ap.get("contract_round",1)
+				if ap.get("player_turn", true):
+					if ap.get("contract_round", 1) == 1:
+						tasks.append("📋 Negotiations open: %s — make your opening offer." % ap["subject_name"])
+					else:
+						tasks.append("📋 Contract Round %d/%d with %s — their reply received, respond now." % [
+							ap.get("contract_round",1), ap.get("max_contract_rounds",4), ap["subject_name"]])
+				else:
+					tasks.append("📋 Offer sent to %s — awaiting their reply (Round %d/%d)." % [
+						ap["subject_name"], ap.get("contract_round",1), ap.get("max_contract_rounds",4)])
 
 	## Step 8 — R&D → WRA → CNC → Garage pipeline
 	## 8a: Blueprints ready but not yet submitted to WRA
@@ -7047,12 +7200,18 @@ func cancel_sponsor(sponsor_id: String) -> void:
 
 	active_sponsors.remove_at(sp_idx)
 
-	## Penalty: -5 reputation, -8 marketability (scaled by seasons remaining)
+	## Penalty scaled by seasons remaining
 	var seasons_left = sp.get("seasons_remaining", 1)
 	var rep_penalty = clamp(5 * seasons_left, 5, 20)
 	var mktg_penalty = clamp(8 * seasons_left, 8, 30)
+
+	## Reputation is a direct property on player_team
 	player_team.reputation = max(0.0, player_team.reputation - rep_penalty)
-	player_team.marketability = max(0.0, player_team.get("marketability", 50.0) - mktg_penalty)
+
+	## Team marketability is stored as meta (not a property on Team resource)
+	var cur_mktg = player_team.get_meta("team_marketability", 50.0) if \
+		player_team.has_meta("team_marketability") else 50.0
+	player_team.set_meta("team_marketability", max(0.0, cur_mktg - mktg_penalty))
 
 	add_log("❌ Sponsor deal cancelled: %s. Rep −%d, Marketability −%d." % [
 		sp.get("name", "?"), rep_penalty, mktg_penalty])
