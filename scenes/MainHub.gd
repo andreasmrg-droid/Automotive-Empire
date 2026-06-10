@@ -1,5 +1,5 @@
 extends Control
-## Version: S17.1 — Fix E: _ready redirects to BeginOfSeason when pending_season_screen == begin_of_season (set by BeginOfSeason nav buttons).
+## Version: S18.3 — TDL routing for contract negotiations and bond responses.
 
 @onready var title_label = $Layout/TitleLabel
 @onready var week_label = $Layout/WeekLabel
@@ -1708,6 +1708,17 @@ func _get_todo_destination(task: String) -> String:
 		if "(" in task:  ## Has a role in brackets → staff
 			return "res://scenes/Staff.tscn"
 		return "res://scenes/Drivers.tscn"
+	## Contract negotiations and bond responses
+	if "Contract Round" in task or "contract round" in task or "respond" in task:
+		if "driver" in task.to_lower() or "(driver)" in task.to_lower():
+			return "res://scenes/Drivers.tscn"
+		return "res://scenes/Staff.tscn"
+	if "bond offer" in task.to_lower() or "Bond offer" in task or "bond counter" in task.to_lower():
+		if "driver" in task.to_lower():
+			return "res://scenes/Drivers.tscn"
+		return "res://scenes/Staff.tscn"
+	if "wants to approach" in task or "Approach" in task:
+		return "res://scenes/Staff.tscn"
 	## R&D → WRA → CNC → Garage pipeline
 	if "submit to WRA" in task or "Blueprint ready" in task:
 		return "res://scenes/buildings/HQ.tscn"

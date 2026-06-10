@@ -1,5 +1,5 @@
 extends Control
-## Version: S16.5 — Release driver direct (no dialog); walk away gates negotiate button.
+## Version: S18.3 — Popup opens immediately after successful approach; TDL routing added.
 
 # ── State ─────────────────────────────────────────────────────────────────────
 var current_tab: String = "my_drivers"
@@ -313,11 +313,28 @@ func _make_all_driver_row(driver) -> PanelContainer:
 	_add_col(row1, "Ovr %.0f" % driver.get_overall_skill(), 55,
 		_skill_color(driver.get_overall_skill()))
 
-	# Status
-	var status = "On your team" if is_mine else ("Contracted" if is_taken else "Free agent")
-	var status_color = Color(0.4, 0.8, 1.0) if is_mine else \
-		(Color(0.5, 0.5, 0.5) if is_taken else Color(0.4, 0.9, 0.4))
-	_add_col(row1, status, 100, status_color)
+	# Status — check approach state first
+	var ap_status = _get_approach_status(driver.id)
+	var status: String
+	var status_color: Color
+	if is_mine:
+		status = "On your team"; status_color = Color(0.4, 0.8, 1.0)
+	elif ap_status == "approaching" or ap_status == "bond_offered":
+		status = "⏳ Approached"; status_color = Color(0.7, 0.7, 0.4)
+	elif ap_status == "bond_countered":
+		status = "💰 Bond Counter"; status_color = Color(1.0, 0.75, 0.2)
+	elif ap_status == "negotiating":
+		status = "📋 Negotiating"; status_color = Color(0.4, 0.85, 0.55)
+	elif ap_status == "pre_signed":
+		status = "✅ Next Season"; status_color = Color(0.4, 0.85, 0.55)
+	elif is_taken:
+		## Show contract seasons remaining
+		var d_seasons = driver.contract_seasons_remaining
+		status = "Contracted (%ds)" % d_seasons
+		status_color = Color(1.0, 0.55, 0.2) if d_seasons <= 1 else Color(0.5, 0.5, 0.5)
+	else:
+		status = "Free agent"; status_color = Color(0.4, 0.9, 0.4)
+	_add_col(row1, status, 130, status_color)
 
 	# Salary estimate
 	_add_col(row1, "CR %s/yr" % _fmt_sal(_driver_salary(driver) * 52), 90, Color(0.7, 0.7, 0.7))
@@ -344,32 +361,14 @@ func _make_all_driver_row(driver) -> PanelContainer:
 	view_btn.pressed.connect(func(): _show_driver_card(d_id))
 	btn_row.add_child(view_btn)
 
-	if not is_mine and not is_taken:
-		var hire_btn = Button.new()
-		hire_btn.custom_minimum_size = Vector2(160, 28)
-		if not GameState.is_subject_available(d_id):
-			hire_btn.text = "🚫 Not interested"
-			hire_btn.disabled = true
-			hire_btn.modulate = Color(0.5, 0.5, 0.5)
-		else:
-			hire_btn.text = "📋 Negotiate Contract"
-			hire_btn.pressed.connect(func():
-				var neg = GameState.generate_driver_opening_offer(d_id)
-				if neg.is_empty(): return
-				GameState.start_negotiation(neg)
-				var panel = preload("res://scenes/ContractNegotiation.tscn").instantiate()
-				get_tree().current_scene.add_child(panel)
-				panel.open(GameState.active_negotiation)
-				panel.closed.connect(func():
-					tab_my_btn.text = "🏎 My Drivers (%d)" % GameState.player_team.drivers.size()
-					_refresh_list()))
-		btn_row.add_child(hire_btn)
-	elif is_mine:
+	if is_mine:
 		var assign_btn = Button.new()
 		assign_btn.text = "🏎 Assign Car"
 		assign_btn.custom_minimum_size = Vector2(105, 28)
 		assign_btn.pressed.connect(func(): _show_assign_car_popup(d_id))
 		btn_row.add_child(assign_btn)
+	else:
+		_add_approach_button(btn_row, d_id, "driver", driver)
 
 	return card
 
@@ -635,6 +634,282 @@ func _confirm_release_driver(driver_id: String) -> void:
 	GameState.release_driver(driver_id)
 	tab_my_btn.text = "🏎 My Drivers (%d)" % GameState.player_team.drivers.size()
 	_refresh_list()
+
+## ── Approach button logic ─────────────────────────────────────────────────────
+
+func _add_approach_button(btn_row: HBoxContainer, subject_id: String,
+		subject_type: String, subject) -> void:
+	var btn = Button.new()
+	btn.custom_minimum_size = Vector2(180, 28)
+	btn.add_theme_font_size_override("font_size", 11)
+
+	## Check existing approach state
+	var ap_status = _get_approach_status(subject_id)
+
+	if not GameState.is_subject_available(subject_id):
+		btn.text = "🚫 Not interested"
+		btn.disabled = true
+		btn.modulate = Color(0.5, 0.5, 0.5)
+		btn.tooltip_text = "Not available for 2 seasons after walking away."
+		btn_row.add_child(btn)
+		return
+
+	match ap_status:
+		"approaching":
+			btn.text = "⏳ Awaiting Reply"
+			btn.disabled = true
+			btn.modulate = Color(0.7, 0.7, 0.4)
+		"bond_offered":
+			btn.text = "⏳ Bond Reply Pending"
+			btn.disabled = true
+			btn.modulate = Color(0.7, 0.7, 0.4)
+		"bond_countered":
+			btn.text = "💰 Bond Counter — Decide"
+			btn.modulate = Color(1.0, 0.75, 0.2)
+			btn.pressed.connect(func(): _show_bond_response_popup(subject_id, subject_type))
+		"negotiating":
+			btn.text = "📋 Contract Round %d" % _get_approach_round(subject_id)
+			btn.modulate = Color(0.4, 0.85, 0.55)
+			btn.pressed.connect(func(): _show_contract_negotiation_popup(subject_id, subject_type))
+		"pre_signed":
+			btn.text = "✅ Pre-signed (Next Season)"
+			btn.disabled = true
+			btn.modulate = Color(0.4, 0.85, 0.55)
+		_:
+			## No active approach — show what's possible
+			var slot = GameState.get_slot_projection("driver")
+			var is_free_agent = subject.contract_team == ""
+			var on_last_contract = subject.contract_seasons_remaining <= 1 and not is_free_agent
+			var has_tp = _has_assigned_tp()
+
+			if not has_tp:
+				btn.text = "⚠ No Team Principal"
+				btn.disabled = true
+				btn.tooltip_text = "Assign a Team Principal first."
+			elif slot["now_free"] > 0 and (is_free_agent or on_last_contract):
+				btn.text = "📋 Negotiate Contract"
+				if is_free_agent:
+					btn.pressed.connect(func(): _initiate_approach(subject_id, subject_type, "immediate"))
+				else:
+					btn.pressed.connect(func(): _show_timing_popup(subject_id, subject_type))
+			elif slot["next_free"] > 0:
+				btn.text = "📋 Sign for Next Season"
+				btn.pressed.connect(func(): _initiate_approach(subject_id, subject_type, "next_season"))
+				btn.modulate = Color(0.7, 0.85, 1.0)
+			else:
+				btn.text = "⚠ No Slot"
+				btn.disabled = true
+				btn.tooltip_text = "No driver slots available now or next season."
+
+	btn_row.add_child(btn)
+
+func _get_approach_status(subject_id: String) -> String:
+	for ap in GameState.active_approaches:
+		if ap["subject_id"] == subject_id and ap["status"] not in ["failed","rejected","expired","activated"]:
+			match ap["status"]:
+				"approaching": return "approaching" if ap["bond_status"] != "countered" else "bond_countered"
+				"negotiating": return "negotiating"
+				"agreed":
+					if ap.get("type") == "pre_signed": return "pre_signed"
+	return ""
+
+func _get_approach_round(subject_id: String) -> int:
+	for ap in GameState.active_approaches:
+		if ap["subject_id"] == subject_id and ap["status"] == "negotiating":
+			return ap.get("contract_round", 1)
+	return 1
+
+func _get_approach_neg_id(subject_id: String) -> String:
+	for ap in GameState.active_approaches:
+		if ap["subject_id"] == subject_id:
+			return ap["neg_id"]
+	return ""
+
+func _has_assigned_tp() -> bool:
+	for champ in GameState.active_championships:
+		if GameState._get_tp_for_championship(champ.id) != null:
+			return true
+	return false
+
+func _initiate_approach(subject_id: String, subject_type: String, start_date: String) -> void:
+	var err = GameState.initiate_approach(subject_id, subject_type, start_date)
+	if err == "not_interested":
+		pass  ## notification already fired in GameState
+	elif err != "":
+		GameState.add_notification("High", err)
+	else:
+		## Check if we went straight to negotiating (free agent) — open popup immediately
+		var ap = GameState._get_approach_by_subject(subject_id)
+		if not ap.is_empty() and ap["status"] == "negotiating":
+			_show_contract_negotiation_popup(subject_id, subject_type)
+			return
+	_refresh_list()
+
+func _show_timing_popup(subject_id: String, subject_type: String) -> void:
+	## Popup asking: Immediate or Next Season?
+	## Guard: if subject is now a free agent, skip popup and go straight to approach
+	var subject_obj = GameState.all_drivers.get(subject_id) if subject_type == "driver" \
+		else GameState.all_staff.get(subject_id)
+	if subject_obj == null: return
+	var is_free = subject_obj.contract_team == ""
+	if is_free:
+		_initiate_approach(subject_id, subject_type, "immediate")
+		return
+
+	if card_overlay: card_overlay.queue_free()
+	card_overlay = PanelContainer.new()
+	card_overlay.set_anchors_preset(Control.PRESET_CENTER)
+	card_overlay.custom_minimum_size = Vector2(360, 0)
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.10, 0.12, 0.18, 0.98)
+	for side in ["left","right","top","bottom"]: style.set("border_width_%s" % side, 2)
+	style.border_color = Color(0.35, 0.65, 1.0)
+	for corner in ["top_left","top_right","bottom_left","bottom_right"]:
+		style.set("corner_radius_%s" % corner, 6)
+	for side in ["left","right","top","bottom"]: style.set("content_margin_%s" % side, 16)
+	card_overlay.add_theme_stylebox_override("panel", style)
+	add_child(card_overlay)
+
+	var vb = VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 12)
+	card_overlay.add_child(vb)
+
+	var subject = GameState.all_drivers.get(subject_id) if subject_type == "driver" \
+		else GameState.all_staff.get(subject_id)
+	var name_str = subject.full_name() if subject else subject_id
+
+	var lbl = Label.new()
+	lbl.text = "Approach %s" % name_str
+	lbl.add_theme_font_size_override("font_size", 16)
+	lbl.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
+	vb.add_child(lbl)
+
+	## Bond estimate
+	var bond_info = GameState.get_bond_estimate(subject_id, subject_type, "immediate")
+	var lbl_est = Label.new()
+	lbl_est.text = "Bond estimate: CR %s – %s" % [
+		_fmt_sal(bond_info["low"]), _fmt_sal(bond_info["high"])]
+	lbl_est.add_theme_font_size_override("font_size", 12)
+	lbl_est.modulate = Color(0.7, 0.7, 0.4)
+	if not bond_info["has_cfo"]:
+		lbl_est.text += "\n⚠ No CFO — estimate ±30%"
+	vb.add_child(lbl_est)
+
+	vb.add_child(HSeparator.new())
+
+	for timing in [["immediate", "🚀 Immediate Transfer", "Costs 1.5× + 25% disruption fee"],
+			["next_season", "📅 Next Season", "Standard bond — joins at season start"]]:
+		var btn = Button.new()
+		btn.text = timing[1]
+		btn.tooltip_text = timing[2]
+		btn.custom_minimum_size = Vector2(0, 36)
+		var t = timing[0]
+		btn.pressed.connect(func():
+			card_overlay.queue_free(); card_overlay = null
+			_initiate_approach(subject_id, subject_type, t))
+		vb.add_child(btn)
+
+	var btn_cancel = Button.new()
+	btn_cancel.text = "Cancel"
+	btn_cancel.modulate = Color(0.7, 0.4, 0.4)
+	btn_cancel.pressed.connect(func(): card_overlay.queue_free(); card_overlay = null)
+	vb.add_child(btn_cancel)
+
+func _show_bond_response_popup(subject_id: String, subject_type: String) -> void:
+	## Show the counter offer from the other team and let player respond
+	var neg_id = _get_approach_neg_id(subject_id)
+	var ap = GameState._get_approach(neg_id)
+	if ap.is_empty(): return
+
+	if card_overlay: card_overlay.queue_free()
+	card_overlay = PanelContainer.new()
+	card_overlay.set_anchors_preset(Control.PRESET_CENTER)
+	card_overlay.custom_minimum_size = Vector2(400, 0)
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.10, 0.12, 0.18, 0.98)
+	for side in ["left","right","top","bottom"]: style.set("border_width_%s" % side, 2)
+	style.border_color = Color(1.0, 0.75, 0.2)
+	for corner in ["top_left","top_right","bottom_left","bottom_right"]:
+		style.set("corner_radius_%s" % corner, 6)
+	for side in ["left","right","top","bottom"]: style.set("content_margin_%s" % side, 16)
+	card_overlay.add_theme_stylebox_override("panel", style)
+	add_child(card_overlay)
+
+	var vb = VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	card_overlay.add_child(vb)
+
+	var lbl_title = Label.new()
+	lbl_title.text = "💰 Bond Counter — %s" % ap["subject_name"]
+	lbl_title.add_theme_font_size_override("font_size", 16)
+	lbl_title.add_theme_color_override("font_color", Color(1.0, 0.75, 0.2))
+	vb.add_child(lbl_title)
+
+	var lbl_ask = Label.new()
+	lbl_ask.text = "%s's team asks: CR %s" % [ap["current_team_name"], _fmt_sal(int(ap["bond_team_ask"]))]
+	lbl_ask.add_theme_font_size_override("font_size", 13)
+	vb.add_child(lbl_ask)
+
+	var lbl_est = Label.new()
+	lbl_est.text = "CFO estimate: CR %s" % _fmt_sal(int(ap["bond_estimate"]))
+	lbl_est.add_theme_font_size_override("font_size", 11)
+	lbl_est.modulate = Color(0.6, 0.6, 0.6)
+	vb.add_child(lbl_est)
+
+	var spin_lbl = Label.new()
+	spin_lbl.text = "Your counter offer:"
+	spin_lbl.add_theme_font_size_override("font_size", 12)
+	vb.add_child(spin_lbl)
+
+	var spin = SpinBox.new()
+	spin.min_value = 0
+	spin.max_value = ap["bond_team_ask"] * 3.0
+	spin.step = 1000
+	spin.value = ap["bond_team_ask"]
+	spin.custom_minimum_size = Vector2(160, 36)
+	vb.add_child(spin)
+
+	var btn_row = HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 8)
+	vb.add_child(btn_row)
+
+	var btn_accept = Button.new()
+	btn_accept.text = "✅ Accept CR %s" % _fmt_sal(int(ap["bond_team_ask"]))
+	btn_accept.pressed.connect(func():
+		GameState.respond_bond_counter(neg_id, true)
+		card_overlay.queue_free(); card_overlay = null
+		_refresh_list())
+	btn_row.add_child(btn_accept)
+
+	var btn_counter = Button.new()
+	btn_counter.text = "↩ Counter"
+	btn_counter.pressed.connect(func():
+		GameState.respond_bond_counter(neg_id, false, spin.value)
+		card_overlay.queue_free(); card_overlay = null
+		_refresh_list())
+	btn_row.add_child(btn_counter)
+
+	var btn_reject = Button.new()
+	btn_reject.text = "✕ Walk Away"
+	btn_reject.modulate = Color(1.0, 0.4, 0.4)
+	btn_reject.pressed.connect(func():
+		GameState.walk_away_approach(neg_id)
+		card_overlay.queue_free(); card_overlay = null
+		_refresh_list())
+	btn_row.add_child(btn_reject)
+
+func _show_contract_negotiation_popup(subject_id: String, _subject_type: String) -> void:
+	var neg_id = _get_approach_neg_id(subject_id)
+	var ap = GameState._get_approach(neg_id)
+	if ap.is_empty(): return
+	## Open the ContractNegotiation overlay with the approach data
+	if card_overlay: card_overlay.queue_free(); card_overlay = null
+	var panel = preload("res://scenes/ContractNegotiation.tscn").instantiate()
+	get_tree().current_scene.add_child(panel)
+	panel.open_approach(ap)
+	panel.closed.connect(func():
+		tab_my_btn.text = "🏎 My Drivers (%d)" % GameState.player_team.drivers.size()
+		_refresh_list())
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 

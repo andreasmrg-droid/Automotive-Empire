@@ -27,10 +27,10 @@ var _difficulty: String = "Realistic"
 ## Budget (set by difficulty)
 ## Base budget per starting championship (before difficulty multiplier)
 const CHAMP_BASE_BUDGETS: Dictionary = {
-	"C-001":   50000,   ## GK Regional
-	"C-005":  250000,   ## RALLY4
-	"C-014": 1500000,   ## SC Dev Series
-	"C-021":  350000,   ## GP4
+	"C-001":   100000,   ## GK Regional
+	"C-005":   300000,   ## RALLY4
+	"C-014":  2000000,   ## SC Dev Series
+	"C-021":   500000,   ## GP4
 }
 
 ## Difficulty economy multipliers (applied to championship base budget)
@@ -161,7 +161,7 @@ func _build_title() -> void:
 	btn_new.pressed.connect(func(): _show_screen(2))
 	center.add_child(btn_new)
 
-	var btn_cont = _big_button("▶  CONTINUE", Color(0.18, 0.22, 0.28))
+	var btn_cont = _big_button("▶  LOAD GAME", Color(0.18, 0.22, 0.28))
 	btn_cont.pressed.connect(_on_continue_pressed)
 	center.add_child(btn_cont)
 

@@ -505,6 +505,7 @@ func _build_car_condition(parent: VBoxContainer) -> void:
 
 func _on_continue() -> void:
 	GameState.apply_post_race_repairs()
+	GameState.apply_sponsor_race_bonuses()
 	get_tree().change_scene_to_file("res://scenes/MainHub.tscn")
 
 func _input(event: InputEvent) -> void:
@@ -593,38 +594,14 @@ func _build_driver_improvements(parent: VBoxContainer) -> void:
 		parent.add_child(empty)
 
 func _build_staff_improvements(parent: VBoxContainer) -> void:
-	var driver_deltas: Array = []
-	for entry in GameState.last_race_results:
-		if entry.get("dns", false): continue
-		if not (entry.get("is_player", false) or entry["driver"].id in GameState.player_team.drivers):
-			continue
-		var deltas = entry.get("stat_deltas", {})
-		var has_any = false
-		for sk in ["pace","wet","focus","experience","fitness"]:
-			if abs(deltas.get(sk, 0.0)) > 0.01: has_any = true; break
-		if has_any: driver_deltas.append({"driver": entry["driver"], "deltas": deltas})
-
 	var mech_deltas: Array = GameState.last_race_staff_deltas if "last_race_staff_deltas" in GameState else []
-	if driver_deltas.is_empty() and mech_deltas.is_empty(): return
+	if mech_deltas.is_empty(): return
 
 	var lbl_hdr = Label.new()
 	lbl_hdr.text = "STAFF DEVELOPMENT"
 	lbl_hdr.add_theme_font_size_override("font_size", 13)
 	lbl_hdr.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
 	parent.add_child(lbl_hdr)
-
-	for item in driver_deltas:
-		var d = item["driver"]
-		var deltas = item["deltas"]
-		var panel = _make_dev_card(d.full_name(), "👤", Color(0.3, 0.55, 0.9))
-		var vbox = panel.get_child(0)
-		var row = HBoxContainer.new(); row.add_theme_constant_override("separation", 10); vbox.add_child(row)
-		for sk in [["Pace","pace"],["Wet","wet"],["Focus","focus"],["Exp","experience"]]:
-			var dv = deltas.get(sk[1], 0.0)
-			if abs(dv) > 0.01: row.add_child(_delta_lbl("%s %s%.1f" % [sk[0], "+" if dv >= 0 else "", dv], dv))
-		var fd = deltas.get("fitness", 0.0)
-		if abs(fd) > 0.01: row.add_child(_delta_lbl("Fit %s%.1f%%" % ["+" if fd >= 0 else "", fd], fd))
-		parent.add_child(panel)
 
 	for item in mech_deltas:
 		var panel = _make_dev_card(item.get("name","Staff"), "🔧", Color(0.3, 0.7, 0.45))

@@ -1,5 +1,5 @@
 extends Node
-## Version: S17.2 — Garage part slot labels; provider/CNC part type labels; blueprint grid legend.
+## Version: S18.1 — Approach/bond/negotiation system keys added.
 ## Usage: Locale.t("key")  →  returns translated string for current language.
 ## Adding a language: add a new dict entry in STRINGS below and a matching entry in LANGUAGES.
 ## Dynamic strings with substitutions: Locale.tf("key", [arg1, arg2])
@@ -113,13 +113,14 @@ const STRINGS: Dictionary = {
 	"hq_title":             { "en": "🏛  HEADQUARTERS",       },
 	"hq_tab_overview":      { "en": "📊  Overview",           },
 	"hq_tab_financial":     { "en": "💰  Financial Department", },
-	"hq_tab_wra":           { "en": "📋  WRA & Registration",  },
+	"hq_tab_wra":           { "en": "📋  World Racing Association", },
 	"hq_sec_ceo":           { "en": "CEO",                     },
 	"hq_sec_finances":      { "en": "FINANCES",                },
 	"hq_sec_effects":       { "en": "HQ EFFECTS",              },
 	"hq_sec_championships": { "en": "ACTIVE CHAMPIONSHIPS",    },
 	"hq_sec_drivers":       { "en": "DRIVERS",                 },
 	"hq_sec_staff":         { "en": "STAFF",                  },
+	"hq_sec_sponsors":      { "en": "SPONSORS",               },
 	"hq_sec_tp_slots":      { "en": "TEAM PRINCIPAL SLOTS",    },
 	"hq_sec_cfo":           { "en": "CFO",                     },
 	"hq_sec_navigate":      { "en": "NAVIGATE",                },
@@ -129,7 +130,7 @@ const STRINGS: Dictionary = {
 	"hq_hire_cfo":          { "en": "Hire CFO →",              },
 	"hq_no_cfo":            { "en": "— No CFO hired —",        },
 	"hq_tp_slot_empty":     { "en": "TP Slot %d — Empty",      },
-	"hq_no_championships":  { "en": "No active championships. Register via WRA & Registration tab.",
+	"hq_no_championships":  { "en": "No active championships. Register via World Racing Association tab.",
 							   },
 	"hq_no_drivers":        { "en": "No drivers signed.",      },
 	"hq_no_staff":          { "en": "No staff hired.",         },
@@ -171,6 +172,10 @@ const STRINGS: Dictionary = {
 	"sp_offers":            { "en": "PENDING OFFERS",         },
 	"sp_cfo_search":        { "en": "CFO SPONSOR SEARCH",      },
 	"sp_no_active":         { "en": "No active sponsors.",     },
+	"sp_type1_detail":      { "en": "+CR %s/wk",              },
+	"sp_type2_detail":      { "en": "Win: CR %s",             },
+	"sp_type3_detail":      { "en": "Commitment deal",        },
+	"sp_seasons_left":      { "en": "%d season%s left",       },
 	"sp_no_offers":         { "en": "No offers pending.",      },
 	"sp_expires_season":    { "en": "⚠ Expires this season",   },
 	"sp_searching":         { "en": "🔍 CFO searching...",    },
@@ -178,13 +183,11 @@ const STRINGS: Dictionary = {
 	"sp_stop_search":       { "en": "⏹ Stop Search",           },
 	"sp_no_cfo_search":     { "en": "No CFO hired. Hire a CFO in HQ to unlock sponsor search.",
 							   },
-	"sp_type1_detail":      { "en": "+CR %s per week",        },
 	"sp_cfo_proposals":     { "en": "CFO PROPOSALS",          },
 	"sp_no_cfo_proposals":  { "en": "No CFO hired — hire one to receive financial proposals.",
 							   },
 	"sp_all_healthy":       { "en": "✅ All financial indicators healthy this week.",
 							   },
-	"sp_seasons_left":      { "en": "%d season%s left",      },
 
 	# ── WRA ───────────────────────────────────────────────────────────────────
 	"wra_title":            { "en": "WRA & REGISTRATION",      },
@@ -286,7 +289,28 @@ const STRINGS: Dictionary = {
 	"staff_assign_to":      { "en": "Assign to championship:", },
 	"staff_no_eligible":    { "en": "No eligible championships.", },
 
-	# ── NOTIFICATIONS ─────────────────────────────────────────────────────────
+	# ── APPROACH / BOND / NEGOTIATION ────────────────────────────────────────
+	"ap_approach":          { "en": "📤 Approach",             },
+	"ap_awaiting_reply":    { "en": "⏳ Awaiting Reply",        },
+	"ap_bond_counter":      { "en": "💰 Bond Counter — Decide", },
+	"ap_negotiating":       { "en": "📋 Negotiating Round %d",  },
+	"ap_pre_signed":        { "en": "✅ Pre-signed (Next Season)", },
+	"ap_no_tp":             { "en": "⚠ No Team Principal",      },
+	"ap_no_slot":           { "en": "⚠ No Slot",               },
+	"ap_sign_next_season":  { "en": "📋 Sign for Next Season",  },
+	"ap_not_interested":    { "en": "🚫 Not interested",        },
+	"ap_timing_immediate":  { "en": "🚀 Immediate Transfer",    },
+	"ap_timing_next_season":{ "en": "📅 Next Season",           },
+	"ap_bond_estimate":     { "en": "Bond estimate: CR %s – %s", },
+	"ap_bond_no_cfo":       { "en": "⚠ No CFO — estimate ±30%%", },
+	"ap_lock":              { "en": "🔓",                       },
+	"ap_locked":            { "en": "🔒",                       },
+	"ap_agreed":            { "en": "✅",                       },
+	"ap_pending_activity":  { "en": "PENDING ACTIVITY",         },
+	"ap_bond_incoming":     { "en": "📥 %s wants %s · CR %s",  },
+	"ap_pre_signed_hq":     { "en": "✅ Pre-signed: %s · joins Season %d", },
+	"ap_approach_sent":     { "en": "📤 Bond approach → %s (%s) · reply next week", },
+	"ap_negotiating_hq":    { "en": "📋 Negotiating: %s · Round %d/%d · %d locked", },
 	"notif_critical":       { "en": "Critical",              },
 	"notif_high":           { "en": "High",                 },
 	"notif_normal":         { "en": "Normal",                },

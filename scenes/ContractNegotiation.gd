@@ -1,17 +1,14 @@
 extends Control
-## Version: S16.5 — Positioned upper-left of centre (anchor 0.15, offset -250/0).
-## Used by Drivers.gd, StaffHub.gd, and HQ.gd (sponsor renegotiation).
-## Usage:
-##   var panel = ContractNegotiation.new()
-##   add_child(panel)
-##   panel.open(negotiation_dict)
-##   panel.closed.connect(func(): panel.queue_free())
+## Version: S18.3 — Submit offer closes window on counter (weekly flow); close button preserved for manual dismiss.
 
 signal closed
 
-var _neg: Dictionary = {}
-var _fields: Dictionary = {}  ## key → SpinBox or LineEdit node
+var _neg: Dictionary = {}       ## legacy instant negotiation
+var _ap:  Dictionary = {}       ## approach-based weekly negotiation
+var _fields: Dictionary = {}    ## key → SpinBox
+var _lock_btns: Dictionary = {} ## key → Button
 var _content: VBoxContainer
+var _is_approach: bool = false
 
 const FIELD_LABELS = {
 	"weekly_salary":       "Weekly Salary (CR)",
@@ -25,13 +22,15 @@ const FIELD_LABELS = {
 	"season_bonus":        "Season Bonus (CR)",
 	"commitment_total":    "Commitment Total (CR)",
 	"seasons_remaining":   "Seasons",
+	"start_date":          "Start Date",
 }
 
 const FIELD_ORDER_DRIVER = [
-	"weekly_salary","duration_seasons","win_bonus","podium_bonus","championship_bonus","release_clause"
+	"weekly_salary","duration_seasons","win_bonus","podium_bonus","championship_bonus","release_clause","start_date"
 ]
 const FIELD_ORDER_STAFF = [
 	"weekly_salary","duration_seasons","championship_bonus","performance_bonus","release_clause"
+	## No start_date, no lock buttons for staff negotiations
 ]
 const FIELD_ORDER_SPONSOR_1 = ["weekly_payment","seasons_remaining"]
 const FIELD_ORDER_SPONSOR_2 = ["win_bonus","podium_bonus","season_bonus","seasons_remaining"]
@@ -76,8 +75,226 @@ func _ready() -> void:
 
 func open(neg: Dictionary) -> void:
 	_neg = neg
+	_is_approach = false
 	_rebuild()
 
+## Open for a weekly approach-based negotiation (with per-item locks).
+func open_approach(ap: Dictionary) -> void:
+	_ap = ap
+	_is_approach = true
+	_rebuild_approach()
+
+func _rebuild_approach() -> void:
+	for c in _content.get_children(): c.free()
+	_fields = {}
+	_lock_btns = {}
+
+	## Header
+	var lbl_title = Label.new()
+	lbl_title.text = "📋  CONTRACT NEGOTIATION"
+	lbl_title.add_theme_font_size_override("font_size", 20)
+	lbl_title.add_theme_color_override("font_color", Color.WHITE)
+	_content.add_child(lbl_title)
+
+	var lbl_name = Label.new()
+	lbl_name.text = _ap.get("subject_name", "")
+	lbl_name.add_theme_font_size_override("font_size", 14)
+	lbl_name.add_theme_color_override("font_color", Color(0.55, 0.75, 1.0))
+	_content.add_child(lbl_name)
+
+	## Round + bond info
+	var meta_row = HBoxContainer.new()
+	meta_row.add_theme_constant_override("separation", 12)
+	_content.add_child(meta_row)
+
+	var lbl_round = Label.new()
+	lbl_round.text = "Round %d of %d" % [_ap.get("contract_round", 1), _ap.get("max_contract_rounds", 4)]
+	lbl_round.add_theme_font_size_override("font_size", 12)
+	lbl_round.modulate = Color(0.6, 0.6, 0.6)
+	meta_row.add_child(lbl_round)
+
+	if _ap.get("bond_amount_final", 0) > 0:
+		var lbl_bond = Label.new()
+		lbl_bond.text = "💰 Bond paid: CR %s" % _fmt(int(_ap["bond_amount_final"]))
+		lbl_bond.add_theme_font_size_override("font_size", 11)
+		lbl_bond.add_theme_color_override("font_color", Color(1.0, 0.75, 0.2))
+		meta_row.add_child(lbl_bond)
+
+	if _ap.get("current_team_name", "") != "":
+		var lbl_team = Label.new()
+		lbl_team.text = "From: %s" % _ap["current_team_name"]
+		lbl_team.add_theme_font_size_override("font_size", 11)
+		lbl_team.modulate = Color(0.5, 0.5, 0.5)
+		meta_row.add_child(lbl_team)
+
+	_content.add_child(HSeparator.new())
+
+	## Column headers — 4 cols for drivers (with lock), 3 cols for staff
+	var is_driver = _ap.get("subject_type","driver") == "driver"
+	if is_driver:
+		_content.add_child(_make_four_col("TERM", "THEIR ASK", "YOUR OFFER", "LOCK", true))
+	else:
+		_content.add_child(_make_three_col("TERM", "THEIR ASK", "YOUR OFFER", true))
+
+	## Fields
+	var terms = _ap.get("terms", {})
+	var field_order = FIELD_ORDER_DRIVER if is_driver else FIELD_ORDER_STAFF
+	for key in field_order:
+		if key not in terms: continue
+		var term = terms[key]
+		_content.add_child(_build_approach_field_row(key, term, is_driver))
+
+	_content.add_child(HSeparator.new())
+
+	## Action buttons
+	var btn_row = HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 10)
+	_content.add_child(btn_row)
+
+	var spacer = Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_row.add_child(spacer)
+
+	var btn_submit = _action_btn("Submit Offer →", Color(0.15, 0.50, 0.20))
+	btn_submit.pressed.connect(_on_submit_approach)
+	btn_row.add_child(btn_submit)
+
+	var btn_accept = _action_btn("Accept Their Terms", Color(0.12, 0.35, 0.55))
+	btn_accept.pressed.connect(func():
+		GameState.accept_approach_terms(_ap["neg_id"])
+		_show_result("✅ Deal Agreed!", "Contract signed.", Color(0.3, 0.9, 0.4)))
+	btn_row.add_child(btn_accept)
+
+	var btn_close = _action_btn("Close ✕", Color(0.25, 0.25, 0.30))
+	btn_close.tooltip_text = "Close panel — negotiation continues next week."
+	btn_close.pressed.connect(func():
+		queue_free()
+		emit_signal("closed"))
+	btn_row.add_child(btn_close)
+
+	var btn_walk = _action_btn("Walk Away", Color(0.35, 0.12, 0.12))
+	btn_walk.pressed.connect(func():
+		GameState.walk_away_approach(_ap["neg_id"])
+		_show_result("Negotiation ended.", "You walked away.", Color(0.6, 0.6, 0.6)))
+	btn_row.add_child(btn_walk)
+
+func _build_approach_field_row(key: String, term: Dictionary, show_lock: bool = true) -> HBoxContainer:
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+
+	var is_locked = term.get("locked", false)
+	var is_agreed = term.get("agreed", false)
+
+	## Term label
+	var lbl = Label.new()
+	lbl.text = FIELD_LABELS.get(key, key)
+	lbl.custom_minimum_size = Vector2(190, 0)
+	lbl.add_theme_font_size_override("font_size", 12)
+	if is_locked or is_agreed:
+		lbl.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
+	row.add_child(lbl)
+
+	## Their ask
+	var their_ask = term.get("their_ask", 0)
+	var lbl_ask = Label.new()
+	lbl_ask.custom_minimum_size = Vector2(100, 0)
+	lbl_ask.add_theme_font_size_override("font_size", 12)
+	lbl_ask.add_theme_color_override("font_color",
+		Color(0.4, 0.9, 0.4) if (is_locked or is_agreed) else Color(1.0, 0.6, 0.4))
+	if key == "start_date":
+		lbl_ask.text = str(their_ask)
+	elif key in ["duration_seasons","seasons_remaining"]:
+		lbl_ask.text = "%d" % int(their_ask)
+	else:
+		lbl_ask.text = "CR %s" % _fmt(int(their_ask))
+	row.add_child(lbl_ask)
+
+	## Player input (disabled if locked/agreed)
+	if key == "start_date":
+		var opt = OptionButton.new()
+		opt.custom_minimum_size = Vector2(130, 30)
+		opt.add_item("Immediate", 0)
+		opt.add_item("Next Season", 1)
+		opt.selected = 0 if term.get("player_offer", "immediate") == "immediate" else 1
+		opt.disabled = is_locked or is_agreed
+		row.add_child(opt)
+		_fields[key] = opt
+	else:
+		var spin = SpinBox.new()
+		spin.custom_minimum_size = Vector2(120, 34)
+		spin.add_theme_font_size_override("font_size", 12)
+		if key in ["duration_seasons","seasons_remaining"]:
+			spin.min_value = 1; spin.max_value = 5; spin.step = 1
+		else:
+			spin.min_value = 0; spin.max_value = float(their_ask) * 2.0; spin.step = 10
+		spin.value = term.get("player_offer", their_ask)
+		spin.editable = not (is_locked or is_agreed)
+		row.add_child(spin)
+		_fields[key] = spin
+
+	## Lock button — drivers only
+	if show_lock:
+		var lock_btn = Button.new()
+		lock_btn.custom_minimum_size = Vector2(36, 30)
+		lock_btn.add_theme_font_size_override("font_size", 14)
+		if is_agreed:
+			lock_btn.text = "✅"
+			lock_btn.disabled = true
+			lock_btn.tooltip_text = "Both sides agreed on this term."
+		elif is_locked:
+			lock_btn.text = "🔒"
+			lock_btn.tooltip_text = "Locked — click to unlock."
+			lock_btn.pressed.connect(func():
+				_ap["terms"][key]["locked"] = false
+				_rebuild_approach())
+		else:
+			lock_btn.text = "🔓"
+			lock_btn.tooltip_text = "Lock this term (propose it as final)."
+			lock_btn.pressed.connect(func():
+				_ap["terms"][key]["locked"] = true
+				_rebuild_approach())
+		row.add_child(lock_btn)
+		_lock_btns[key] = lock_btn
+
+	return row
+
+func _on_submit_approach() -> void:
+	var offers: Dictionary = {}
+	var locked: Array = []
+	for key in _fields:
+		var ctrl = _fields[key]
+		if key == "start_date":
+			offers[key] = "immediate" if ctrl.selected == 0 else "next_season"
+		else:
+			offers[key] = int(ctrl.value)
+	for key in _lock_btns:
+		if _ap["terms"].get(key, {}).get("locked", false):
+			locked.append(key)
+
+	var result = GameState.submit_approach_contract_offer(_ap["neg_id"], offers, locked)
+	match result:
+		"accepted":
+			_show_result("✅ Deal Agreed!", "Contract signed successfully.", Color(0.3, 0.9, 0.4))
+		"rejected":
+			_show_result("❌ No Deal", "Negotiations have broken down.", Color(0.9, 0.3, 0.3))
+		"counter":
+			## Offer submitted — close window. Player will be notified next week to respond.
+			_show_result("📤 Offer Submitted", "Their reply will arrive next week.", Color(0.4, 0.75, 1.0))
+		"error":
+			pass
+
+func _make_four_col(a: String, b: String, c: String, d: String, bold: bool) -> HBoxContainer:
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	for item in [[a, 190], [b, 100], [c, 120], [d, 36]]:
+		var lbl = Label.new()
+		lbl.text = item[0]
+		lbl.custom_minimum_size = Vector2(item[1], 0)
+		lbl.add_theme_font_size_override("font_size", 10)
+		if bold: lbl.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55))
+		else: lbl.modulate = Color(0.45, 0.45, 0.45)
+		row.add_child(lbl)
+	return row
 
 func _rebuild() -> void:
 	for c in _content.get_children(): c.queue_free()

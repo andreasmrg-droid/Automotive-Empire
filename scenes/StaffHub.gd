@@ -1,5 +1,5 @@
 extends Control
-## Version: S17.1 — Walk-away gating on available staff; pending assignment shown in My Staff rows.
+## Version: S18.3 — Popup opens immediately after successful approach; cancel sponsor; TDL routing.
 
 # ── State ─────────────────────────────────────────────────────────────────────
 var current_tab: String = "my_staff"
@@ -286,8 +286,13 @@ func _make_my_staff_row(staff) -> PanelContainer:
 # ── Available Staff ───────────────────────────────────────────────────────────
 
 func _build_available_staff_list() -> void:
-	var available = GameState.get_all_available_staff()
-	var filtered = _filter_and_sort(available)
+	## Show all non-player staff — free agents AND contracted (approachable)
+	var all_non_player: Array = []
+	for sid in GameState.all_staff:
+		var s = GameState.all_staff[sid]
+		if s.contract_team != GameState.player_team.id:
+			all_non_player.append(s)
+	var filtered = _filter_and_sort(all_non_player)
 
 	if filtered.is_empty():
 		var lbl = Label.new()
@@ -300,6 +305,7 @@ func _build_available_staff_list() -> void:
 		list_container.add_child(_make_available_staff_row(staff))
 
 func _make_available_staff_row(staff) -> PanelContainer:
+	var is_contracted = staff.contract_team != ""
 	var card = _make_card_panel(false)
 	var vbox = VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 4)
@@ -315,6 +321,27 @@ func _make_available_staff_row(staff) -> PanelContainer:
 		Color(0.7, 0.85, 1.0))
 	_add_col(row1, "%s %.0f" % [staff.get_primary_skill_label(), staff.get_primary_skill()], 100,
 		_skill_color(staff.get_primary_skill()))
+
+	## Status column
+	var ap_status = _get_approach_status(staff.id)
+	var status_text: String
+	var status_col: Color
+	if ap_status == "approaching" or ap_status == "bond_offered":
+		status_text = "⏳ Approached"; status_col = Color(0.7, 0.7, 0.4)
+	elif ap_status == "bond_countered":
+		status_text = "💰 Bond Counter"; status_col = Color(1.0, 0.75, 0.2)
+	elif ap_status == "negotiating":
+		status_text = "📋 Negotiating"; status_col = Color(0.4, 0.85, 0.55)
+	elif ap_status == "pre_signed":
+		status_text = "✅ Next Season"; status_col = Color(0.4, 0.85, 0.55)
+	elif is_contracted:
+		var seasons = staff.contract_seasons_remaining
+		status_text = "Contracted (%ds)" % seasons
+		status_col = Color(1.0, 0.55, 0.2) if seasons <= 1 else Color(0.5, 0.5, 0.5)
+	else:
+		status_text = "Free agent"; status_col = Color(0.4, 0.9, 0.4)
+	_add_col(row1, status_text, 130, status_col)
+
 	_add_col(row1, "CR %s/yr" % _fmt_sal(int(staff.weekly_salary * 52)), 90, Color(0.6, 0.6, 0.6))
 
 	var btn_row = HBoxContainer.new()
@@ -329,35 +356,7 @@ func _make_available_staff_row(staff) -> PanelContainer:
 	view_btn.pressed.connect(func(): _show_staff_card(s_id))
 	btn_row.add_child(view_btn)
 
-	var hire_btn = Button.new()
-	hire_btn.custom_minimum_size = Vector2(160, 28)
-
-	# Evaluate both blocking conditions up front
-	var slot_msg = _get_slot_message(staff.role)
-	var is_unavailable = not GameState.is_subject_available(s_id)
-
-	if is_unavailable:
-		hire_btn.text = "🚫 Not Interested"
-		hire_btn.disabled = true
-		hire_btn.tooltip_text = "Not available for 2 seasons after walking away."
-	elif slot_msg != "":
-		hire_btn.text = "⚠ No Slot"
-		hire_btn.disabled = true
-		hire_btn.tooltip_text = slot_msg
-	else:
-		hire_btn.text = "📋 Negotiate Contract"
-		hire_btn.pressed.connect(func():
-			var neg = GameState.generate_staff_opening_offer(s_id)
-			if neg.is_empty(): return
-			GameState.start_negotiation(neg)
-			var panel = preload("res://scenes/ContractNegotiation.tscn").instantiate()
-			get_tree().current_scene.add_child(panel)
-			panel.open(GameState.active_negotiation)
-			panel.closed.connect(func():
-				tab_my_btn.text = "👥 My Staff (%d)" % GameState.get_all_player_staff().size()
-				tab_all_btn.text = "🌍 Available Staff (%d)" % GameState.get_all_available_staff().size()
-				_refresh_list()))
-	btn_row.add_child(hire_btn)
+	_add_approach_button(btn_row, s_id, "staff", staff)
 
 	return card
 
@@ -507,10 +506,10 @@ func _show_staff_card(staff_id: String) -> void:
 			panel.closed.connect(func(): _refresh_list()))
 		btn_row.add_child(renew_btn)
 	elif staff.contract_team == "":
-		var slot_msg = _get_slot_message(staff.role)
-		var is_unavailable = not GameState.is_subject_available(staff_id)
 		var hire_btn = Button.new()
 		hire_btn.custom_minimum_size = Vector2(160, 32)
+		var slot_msg = _get_slot_message(staff.role)
+		var is_unavailable = not GameState.is_subject_available(staff_id)
 		if is_unavailable:
 			hire_btn.text = "🚫 Not Interested"
 			hire_btn.disabled = true
@@ -519,21 +518,48 @@ func _show_staff_card(staff_id: String) -> void:
 			hire_btn.text = "⚠ No Slot"
 			hire_btn.disabled = true
 			hire_btn.tooltip_text = slot_msg
+		elif not _has_assigned_tp():
+			hire_btn.text = "⚠ No Team Principal"
+			hire_btn.disabled = true
+			hire_btn.tooltip_text = "Assign a Team Principal first."
 		else:
 			hire_btn.text = "📋 Negotiate Contract"
 			hire_btn.pressed.connect(func():
-				var neg = GameState.generate_staff_opening_offer(staff_id)
-				if neg.is_empty(): return
-				GameState.start_negotiation(neg)
 				card_overlay.queue_free(); card_overlay = null
-				var panel = preload("res://scenes/ContractNegotiation.tscn").instantiate()
-				get_tree().current_scene.add_child(panel)
-				panel.open(GameState.active_negotiation)
-				panel.closed.connect(func():
-					tab_my_btn.text = "👥 My Staff (%d)" % GameState.get_all_player_staff().size()
-					tab_all_btn.text = "🌍 Available Staff (%d)" % GameState.get_all_available_staff().size()
-					_refresh_list()))
+				_initiate_approach(staff_id, "staff", "immediate"))
 		btn_row.add_child(hire_btn)
+	else:
+		## Contracted staff — approach button
+		var ap_btn = Button.new()
+		ap_btn.custom_minimum_size = Vector2(160, 32)
+		var ap_status = _get_approach_status(staff_id)
+		match ap_status:
+			"approaching", "bond_offered":
+				ap_btn.text = "⏳ Awaiting Reply"
+				ap_btn.disabled = true
+			"bond_countered":
+				ap_btn.text = "💰 Bond Counter"
+				ap_btn.pressed.connect(func():
+					card_overlay.queue_free(); card_overlay = null
+					_show_bond_response_popup(staff_id, "staff"))
+			"negotiating":
+				ap_btn.text = "📋 Round %d" % _get_approach_round(staff_id)
+				ap_btn.pressed.connect(func():
+					card_overlay.queue_free(); card_overlay = null
+					_show_contract_negotiation_popup(staff_id, "staff"))
+			"pre_signed":
+				ap_btn.text = "✅ Pre-signed"
+				ap_btn.disabled = true
+			_:
+				if not _has_assigned_tp():
+					ap_btn.text = "⚠ No Team Principal"
+					ap_btn.disabled = true
+				else:
+					ap_btn.text = "📤 Approach"
+					ap_btn.pressed.connect(func():
+						card_overlay.queue_free(); card_overlay = null
+						_show_timing_popup(staff_id, "staff"))
+		btn_row.add_child(ap_btn)
 
 # ── Assign popup ──────────────────────────────────────────────────────────────
 
@@ -706,6 +732,263 @@ func _show_assign_popup(staff_id: String) -> void:
 		ok_btn.custom_minimum_size = Vector2(100, 32)
 		ok_btn.pressed.connect(func(): card_overlay.queue_free(); card_overlay = null)
 		vbox.add_child(ok_btn)
+
+## ── Approach button logic ─────────────────────────────────────────────────────
+
+func _add_approach_button(btn_row: HBoxContainer, subject_id: String,
+		subject_type: String, subject) -> void:
+	var btn = Button.new()
+	btn.custom_minimum_size = Vector2(180, 28)
+	btn.add_theme_font_size_override("font_size", 11)
+
+	var ap_status = _get_approach_status(subject_id)
+
+	if not GameState.is_subject_available(subject_id):
+		btn.text = "🚫 Not interested"
+		btn.disabled = true
+		btn.tooltip_text = "Not available for 2 seasons after walking away."
+		btn_row.add_child(btn)
+		return
+
+	match ap_status:
+		"approaching", "bond_offered":
+			btn.text = "⏳ Awaiting Reply"
+			btn.disabled = true
+			btn.modulate = Color(0.7, 0.7, 0.4)
+		"bond_countered":
+			btn.text = "💰 Bond Counter — Decide"
+			btn.modulate = Color(1.0, 0.75, 0.2)
+			btn.pressed.connect(func(): _show_bond_response_popup(subject_id, subject_type))
+		"negotiating":
+			btn.text = "📋 Round %d" % _get_approach_round(subject_id)
+			btn.modulate = Color(0.4, 0.85, 0.55)
+			btn.pressed.connect(func(): _show_contract_negotiation_popup(subject_id, subject_type))
+		"pre_signed":
+			btn.text = "✅ Pre-signed (Next Season)"
+			btn.disabled = true
+			btn.modulate = Color(0.4, 0.85, 0.55)
+		_:
+			var is_free_agent = subject.contract_team == ""
+			var on_last_contract = subject.contract_seasons_remaining <= 1 and not is_free_agent
+			var has_tp = _has_assigned_tp()
+			var slot = GameState.get_slot_projection("staff", subject.role)
+			var slot_msg = _get_slot_message(subject.role)
+
+			if not has_tp:
+				btn.text = "⚠ No Team Principal"
+				btn.disabled = true
+				btn.tooltip_text = "Assign a Team Principal first."
+			elif slot_msg != "" and slot["now_free"] <= 0 and slot["next_free"] <= 0:
+				btn.text = "⚠ No Slot"
+				btn.disabled = true
+				btn.tooltip_text = slot_msg
+			elif is_free_agent or on_last_contract:
+				if slot["now_free"] > 0:
+					btn.text = "📋 Negotiate Contract"
+					btn.pressed.connect(func(): _initiate_approach(subject_id, subject_type, "immediate"))
+				elif slot["next_free"] > 0:
+					btn.text = "📋 Sign for Next Season"
+					btn.modulate = Color(0.7, 0.85, 1.0)
+					btn.pressed.connect(func(): _initiate_approach(subject_id, subject_type, "next_season"))
+				else:
+					btn.text = "⚠ No Slot"
+					btn.disabled = true
+			else:
+				## Mid-contract — approach with bond
+				if slot["now_free"] > 0 or slot["next_free"] > 0:
+					btn.text = "📤 Approach"
+					btn.pressed.connect(func(): _show_timing_popup(subject_id, subject_type))
+				else:
+					btn.text = "⚠ No Slot"
+					btn.disabled = true
+
+	btn_row.add_child(btn)
+
+func _get_approach_status(subject_id: String) -> String:
+	for ap in GameState.active_approaches:
+		if ap["subject_id"] == subject_id and \
+				ap["status"] not in ["failed","rejected","expired","activated"]:
+			match ap["status"]:
+				"approaching":
+					return "approaching" if ap.get("bond_status","") != "countered" else "bond_countered"
+				"negotiating": return "negotiating"
+				"agreed":
+					if ap.get("type") == "pre_signed": return "pre_signed"
+	return ""
+
+func _get_approach_round(subject_id: String) -> int:
+	for ap in GameState.active_approaches:
+		if ap["subject_id"] == subject_id and ap["status"] == "negotiating":
+			return ap.get("contract_round", 1)
+	return 1
+
+func _get_approach_neg_id(subject_id: String) -> String:
+	for ap in GameState.active_approaches:
+		if ap["subject_id"] == subject_id: return ap["neg_id"]
+	return ""
+
+func _has_assigned_tp() -> bool:
+	for champ in GameState.active_championships:
+		if GameState._get_tp_for_championship(champ.id) != null: return true
+	return false
+
+func _initiate_approach(subject_id: String, subject_type: String, start_date: String) -> void:
+	var err = GameState.initiate_approach(subject_id, subject_type, start_date)
+	if err == "not_interested":
+		pass
+	elif err != "":
+		GameState.add_notification("High", err)
+	else:
+		## Free agent → negotiating immediately — open popup now
+		var ap = GameState._get_approach_by_subject(subject_id)
+		if not ap.is_empty() and ap["status"] == "negotiating":
+			_show_contract_negotiation_popup(subject_id, subject_type)
+			return
+	_refresh_list()
+
+func _show_timing_popup(subject_id: String, subject_type: String) -> void:
+	var subject_obj = GameState.all_staff.get(subject_id)
+	if subject_obj == null: return
+	if subject_obj.contract_team == "":
+		_initiate_approach(subject_id, subject_type, "immediate")
+		return
+
+	if card_overlay: card_overlay.queue_free()
+	card_overlay = PanelContainer.new()
+	card_overlay.set_anchors_preset(Control.PRESET_CENTER)
+	card_overlay.custom_minimum_size = Vector2(360, 0)
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.10, 0.12, 0.18, 0.98)
+	for side in ["left","right","top","bottom"]: style.set("border_width_%s" % side, 2)
+	style.border_color = Color(0.35, 0.65, 1.0)
+	for corner in ["top_left","top_right","bottom_left","bottom_right"]:
+		style.set("corner_radius_%s" % corner, 6)
+	for side in ["left","right","top","bottom"]: style.set("content_margin_%s" % side, 16)
+	card_overlay.add_theme_stylebox_override("panel", style)
+	add_child(card_overlay)
+
+	var vb = VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 12)
+	card_overlay.add_child(vb)
+
+	var lbl = Label.new()
+	lbl.text = "Approach %s" % subject_obj.display_name()
+	lbl.add_theme_font_size_override("font_size", 16)
+	lbl.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
+	vb.add_child(lbl)
+
+	var bond_info = GameState.get_bond_estimate(subject_id, subject_type, "immediate")
+	var lbl_est = Label.new()
+	lbl_est.text = "Bond estimate: CR %s – %s" % [
+		_fmt_sal(bond_info["low"]), _fmt_sal(bond_info["high"])]
+	lbl_est.add_theme_font_size_override("font_size", 12)
+	lbl_est.modulate = Color(0.7, 0.7, 0.4)
+	if not bond_info["has_cfo"]: lbl_est.text += "\n⚠ No CFO — estimate ±30%"
+	vb.add_child(lbl_est)
+
+	vb.add_child(HSeparator.new())
+
+	for timing in [["immediate", "🚀 Immediate Transfer", "1.5× + 25% disruption fee"],
+			["next_season", "📅 Next Season", "Standard bond"]]:
+		var btn = Button.new()
+		btn.text = timing[1]
+		btn.tooltip_text = timing[2]
+		btn.custom_minimum_size = Vector2(0, 36)
+		var t = timing[0]
+		btn.pressed.connect(func():
+			card_overlay.queue_free(); card_overlay = null
+			_initiate_approach(subject_id, subject_type, t))
+		vb.add_child(btn)
+
+	var btn_cancel = Button.new()
+	btn_cancel.text = "Cancel"
+	btn_cancel.modulate = Color(0.7, 0.4, 0.4)
+	btn_cancel.pressed.connect(func(): card_overlay.queue_free(); card_overlay = null)
+	vb.add_child(btn_cancel)
+
+func _show_bond_response_popup(subject_id: String, subject_type: String) -> void:
+	var neg_id = _get_approach_neg_id(subject_id)
+	var ap = GameState._get_approach(neg_id)
+	if ap.is_empty(): return
+
+	if card_overlay: card_overlay.queue_free()
+	card_overlay = PanelContainer.new()
+	card_overlay.set_anchors_preset(Control.PRESET_CENTER)
+	card_overlay.custom_minimum_size = Vector2(400, 0)
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.10, 0.12, 0.18, 0.98)
+	for side in ["left","right","top","bottom"]: style.set("border_width_%s" % side, 2)
+	style.border_color = Color(1.0, 0.75, 0.2)
+	for corner in ["top_left","top_right","bottom_left","bottom_right"]:
+		style.set("corner_radius_%s" % corner, 6)
+	for side in ["left","right","top","bottom"]: style.set("content_margin_%s" % side, 16)
+	card_overlay.add_theme_stylebox_override("panel", style)
+	add_child(card_overlay)
+
+	var vb = VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	card_overlay.add_child(vb)
+
+	var lbl_title = Label.new()
+	lbl_title.text = "💰 Bond Counter — %s" % ap["subject_name"]
+	lbl_title.add_theme_font_size_override("font_size", 16)
+	lbl_title.add_theme_color_override("font_color", Color(1.0, 0.75, 0.2))
+	vb.add_child(lbl_title)
+
+	var lbl_ask = Label.new()
+	lbl_ask.text = "%s's team asks: CR %s" % [
+		ap["current_team_name"], _fmt_sal(int(ap["bond_team_ask"]))]
+	lbl_ask.add_theme_font_size_override("font_size", 13)
+	vb.add_child(lbl_ask)
+
+	var spin = SpinBox.new()
+	spin.min_value = 0
+	spin.max_value = ap["bond_team_ask"] * 3.0
+	spin.step = 1000
+	spin.value = ap["bond_team_ask"]
+	spin.custom_minimum_size = Vector2(160, 36)
+	vb.add_child(spin)
+
+	var btn_row = HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 8)
+	vb.add_child(btn_row)
+
+	var btn_accept = Button.new()
+	btn_accept.text = "✅ Accept CR %s" % _fmt_sal(int(ap["bond_team_ask"]))
+	btn_accept.pressed.connect(func():
+		GameState.respond_bond_counter(neg_id, true)
+		card_overlay.queue_free(); card_overlay = null
+		_refresh_list())
+	btn_row.add_child(btn_accept)
+
+	var btn_counter = Button.new()
+	btn_counter.text = "↩ Counter"
+	btn_counter.pressed.connect(func():
+		GameState.respond_bond_counter(neg_id, false, spin.value)
+		card_overlay.queue_free(); card_overlay = null
+		_refresh_list())
+	btn_row.add_child(btn_counter)
+
+	var btn_reject = Button.new()
+	btn_reject.text = "✕ Walk Away"
+	btn_reject.modulate = Color(1.0, 0.4, 0.4)
+	btn_reject.pressed.connect(func():
+		GameState.walk_away_approach(neg_id)
+		card_overlay.queue_free(); card_overlay = null
+		_refresh_list())
+	btn_row.add_child(btn_reject)
+
+func _show_contract_negotiation_popup(subject_id: String, _subject_type: String) -> void:
+	var neg_id = _get_approach_neg_id(subject_id)
+	var ap = GameState._get_approach(neg_id)
+	if ap.is_empty(): return
+	if card_overlay: card_overlay.queue_free(); card_overlay = null
+	var panel = preload("res://scenes/ContractNegotiation.tscn").instantiate()
+	get_tree().current_scene.add_child(panel)
+	panel.open_approach(ap)
+	panel.closed.connect(func():
+		tab_my_btn.text = "👥 My Staff (%d)" % GameState.get_all_player_staff().size()
+		_refresh_list())
 
 # ── Release confirmation ───────────────────────────────────────────────────────
 

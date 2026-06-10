@@ -1,7 +1,5 @@
 extends Node
-## Version: S17.2 — Season wipe: car_installed_parts + cnc_parts_inventory cleared; provider parts slot-aware;
-##                    per-part condition degradation; bankruptcy fires on zero-expense negative balance too;
-##                    install_provider_part / remove_provider_part / swap_part_on_car added.
+## Version: S18.3 — P4 special projects complete (100 entries); last_action_week set to current_week+1 on contract start so reply comes next week; cancel_sponsor with rep/mktg penalty.
 ##                    Driver.track_knowledge dict + update_track_knowledge(). Staff.track_knowledge_by_track
 ##                    + get_track_knowledge_for() + update_track_knowledge(). Lap time formula uses
 ##                    per-track knowledge for driver (-1% at TK100) and staff synergy.
@@ -874,82 +872,106 @@ func _build_rnd_tasks_for_season(season: int) -> Dictionary:
 
 	# P4: Special Projects — not season-specific
 	var p4: Dictionary = {
-		"SP_HQ_1":  {"name":"Enterprise Conglomerate Resource Architecture","pillar":4,"part":"HQ",
-			"weeks":48,"rp":8500,"cr":14500000,"effect":"maintenance_reduction","value":0.15,
-			"building":"Headquarters","min_building_level":3,
-			"desc":"−15% all campus maintenance. Unlocks Tier-3 bank loans."},
-		"SP_HQ_2":  {"name":"Cross-Border Brand Licensing Syndicate","pillar":4,"part":"HQ",
-			"weeks":74,"rp":12000,"cr":22000000,"effect":"marketability_boost","value":0.15,
-			"building":"Headquarters","min_building_level":4,"requires":"SP_HQ_1",
-			"desc":"+15% global showroom traffic. Raises team valuation."},
-		"SP_LOG_1": {"name":"Predictive Global Freight Shipping Matrix","pillar":4,"part":"Logistics",
-			"weeks":50,"rp":5000,"cr":8500000,"effect":"parts_shipping_discount","value":0.15,
-			"building":"Logistics Center","min_building_level":3,
-			"desc":"−15% external component shipping costs."},
-		"SP_LOG_2": {"name":"Just-In-Time (JIT) Supply Chain Integration","pillar":4,"part":"Logistics",
-			"weeks":68,"rp":11000,"cr":18500000,"effect":"cnc_build_time_reduction","value":3.0,
-			"building":"Logistics Center","min_building_level":6,"requires":"SP_LOG_1",
-			"desc":"−3 weeks build time on low/medium complexity chassis."},
-		"SP_GAR_1": {"name":"Tubular Spaceframe Welding Arrays","pillar":4,"part":"Garage",
-			"weeks":34,"rp":2000,"cr":4000000,"effect":"chassis_repair_speed","value":0.20,
-			"building":"Garage","min_building_level":2,
-			"desc":"+20% trackside chassis repair speed between races."},
-		"SP_GAR_2": {"name":"Sequential Transmission Cleanroom Workshop","pillar":4,"part":"Garage",
-			"weeks":42,"rp":6000,"cr":9000000,"effect":"repair_income_bonus","value":0.25,
-			"building":"Garage","min_building_level":3,"requires":"SP_GAR_1",
-			"desc":"+25% profit from customer car repairs."},
-		"SP_GAR_3": {"name":"Sequential Transmission Blueprint Overhauls","pillar":4,"part":"Garage",
-			"weeks":46,"rp":6500,"cr":11500000,"effect":"gearbox_failure_reduction","value":0.15,
-			"building":"Garage","min_building_level":4,"requires":"SP_GAR_2",
-			"desc":"−15% transmission failure risk in endurance races."},
-		"SP_RD_1":  {"name":"Video Telemetry Driver Analysis Playback","pillar":4,"part":"Racing Dept",
-			"weeks":38,"rp":2500,"cr":4500000,"effect":"driver_focus_boost","value":0.05,
-			"building":"Racing Department","min_building_level":2,
-			"desc":"+5% driver focus stat improvement rate."},
-		"SP_RD_2":  {"name":"Press & Media Communications Training Suite","pillar":4,"part":"Racing Dept",
-			"weeks":44,"rp":5000,"cr":8500000,"effect":"sponsor_milestone_bonus","value":0.10,
-			"building":"Racing Department","min_building_level":3,"requires":"SP_RD_1",
-			"desc":"+10% sponsor milestone bonuses after top-3 finish."},
-		"SP_RND_1": {"name":"Internal Combustion Fundamentals Cleanroom","pillar":4,"part":"R&D Studio",
-			"weeks":32,"rp":4000,"cr":6500000,"effect":"engine_perf","value":0.04,
-			"building":"R&D Design Studio","min_building_level":2,
-			"desc":"+4% power output on all custom IC engines."},
-		"SP_RND_2": {"name":"Volumetric Fluid Dynamics Engine Blueprinting","pillar":4,"part":"R&D Studio",
-			"weeks":46,"rp":9000,"cr":15500000,"effect":"engine_perf","value":0.05,
-			"building":"R&D Design Studio","min_building_level":3,"requires":"SP_RND_1",
-			"desc":"+5% power rating on all custom engine blueprints."},
-		"SP_RND_3": {"name":"Proprietary Shock Absorber Fluid Research","pillar":4,"part":"R&D Studio",
-			"weeks":64,"rp":12500,"cr":21000000,"effect":"tire_wear_reduction","value":0.10,
-			"building":"R&D Design Studio","min_building_level":4,
-			"desc":"−10% tire wear degradation on high-downforce circuits."},
-		"SP_CNC_1": {"name":"Heavy Sheet-Metal Stock Car Stamping","pillar":4,"part":"CNC Plant",
-			"weeks":35,"rp":3000,"cr":5000000,"effect":"unlock_stock_car_panels","value":1.0,
-			"building":"CNC Parts Plant","min_building_level":2,
-			"desc":"Unlocks in-house body panel fabrication for stock car categories."},
-		"SP_CNC_2": {"name":"Multi-Axis CNC Machine Floor Integration","pillar":4,"part":"CNC Plant",
-			"weeks":42,"rp":6500,"cr":11000000,"effect":"cnc_material_cost_reduction","value":0.15,
-			"building":"CNC Parts Plant","min_building_level":3,"requires":"SP_CNC_1",
-			"desc":"−15% manufacturing materials cost."},
-		"SP_CNC_3": {"name":"Computer-Aided Manufacturing (CAM) Scripts","pillar":4,"part":"CNC Plant",
-			"weeks":34,"rp":7000,"cr":12000000,"effect":"cnc_time_reduction","value":0.25,
-			"building":"CNC Parts Plant","min_building_level":4,"requires":"SP_CNC_2",
-			"desc":"−25% time to build custom components."},
-		"SP_OPS_1": {"name":"Real-Time Telemetry Data Overlay Dashboards","pillar":4,"part":"Ops Sim",
-			"weeks":34,"rp":4000,"cr":6500000,"effect":"track_knowledge_rate","value":0.10,
-			"building":"Ops Sim & Telemetry","min_building_level":2,
-			"desc":"+10% track knowledge gain rate."},
-		"SP_OPS_2": {"name":"Hardware-In-The-Loop (HIL) Powertrain Modeling","pillar":4,"part":"Ops Sim",
-			"weeks":40,"rp":6500,"cr":11000000,"effect":"fuel_efficiency","value":0.06,
-			"building":"Ops Sim & Telemetry","min_building_level":3,"requires":"SP_OPS_1",
-			"desc":"−6% fuel burn via engine mapping optimization."},
-		"SP_AWT_1": {"name":"Flow-Visualization Airflow Drag Diagnostics","pillar":4,"part":"Wind Tunnel",
-			"weeks":38,"rp":4500,"cr":7500000,"effect":"aero_drag_reduction","value":0.04,
-			"building":"Aerodynamic Wind Tunnel","min_building_level":2,
-			"desc":"−4% drag on high-speed vehicle bodies."},
-		"SP_MUS_1": {"name":"Curated Heritage Exhibit Showrooms","pillar":4,"part":"Museum",
-			"weeks":40,"rp":2500,"cr":4000000,"effect":"museum_income_bonus","value":5000.0,
-			"building":"Museum","min_building_level":2,
-			"desc":"+CR 5,000 weekly passive income from brand prestige."},
+		"SP_ACA_1": {"name":"Curriculum-Based Biometric Cadet Coaching","pillar":4,"part":"Academy","weeks":42,"rp":4500,"cr":8000000,"effect":"cadet_starting_attributes","value":0.05,"Required_RnD_Studio_Level":2,"building":"Academy","min_building_level":1,"desc":"+5% starting attributes for new cadets."},
+		"SP_ACA_2": {"name":"Elite Single-Seater Cadet Progression Framework","pillar":4,"part":"Academy","weeks":50,"rp":9000,"cr":15000000,"effect":"cadet_salary_demand_reduction","value":0.15,"Required_RnD_Studio_Level":3,"building":"Academy","min_building_level":2,"desc":"−15% salary demand from academy graduates."},
+		"SP_ACA_3": {"name":"Global Scouting Telemetry Bot Grid","pillar":4,"part":"Academy","weeks":72,"rp":16500,"cr":28000000,"effect":"five_star_cadet_rate","value":0.25,"Required_RnD_Studio_Level":4,"building":"Academy","min_building_level":3,"desc":"+25% chance to spawn 5-star cadets."},
+		"SP_ACA_4": {"name":"Pinnacle Clone Driver Contract Pipeline","pillar":4,"part":"Academy","weeks":104,"rp":40000,"cr":75000000,"effect":"new_cadet_attributes","value":0.30,"Required_RnD_Studio_Level":4,"building":"Academy","min_building_level":4,"desc":"+30% starting attributes for new cadets."},
+		"SP_TUN_1": {"name":"Ground Effect & Venturi Tunnel Science","pillar":4,"part":"Tunnel","weeks":44,"rp":8000,"cr":14000000,"effect":"downforce_efficiency","value":0.12,"Required_RnD_Studio_Level":4,"building":"Aerodynamic Wind Tunnel","min_building_level":3,"desc":"+12% downforce efficiency."},
+		"SP_TUN_2": {"name":"Computational Fluid Dynamics (CFD) Clusters","pillar":4,"part":"Tunnel","weeks":66,"rp":15000,"cr":28000000,"effect":"blueprint_research_time_reduction","value":0.30,"Required_RnD_Studio_Level":6,"building":"Aerodynamic Wind Tunnel","min_building_level":4,"desc":"−30% blueprint research time."},
+		"SP_TUN_3": {"name":"Aerothermal Structural Balancing Grid","pillar":4,"part":"Tunnel","weeks":74,"rp":26000,"cr":45000000,"effect":"cooling_drag_reduction","value":0.10,"Required_RnD_Studio_Level":8,"building":"Aerodynamic Wind Tunnel","min_building_level":6,"desc":"−10% cooling drag."},
+		"SP_TUN_4": {"name":"Boundary Layer Laser Profiling Arrays","pillar":4,"part":"Tunnel","weeks":98,"rp":38000,"cr":65000000,"effect":"drag_reduction","value":0.08,"Required_RnD_Studio_Level":9,"building":"Aerodynamic Wind Tunnel","min_building_level":7,"desc":"−8% aerodynamic drag."},
+		"SP_TUN_5": {"name":"Plasma Flow Actuator Aero Synthesis","pillar":4,"part":"Tunnel","weeks":114,"rp":55000,"cr":95000000,"effect":"clean_downforce","value":0.30,"Required_RnD_Studio_Level":9,"building":"Aerodynamic Wind Tunnel","min_building_level":8,"desc":"+30% clean downforce."},
+		"SP_TUN_6": {"name":"Ultimate Aerodynamic Wake Matrix","pillar":4,"part":"Tunnel","weeks":160,"rp":90000,"cr":160000000,"effect":"drafting_downforce_loss_reduction","value":0.10,"Required_RnD_Studio_Level":9,"building":"Aerodynamic Wind Tunnel","min_building_level":9,"desc":"−10% downforce loss in drafting."},
+		"SP_TUN_7": {"name":"Flow-Visualization Airflow Drag Diagnostics","pillar":4,"part":"Tunnel","weeks":38,"rp":4500,"cr":7500000,"effect":"aero_drag_reduction","value":0.04,"Required_RnD_Studio_Level":5,"building":"Aerodynamic Wind Tunnel","min_building_level":5,"desc":"−4% aero drag."},
+		"SP_CNC_1": {"name":"Computer-Aided Manufacturing (CAM) Scripts","pillar":4,"part":"CNC","weeks":34,"rp":7000,"cr":12000000,"effect":"production_time_reduction","value":0.25,"Required_RnD_Studio_Level":6,"building":"CNC Parts Plant","min_building_level":9,"desc":"−25% production time."},
+		"SP_CNC_2": {"name":"High-Tensile Titanium Machining Feed Loops","pillar":4,"part":"CNC","weeks":50,"rp":11500,"cr":19500000,"effect":"engine_production_cost","value":0.18,"Required_RnD_Studio_Level":9,"building":"CNC Parts Plant","min_building_level":12,"desc":"−18% engine production cost."},
+		"SP_CNC_3": {"name":"Micro-Tolerance Component Optimization","pillar":4,"part":"CNC","weeks":72,"rp":18000,"cr":32000000,"effect":"breakdown_risk_reduction","value":0.22,"Required_RnD_Studio_Level":12,"building":"CNC Parts Plant","min_building_level":18,"desc":"−22% mechanical breakdown risk."},
+		"SP_CNC_4": {"name":"Sub-Atomic Laser Edge Component Shaving","pillar":4,"part":"CNC","weeks":102,"rp":32000,"cr":55000000,"effect":"production_cost_reduction","value":0.40,"Required_RnD_Studio_Level":18,"building":"CNC Parts Plant","min_building_level":21,"desc":"−40% production cost."},
+		"SP_CNC_5": {"name":"Molecular Metal Sintering Cells","pillar":4,"part":"CNC","weeks":116,"rp":50000,"cr":85000000,"effect":"ultra_complex_manufacturing","value":0.20,"Required_RnD_Studio_Level":21,"building":"CNC Parts Plant","min_building_level":22,"desc":"Unlocks ultra-complex manufacturing."},
+		"SP_CNC_6": {"name":"Pinnacle Nano-Tolerance Production Line","pillar":4,"part":"CNC","weeks":148,"rp":75000,"cr":140000000,"effect":"part_sale_value_boost","value":0.25,"Required_RnD_Studio_Level":24,"building":"CNC Parts Plant","min_building_level":24,"desc":"+25% part sale value."},
+		"SP_CNC_7": {"name":"Heavy Sheet-Metal Stock Car Stamping","pillar":4,"part":"CNC","weeks":35,"rp":3000,"cr":5000000,"effect":"inhouse_body_panel_production","value":0.05,"Required_RnD_Studio_Level":4,"building":"CNC Parts Plant","min_building_level":4,"desc":"+5% in-house body panel production."},
+		"SP_CNC_8": {"name":"Multi-Axis CNC Machine Floor Integration","pillar":4,"part":"CNC","weeks":42,"rp":6500,"cr":11000000,"effect":"manufacturing_waste_reduction","value":0.15,"Required_RnD_Studio_Level":7,"building":"CNC Parts Plant","min_building_level":12,"desc":"−15% manufacturing waste."},
+		"SP_FIT_1": {"name":"Sports Science G-Force Fatigue Mitigation","pillar":4,"part":"Clinic","weeks":34,"rp":4000,"cr":7000000,"effect":"driver_fatigue_reduction","value":0.15,"Required_RnD_Studio_Level":3,"building":"Fitness Clinic","min_building_level":25,"desc":"−15% driver fatigue."},
+		"SP_FIT_2": {"name":"Advanced Reflex Cognitive Simulation Units","pillar":4,"part":"Clinic","weeks":46,"rp":8500,"cr":14500000,"effect":"gforce_accuracy","value":0.12,"Required_RnD_Studio_Level":8,"building":"Fitness Clinic","min_building_level":55,"desc":"+12% accuracy under G-force."},
+		"SP_FIT_3": {"name":"Cryogenic Bio-Regenerative Restoration Tanks","pillar":4,"part":"Clinic","weeks":78,"rp":16000,"cr":28000000,"effect":"fatigue_recovery","value":0.20,"Required_RnD_Studio_Level":25,"building":"Fitness Clinic","min_building_level":75,"desc":"+20% fatigue recovery."},
+		"SP_FIT_4": {"name":"Hyperbaric Oxygen Apex Athlete Suites","pillar":4,"part":"Clinic","weeks":108,"rp":38000,"cr":65000000,"effect":"concentration_and_reflex","value":0.10,"Required_RnD_Studio_Level":60,"building":"Fitness Clinic","min_building_level":109,"desc":"Major boost to concentration and reflexes."},
+		"SP_GAR_1": {"name":"Sequential Transmission Cleanroom Workshop","pillar":4,"part":"Garage","weeks":42,"rp":6000,"cr":9000000,"effect":"repair_profit","value":0.25,"Required_RnD_Studio_Level":5,"building":"Garage","min_building_level":30,"desc":"+25% repair profit."},
+		"SP_GAR_2": {"name":"Automated Powertrain Teardown Cells","pillar":4,"part":"Garage","weeks":56,"rp":9500,"cr":16000000,"effect":"repair_time_reduction","value":0.25,"Required_RnD_Studio_Level":12,"building":"Garage","min_building_level":45,"desc":"−25% repair time."},
+		"SP_GAR_3": {"name":"High-Volume Carbon Monocoque Autoclave","pillar":4,"part":"Garage","weeks":82,"rp":22000,"cr":38000000,"effect":"inhouse_major_repairs","value":0.15,"Required_RnD_Studio_Level":25,"building":"Garage","min_building_level":80,"desc":"Unlocks in-house major repairs."},
+		"SP_GAR_4": {"name":"Structural Monocoque Carbon Optimization","pillar":4,"part":"Garage","weeks":118,"rp":45000,"cr":75000000,"effect":"chassis_weight_reduction","value":0.05,"Required_RnD_Studio_Level":35,"building":"Garage","min_building_level":89,"desc":"−5% chassis weight."},
+		"SP_GAR_5": {"name":"Tubular Spaceframe Welding Arrays","pillar":4,"part":"Garage","weeks":34,"rp":2000,"cr":4000000,"effect":"chassis_repair_speed","value":0.20,"Required_RnD_Studio_Level":4,"building":"Garage","min_building_level":25,"desc":"+20% chassis repair speed."},
+		"SP_GAR_6": {"name":"Sequential Transmission Blueprint Overhauls","pillar":4,"part":"Garage","weeks":46,"rp":6500,"cr":11500000,"effect":"transmission_failure_reduction","value":0.15,"Required_RnD_Studio_Level":10,"building":"Garage","min_building_level":47,"desc":"−15% transmission failure risk."},
+		"SP_GAR_7": {"name":"Structural Tube Frame Fabrication Jigs","pillar":4,"part":"Garage","weeks":68,"rp":14000,"cr":24000000,"effect":"stock_car_durability","value":0.12,"Required_RnD_Studio_Level":20,"building":"Garage","min_building_level":64,"desc":"+12% stock car durability."},
+		"SP_GAR_8": {"name":"Advanced Sub-Assembly Stress-Testing Rigs","pillar":4,"part":"Garage","weeks":74,"rp":21000,"cr":35000000,"effect":"mechanical_dnf_reduction","value":0.35,"Required_RnD_Studio_Level":35,"building":"Garage","min_building_level":85,"desc":"−35% pre-event mechanical DNFs."},
+		"SP_GRAVEL_1": {"name":"WRC4 Loose Soil Shakedown Calibration","pillar":4,"part":"Gravel","weeks":35,"rp":3500,"cr":6000000,"effect":"rally_loose_grip","value":0.08,"Required_RnD_Studio_Level":2,"building":"Gravel Track","min_building_level":1,"desc":"+8% grip on loose surfaces."},
+		"SP_GRAVEL_2": {"name":"High-Travel Damper Variable-Surface Shaker Rigs","pillar":4,"part":"Gravel","weeks":46,"rp":7500,"cr":12500000,"effect":"rally_unpaved_handling","value":0.10,"Required_RnD_Studio_Level":3,"building":"Gravel Track","min_building_level":2,"desc":"+10% handling on unpaved."},
+		"SP_GRAVEL_3": {"name":"Sub-Surface Radar Terrain Mapping","pillar":4,"part":"Gravel","weeks":98,"rp":25000,"cr":45000000,"effect":"gravel_suspension_durability","value":0.35,"Required_RnD_Studio_Level":3,"building":"Gravel Track","min_building_level":3,"desc":"−35% suspension damage on gravel."},
+		"SP_HQ_1": {"name":"Enterprise Conglomerate Resource Architecture","pillar":4,"part":"HQ","weeks":48,"rp":8500,"cr":14500000,"effect":"maintenance_reduction","value":0.15,"Required_RnD_Studio_Level":4,"building":"Headquarters","min_building_level":8,"desc":"−15% all campus maintenance costs."},
+		"SP_HQ_2": {"name":"Cross-Border Brand Licensing Syndicate","pillar":4,"part":"HQ","weeks":74,"rp":12000,"cr":22000000,"effect":"marketability_boost","value":0.15,"Required_RnD_Studio_Level":6,"building":"Headquarters","min_building_level":12,"desc":"+15% global marketability."},
+		"SP_HQ_3": {"name":"Sovereign Holding Company Conversion","pillar":4,"part":"HQ","weeks":96,"rp":35000,"cr":65000000,"effect":"tax_reduction","value":0.30,"Required_RnD_Studio_Level":12,"building":"Headquarters","min_building_level":22,"desc":"−30% corporate tax."},
+		"SP_HQ_4": {"name":"Ultimate Championship Control Core","pillar":4,"part":"HQ","weeks":162,"rp":60000,"cr":120000000,"effect":"marketability_boost","value":0.25,"Required_RnD_Studio_Level":18,"building":"Headquarters","min_building_level":26,"desc":"+25% global marketability."},
+		"SP_HQ_5": {"name":"Corporate Public Relations Framework","pillar":4,"part":"HQ","weeks":34,"rp":2500,"cr":4500000,"effect":"marketability_boost","value":0.10,"Required_RnD_Studio_Level":3,"building":"Headquarters","min_building_level":7,"desc":"+10% marketability from PR."},
+		"SP_KART_1": {"name":"Rotax Championship Track Layout Optimization","pillar":4,"part":"KartTrack","weeks":30,"rp":3000,"cr":5500000,"effect":"gokart_agility","value":0.10,"Required_RnD_Studio_Level":2,"building":"Karting Track","min_building_level":2,"desc":"+10% go-kart agility."},
+		"SP_KART_2": {"name":"Micro-Chassis Elasticity Calibration Arrays","pillar":4,"part":"KartTrack","weeks":54,"rp":6500,"cr":11000000,"effect":"gokart_telemetry","value":0.15,"Required_RnD_Studio_Level":3,"building":"Karting Track","min_building_level":3,"desc":"+15% go-kart telemetry."},
+		"SP_LOG_1": {"name":"Predictive Global Freight Shipping Matrix","pillar":4,"part":"Logistics","weeks":50,"rp":5000,"cr":8500000,"effect":"parts_shipping_discount","value":0.15,"Required_RnD_Studio_Level":4,"building":"Logistics Center","min_building_level":8,"desc":"−15% shipping costs."},
+		"SP_LOG_2": {"name":"Just-In-Time (JIT) Supply Chain Integration","pillar":4,"part":"Logistics","weeks":68,"rp":11000,"cr":18500000,"effect":"cnc_build_time_reduction","value":3.0,"Required_RnD_Studio_Level":8,"building":"Logistics Center","min_building_level":19,"desc":"−3 weeks build time on parts."},
+		"SP_LOG_3": {"name":"WorldWIde Distribution Network","pillar":4,"part":"Logistics","weeks":112,"rp":25000,"cr":42000000,"effect":"logistics_cost_reduction","value":0.30,"Required_RnD_Studio_Level":14,"building":"Logistics Center","min_building_level":21,"desc":"−30% logistics cost."},
+		"SP_LOG_4": {"name":"Pinnacle Quantum Logistics Grid","pillar":4,"part":"Logistics","weeks":150,"rp":50000,"cr":95000000,"effect":"shipping_time_reduction","value":0.50,"Required_RnD_Studio_Level":20,"building":"Logistics Center","min_building_level":24,"desc":"−50% shipping time."},
+		"SP_LOG_5": {"name":"Regional Supplier Integration Matrix","pillar":4,"part":"Logistics","weeks":38,"rp":3000,"cr":5000000,"effect":"external_shipping_cost_reduction","value":0.10,"Required_RnD_Studio_Level":4,"building":"Logistics Center","min_building_level":4,"desc":"−10% external shipping cost."},
+		"SP_LOG_6": {"name":"Cross-Border Freight Coordination Node","pillar":4,"part":"Logistics","weeks":44,"rp":5500,"cr":9500000,"effect":"transport_delay_reduction","value":0.15,"Required_RnD_Studio_Level":6,"building":"Logistics Center","min_building_level":10,"desc":"−15% transport delays."},
+		"SP_LOG_7": {"name":"International Freight Network Integration","pillar":4,"part":"Logistics","weeks":50,"rp":8000,"cr":14000000,"effect":"heavy_part_shipping_cost","value":0.18,"Required_RnD_Studio_Level":9,"building":"Logistics Center","min_building_level":17,"desc":"−18% heavy part shipping cost."},
+		"SP_LOG_8": {"name":"Advanced Spares Component Sourcing","pillar":4,"part":"Logistics","weeks":52,"rp":11000,"cr":19000000,"effect":"emergency_part_cost_reduction","value":0.20,"Required_RnD_Studio_Level":11,"building":"Logistics Center","min_building_level":21,"desc":"−20% emergency part cost."},
+		"SP_LOG_9": {"name":"Intercontinental Distribution Loop Architecture","pillar":4,"part":"Logistics","weeks":60,"rp":19000,"cr":32000000,"effect":"part_sale_margin","value":0.15,"Required_RnD_Studio_Level":14,"building":"Logistics Center","min_building_level":23,"desc":"+15% part sale margin."},
+		"SP_STORE_1": {"name":"Global E-Commerce Merchandize Networks","pillar":4,"part":"Store","weeks":35,"rp":3500,"cr":6500000,"effect":"merch_profit_margin","value":0.12,"Required_RnD_Studio_Level":2,"building":"Merchandize Store","min_building_level":7,"desc":"+12% merch profit margin."},
+		"SP_STORE_2": {"name":"Flagship Showroom Luxury Apparel Atriums","pillar":4,"part":"Store","weeks":48,"rp":8000,"cr":14000000,"effect":"apparel_revenue","value":0.15,"Required_RnD_Studio_Level":3,"building":"Merchandize Store","min_building_level":7,"desc":"+15% apparel revenue."},
+		"SP_STORE_3": {"name":"Global Airport Duty-Free Retail Outlets","pillar":4,"part":"Store","weeks":74,"rp":14000,"cr":24000000,"effect":"passive_income_boost","value":0.10,"Required_RnD_Studio_Level":4,"building":"Merchandize Store","min_building_level":7,"desc":"+10% passive income."},
+		"SP_STORE_4": {"name":"Infinite Corporate Licensing Syndicates","pillar":4,"part":"Store","weeks":102,"rp":35000,"cr":65000000,"effect":"merch_profit_boost","value":0.25,"Required_RnD_Studio_Level":5,"building":"Merchandize Store","min_building_level":7,"desc":"+25% merch profit."},
+		"SP_MUS_1": {"name":"Heritage Preservation Showroom Atrium","pillar":4,"part":"Museum","weeks":36,"rp":4500,"cr":8500000,"effect":"passive_income_boost","value":0.15,"Required_RnD_Studio_Level":3,"building":"Museum","min_building_level":2,"desc":"+15% passive income."},
+		"SP_MUS_2": {"name":"Blue-Chip Automotive Heritage Auctions","pillar":4,"part":"Museum","weeks":50,"rp":8000,"cr":15000000,"effect":"asset_conversion_rate","value":0.12,"Required_RnD_Studio_Level":4,"building":"Museum","min_building_level":4,"desc":"+12% asset conversion rate."},
+		"SP_MUS_3": {"name":"Global Legacy Asset Syndicate Nodes","pillar":4,"part":"Museum","weeks":100,"rp":28000,"cr":55000000,"effect":"brand_prestige","value":0.20,"Required_RnD_Studio_Level":5,"building":"Museum","min_building_level":5,"desc":"+20% brand prestige."},
+		"SP_MUS_4": {"name":"Curated Heritage Exhibit Showrooms","pillar":4,"part":"Museum","weeks":40,"rp":2500,"cr":4000000,"effect":"passive_income_boost","value":0.05,"Required_RnD_Studio_Level":3,"building":"Museum","min_building_level":1,"desc":"+5% passive income."},
+		"SP_OST_1": {"name":"Hardware-In-The-Loop (HIL) Powertrain Modeling","pillar":4,"part":"Ops","weeks":40,"rp":6500,"cr":11000000,"effect":"fuel_efficiency","value":0.06,"Required_RnD_Studio_Level":5,"building":"Ops Sim & Telemetry","min_building_level":4,"desc":"+6% fuel efficiency."},
+		"SP_OST_2": {"name":"Infrared Thermal Tire Contact Tracking","pillar":4,"part":"Ops","weeks":52,"rp":9000,"cr":16500000,"effect":"tire_degradation_reduction","value":0.12,"Required_RnD_Studio_Level":8,"building":"Ops Sim & Telemetry","min_building_level":9,"desc":"−12% tire degradation."},
+		"SP_OST_3": {"name":"Predictive Brake & Traction Control Monitors","pillar":4,"part":"Ops","weeks":76,"rp":14000,"cr":24000000,"effect":"wet_lockup_reduction","value":0.15,"Required_RnD_Studio_Level":12,"building":"Ops Sim & Telemetry","min_building_level":13,"desc":"−15% lock-up mistakes in wet."},
+		"SP_OST_4": {"name":"Predictive Neural Timing Grid Networks","pillar":4,"part":"Ops","weeks":80,"rp":25000,"cr":45000000,"effect":"undercut_success","value":0.18,"Required_RnD_Studio_Level":18,"building":"Ops Sim & Telemetry","min_building_level":19,"desc":"+18% undercut success."},
+		"SP_OST_5": {"name":"Quantum Probability Sector Strategy Engine","pillar":4,"part":"Ops","weeks":106,"rp":40000,"cr":75000000,"effect":"track_knowledge_boost","value":0.75,"Required_RnD_Studio_Level":22,"building":"Ops Sim & Telemetry","min_building_level":26,"desc":"+75% track knowledge baseline."},
+		"SP_OST_6": {"name":"Deep-Space Predictive Tracking Matrix","pillar":4,"part":"Ops","weeks":152,"rp":70000,"cr":130000000,"effect":"tactical_error_reduction","value":0.0,"Required_RnD_Studio_Level":27,"building":"Ops Sim & Telemetry","min_building_level":30,"desc":"Greatly reduces tactical errors."},
+		"SP_OST_7": {"name":"Real-Time Telemetry Data Overlay Dashboards","pillar":4,"part":"Ops","weeks":34,"rp":4000,"cr":6500000,"effect":"strategy_data_quality","value":0.05,"Required_RnD_Studio_Level":4,"building":"Ops Sim & Telemetry","min_building_level":5,"desc":"+5% strategy data quality."},
+		"SP_OVAL_1": {"name":"ARCA Short-Track Laser Setup Engineering","pillar":4,"part":"Oval","weeks":38,"rp":4000,"cr":7000000,"effect":"short_oval_turn_in","value":0.10,"Required_RnD_Studio_Level":2,"building":"Oval Track","min_building_level":1,"desc":"+10% turn-in on short ovals."},
+		"SP_OVAL_2": {"name":"Dynamic High-Bank Telemetry Capture Loops","pillar":4,"part":"Oval","weeks":52,"rp":8500,"cr":14500000,"effect":"superspeedway_blowout_reduction","value":0.15,"Required_RnD_Studio_Level":3,"building":"Oval Track","min_building_level":2,"desc":"−15% tire blowout risk on superspeedways."},
+		"SP_OVAL_3": {"name":"Boundary Slipstream Aerodynamic Optimizers","pillar":4,"part":"Oval","weeks":106,"rp":30000,"cr":55000000,"effect":"drafting_drag_reduction","value":0.12,"Required_RnD_Studio_Level":3,"building":"Oval Track","min_building_level":3,"desc":"−12% drag when drafting."},
+		"SP_ARENA_1": {"name":"Mock Pit Lane Servicing Simulation Infrastructure","pillar":4,"part":"Arena","weeks":32,"rp":3500,"cr":6000000,"effect":"pit_stop_time_reduction","value":0.01,"Required_RnD_Studio_Level":3,"building":"Pit Crew Arena","min_building_level":6,"desc":"Small pit stop time reduction."},
+		"SP_ARENA_2": {"name":"High-Pressure Pneumatic Tool Light-Systems","pillar":4,"part":"Arena","weeks":48,"rp":7000,"cr":12500000,"effect":"pit_stop_error_reduction","value":0.05,"Required_RnD_Studio_Level":6,"building":"Pit Crew Arena","min_building_level":9,"desc":"−5% pit stop errors."},
+		"SP_ARENA_3": {"name":"Sub-Two-Second Choreographed Pit Stop Perfection","pillar":4,"part":"Arena","weeks":64,"rp":14500,"cr":24000000,"effect":"pit_stop_time_reduction","value":0.02,"Required_RnD_Studio_Level":10,"building":"Pit Crew Arena","min_building_level":14,"desc":"Further pit stop time reduction."},
+		"SP_ARENA_4": {"name":"Predictive Biomechanical Exoskeleton Support","pillar":4,"part":"Arena","weeks":96,"rp":36000,"cr":65000000,"effect":"pit_stop_time_reduction","value":0.03,"Required_RnD_Studio_Level":18,"building":"Pit Crew Arena","min_building_level":20,"desc":"Final pit stop time reduction."},
+		"SP_CLUB_1": {"name":"VIP Trackside Lounge Arena Facilities","pillar":4,"part":"Club","weeks":38,"rp":5000,"cr":9500000,"effect":"passive_income_multiplier","value":0.20,"Required_RnD_Studio_Level":3,"building":"Public Racing Club","min_building_level":7,"desc":"+20% passive income multiplier."},
+		"SP_CLUB_2": {"name":"Sovereign Wealth Racing Syndicate Tracks","pillar":4,"part":"Club","weeks":94,"rp":24000,"cr":45000000,"effect":"off_season_income","value":0.40,"Required_RnD_Studio_Level":6,"building":"Public Racing Club","min_building_level":7,"desc":"+40% off-season passive income."},
+		"SP_RND_1": {"name":"Volumetric Fluid Dynamics Engine Blueprinting","pillar":4,"part":"R&D","weeks":46,"rp":9000,"cr":15500000,"effect":"engine_power","value":0.05,"Required_RnD_Studio_Level":5,"building":"R&D Design Studio","min_building_level":9,"desc":"+5% engine power."},
+		"SP_RND_2": {"name":"Proprietary Shock Absorber Fluid Research","pillar":4,"part":"R&D","weeks":64,"rp":12500,"cr":21000000,"effect":"tire_wear_reduction","value":0.10,"Required_RnD_Studio_Level":7,"building":"R&D Design Studio","min_building_level":12,"desc":"−10% tire wear."},
+		"SP_RND_3": {"name":"High-Modulus Aerospace Carbon Composites","pillar":4,"part":"R&D","weeks":78,"rp":20000,"cr":34000000,"effect":"part_weight_reduction","value":0.15,"Required_RnD_Studio_Level":11,"building":"R&D Design Studio","min_building_level":18,"desc":"−15% part weight."},
+		"SP_RND_4": {"name":"Exotic Metal Alloys Metallurgy Optimization","pillar":4,"part":"R&D","weeks":92,"rp":28000,"cr":48000000,"effect":"heat_resistance","value":0.20,"Required_RnD_Studio_Level":14,"building":"R&D Design Studio","min_building_level":21,"desc":"+20% heat resistance."},
+		"SP_RND_5": {"name":"Pinnacle Aerothermal Flow Blueprinting","pillar":4,"part":"R&D","weeks":124,"rp":45000,"cr":80000000,"effect":"cooling_drag_reduction","value":0.12,"Required_RnD_Studio_Level":18,"building":"R&D Design Studio","min_building_level":24,"desc":"−12% cooling drag."},
+		"SP_RND_6": {"name":"Generative AI Topology Optimization Core","pillar":4,"part":"R&D","weeks":156,"rp":80000,"cr":150000000,"effect":"reverse_engineering_speed","value":0.40,"Required_RnD_Studio_Level":24,"building":"R&D Design Studio","min_building_level":27,"desc":"+40% reverse engineering speed."},
+		"SP_RND_7": {"name":"Infinite Generative Design Loop Synthesis","pillar":4,"part":"R&D","weeks":210,"rp":150000,"cr":250000000,"effect":"custom_part_efficiency","value":0.20,"Required_RnD_Studio_Level":27,"building":"R&D Design Studio","min_building_level":27,"desc":"+20% custom part efficiency."},
+		"SP_RND_8": {"name":"Internal Combustion Fundamentals Cleanroom","pillar":4,"part":"R&D","weeks":32,"rp":4000,"cr":6500000,"effect":"engine_power","value":0.04,"Required_RnD_Studio_Level":3,"building":"R&D Design Studio","min_building_level":4,"desc":"+4% engine power."},
+		"SP_RND_9": {"name":"Volumetric Fluid Dynamics Intake Porting","pillar":4,"part":"R&D","weeks":48,"rp":7000,"cr":12000000,"effect":"engine_fuel_efficiency","value":0.08,"Required_RnD_Studio_Level":5,"building":"R&D Design Studio","min_building_level":10,"desc":"+8% engine fuel efficiency."},
+		"SP_RACE_1": {"name":"Formula 4 Flat Road Tracking Optimization","pillar":4,"part":"RaceTrack","weeks":36,"rp":4500,"cr":8000000,"effect":"track_awareness","value":0.12,"Required_RnD_Studio_Level":2,"building":"Race Track","min_building_level":1,"desc":"+12% track awareness."},
+		"SP_RACE_2": {"name":"Tire Thermal Physics Contact-Patch Surface Mapping","pillar":4,"part":"RaceTrack","weeks":48,"rp":9500,"cr":16000000,"effect":"tire_degradation_reduction","value":0.10,"Required_RnD_Studio_Level":3,"building":"Race Track","min_building_level":2,"desc":"−10% tire degradation."},
+		"SP_RACE_3": {"name":"High-Output Powertrain Kinetic Energy Capture","pillar":4,"part":"RaceTrack","weeks":66,"rp":18000,"cr":32000000,"effect":"hybrid_deployment_efficiency","value":0.15,"Required_RnD_Studio_Level":3,"building":"Race Track","min_building_level":3,"desc":"+15% hybrid deployment."},
+		"SP_RACE_4": {"name":"Cryogenic Synthetic Compound Contact Strips","pillar":4,"part":"RaceTrack","weeks":110,"rp":50000,"cr":85000000,"effect":"tire_durability_testing","value":0.18,"Required_RnD_Studio_Level":3,"building":"Race Track","min_building_level":4,"desc":"+18% tire durability."},
+		"SP_RAC_1": {"name":"High-Performance Athlete Housing Complex","pillar":4,"part":"Racing","weeks":38,"rp":4000,"cr":7500000,"effect":"driver_fatigue_reduction","value":0.20,"Required_RnD_Studio_Level":8,"building":"Racing Department","min_building_level":30,"desc":"−20% driver fatigue."},
+		"SP_RAC_2": {"name":"Neural Cognitive Driver Synapse Calibration","pillar":4,"part":"Racing","weeks":54,"rp":8000,"cr":14000000,"effect":"driver_mistake_reduction","value":0.15,"Required_RnD_Studio_Level":18,"building":"Racing Department","min_building_level":45,"desc":"−15% driver mistakes."},
+		"SP_RAC_3": {"name":"Biometric Telemetry Hydration Loops","pillar":4,"part":"Racing","weeks":70,"rp":15000,"cr":26000000,"effect":"wet_stamina_boost","value":0.18,"Required_RnD_Studio_Level":30,"building":"Racing Department","min_building_level":70,"desc":"+18% stamina in wet."},
+		"SP_RAC_4": {"name":"Psychometric Reflex Synergy Optimization","pillar":4,"part":"Racing","weeks":104,"rp":30000,"cr":55000000,"effect":"overtaking_success","value":0.15,"Required_RnD_Studio_Level":50,"building":"Racing Department","min_building_level":89,"desc":"+15% overtaking success."},
+		"SP_RAC_5": {"name":"Video Telemetry Driver Analysis Playback","pillar":4,"part":"Racing","weeks":38,"rp":2500,"cr":4500000,"effect":"driver_line_correction","value":0.05,"Required_RnD_Studio_Level":5,"building":"Racing Department","min_building_level":11,"desc":"+5% driver line correction."},
+		"SP_RAC_6": {"name":"Press & Media Communications Training Suite","pillar":4,"part":"Racing","weeks":44,"rp":5000,"cr":8500000,"effect":"sponsor_podium_bonus","value":0.10,"Required_RnD_Studio_Level":9,"building":"Racing Department","min_building_level":28,"desc":"+10% sponsor bonus after podium."},
+		"SP_PARK_1": {"name":"Immersive Destinational Resort Infrastructure","pillar":4,"part":"Park","weeks":40,"rp":7500,"cr":14000000,"effect":"marketability_buffer","value":0.10,"Required_RnD_Studio_Level":3,"building":"Theme Park","min_building_level":3,"desc":"+10% marketability buffer."},
+		"SP_PARK_2": {"name":"High-Capacity Branded Roller Coasters","pillar":4,"part":"Park","weeks":68,"rp":14000,"cr":25000000,"effect":"theme_park_income","value":0.15,"Required_RnD_Studio_Level":4,"building":"Theme Park","min_building_level":4,"desc":"+15% theme park income."},
+		"SP_PARK_3": {"name":"International Franchise Resort Expansion","pillar":4,"part":"Park","weeks":154,"rp":48000,"cr":85000000,"effect":"passive_income_boost","value":0.10,"Required_RnD_Studio_Level":5,"building":"Theme Park","min_building_level":5,"desc":"Strong passive income boost."},
+		"SP_FAC_1": {"name":"Automated Robotic Assembly Line Engineering","pillar":4,"part":"Factory","weeks":45,"rp":10000,"cr":18000000,"effect":"commercial_production_cost_reduction","value":0.10,"Required_RnD_Studio_Level":4,"building":"Vehicle Assembly Factory","min_building_level":4,"desc":"−10% commercial production cost."},
+		"SP_FAC_2": {"name":"Conveyor Mass Production Customization","pillar":4,"part":"Factory","weeks":62,"rp":18500,"cr":32000000,"effect":"msrp_pricing_flexibility","value":0.12,"Required_RnD_Studio_Level":6,"building":"Vehicle Assembly Factory","min_building_level":6,"desc":"+12% MSRP pricing flexibility."},
+		"SP_FAC_3": {"name":"Monocoque Chassis Marriage Rig Arrays","pillar":4,"part":"Factory","weeks":86,"rp":30000,"cr":55000000,"effect":"weekly_commercial_output","value":0.15,"Required_RnD_Studio_Level":9,"building":"Vehicle Assembly Factory","min_building_level":9,"desc":"+15% weekly commercial output."},
+		"SP_FAC_4": {"name":"Cybernetic Smart-Factory Swarm Architecture","pillar":4,"part":"Factory","weeks":144,"rp":65000,"cr":110000000,"effect":"weekly_output_and_pricing","value":0.30,"Required_RnD_Studio_Level":12,"building":"Vehicle Assembly Factory","min_building_level":12,"desc":"+30% output and pricing power."}
 	}
 	for k in p4: tasks[k] = p4[k]
 	return tasks
@@ -1169,7 +1191,7 @@ func _setup_campus() -> void:
 			"build_time": 12,
 			"upgrade_cost": 18000,
 			"upgrade_time": 6,
-			"effects": "Enables income from Karting, Gravel, Oval and Race Track buildings.\n+10% track income per PRC level.\nPassive income = upkeep × 1.02 (scales with level)."
+			"effects": "Enables income from Karting, Gravel, Oval and Race Track buildings.\n+10% track income per PRC level.\nProvides Passive income "
 		},
 		# Merchandise Store: team shop. Real small branded retail fit-out: CR 20K-CR 60K.
 		# Cheapest income building — first thing a player should consider building.
@@ -1549,7 +1571,7 @@ func _earn_race_rp(laps: int) -> void:
 	for d in designers:
 		var avg = (d.engine + d.aero + d.chassis + d.gearbox + d.brakes + d.suspension) / 6.0
 		design_power += avg / 100.0
-	var rp_gained = laps * 0.5 * design_power
+	var rp_gained = laps * 1 * design_power
 	var rp_cap = get_rnd_rp_storage_cap()
 	research_points = min(research_points + rp_gained, float(rp_cap))
 	add_log("🔬 RP gained: %.0f (total: %.0f / %d)" % [rp_gained, research_points, rp_cap])
@@ -1996,9 +2018,14 @@ func _generate_staff_attributes(staff: Staff, base_quality: float) -> void:
 ## Active negotiation state. One at a time.
 var active_negotiation: Dictionary = {}
 
+## ── Approach / Bond / Weekly Negotiation System (S18) ────────────────────────
+## Each entry is a Dictionary — see _make_approach() for structure.
+var active_approaches: Array = []
+
 ## Signals for the UI
 signal negotiation_updated()
 signal negotiation_concluded(accepted: bool, subject_id: String, subject_type: String)
+signal approach_updated()   ## fired whenever active_approaches changes
 
 ## ── Opening offer generation ─────────────────────────────────────────────────
 
@@ -2173,6 +2200,660 @@ func abandon_negotiation() -> void:
 func is_subject_available(subject_id: String) -> bool:
 	if subject_id not in walked_away_subjects: return true
 	return current_season >= walked_away_subjects[subject_id]
+
+# ══════════════════════════════════════════════════════════════════════════════
+# APPROACH / BOND / WEEKLY NEGOTIATION SYSTEM  (S18)
+# ══════════════════════════════════════════════════════════════════════════════
+
+## ── Data structure ────────────────────────────────────────────────────────────
+## Creates a new approach record. subject_type: "driver" | "staff"
+func _make_approach(subject_id: String, subject_type: String,
+		current_team_id: String, start_date: String) -> Dictionary:
+	var name_str = _get_subject_display_name(subject_id, subject_type)
+	var current_team_name = ""
+	for t in all_teams:
+		if t.id == current_team_id: current_team_name = t.team_name; break
+	return {
+		"neg_id":            "%s_%d_%d" % [subject_id, current_season, current_week],
+		"type":              "approach",
+		"subject_id":        subject_id,
+		"subject_type":      subject_type,
+		"subject_name":      name_str,
+		"current_team_id":   current_team_id,
+		"current_team_name": current_team_name,
+		"approaching_team":  player_team.id,
+
+		## Interest check
+		"interest_checked":  false,
+		"subject_interested": false,
+
+		## Bond phase (skipped for free agents or last-season contracts)
+		"needs_bond":         current_team_id != "",
+		"bond_estimate":      0.0,
+		"bond_player_offer":  0.0,
+		"bond_team_ask":      0.0,
+		"bond_round":         0,     ## 0=not started, 1=awaiting reply, 2=counter reply
+		"bond_reply_week":    0,
+		"bond_status":        "pending",  ## pending|offered|countered|agreed|rejected
+
+		## Contract negotiation phase
+		"start_date":         start_date,  ## "immediate" | "next_season"
+		"contract_round":     0,
+		"max_contract_rounds": randi_range(3, 5),
+		"last_action_week":   current_week,
+		"patience_weeks":     3,
+		"terms":              {},   ## populated when contract phase starts
+		"their_current_ask":  {},
+		"locked_fields":      [],   ## fields both sides have agreed on
+
+		"status": "interest_check",
+		## interest_check → approaching → bond_offered → bond_countered
+		## → negotiating → agreed → failed → rejected → expired
+	}
+
+## ── Interest check ────────────────────────────────────────────────────────────
+## Returns true if the subject is willing to be approached.
+## Uses hidden talent + rep gap + TP reputation.
+func _check_subject_interest(subject_id: String, subject_type: String,
+		current_team_id: String) -> bool:
+	var talent = 50.0
+	if subject_type == "driver":
+		var d = all_drivers.get(subject_id)
+		if d: talent = d.potential if d.potential > 0 else 50.0
+	else:
+		var s = all_staff.get(subject_id)
+		if s: talent = s.talent if s.talent > 0 else 50.0
+
+	var base_chance = talent * 0.5 + 50.0
+
+	## Reputation gap: subject wants to move up, not down
+	var their_team_rep = 50.0
+	for t in all_teams:
+		if t.id == current_team_id:
+			their_team_rep = t.reputation if t.has_method("get_reputation") else 50.0
+			break
+	var rep_gap = player_team.reputation - their_team_rep
+	var rep_mod = clamp(rep_gap * 0.5, -25.0, 25.0)
+
+	## TP modifier
+	var tp_mod = 0.0
+	for champ in active_championships:
+		var tp = _get_tp_for_championship(champ.id)
+		if tp:
+			tp_mod = max(tp_mod, tp.reputation * 0.3)
+			break
+
+	var final_chance = clamp(base_chance + rep_mod + tp_mod, 5.0, 95.0)
+	return randf() * 100.0 < final_chance
+
+## ── Bond estimate ─────────────────────────────────────────────────────────────
+## Returns the CFO's estimate of what the bond should cost.
+## No hard limits — this is informational only.
+func get_bond_estimate(subject_id: String, subject_type: String,
+		start_date: String) -> Dictionary:
+	var weekly_sal = 0.0
+	var weeks_remaining = 0
+	var talent = 50.0
+
+	if subject_type == "driver":
+		var d = all_drivers.get(subject_id)
+		if d:
+			weekly_sal = d.weekly_salary if d.weekly_salary > 0 else _calc_driver_ask_salary(
+				d.get_overall_skill(), _get_active_championship_tier())
+			weeks_remaining = d.contract_seasons_remaining * 52
+			talent = d.potential if d.potential > 0 else 50.0
+	else:
+		var s = all_staff.get(subject_id)
+		if s:
+			weekly_sal = s.weekly_salary if s.weekly_salary > 0 else 300.0
+			weeks_remaining = s.contract_seasons_remaining * 52
+			talent = s.talent if s.talent > 0 else 50.0
+
+	## If next season signing, weeks = from season start not from now
+	if start_date == "next_season":
+		weeks_remaining = max(0, weeks_remaining - (max_weeks - current_week))
+
+	## Talent factor
+	var talent_factor = 0.8
+	if talent > 80:   talent_factor = 1.8
+	elif talent > 60: talent_factor = 1.3
+	elif talent > 30: talent_factor = 1.0
+
+	var raw_estimate = weekly_sal * float(weeks_remaining) * talent_factor
+
+	## CFO accuracy
+	var cfo = get_cfo()
+	var accuracy = 0.30 if cfo == null else 0.08
+	var lo = raw_estimate * (1.0 - accuracy)
+	var hi = raw_estimate * (1.0 + accuracy)
+
+	## Immediate mid-contract costs 1.5× + 25% disruption
+	if start_date == "immediate" and weeks_remaining > 52:
+		raw_estimate *= 1.5 * 1.25
+		lo *= 1.5 * 1.25
+		hi *= 1.5 * 1.25
+
+	return {
+		"estimate":  int(raw_estimate),
+		"low":       int(lo),
+		"high":      int(hi),
+		"accuracy":  accuracy,
+		"has_cfo":   cfo != null,
+	}
+
+## ── Slot projection ───────────────────────────────────────────────────────────
+## Returns { "now": int, "next_season": int } available slots for drivers or staff role.
+func get_slot_projection(subject_type: String, role: String = "") -> Dictionary:
+	var now_used = 0
+	var now_max = 0
+	var next_used = 0
+	var next_max = 0
+
+	if subject_type == "driver":
+		now_used = player_team.drivers.size()
+		now_max = get_max_drivers()
+		## Next season: subtract expiring contracts
+		var expiring = 0
+		for d_id in player_team.drivers:
+			var d = all_drivers.get(d_id)
+			if d and d.contract_seasons_remaining <= 1: expiring += 1
+		next_used = now_used - expiring
+		next_max = now_max
+	else:
+		var all_hired = get_player_staff_by_role(role)
+		now_used = all_hired.size()
+		now_max = _get_max_slots_for_role(role)
+		var expiring = 0
+		for s in all_hired:
+			if s.contract_seasons_remaining <= 1: expiring += 1
+		next_used = now_used - expiring
+		next_max = now_max
+
+	return {
+		"now_used":    now_used,
+		"now_max":     now_max,
+		"now_free":    now_max - now_used,
+		"next_used":   next_used,
+		"next_max":    next_max,
+		"next_free":   next_max - next_used,
+	}
+
+func _get_max_slots_for_role(role: String) -> int:
+	match role:
+		"Team Principal": return get_hq_tp_slots()
+		"CFO":            return 1
+		"Race Mechanic":  return player_team_cars.size()
+		"Race Strategist":return 1
+		"Designer":
+			var bld = campus_buildings.get("R&D Design Studio", {})
+			return max(1, bld.get("level", 1))
+		"Pit Crew":       return player_team_cars.size()
+	return 1
+
+func _get_tp_for_championship(champ_id: String):
+	for sid in all_staff:
+		var s = all_staff[sid]
+		if s.role == "Team Principal" and s.contract_team == player_team.id \
+				and s.assigned_championship == champ_id:
+			return s
+	return null
+
+## ── Initiate approach ─────────────────────────────────────────────────────────
+## Called when player clicks Approach on a driver or staff member.
+## Requires a TP assigned to an active championship.
+## Returns "" on success, or an error string.
+func initiate_approach(subject_id: String, subject_type: String,
+		start_date: String) -> String:
+	## TP check
+	var has_tp = false
+	for champ in active_championships:
+		if _get_tp_for_championship(champ.id) != null:
+			has_tp = true; break
+	if not has_tp:
+		return "Assign a Team Principal before making an approach."
+
+	## Already approaching this person?
+	for ap in active_approaches:
+		if ap["subject_id"] == subject_id and ap["status"] not in ["agreed","failed","rejected","expired"]:
+			return "You already have an active approach for this person."
+
+	var current_team_id = ""
+	if subject_type == "driver":
+		var d = all_drivers.get(subject_id)
+		if d == null: return "Driver not found."
+		if d.contract_team == player_team.id: return "Already on your team."
+		current_team_id = d.contract_team
+	else:
+		var s = all_staff.get(subject_id)
+		if s == null: return "Staff not found."
+		if s.contract_team == player_team.id: return "Already on your team."
+		current_team_id = s.contract_team
+
+	## Interest check — hidden roll
+	var interested = _check_subject_interest(subject_id, subject_type, current_team_id)
+
+	if not interested:
+		var name_str = _get_subject_display_name(subject_id, subject_type)
+		## TP hint
+		var tp_hint = ""
+		for champ in active_championships:
+			var tp = _get_tp_for_championship(champ.id)
+			if tp:
+				tp_hint = " %s's assessment: not the right time." % tp.full_name()
+				break
+		add_notification("Normal",
+			"%s is not interested in joining your team at this time.%s" % [name_str, tp_hint])
+		add_log("📋 Approach to %s: declined (not interested)." % name_str)
+		return "not_interested"
+
+	var ap = _make_approach(subject_id, subject_type, current_team_id, start_date)
+	ap["interest_checked"] = true
+	ap["subject_interested"] = true
+
+	var name_str = _get_subject_display_name(subject_id, subject_type)
+
+	if current_team_id == "":
+		## Free agent — skip bond, go straight to contract negotiation
+		ap["status"] = "negotiating"
+		ap["needs_bond"] = false
+		_start_contract_phase(ap)
+		add_log("📋 Approach to free agent %s — contract negotiation begins." % name_str)
+		add_notification("Normal", "%s is interested! Contract negotiation begins." % name_str)
+	else:
+		## Contracted — send bond approach to their team
+		var bond_info = get_bond_estimate(subject_id, subject_type, start_date)
+		ap["bond_estimate"] = bond_info["estimate"]
+		ap["bond_player_offer"] = bond_info["estimate"]  ## default offer = estimate
+		ap["bond_reply_week"] = current_week + 1
+		ap["status"] = "approaching"
+		add_log("📋 Approach sent to %s's team. Bond estimate: CR %s. Reply next week." % [
+			name_str, _fmt_int(bond_info["estimate"])])
+		add_notification("Normal",
+			"Approach sent for %s. Their team will reply next week." % name_str,
+			"drivers" if subject_type == "driver" else "staff_hub")
+
+	active_approaches.append(ap)
+	emit_signal("approach_updated")
+	return ""
+
+## ── Send bond offer ───────────────────────────────────────────────────────────
+## Player sets their bond offer amount and sends it.
+func send_bond_offer(neg_id: String, offer_amount: float) -> void:
+	var ap = _get_approach(neg_id)
+	if ap == null or ap["status"] != "approaching": return
+	ap["bond_player_offer"] = offer_amount
+	ap["bond_round"] = 1
+	ap["bond_reply_week"] = current_week + 1
+	ap["bond_status"] = "offered"
+	emit_signal("approach_updated")
+
+## Player responds to a bond counter from the other team.
+func respond_bond_counter(neg_id: String, accept: bool, counter_amount: float = 0.0) -> void:
+	var ap = _get_approach(neg_id)
+	if ap == null or ap["bond_status"] != "countered": return
+	if accept:
+		ap["bond_status"] = "agreed"
+		ap["bond_amount_final"] = ap["bond_team_ask"]
+		ap["status"] = "negotiating"
+		_start_contract_phase(ap)
+		var name_str = ap["subject_name"]
+		add_notification("Normal",
+			"Bond agreed for %s (CR %s). Contract negotiation begins." % [
+			name_str, _fmt_int(int(ap["bond_team_ask"]))])
+		emit_signal("approach_updated")
+	elif counter_amount > 0:
+		ap["bond_player_offer"] = counter_amount
+		ap["bond_round"] = 2
+		ap["bond_reply_week"] = current_week + 1
+		ap["bond_status"] = "offered"
+		emit_signal("approach_updated")
+	else:
+		ap["bond_status"] = "rejected"
+		ap["status"] = "rejected"
+		add_notification("Normal", "Bond negotiation with %s's team failed." % ap["subject_name"])
+		emit_signal("approach_updated")
+
+## ── Player's own staff approached by AI ──────────────────────────────────────
+## Called when AI approaches one of the player's contracted personnel.
+func handle_incoming_approach(subject_id: String, subject_type: String,
+		ai_team_id: String, ai_team_name: String, proposed_bond: float) -> void:
+	var neg_id = "incoming_%s_%d_%d" % [subject_id, current_season, current_week]
+	var ap = {
+		"neg_id":            neg_id,
+		"type":              "bond_incoming",
+		"subject_id":        subject_id,
+		"subject_type":      subject_type,
+		"subject_name":      _get_subject_display_name(subject_id, subject_type),
+		"current_team_id":   player_team.id,
+		"current_team_name": player_team.team_name,
+		"approaching_team":  ai_team_id,
+		"approaching_team_name": ai_team_name,
+		"bond_team_ask":     proposed_bond,
+		"bond_player_offer": proposed_bond,
+		"bond_status":       "incoming",
+		"status":            "bond_incoming",
+		"reply_due_week":    current_week + 1,
+	}
+	active_approaches.append(ap)
+	emit_signal("approach_updated")
+	add_notification("High",
+		"%s (%s) wants to approach %s. Proposed bond: CR %s — respond in HQ." % [
+		ai_team_name, ai_team_id,
+		_get_subject_display_name(subject_id, subject_type),
+		_fmt_int(int(proposed_bond))], "hq")
+
+## Player responds to an incoming approach for their own staff.
+func respond_incoming_approach(neg_id: String, accept: bool, counter_amount: float = 0.0) -> void:
+	var ap = _get_approach(neg_id)
+	if ap == null or ap["type"] != "bond_incoming": return
+	if accept:
+		ap["bond_status"] = "agreed"
+		ap["status"] = "agreed"
+		## Bond payment comes to player team
+		var bond = ap["bond_team_ask"]
+		player_team.balance += bond
+		add_log("💰 Bond received: CR %s for %s transfer." % [_fmt_int(int(bond)), ap["subject_name"]])
+		add_notification("Normal",
+			"Bond accepted: CR %s received for %s." % [_fmt_int(int(bond)), ap["subject_name"]])
+		## The subject will leave at the agreed start_date — handled in advance_week
+	elif counter_amount > 0:
+		ap["bond_team_ask"] = counter_amount
+		ap["bond_status"] = "countered"
+		ap["reply_due_week"] = current_week + 1
+		add_notification("Normal", "Counter-bond sent for %s. Awaiting reply." % ap["subject_name"])
+	else:
+		ap["status"] = "rejected"
+		add_notification("Normal", "Approach for %s rejected." % ap["subject_name"])
+	emit_signal("approach_updated")
+
+## ── Contract phase ────────────────────────────────────────────────────────────
+## Populates terms from the existing generate_X_opening_offer logic.
+func _start_contract_phase(ap: Dictionary) -> void:
+	var neg: Dictionary
+	if ap["subject_type"] == "driver":
+		neg = generate_driver_opening_offer(ap["subject_id"])
+	else:
+		neg = generate_staff_opening_offer(ap["subject_id"])
+	if neg.is_empty(): return
+	## Add start_date and lock support to terms
+	ap["terms"] = {}
+	for key in neg["their_ask"]:
+		ap["terms"][key] = {
+			"their_ask":    neg["their_ask"][key],
+			"player_offer": neg["player_offer"][key],
+			"locked":       false,
+			"agreed":       false,
+		}
+	ap["their_current_ask"] = neg["their_ask"].duplicate()
+	ap["max_contract_rounds"] = neg["max_rounds"]
+	ap["contract_round"] = 1
+	ap["last_action_week"] = current_week + 1  ## First check fires next week — no rounds lost on initiation
+	ap["locked_fields"] = []
+	## Add start_date as a lockable term
+	ap["terms"]["start_date"] = {
+		"their_ask":    ap["start_date"],
+		"player_offer": ap["start_date"],
+		"locked":       false,
+		"agreed":       false,
+	}
+
+## Player submits a contract offer with per-field values and lock states.
+func submit_approach_contract_offer(neg_id: String,
+		field_offers: Dictionary, locked_fields: Array) -> String:
+	var ap = _get_approach(neg_id)
+	if ap == null or ap["status"] != "negotiating": return "error"
+
+	## Update player offers and locks
+	for key in field_offers:
+		if key in ap["terms"]:
+			ap["terms"][key]["player_offer"] = field_offers[key]
+	ap["locked_fields"] = locked_fields
+	for key in locked_fields:
+		if key in ap["terms"]:
+			ap["terms"][key]["locked"] = true
+
+	ap["last_action_week"] = current_week + 1  ## Next silence check starts next week
+	ap["contract_round"] += 1
+
+	## Evaluate this round
+	var outcome = _evaluate_approach_offer(ap)
+
+	if outcome == "accepted":
+		ap["status"] = "agreed"
+		_apply_approach_result(ap)
+		emit_signal("approach_updated")
+		return "accepted"
+	elif outcome == "rejected" or ap["contract_round"] > ap["max_contract_rounds"]:
+		ap["status"] = "failed"
+		var name_str = ap["subject_name"]
+		add_notification("Normal", "Contract negotiations with %s have broken down." % name_str)
+		emit_signal("approach_updated")
+		return "rejected"
+	else:
+		## Counter: they adjust unlocked fields
+		_apply_approach_counter(ap)
+		emit_signal("approach_updated")
+		return "counter"
+
+## Accept all their current asks outright.
+func accept_approach_terms(neg_id: String) -> void:
+	var ap = _get_approach(neg_id)
+	if ap == null or ap["status"] != "negotiating": return
+	for key in ap["terms"]:
+		ap["terms"][key]["player_offer"] = ap["terms"][key]["their_ask"]
+	ap["status"] = "agreed"
+	_apply_approach_result(ap)
+	emit_signal("approach_updated")
+
+func walk_away_approach(neg_id: String) -> void:
+	var ap = _get_approach(neg_id)
+	if ap == null: return
+	ap["status"] = "rejected"
+	walked_away_subjects[ap["subject_id"]] = current_season + 2
+	add_notification("Normal",
+		"You walked away from negotiations with %s." % ap["subject_name"])
+	emit_signal("approach_updated")
+
+## ── Evaluate approach offer ───────────────────────────────────────────────────
+func _evaluate_approach_offer(ap: Dictionary) -> String:
+	var total_ratio = 0.0
+	var count = 0
+	for key in ap["terms"]:
+		if key in ["duration_seasons", "start_date"]: continue
+		var term = ap["terms"][key]
+		if term["locked"] or term["agreed"]: continue
+		var ask = float(term["their_ask"])
+		if ask <= 0: continue
+		var offer = float(term["player_offer"])
+		total_ratio += clamp(offer / ask, 0.0, 1.0)
+		count += 1
+	if count == 0: return "accepted"
+	var ratio = total_ratio / float(count)
+	var round_n = ap["contract_round"]
+	var max_r = ap["max_contract_rounds"]
+	var threshold = lerp(0.80, 0.65, float(round_n - 1) / float(max(max_r - 1, 1)))
+	if ratio >= threshold: return "accepted"
+	if ratio < 0.40 and round_n >= max_r - 1: return "rejected"
+	return "counter"
+
+func _apply_approach_counter(ap: Dictionary) -> void:
+	var progress = float(ap["contract_round"]) / float(ap["max_contract_rounds"])
+	for key in ap["terms"]:
+		var term = ap["terms"][key]
+		if term["locked"] or term["agreed"] or key in ["duration_seasons","start_date"]: continue
+		var ask = float(term["their_ask"])
+		var offer = float(term["player_offer"])
+		if ask <= 0: continue
+		var gap = ask - offer
+		if gap > 0:
+			var concession = gap * 0.10 * progress
+			ap["terms"][key]["their_ask"] = max(offer, ask - concession)
+
+## ── Apply agreed approach result ──────────────────────────────────────────────
+func _apply_approach_result(ap: Dictionary) -> void:
+	var subject_id = ap["subject_id"]
+	var subject_type = ap["subject_type"]
+	var start_date = ap.get("start_date", "immediate")
+	var name_str = ap["subject_name"]
+
+	## Pay bond if there was one
+	if ap.get("bond_status", "") == "agreed" and ap.get("bond_amount_final", 0) > 0:
+		var bond = ap["bond_amount_final"]
+		player_team.balance -= bond
+		add_log("💰 Bond paid: CR %s to %s for %s." % [
+			_fmt_int(int(bond)), ap["current_team_name"], name_str])
+
+	if start_date == "next_season":
+		## Queue for next season — don't apply yet
+		ap["type"] = "pre_signed"
+		add_log("✅ %s pre-signed — joins Season %d." % [name_str, current_season + 1])
+		add_notification("Normal",
+			"%s pre-signed and will join at the start of Season %d." % [name_str, current_season + 1],
+			"drivers" if subject_type == "driver" else "staff_hub")
+		return
+
+	## Immediate — apply contract now using existing _apply_negotiation_result
+	var fake_neg = {
+		"subject_id":   subject_id,
+		"subject_type": subject_type,
+		"player_offer": {},
+	}
+	for key in ap["terms"]:
+		fake_neg["player_offer"][key] = ap["terms"][key]["player_offer"]
+	_apply_negotiation_result(fake_neg, true)
+
+## ── Weekly advance hooks ──────────────────────────────────────────────────────
+## Called from advance_week() to process all active approaches.
+func _advance_approaches() -> void:
+	var changed = false
+	for ap in active_approaches:
+		if ap["status"] in ["agreed","failed","rejected","expired"]: continue
+
+		## ── Bond phase: waiting for team reply ──────────────────────────────
+		if ap["type"] == "approach" and ap["status"] == "approaching" \
+				and ap["bond_status"] == "offered" \
+				and current_week >= ap["bond_reply_week"]:
+			_process_bond_reply(ap)
+			changed = true
+
+		## ── Incoming bond: player hasn't replied ────────────────────────────
+		elif ap["type"] == "bond_incoming" and ap["status"] == "bond_incoming" \
+				and current_week >= ap.get("reply_due_week", 0):
+			## Auto-reject after 2 weeks of silence
+			if current_week >= ap.get("reply_due_week", 0) + 2:
+				ap["status"] = "rejected"
+				add_notification("Normal",
+					"Incoming approach for %s auto-rejected (no response)." % ap["subject_name"])
+				changed = true
+
+		## ── Contract negotiation: patience counter ──────────────────────────
+		elif ap["status"] == "negotiating":
+			var weeks_silent = current_week - ap["last_action_week"]
+			if weeks_silent >= ap["patience_weeks"]:
+				ap["status"] = "expired"
+				add_notification("High",
+					"Negotiations with %s have expired — no response given." % ap["subject_name"])
+				changed = true
+			elif weeks_silent >= 1:
+				## Round advances each week with no response
+				ap["contract_round"] += 1
+				ap["last_action_week"] = current_week
+				if ap["contract_round"] > ap["max_contract_rounds"]:
+					ap["status"] = "failed"
+					add_notification("Normal",
+						"Contract negotiations with %s have concluded without a deal." % ap["subject_name"])
+				else:
+					## They also make a counter each week of silence
+					_apply_approach_counter(ap)
+					add_notification("High",
+						"Contract round %d/%d with %s — respond in Drivers/Staff Hub." % [
+						ap["contract_round"], ap["max_contract_rounds"], ap["subject_name"]],
+						"drivers" if ap["subject_type"] == "driver" else "staff_hub")
+				changed = true
+
+		## ── Pre-signed: activate at season start ────────────────────────────
+		elif ap["type"] == "pre_signed" and current_season > ap.get("signed_season", current_season):
+			_apply_approach_result(ap)   ## now apply with immediate
+			ap["start_date"] = "immediate"
+			ap["status"] = "agreed"
+			changed = true
+
+	## Activate pre-signed contracts at season start (called from start_new_season too)
+	_activate_presigned_contracts()
+
+	if changed:
+		emit_signal("approach_updated")
+
+func _activate_presigned_contracts() -> void:
+	for ap in active_approaches:
+		if ap.get("type") == "pre_signed" and ap.get("status") == "agreed":
+			var fake_neg = {
+				"subject_id":   ap["subject_id"],
+				"subject_type": ap["subject_type"],
+				"player_offer": {},
+			}
+			for key in ap["terms"]:
+				fake_neg["player_offer"][key] = ap["terms"][key]["player_offer"]
+			_apply_negotiation_result(fake_neg, true)
+			ap["status"] = "activated"
+
+## ── Bond reply from AI team ───────────────────────────────────────────────────
+func _process_bond_reply(ap: Dictionary) -> void:
+	## AI team decision: accept, counter, or reject
+	## Simple AI: if offer >= 80% of estimate, accept; 50-80% counter; <50% reject
+	var estimate = ap["bond_estimate"]
+	var offer = ap["bond_player_offer"]
+	var ratio = offer / max(estimate, 1.0)
+
+	if ratio >= 0.80:
+		ap["bond_status"] = "agreed"
+		ap["bond_amount_final"] = offer
+		ap["status"] = "negotiating"
+		_start_contract_phase(ap)
+		add_notification("Normal",
+			"%s's team accepted the bond (CR %s). Contract negotiation begins." % [
+			ap["subject_name"], _fmt_int(int(offer))],
+			"drivers" if ap["subject_type"] == "driver" else "staff_hub")
+	elif ratio >= 0.50 and ap["bond_round"] < 2:
+		## Counter: ask for estimate × 1.1
+		ap["bond_team_ask"] = int(estimate * 1.1)
+		ap["bond_status"] = "countered"
+		ap["bond_round"] += 1
+		ap["bond_reply_week"] = current_week + 1
+		add_notification("High",
+			"%s's team countered: CR %s for the bond. Accept, counter or reject in Drivers/Staff Hub." % [
+			ap["subject_name"], _fmt_int(int(ap["bond_team_ask"]))],
+			"drivers" if ap["subject_type"] == "driver" else "staff_hub")
+	else:
+		ap["bond_status"] = "rejected"
+		ap["status"] = "rejected"
+		add_notification("Normal",
+			"%s's team rejected the bond offer." % ap["subject_name"])
+
+## ── Helpers ───────────────────────────────────────────────────────────────────
+func _get_approach(neg_id: String) -> Dictionary:
+	for ap in active_approaches:
+		if ap["neg_id"] == neg_id: return ap
+	return {}
+
+func _get_approach_by_subject(subject_id: String) -> Dictionary:
+	for ap in active_approaches:
+		if ap["subject_id"] == subject_id and \
+				ap["status"] not in ["failed","rejected","expired","activated"]:
+			return ap
+	return {}
+
+func get_active_approaches_for_display() -> Array:
+	## Returns all approaches that should show in HQ Pending Activity
+	return active_approaches.filter(func(ap):
+		return ap["status"] not in ["activated", "expired"] or \
+			(ap["status"] == "agreed" and ap.get("type") == "pre_signed"))
+
+func get_pending_contract_negotiation() -> Dictionary:
+	## Returns the first approach in "negotiating" status (for popup display)
+	for ap in active_approaches:
+		if ap["status"] == "negotiating": return ap
+	return {}
 
 func _get_subject_display_name(subject_id: String, subject_type: String) -> String:
 	match subject_type:
@@ -2361,10 +3042,17 @@ func release_staff(staff_id: String) -> void:
 	if not staff_id in all_staff:
 		return
 	var staff = all_staff[staff_id]
+	var clause = staff.release_clause if staff.release_clause > 0 else 0
+	if clause > 0 and staff.contract_seasons_remaining > 0:
+		player_team.balance -= clause
+		add_log("💰 Release clause paid: CR %s for %s." % [_fmt_int(clause), staff.full_name()])
+		add_notification("High",
+			"Released %s — CR %s release clause paid." % [staff.full_name(), _fmt_int(clause)])
 	staff.contract_team = ""
 	staff.assigned_championship = ""
 	staff.assigned_car_id = ""
 	staff.contract_seasons_remaining = 0
+	staff.release_clause = 0
 	add_log("👋 Released %s (%s)" % [staff.full_name(), staff.role])
 	emit_signal("log_updated")
 
@@ -2428,10 +3116,17 @@ func release_driver(driver_id: String) -> void:
 	if not driver_id in all_drivers:
 		return
 	var driver = all_drivers[driver_id]
+	## Deduct release clause if driver is under contract and clause > 0
+	var clause = driver.release_clause if driver.release_clause > 0 else 0
+	if clause > 0 and driver.contract_seasons_remaining > 0:
+		player_team.balance -= clause
+		add_log("💰 Release clause paid: CR %s for %s." % [_fmt_int(clause), driver.full_name()])
+		add_notification("High",
+			"Released %s — CR %s release clause paid." % [driver.full_name(), _fmt_int(clause)])
 	driver.contract_team = ""
 	driver.contract_seasons_remaining = 0
+	driver.release_clause = 0
 	player_team.drivers.erase(driver_id)
-	# Unassign from any car they were in
 	for car in player_team_cars:
 		if car.driver_id == driver_id:
 			car.driver_id = ""
@@ -2913,6 +3608,21 @@ func get_pending_tasks() -> Array[String]:
 		var staff = all_staff[staff_id]
 		if staff.contract_team == player_team.id and staff.contract_seasons_remaining <= 1:
 			tasks.append("📋 %s (%s) contract expires soon." % [staff.full_name(), staff.role])
+
+	## Step 7b — Pending negotiations awaiting player response
+	for ap in active_approaches:
+		if ap["status"] in ["failed","rejected","expired","activated","agreed"]: continue
+		match ap["status"]:
+			"bond_incoming":
+				tasks.append("💰 %s wants %s — respond to their bond offer." % [
+					ap.get("approaching_team_name","AI Team"), ap["subject_name"]])
+			"negotiating":
+				var weeks_silent = current_week - ap.get("last_action_week", current_week)
+				if weeks_silent >= 1:
+					var rounds_left = ap.get("max_contract_rounds",4) - ap.get("contract_round",1)
+					tasks.append("📋 Contract Round %d/%d with %s — respond before it expires (%d rounds left)." % [
+						ap.get("contract_round",1), ap.get("max_contract_rounds",4),
+						ap["subject_name"], rounds_left])
 
 	## Step 8 — R&D → WRA → CNC → Garage pipeline
 	## 8a: Blueprints ready but not yet submitted to WRA
@@ -4753,6 +5463,9 @@ func advance_week() -> void:
 	## Apply any pending TP/Strategist championship assignments (queued last week)
 	_apply_pending_staff_assignments()
 
+	## Advance approach/bond/negotiation rounds
+	_advance_approaches()
+
 	## Autosave every 13 weeks — 4 rotating slots
 	if current_week % 13 == 0:
 		_autosave()
@@ -5446,6 +6159,9 @@ func start_new_season() -> void:
 
 	add_log("=== SEASON %d BEGINS ===" % current_season)
 
+	## Activate any pre-signed contracts from last season
+	_activate_presigned_contracts()
+
 	# ── R&D: seasonal maintenance ─────────────────────────────────────────────
 	var expired_upg = completed_upg_tasks.size()
 	completed_upg_tasks.clear()
@@ -5675,6 +6391,7 @@ func save_game() -> void:
 		"all_staff": _serialize_staff(),
 		"walked_away_subjects":      walked_away_subjects,
 		"pending_staff_assignments": pending_staff_assignments,
+		"active_approaches":         active_approaches,
 	}
 
 	# Save all teams
@@ -5782,6 +6499,7 @@ func load_game(path: String = "user://save_game.json") -> void:
 	if "research_points"      in data: research_points      = float(data["research_points"])
 	if "walked_away_subjects"      in data: walked_away_subjects      = data["walked_away_subjects"]
 	if "pending_staff_assignments" in data: pending_staff_assignments = data["pending_staff_assignments"]
+	if "active_approaches"         in data: active_approaches         = data["active_approaches"]
 
 	# Restore championship
 	_setup_championship()
@@ -6217,7 +6935,8 @@ func _generate_passive_sponsor_offers() -> void:
 	for i in range(randi_range(1, 3)):
 		var offer = _generate_sponsor_offer(randi_range(1, 3), randi_range(1, max_tier))
 		sponsor_offers.append(offer)
-		add_notification("Normal", "New sponsor offer: %s. View in Sponsors tab." % offer.name, "financial_dept")
+		pending_hq_tab = "sponsors"
+		add_notification("Normal", "New sponsor offer: %s. View in Sponsors tab." % offer.name, "hq")
 
 func start_cfo_sponsor_search() -> bool:
 	if cfo_search_active: return false
@@ -6260,12 +6979,13 @@ func _advance_cfo_search() -> void:
 		sponsor_offers.append(offer)
 		cfo_search_results.append(offer.sponsor_id)
 	## Notify player each time a new offer arrives
+	pending_hq_tab = "sponsors"
 	if num == 1:
 		add_notification("High",
-			"CFO found a new sponsor offer: %s. View in Sponsors tab." % sponsor_offers[-1].name, "financial_dept")
+			"CFO found a new sponsor offer: %s. View in Sponsors tab." % sponsor_offers[-1].name, "hq")
 	else:
 		add_notification("High",
-			"CFO found %d new sponsor offers this week. View in Sponsors tab." % num, "financial_dept")
+			"CFO found %d new sponsor offers this week. View in Sponsors tab." % num, "hq")
 	add_log("📋 CFO: %d new sponsor offer%s this week." % [num, "s" if num != 1 else ""])
 	## Reset countdown for next offer cycle
 	var cfo = null
@@ -6314,6 +7034,33 @@ func sign_sponsor(sponsor_id: String) -> bool:
 	add_notification("High", "Sponsor signed: %s." % offer.name, "hq")
 	return true
 
+## Cancel an active sponsor deal early. Applies rep and marketability penalty.
+func cancel_sponsor(sponsor_id: String) -> void:
+	var sp_idx = -1
+	var sp = null
+	for i in range(active_sponsors.size()):
+		if active_sponsors[i].get("sponsor_id", "") == sponsor_id:
+			sp = active_sponsors[i]
+			sp_idx = i
+			break
+	if sp == null: return
+
+	active_sponsors.remove_at(sp_idx)
+
+	## Penalty: -5 reputation, -8 marketability (scaled by seasons remaining)
+	var seasons_left = sp.get("seasons_remaining", 1)
+	var rep_penalty = clamp(5 * seasons_left, 5, 20)
+	var mktg_penalty = clamp(8 * seasons_left, 8, 30)
+	player_team.reputation = max(0.0, player_team.reputation - rep_penalty)
+	player_team.marketability = max(0.0, player_team.get("marketability", 50.0) - mktg_penalty)
+
+	add_log("❌ Sponsor deal cancelled: %s. Rep −%d, Marketability −%d." % [
+		sp.get("name", "?"), rep_penalty, mktg_penalty])
+	add_notification("High",
+		"Cancelled %s deal. Penalty: −%d reputation, −%d marketability." % [
+		sp.get("name", "?"), rep_penalty, mktg_penalty], "hq")
+	emit_signal("log_updated")
+
 func _process_sponsors_weekly() -> void:
 	## Expire pending offers that have timed out (2–4 week window)
 	var expired_offers = sponsor_offers.filter(func(o):
@@ -6328,15 +7075,42 @@ func _process_sponsors_weekly() -> void:
 		if sp.type == 1:
 			player_team.balance += sp.weekly_payment
 
-func apply_sponsor_race_bonuses(position: int) -> void:
+## Applies sponsor bonuses for podiums/win.
+## Can be called with or without a position.
+## If no position is passed, it automatically finds the best position
+## of any player driver in the last race.
+func apply_sponsor_race_bonuses(position: int = -1) -> void:
+	if last_race_results.is_empty():
+		return
+		
+	var final_position = position
+	# If no position was passed, calculate the best player position automatically
+	if final_position == -1:
+		final_position = 99
+		for i in range(last_race_results.size()):
+			var result = last_race_results[i]
+			if result.get("dns", false):
+				continue
+			if result["driver"].id in player_team.drivers:
+				final_position = min(final_position, i + 1)
+
+	# No podium achieved
+	if final_position > 3:
+		return
+
 	for sp in active_sponsors:
-		if sp.type != 2: continue
+		if sp.type != 2:
+			continue
+
 		var bonus = 0
-		if position == 1:   bonus = sp.win_bonus
-		elif position <= 3: bonus = sp.podium_bonus
+		if final_position == 1:
+			bonus = sp.win_bonus
+		elif final_position <= 3:
+			bonus = sp.podium_bonus
+
 		if bonus > 0:
 			player_team.balance += bonus
-			add_log("💰 Sponsor bonus: CR %s from %s (P%d)." % [_fmt_int(bonus), sp.name, position])
+			add_log("💰 Sponsor bonus: CR %s from %s (P%d)." % [_fmt_int(bonus), sp.name, final_position])
 
 func _process_sponsors_season_end() -> void:
 	var to_remove: Array = []

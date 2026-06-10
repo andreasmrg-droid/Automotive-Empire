@@ -1,5 +1,5 @@
 extends Control
-## Version: S17.1 — WRA submit rows no longer show CR fee. Tab label "WRA & Registration" renamed.
+## Version: S18.3 — Cancel and Renegotiate buttons on active sponsor cards.
 
 var _current_tab: String = "overview"
 var _tab_buttons: Dictionary = {}
@@ -7,7 +7,12 @@ var _content_area: ScrollContainer
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_build_ui()
+	## If a notification routed us here with a specific tab, set it before building
+	## so _build_ui's initial _show_tab call opens the right tab directly.
+	if GameState.pending_hq_tab != "":
+		_current_tab = GameState.pending_hq_tab
+		GameState.pending_hq_tab = ""
+	await _build_ui()
 	GameState.log_updated.connect(func(): _show_tab(_current_tab))
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -78,9 +83,10 @@ func _build_ui() -> void:
 	_content_area = ScrollContainer.new()
 	_content_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_content_area.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_content_area.clip_contents = true
 	root.add_child(_content_area)
 
-	_show_tab("overview")
+	_show_tab(_current_tab)
 
 
 func _show_tab(tab: String) -> void:
@@ -99,8 +105,9 @@ func _show_tab(tab: String) -> void:
 		style.content_margin_top = 6; style.content_margin_bottom = 6
 		btn.add_theme_stylebox_override("normal", style)
 
-	# Clear content
-	for c in _content_area.get_children(): c.queue_free()
+	# Clear content — queue_free is safe here; await ensures nodes are gone before rebuild
+	for c in _content_area.get_children():
+		c.queue_free()
 	await get_tree().process_frame
 
 	var content = VBoxContainer.new()
@@ -121,73 +128,67 @@ func _show_tab(tab: String) -> void:
 func _build_overview(parent: VBoxContainer) -> void:
 	var cols = HBoxContainer.new()
 	cols.add_theme_constant_override("separation", 20)
+	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	parent.add_child(cols)
 
 	# ── Left column ───────────────────────────────────────────────────────────
 	var left = VBoxContainer.new()
-	left.custom_minimum_size = Vector2(320, 0)
+	left.custom_minimum_size = Vector2(300, 0)
 	left.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	left.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	left.add_theme_constant_override("separation", 14)
 	cols.add_child(left)
 
-	# CEO card
 	left.add_child(_section_label("CEO"))
 	left.add_child(_build_ceo_card())
-
 	left.add_child(HSeparator.new())
-
-	# Quick finances
 	left.add_child(_section_label("FINANCES"))
 	left.add_child(_build_finance_strip())
-
 	left.add_child(HSeparator.new())
-
-	# Building effects
 	left.add_child(_section_label("HQ EFFECTS"))
 	left.add_child(_build_effects_card())
 
 	# ── Center column ─────────────────────────────────────────────────────────
 	var center = VBoxContainer.new()
 	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	center.add_theme_constant_override("separation", 14)
 	cols.add_child(center)
 
-	# Active championships
 	center.add_child(_section_label("ACTIVE CHAMPIONSHIPS"))
 	center.add_child(_build_champs_strip())
-
 	center.add_child(HSeparator.new())
-
-	# Drivers at a glance
 	center.add_child(_section_label("DRIVERS"))
 	center.add_child(_build_drivers_strip())
-
 	center.add_child(HSeparator.new())
-
-	# All staff
 	center.add_child(_section_label("STAFF"))
 	center.add_child(_build_staff_grid())
+	center.add_child(HSeparator.new())
+
+	## Pending Activity (approaches, bonds, pre-signed)
+	var pending = _build_pending_activity()
+	if pending != null:
+		center.add_child(_section_label("PENDING ACTIVITY"))
+		center.add_child(pending)
+		center.add_child(HSeparator.new())
+
+	center.add_child(_section_label("SPONSORS"))
+	center.add_child(_build_active_sponsor_card_hq())
 
 	# ── Right column ──────────────────────────────────────────────────────────
 	var right = VBoxContainer.new()
 	right.custom_minimum_size = Vector2(260, 0)
 	right.size_flags_horizontal = Control.SIZE_SHRINK_END
+	right.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	right.add_theme_constant_override("separation", 14)
 	cols.add_child(right)
 
-	# TP slots
 	right.add_child(_section_label("TEAM PRINCIPAL SLOTS"))
 	right.add_child(_build_tp_slots())
-
 	right.add_child(HSeparator.new())
-
-	# CFO slot
 	right.add_child(_section_label("CFO"))
 	right.add_child(_build_cfo_slot())
-
 	right.add_child(HSeparator.new())
-
-	# Nav buttons
 	right.add_child(_section_label("NAVIGATE"))
 	right.add_child(_build_nav_buttons())
 
@@ -435,6 +436,64 @@ func _build_staff_grid() -> VBoxContainer:
 
 	return vbox
 
+func _build_active_sponsor_card_hq() -> VBoxContainer:
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 6)
+
+	if GameState.active_sponsors.is_empty():
+		var lbl = Label.new(); lbl.text = "No sponsors signed."
+		lbl.modulate = Color(0.5, 0.5, 0.5)
+		lbl.add_theme_font_size_override("font_size", 12)
+		vbox.add_child(lbl)
+		return vbox
+
+	for sp in GameState.active_sponsors:
+		var row = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+
+		## Name — fixed 160px, matches driver/staff column
+		var lbl_name = Label.new()
+		lbl_name.text = sp.get("name", "?")
+		lbl_name.custom_minimum_size = Vector2(160, 0)
+		lbl_name.add_theme_font_size_override("font_size", 12)
+		lbl_name.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
+		row.add_child(lbl_name)
+
+		## Type detail — colour-coded, expand to fill
+		var detail = ""
+		var detail_col: Color
+		match sp.get("type", 1):
+			1:
+				detail = "+CR %s/wk" % _fmt(sp.get("weekly_payment", 0))
+				detail_col = Color(0.4, 0.88, 0.55)   ## green
+			2:
+				detail = "Win: CR %s" % _fmt(sp.get("win_bonus", 0))
+				detail_col = Color(1.0, 0.75, 0.3)    ## amber
+			3:
+				detail = "Commitment deal"
+				detail_col = Color(0.55, 0.75, 1.0)   ## blue
+			_:
+				detail = "—"
+				detail_col = Color(0.5, 0.5, 0.5)
+		var lbl_detail = Label.new()
+		lbl_detail.text = detail
+		lbl_detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lbl_detail.add_theme_font_size_override("font_size", 11)
+		lbl_detail.add_theme_color_override("font_color", detail_col)
+		row.add_child(lbl_detail)
+
+		## Seasons remaining — right-aligned, red if last season
+		var seasons = sp.get("seasons_remaining", 1)
+		var lbl_s = Label.new()
+		lbl_s.text = "%d season%s left" % [seasons, "s" if seasons != 1 else ""]
+		lbl_s.add_theme_font_size_override("font_size", 11)
+		lbl_s.add_theme_color_override("font_color",
+			Color(1.0, 0.4, 0.4) if seasons <= 1 else Color(0.5, 0.5, 0.5))
+		row.add_child(lbl_s)
+
+		vbox.add_child(row)
+
+	return vbox
 
 func _build_tp_slots() -> VBoxContainer:
 	var vbox = VBoxContainer.new()
@@ -1060,7 +1119,107 @@ func _build_active_sponsor_card(sp: Dictionary) -> PanelContainer:
 		lbl_exp.add_theme_color_override("font_color", Color(1.0, 0.6, 0.2))
 		info.add_child(lbl_exp)
 
+	## Action buttons
+	var btn_row = HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 6)
+	panel.add_child(btn_row)
+
+	var spacer = Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_row.add_child(spacer)
+
+	## Renegotiate — opens instant sponsor negotiation (CFO flow)
+	var btn_reneg = Button.new()
+	btn_reneg.text = "📋 Renegotiate"
+	btn_reneg.custom_minimum_size = Vector2(110, 26)
+	btn_reneg.add_theme_font_size_override("font_size", 11)
+	var sp_id = sp.get("sponsor_id", "")
+	btn_reneg.pressed.connect(func():
+		var neg = GameState.generate_sponsor_negotiation(sp_id)
+		if neg.is_empty(): return
+		GameState.start_negotiation(neg)
+		var panel_neg = preload("res://scenes/ContractNegotiation.tscn").instantiate()
+		get_tree().current_scene.add_child(panel_neg)
+		panel_neg.open(GameState.active_negotiation)
+		panel_neg.closed.connect(func(): _show_tab("sponsors")))
+	btn_row.add_child(btn_reneg)
+
+	## Cancel — with penalty warning
+	var btn_cancel = Button.new()
+	btn_cancel.text = "✕ Cancel Deal"
+	btn_cancel.custom_minimum_size = Vector2(100, 26)
+	btn_cancel.add_theme_font_size_override("font_size", 11)
+	btn_cancel.modulate = Color(1.0, 0.45, 0.45)
+	var seasons_left = sp.get("seasons_remaining", 1)
+	btn_cancel.tooltip_text = "Penalty: −%d rep, −%d marketability" % [
+		clamp(5 * seasons_left, 5, 20), clamp(8 * seasons_left, 8, 30)]
+	btn_cancel.pressed.connect(func():
+		_show_cancel_sponsor_confirm(sp_id, sp.get("name","?")))
+	btn_row.add_child(btn_cancel)
+
 	return panel
+
+
+func _show_cancel_sponsor_confirm(sponsor_id: String, sponsor_name: String) -> void:
+	var dim = ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.65)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(dim)
+
+	var popup = PanelContainer.new()
+	popup.custom_minimum_size = Vector2(380, 0)
+	popup.set_anchor(SIDE_LEFT, 0.5); popup.set_anchor(SIDE_RIGHT, 0.5)
+	popup.set_anchor(SIDE_TOP, 0.35); popup.set_anchor(SIDE_BOTTOM, 0.35)
+	popup.offset_left = -190; popup.offset_right = 190
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.10, 0.10)
+	style.border_width_left = 2; style.border_width_right = 2
+	style.border_width_top = 2; style.border_width_bottom = 2
+	style.border_color = Color(0.8, 0.3, 0.3)
+	for c in ["top_left","top_right","bottom_left","bottom_right"]:
+		style.set("corner_radius_%s" % c, 6)
+	style.content_margin_left = 20; style.content_margin_right = 20
+	style.content_margin_top = 16; style.content_margin_bottom = 16
+	popup.add_theme_stylebox_override("panel", style)
+	add_child(popup)
+
+	var vb = VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 12)
+	popup.add_child(vb)
+
+	var lbl_t = Label.new()
+	lbl_t.text = "Cancel Sponsor Deal?"
+	lbl_t.add_theme_font_size_override("font_size", 16)
+	lbl_t.add_theme_color_override("font_color", Color(1.0, 0.5, 0.5))
+	vb.add_child(lbl_t)
+
+	var lbl_b = Label.new()
+	lbl_b.text = "Cancelling %s will apply a reputation and marketability penalty." % sponsor_name
+	lbl_b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl_b.add_theme_font_size_override("font_size", 12)
+	lbl_b.modulate = Color(0.75, 0.75, 0.75)
+	vb.add_child(lbl_b)
+
+	var btn_row = HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 10)
+	vb.add_child(btn_row)
+
+	var btn_confirm = Button.new()
+	btn_confirm.text = "✕ Cancel Deal"
+	btn_confirm.custom_minimum_size = Vector2(130, 34)
+	btn_confirm.modulate = Color(1.0, 0.4, 0.4)
+	btn_confirm.pressed.connect(func():
+		GameState.cancel_sponsor(sponsor_id)
+		dim.queue_free(); popup.queue_free()
+		_show_tab("sponsors"))
+	btn_row.add_child(btn_confirm)
+
+	var btn_keep = Button.new()
+	btn_keep.text = "Keep Deal"
+	btn_keep.custom_minimum_size = Vector2(100, 34)
+	btn_keep.pressed.connect(func(): dim.queue_free(); popup.queue_free())
+	btn_row.add_child(btn_keep)
 
 
 func _build_sponsor_offer_card(offer: Dictionary) -> PanelContainer:
@@ -1111,22 +1270,42 @@ func _build_sponsor_offer_card(offer: Dictionary) -> PanelContainer:
 	btn_row.add_theme_constant_override("separation", 6)
 	inner.add_child(btn_row)
 
-	var btn_neg = Button.new()
-	btn_neg.text = "📋 Negotiate"
-	btn_neg.custom_minimum_size = Vector2(110, 26)
-	btn_neg.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	btn_neg.pressed.connect(func():
-		var neg = GameState.generate_sponsor_negotiation(offer.sponsor_id)
-		if neg.is_empty():
-			GameState.sign_sponsor(offer.sponsor_id)
-			_show_tab("sponsors")
-			return
-		GameState.start_negotiation(neg)
-		var np = preload("res://scenes/ContractNegotiation.tscn").instantiate()
-		get_tree().current_scene.add_child(np)
-		np.open(GameState.active_negotiation)
-		np.closed.connect(func(): _show_tab("sponsors")))
-	btn_row.add_child(btn_neg)
+	var max_slots = GameState.get_hq_sponsor_slots()
+	var used_slots = GameState.active_sponsors.size()
+
+	if used_slots >= max_slots:
+		# No slots available
+		var lbl_full = Label.new()
+		lbl_full.text = "🔒 No slots available"
+		lbl_full.add_theme_font_size_override("font_size", 12)
+		lbl_full.add_theme_color_override("font_color", Color(1.0, 0.45, 0.45))
+		lbl_full.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn_row.add_child(lbl_full)
+
+		var lbl_hint = Label.new()
+		lbl_hint.text = "(Upgrade HQ)"
+		lbl_hint.add_theme_font_size_override("font_size", 11)
+		lbl_hint.modulate = Color(0.6, 0.6, 0.6)
+		btn_row.add_child(lbl_hint)
+	else:
+## Normal Negotiate button
+		var btn_neg = Button.new()
+		btn_neg.text = "📋 Negotiate"
+		btn_neg.custom_minimum_size = Vector2(110, 26)
+		btn_neg.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn_neg.pressed.connect(func():
+			var neg = GameState.generate_sponsor_negotiation(offer.sponsor_id)
+			if neg.is_empty():
+				GameState.sign_sponsor(offer.sponsor_id)
+				_show_tab("sponsors")
+				return
+			GameState.start_negotiation(neg)
+			var np = preload("res://scenes/ContractNegotiation.tscn").instantiate()
+			get_tree().current_scene.add_child(np)
+			np.open(GameState.active_negotiation)
+			np.closed.connect(func(): _show_tab("sponsors"))
+			)
+		btn_row.add_child(btn_neg)
 
 	var btn_dis = Button.new()
 	btn_dis.text = "✕ Dismiss"
@@ -1454,6 +1633,73 @@ func _build_registration_panel() -> VBoxContainer:
 	vbox.add_child(btn)
 
 	return vbox
+
+
+## Returns null if nothing pending, otherwise a VBoxContainer with all pending items.
+func _build_pending_activity() -> VBoxContainer:
+	var items = GameState.get_active_approaches_for_display()
+	if items.is_empty(): return null
+
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 6)
+
+	for ap in items:
+		var row = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+
+		var icon_lbl = Label.new()
+		icon_lbl.add_theme_font_size_override("font_size", 12)
+		var desc_lbl = Label.new()
+		desc_lbl.add_theme_font_size_override("font_size", 11)
+		desc_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+		match ap.get("status", ""):
+			"approaching":
+				icon_lbl.text = "📤"
+				desc_lbl.text = "Bond approach → %s (%s) · reply next week" % [
+					ap["subject_name"], ap.get("current_team_name","")]
+				desc_lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.4))
+			"bond_incoming":
+				icon_lbl.text = "📥"
+				desc_lbl.text = "%s wants %s · CR %s · decide" % [
+					ap.get("approaching_team_name","AI Team"),
+					ap["subject_name"], _fmt(int(ap.get("bond_team_ask",0)))]
+				desc_lbl.add_theme_color_override("font_color", Color(1.0, 0.75, 0.2))
+			"negotiating":
+				icon_lbl.text = "📋"
+				var locked = ap.get("locked_fields",[]).size()
+				desc_lbl.text = "Negotiating: %s · Round %d/%d · %d locked" % [
+					ap["subject_name"], ap.get("contract_round",1),
+					ap.get("max_contract_rounds",4), locked]
+				desc_lbl.add_theme_color_override("font_color", Color(0.4, 0.85, 0.55))
+			"agreed":
+				if ap.get("type") == "pre_signed":
+					icon_lbl.text = "✅"
+					desc_lbl.text = "Pre-signed: %s · joins Season %d" % [
+						ap["subject_name"], GameState.current_season + 1]
+					desc_lbl.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
+				else:
+					continue
+			_:
+				continue
+
+		row.add_child(icon_lbl)
+		row.add_child(desc_lbl)
+
+		## Action button for items needing player response
+		if ap["status"] in ["bond_incoming"]:
+			var btn = Button.new()
+			btn.text = "Respond →"
+			btn.custom_minimum_size = Vector2(90, 24)
+			btn.add_theme_font_size_override("font_size", 10)
+			var neg_id = ap["neg_id"]
+			btn.pressed.connect(func():
+				get_tree().change_scene_to_file("res://scenes/Staff.tscn"))
+			row.add_child(btn)
+
+		vbox.add_child(row)
+
+	return vbox if vbox.get_child_count() > 0 else null
 
 
 # ══════════════════════════════════════════════════════════════════════════════
