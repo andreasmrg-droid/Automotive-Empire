@@ -1,5 +1,5 @@
 extends Node
-## Version: S18.1 — Approach/bond/negotiation system keys added.
+## Version: S19.9 — Fan system keys added.
 ## Usage: Locale.t("key")  →  returns translated string for current language.
 ## Adding a language: add a new dict entry in STRINGS below and a matching entry in LANGUAGES.
 ## Dynamic strings with substitutions: Locale.tf("key", [arg1, arg2])
@@ -311,6 +311,26 @@ const STRINGS: Dictionary = {
 	"ap_pre_signed_hq":     { "en": "✅ Pre-signed: %s · joins Season %d", },
 	"ap_approach_sent":     { "en": "📤 Bond approach → %s (%s) · reply next week", },
 	"ap_negotiating_hq":    { "en": "📋 Negotiating: %s · Round %d/%d · %d locked", },
+	"graph_balance":        { "en": "💰 Balance",       },
+	"graph_fuel":           { "en": "⛽ Fuel Price",    },
+	"graph_economy":        { "en": "🌍 Economy",       },
+	"graph_fans":           { "en": "👥 Active Fans",   },
+	"graph_merch":          { "en": "🛍 Merchandise",   },
+	"graph_reputation":     { "en": "⭐ Reputation",    },
+	"graph_no_data":        { "en": "No data yet — advance weeks to populate.", },
+
+	"hq_marketability":     { "en": "Marketability",   },
+	"hq_active_fans":       { "en": "Active Fans",     },
+	"hq_mktg_bonus":        { "en": "+%d%% Mktg Bonus", },
+	"driver_reputation":    { "en": "⭐ Reputation",   },
+
+	"fan_drivers_champ":    { "en": "🏆 %s wins Drivers Championship! Team +%.0f reputation.", },
+	"fan_teams_champ":      { "en": "🏆 Constructors Championship won! Team +%.0f reputation.", },
+	"fan_legacy_bonus":     { "en": "⭐ %s's legacy sustains team marketability for %d seasons.", },
+	"fan_active_fans":      { "en": "Active Fans",    },
+	"fan_marketability":    { "en": "Marketability",  },
+	"fan_global_fans":      { "en": "Global Fans",    },
+
 	"notif_critical":       { "en": "Critical",              },
 	"notif_high":           { "en": "High",                 },
 	"notif_normal":         { "en": "Normal",                },

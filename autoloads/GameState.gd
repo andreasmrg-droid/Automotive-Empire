@@ -1,5 +1,5 @@
 extends Node
-## Version: S19.3 — cancel_approach_before_submit: closing popup on Round 1 before submitting removes the approach entirely.
+## Version: S20.1 — Economy and fuel price fluctuation system live: _update_economy_and_fuel() called every week.
 ##                    Driver.track_knowledge dict + update_track_knowledge(). Staff.track_knowledge_by_track
 ##                    + get_track_knowledge_for() + update_track_knowledge(). Lap time formula uses
 ##                    per-track knowledge for driver (-1% at TK100) and staff synergy.
@@ -26,6 +26,232 @@ var ceo_age:              int    = 30
 var team_color_primary:   Color  = Color(0.85, 0.15, 0.15)
 var team_color_secondary: Color  = Color(0.95, 0.95, 0.95)
 var game_difficulty:      String = "Realistic"
+
+## ── Fan & Reputation System ───────────────────────────────────────────────────
+## Reputation inertia: team reputation moves toward target_reputation each season
+var target_reputation:    float  = 15.0   ## What the team has earned this season
+var reputation_velocity:  float  = 0.0    ## How fast rep moves toward target
+
+## Legacy bonus: when a star driver leaves, their fame lingers for 3 seasons
+## Array of {seasons_remaining: int, bonus: float}
+var reputation_legacy_bonuses: Array = []
+
+## Consecutive drivers champion tracking per discipline (for competition_factor)
+## keyed by championship_id: how many seasons same driver has won
+var consecutive_win_counts: Dictionary = {}
+
+## Returns all difficulty multipliers for the current game_difficulty setting.
+## ai_performance: multiplier on AI lap times (>1 = AI faster, <1 = AI slower)
+## player_economy:  multiplier on player prize money and income bonuses
+## player_rnd:      multiplier on research points gained per session
+func get_difficulty_mult() -> Dictionary:
+	match game_difficulty:
+		"Rookie":    return {"ai_performance": 0.75, "player_economy": 1.30, "player_rnd": 0.80}
+		"Amateur":   return {"ai_performance": 0.85, "player_economy": 1.15, "player_rnd": 0.90}
+		"Expert":    return {"ai_performance": 1.15, "player_economy": 0.90, "player_rnd": 1.10}
+		"Master":    return {"ai_performance": 1.25, "player_economy": 0.80, "player_rnd": 1.20}
+		_:           return {"ai_performance": 1.00, "player_economy": 1.00, "player_rnd": 1.00}
+
+## ── P32 History recording ─────────────────────────────────────────────────────
+func _record_weekly_history() -> void:
+	var eco_int = 0 if global_economy_state == "Recession" else (2 if global_economy_state == "Boom" else 1)
+	var merch_income = 0
+	var merch_b = campus_buildings.get("Merchandise Store", {})
+	if merch_b.get("built", false):
+		merch_income = get_building_income(merch_b)
+
+	var entry = {"week": current_week, "season": current_season}
+	history_balance.append(    entry.merged({"value": player_team.balance}))
+	history_fuel_price.append( entry.merged({"value": current_fuel_price}))
+	history_economy.append(    entry.merged({"value": eco_int}))
+	history_active_fans.append(entry.merged({"value": get_team_active_fans()}))
+	history_merchandise.append(entry.merged({"value": float(merch_income)}))
+	history_reputation.append( entry.merged({"value": player_team.reputation}))
+
+	## Cap all arrays at HISTORY_MAX_ENTRIES
+	for arr in [history_balance, history_fuel_price, history_economy,
+			history_active_fans, history_merchandise, history_reputation]:
+		while arr.size() > HISTORY_MAX_ENTRIES:
+			arr.remove_at(0)
+
+## Base global fans per discipline at top tier (tier 4), based on real-world data.
+const BASE_GLOBAL_FANS: Dictionary = {
+	"GP":    750000000,
+	"EPC":   150000000,
+	"Rally": 200000000,
+	"SC":     85000000,
+	"OWC":    28000000,
+	"TC":     18000000,
+	"GK":      6000000,
+}
+
+## Tier multipliers: tier 1=entry, tier 4=top
+const TIER_FAN_MULT: Dictionary = {1: 0.008, 2: 0.04, 3: 0.18, 4: 1.0}
+
+## Returns current global fan count for a given discipline and tier.
+func get_global_fans(discipline: String, tier: int) -> float:
+	var base = float(BASE_GLOBAL_FANS.get(discipline, 6000000))
+	var tier_mult = TIER_FAN_MULT.get(tier, 0.008)
+
+	## Competition factor from championship winner history
+	var competition_factor = 1.0
+	for champ in active_championships:
+		var reg = CHAMPIONSHIP_REGISTRY.get(champ.id, {})
+		if reg.get("discipline","") == discipline and reg.get("tier", 1) == tier:
+			competition_factor = champ.get_competition_factor()
+			break
+
+	## Star power — average reputation of top 3 drivers in this discipline
+	var driver_reps: Array = []
+	for did in all_drivers:
+		var d = all_drivers[did]
+		if d.active_discipline == discipline:
+			driver_reps.append(d.marketability)
+	driver_reps.sort()
+	driver_reps.reverse()
+	var top3_avg = 0.0
+	for i in range(min(3, driver_reps.size())):
+		top3_avg += driver_reps[i]
+	if driver_reps.size() > 0:
+		top3_avg /= float(min(3, driver_reps.size()))
+	var star_power_factor = 0.7 + (top3_avg / 100.0) * 0.6
+
+	## Economy factor
+	var economy_factor = 1.10 if global_economy_state == "Boom" else (0.90 if global_economy_state == "Recession" else 1.00)
+
+	## Long-term organic growth via natural log curve
+	var long_term = 1.0 + log(1.0 + float(current_season) * 0.05)
+
+	return base * tier_mult * competition_factor * star_power_factor * economy_factor * long_term
+
+## Returns team active fans.
+## team_active_fans = global_fans x (reputation/100)^2 x 0.15
+func get_team_active_fans() -> float:
+	if active_championships.is_empty(): return 0.0
+	var best_tier = 0
+	var best_disc = "GK"
+	for champ in active_championships:
+		var reg = CHAMPIONSHIP_REGISTRY.get(champ.id, {})
+		var t = reg.get("tier", 1)
+		if t > best_tier:
+			best_tier = t
+			best_disc = reg.get("discipline", "GK")
+	var global_fans = get_global_fans(best_disc, best_tier)
+	var rep_ratio = player_team.reputation / 100.0
+	return global_fans * rep_ratio * rep_ratio * 0.15
+
+## Returns team marketability (0-100) — derived, never stored.
+func get_team_marketability() -> float:
+	var rep_component = player_team.reputation * 0.6
+	## Fan share component
+	var fan_share_component = 0.0
+	if not active_championships.is_empty():
+		var best_tier = 0
+		var best_disc = "GK"
+		for champ in active_championships:
+			var reg = CHAMPIONSHIP_REGISTRY.get(champ.id, {})
+			var t = reg.get("tier", 1)
+			if t > best_tier:
+				best_tier = t
+				best_disc = reg.get("discipline","GK")
+		var global_fans = get_global_fans(best_disc, best_tier)
+		var active_fans = get_team_active_fans()
+		if global_fans > 0:
+			fan_share_component = clamp((active_fans / global_fans) * 40.0, 0.0, 20.0)
+	## Building bonuses
+	var building_bonus = 0.0
+	for bname in ["Museum", "Theme Park", "Merchandise Store", "Public Racing Club"]:
+		var b = campus_buildings.get(bname, {})
+		if b.get("built", false):
+			building_bonus += b.get("level", 1) * 0.5
+	building_bonus = clamp(building_bonus, 0.0, 15.0)
+	## Sponsor bonus
+	var sponsor_bonus = clamp(float(active_sponsors.size()) * 2.0, 0.0, 10.0)
+	## P4 R&D marketability boosts
+	var rnd_mktg = get_rnd_bonus("marketability_boost") * 100.0
+	## Legacy bonuses from departed star drivers
+	var legacy_total = 0.0
+	for lb in reputation_legacy_bonuses:
+		legacy_total += lb.get("bonus", 0.0)
+	return clamp(rep_component + fan_share_component + building_bonus + sponsor_bonus + rnd_mktg + legacy_total, 0.0, 100.0)
+
+## ── Reputation Inertia ────────────────────────────────────────────────────────
+
+## Apply reputation inertia at season end: reputation moves toward earned value slowly.
+func _apply_reputation_inertia() -> void:
+	## Soft pull from signed drivers avg reputation
+	var driver_rep_sum = 0.0
+	var driver_count = 0
+	for did in player_team.drivers:
+		var d = all_drivers.get(did)
+		if d:
+			driver_rep_sum += d.marketability
+			driver_count += 1
+	var avg_driver_rep = (driver_rep_sum / float(driver_count)) if driver_count > 0 else 0.0
+	target_reputation = clamp(player_team.reputation * 0.8 + avg_driver_rep * 0.3 * 0.2, 0.0, 100.0)
+	var diff = target_reputation - player_team.reputation
+	var inertia = 0.25 if diff > 0 else 0.15
+	player_team.reputation = clamp(player_team.reputation + diff * inertia, 0.0, 100.0)
+	## Decay legacy bonuses by one season
+	var kept: Array = []
+	for lb in reputation_legacy_bonuses:
+		lb["seasons_remaining"] -= 1
+		if lb["seasons_remaining"] > 0:
+			kept.append(lb)
+	reputation_legacy_bonuses = kept
+
+## Called when a star driver (rep > 70) leaves. Their fame props up marketability for 3 seasons.
+func apply_departure_legacy(driver: Driver) -> void:
+	var bonus = max(0.0, (driver.marketability - 50.0) * 0.1)
+	if bonus > 0.0:
+		reputation_legacy_bonuses.append({
+			"seasons_remaining": 3,
+			"bonus": bonus,
+			"driver_name": driver.full_name()
+		})
+
+## ── Championship Win Awards ───────────────────────────────────────────────────
+
+## Award drivers championship at season end.
+func _award_drivers_championship(driver_id: String, champ: Championship) -> void:
+	var driver = all_drivers.get(driver_id)
+	if driver == null: return
+	var reg = CHAMPIONSHIP_REGISTRY.get(champ.id, {})
+	var tier = reg.get("tier", 1)
+	var driver_rep_boost = 5.0 + tier * 2.5
+	driver.marketability = clamp(driver.marketability + driver_rep_boost, 0.0, 100.0)
+	add_log("🏆 %s wins Drivers Championship! +%.0f reputation." % [driver.full_name(), driver_rep_boost])
+	if driver.contract_team == player_team.id:
+		var team_boost = 3.0 + float(tier) * 1.0
+		player_team.reputation = clamp(player_team.reputation + team_boost, 0.0, 100.0)
+		add_notification("High",
+			"🏆 %s wins Drivers Championship! Team +%.0f reputation." % [driver.full_name(), team_boost], "hq")
+	champ.drivers_champion_history.append({
+		"season": current_season, "driver_id": driver_id, "driver_name": driver.full_name()})
+	if champ.drivers_champion_history.size() > 5:
+		champ.drivers_champion_history = champ.drivers_champion_history.slice(
+			champ.drivers_champion_history.size() - 5)
+
+## Award teams/constructors championship at season end.
+func _award_teams_championship(team_id: String, champ: Championship) -> void:
+	var reg = CHAMPIONSHIP_REGISTRY.get(champ.id, {})
+	var tier = reg.get("tier", 1)
+	var team_boost = 5.0 + float(tier) * 1.5
+	var champ_team_name = "Unknown"
+	for t in all_teams:
+		if t.id == team_id: champ_team_name = t.team_name; break
+	if team_id == player_team.id:
+		player_team.reputation = clamp(player_team.reputation + team_boost, 0.0, 100.0)
+		add_notification("High",
+			"🏆 Constructors Championship won! Team +%.0f reputation." % team_boost, "hq")
+	add_log("🏆 %s wins Constructors Championship." % champ_team_name)
+	champ.teams_champion_history.append({
+		"season": current_season, "team_id": team_id, "team_name": champ_team_name})
+	if champ.teams_champion_history.size() > 5:
+		champ.teams_champion_history = champ.teams_champion_history.slice(
+			champ.teams_champion_history.size() - 5)
+
+
 var _starting_champ_id:   String = "C-001"  ## Set by setup_new_game, used by _setup_championship
 
 # All teams in the player's championship
@@ -148,6 +374,79 @@ var cfo_search_results:          Array = []
 var ceo_accumulated_salary: float  = 0.0
 var global_economy_state:   String = "Normal"
 var current_fuel_price:     float  = 1200.0
+var current_loan_rate:      float  = 5.0    ## % interest rate for loans
+
+## Economy fluctuation internals
+var _economy_weeks_remaining: int  = 0   ## weeks until next economy state change
+var _fuel_trend:            float  = 0.0  ## current weekly drift direction/magnitude
+
+## ── Economy & Fuel Fluctuation ───────────────────────────────────────────────
+
+## Called every advance_week(). Updates global_economy_state and current_fuel_price.
+## Economy: cycles between Recession / Normal / Boom on random durations 4–20 weeks.
+## Fuel: drifts ±3% per week, mean-reverts toward base, occasional spikes.
+func _update_economy_and_fuel() -> void:
+	## ── Economy state ────────────────────────────────────────────────────────
+	_economy_weeks_remaining -= 1
+	if _economy_weeks_remaining <= 0:
+		## Transition to a new state
+		var prev = global_economy_state
+		## Weighted probabilities: Normal most common, extremes less so
+		var roll = randf()
+		if prev == "Normal":
+			global_economy_state = "Boom" if roll < 0.35 else ("Recession" if roll < 0.60 else "Normal")
+		elif prev == "Boom":
+			global_economy_state = "Normal" if roll < 0.70 else ("Recession" if roll < 0.85 else "Boom")
+		else:  ## Recession
+			global_economy_state = "Normal" if roll < 0.70 else ("Boom" if roll < 0.80 else "Recession")
+		## Duration 4–20 weeks
+		_economy_weeks_remaining = randi_range(4, 20)
+		if global_economy_state != prev:
+			add_notification("Normal",
+				"📊 Economy shifted to %s." % global_economy_state)
+
+	## ── Fuel price ───────────────────────────────────────────────────────────
+	## Base price varies by economy state
+	var base_fuel = 1200.0
+	match global_economy_state:
+		"Boom":       base_fuel = 1500.0
+		"Recession":  base_fuel = 900.0
+		_:            base_fuel = 1200.0
+
+	## Occasionally update the trend (every ~4 weeks)
+	if current_week % 4 == 0 or _fuel_trend == 0.0:
+		## Trend: -5% to +5% of current price per week, mean-reverting
+		var mean_revert = (base_fuel - current_fuel_price) * 0.08
+		_fuel_trend = mean_revert + randf_range(-0.03, 0.03) * current_fuel_price
+		## Occasional spike (5% chance): +15–30%
+		if randf() < 0.05:
+			_fuel_trend += current_fuel_price * randf_range(0.15, 0.30)
+			add_notification("Normal", "⛽ Fuel price spike! Global supply disruption.")
+
+	## Apply trend with noise
+	current_fuel_price = clamp(
+		current_fuel_price + _fuel_trend + randf_range(-20.0, 20.0),
+		400.0, 4000.0)
+	## Round to nearest 10
+	current_fuel_price = round(current_fuel_price / 10.0) * 10.0
+
+	## ── Loan rate ────────────────────────────────────────────────────────────
+	## Loan rate follows economy: Boom=higher rates, Recession=lower
+	match global_economy_state:
+		"Boom":       current_loan_rate = clamp(current_loan_rate + randf_range(0.0, 0.3), 4.0, 12.0)
+		"Recession":  current_loan_rate = clamp(current_loan_rate - randf_range(0.0, 0.3), 1.0, 8.0)
+		_:            current_loan_rate = clamp(current_loan_rate + randf_range(-0.1, 0.1), 2.0, 10.0)
+	current_loan_rate = round(current_loan_rate * 10.0) / 10.0
+
+## ── P32 Weekly History recording ──────────────────────────────────────────────
+## Each entry: {week, season, value}. Capped at 52×5 = 260 entries (5 seasons).
+var history_balance:      Array = []  ## player_team.balance
+var history_fuel_price:   Array = []  ## current_fuel_price
+var history_economy:      Array = []  ## global_economy_state as int (0=Recession,1=Normal,2=Boom)
+var history_active_fans:  Array = []  ## get_team_active_fans()
+var history_merchandise:  Array = []  ## merchandise store income that week
+var history_reputation:   Array = []  ## player_team.reputation
+const HISTORY_MAX_ENTRIES: int = 260  ## 5 seasons × 52 weeks
 var current_loan:           float  = 0.0
 var _prev_week_balance:     float  = 0.0
 ## Navigation
@@ -1572,6 +1871,8 @@ func _earn_race_rp(laps: int) -> void:
 		var avg = (d.engine + d.aero + d.chassis + d.gearbox + d.brakes + d.suspension) / 6.0
 		design_power += avg / 100.0
 	var rp_gained = laps * 1 * design_power
+	## Apply difficulty R&D multiplier — higher difficulty = more RP needed (slower research)
+	rp_gained *= get_difficulty_mult()["player_rnd"]
 	var rp_cap = get_rnd_rp_storage_cap()
 	research_points = min(research_points + rp_gained, float(rp_cap))
 	add_log("🔬 RP gained: %.0f (total: %.0f / %d)" % [rp_gained, research_points, rp_cap])
@@ -3273,6 +3574,8 @@ func release_driver(driver_id: String) -> void:
 	driver.contract_team = ""
 	driver.contract_seasons_remaining = 0
 	driver.release_clause = 0
+	## If departing driver was a star, apply legacy bonus to team marketability
+	apply_departure_legacy(driver)
 	player_team.drivers.erase(driver_id)
 	for car in player_team_cars:
 		if car.driver_id == driver_id:
@@ -4997,35 +5300,63 @@ func get_building_income(building: Dictionary) -> int:
 	var bname = building["name"]
 	if not building.get("built", false) or building.get("level", 0) <= 0:
 		return 0
-	## Public Racing Club: income = upkeep × 1.02, scales with level
+
+	var active_fans = get_team_active_fans()
+	var mktg = get_team_marketability()
+	## log10 of fans keeps numbers sensible across the massive fan range
+	## (169 fans → 2.2, 28M fans → 7.4)
+	var fan_log = log(active_fans + 10.0) / log(10.0)
+
+	## Public Racing Club: income = upkeep × 1.02, scales with level + fan bonus
 	if bname == "Public Racing Club":
 		var maintenance = get_building_maintenance(building)
-		return int(maintenance * 1.02)
-	# Museum: income scales with player race wins — 0 wins = 0 income
+		var base_income = int(maintenance * 1.02)
+		## Small local fan bonus: +1 CR per 5000 active fans, capped at 5× base
+		var fan_bonus = clamp(int(active_fans / 5000.0), 0, base_income * 4)
+		return base_income + fan_bonus
+
+	## Museum: heritage prestige × fans × reputation
 	if bname == "Museum":
-		if not building.get("built", false):
-			return 0
+		if not building.get("built", false): return 0
 		var team_wins = 0
 		for entry in hall_of_fame:
 			if entry.get("team_id", "") == player_team.id:
 				team_wins += 1
-		if team_wins == 0:
-			return 0
+		if team_wins == 0: return 0
 		var base = building["weekly_income"]
 		var per_level = BUILDING_INCOME_PER_LEVEL.get("Museum", 380)
 		var level_income = base + per_level * max(0, building["level"] - 1)
-		return int(level_income * (1.0 + team_wins * 0.1))
+		## Fan multiplier: log10(fans) × reputation/50
+		var fan_mult = fan_log * (player_team.reputation / 50.0)
+		return int(level_income * max(1.0, fan_mult) * (1.0 + team_wins * 0.1))
+
+	## Theme Park: biggest fan-driven income
+	if bname == "Theme Park":
+		var base = building["weekly_income"]
+		var per_level = BUILDING_INCOME_PER_LEVEL.get("Theme Park", 0)
+		var level_income = base + per_level * max(0, building["level"] - 1)
+		## log10^1.5 scales faster with fans; needs marketability
+		var fan_mult = pow(fan_log, 1.5) * (mktg / 60.0)
+		return int(level_income * max(0.5, fan_mult))
+
+	## Merchandise Store: fans × marketability
+	if bname == "Merchandise Store":
+		var base = building["weekly_income"]
+		var per_level = BUILDING_INCOME_PER_LEVEL.get("Merchandise Store", 420)
+		var level_income = base + per_level * max(0, building["level"] - 1)
+		var fan_mult = fan_log * (mktg / 50.0)
+		return int(level_income * max(0.5, fan_mult))
+
 	if bname in TRACK_BUILDINGS:
 		var prc = campus_buildings.get("Public Racing Club", {})
-		if not prc.get("built", false):
-			return 0
+		if not prc.get("built", false): return 0
 		var level     = building["level"]
 		var base      = building["weekly_income"]
 		var per_level = BUILDING_INCOME_PER_LEVEL.get(bname, 0)
 		var raw_income = base + per_level * max(0, level - 1)
-		# PRC level bonus: +10% per PRC level
 		var prc_level = prc.get("level", 1)
 		return int(raw_income * (1.0 + prc_level * 0.10))
+
 	var level     = building["level"]
 	var base      = building["weekly_income"]
 	var per_level = BUILDING_INCOME_PER_LEVEL.get(bname, 0)
@@ -5246,6 +5577,11 @@ func _setup_player_team() -> void:
 	player_team.is_player_team = true
 	player_team.balance = 50000.0
 	player_team.reputation = 15.0
+	## Initialise economy fluctuation
+	_economy_weeks_remaining = randi_range(4, 12)
+	_fuel_trend = 0.0
+	current_fuel_price = 1200.0
+	current_loan_rate = 5.0
 	player_team.weekly_driver_salary = 50.0
 	player_team.weekly_mechanic_salary = 250.0
 	all_teams.append(player_team)
@@ -5613,6 +5949,12 @@ func advance_week() -> void:
 
 	current_week += 1
 
+	## Record weekly snapshot for P32 graphs
+	_record_weekly_history()
+
+	## Update economy state and fuel price fluctuations
+	_update_economy_and_fuel()
+
 	## Apply any pending TP/Strategist championship assignments (queued last week)
 	_apply_pending_staff_assignments()
 
@@ -5918,6 +6260,10 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 					if cnc_bonus > 0.0:
 						lap_time /= (1.0 + cnc_bonus)
 					break
+		else:
+			## AI driver — difficulty AI performance multiplier
+			## ai_performance > 1.0 = AI faster (harder). < 1.0 = AI slower (easier).
+			lap_time *= get_difficulty_mult()["ai_performance"]
 
 		# Lap noise: based on consistency (high = tight laps)
 		# Noise range ±0.3% to ±1.0% of lap time
@@ -5968,6 +6314,9 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 					entry_prize = c.prize_2nd
 				elif standing_position == 3:
 					entry_prize = c.prize_3rd
+				## Apply player economy multiplier to player team prize only
+				if team.id == player_team.id:
+					entry_prize *= get_difficulty_mult()["player_economy"]
 				team.balance += entry_prize
 				break
 		driver_times[i]["prize"] = entry_prize
@@ -6199,7 +6548,7 @@ func _update_staff_stats_after_race(_laps: int, track_id: String = "") -> void:
 func _end_season() -> void:
 	add_log("=== SEASON %d COMPLETE ===" % current_season)
 
-	# Log driver standings top 3
+	# Log driver standings top 3 and award drivers championship
 	var sorted_drivers = active_championship.get_standings_sorted()
 	add_log("DRIVERS CHAMPIONSHIP:")
 	for i in range(min(3, sorted_drivers.size())):
@@ -6207,8 +6556,11 @@ func _end_season() -> void:
 		var driver = all_drivers.get(entry["driver_id"])
 		if driver:
 			add_log("P%d: %s — %d pts" % [i + 1, driver.full_name(), entry["points"]])
+	## Award drivers championship to winner
+	if sorted_drivers.size() > 0:
+		_award_drivers_championship(sorted_drivers[0]["driver_id"], active_championship)
 
-	# Log team standings top 3
+	# Log team standings top 3 and award constructors championship
 	var sorted_teams = active_championship.get_team_standings_sorted()
 	add_log("TEAMS CHAMPIONSHIP:")
 	for i in range(min(3, sorted_teams.size())):
@@ -6219,6 +6571,12 @@ func _end_season() -> void:
 				team_name = team.team_name
 				break
 		add_log("P%d: %s — %d pts" % [i + 1, team_name, entry["points"]])
+	## Award constructors championship to winner
+	if sorted_teams.size() > 0:
+		_award_teams_championship(sorted_teams[0]["team_id"], active_championship)
+
+	## Apply reputation inertia — rep moves toward earned value slowly
+	_apply_reputation_inertia()
 
 	emit_signal("season_ended", current_season)
 	emit_signal("log_updated")
@@ -6545,6 +6903,17 @@ func save_game() -> void:
 		"walked_away_subjects":      walked_away_subjects,
 		"pending_staff_assignments": pending_staff_assignments,
 		"active_approaches":         active_approaches,
+		"reputation_legacy_bonuses": reputation_legacy_bonuses,
+		"history_balance":           history_balance,
+		"history_fuel_price":        history_fuel_price,
+		"history_economy":           history_economy,
+		"history_active_fans":       history_active_fans,
+		"history_merchandise":       history_merchandise,
+		"history_reputation":        history_reputation,
+		"current_loan_rate":         current_loan_rate,
+		"economy_weeks_remaining":   _economy_weeks_remaining,
+		"fuel_trend":                _fuel_trend,
+		"consecutive_win_counts":    consecutive_win_counts,
 	}
 
 	# Save all teams
@@ -6653,6 +7022,17 @@ func load_game(path: String = "user://save_game.json") -> void:
 	if "walked_away_subjects"      in data: walked_away_subjects      = data["walked_away_subjects"]
 	if "pending_staff_assignments" in data: pending_staff_assignments = data["pending_staff_assignments"]
 	if "active_approaches"         in data: active_approaches         = data["active_approaches"]
+	if "reputation_legacy_bonuses" in data: reputation_legacy_bonuses = data["reputation_legacy_bonuses"]
+	if "history_balance"           in data: history_balance           = data["history_balance"]
+	if "history_fuel_price"        in data: history_fuel_price        = data["history_fuel_price"]
+	if "history_economy"           in data: history_economy           = data["history_economy"]
+	if "history_active_fans"       in data: history_active_fans       = data["history_active_fans"]
+	if "history_merchandise"       in data: history_merchandise       = data["history_merchandise"]
+	if "history_reputation"        in data: history_reputation        = data["history_reputation"]
+	if "current_loan_rate"         in data: current_loan_rate         = data["current_loan_rate"]
+	if "economy_weeks_remaining"   in data: _economy_weeks_remaining  = data["economy_weeks_remaining"]
+	if "fuel_trend"                in data: _fuel_trend               = data["fuel_trend"]
+	if "consecutive_win_counts"    in data: consecutive_win_counts    = data["consecutive_win_counts"]
 
 	# Restore championship
 	_setup_championship()

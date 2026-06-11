@@ -1,5 +1,5 @@
 extends Control
-## Version: S18.8 — Pending Activity Open → button only shown when player_turn==true; waiting state shown otherwise.
+## Version: S20.0 — P32: Financial graphs panel with 6 charts built inline in Financial Dept tab.
 
 var _current_tab: String = "overview"
 var _tab_buttons: Dictionary = {}
@@ -242,12 +242,14 @@ func _build_finance_strip() -> PanelContainer:
 	var runway = GameState.get_runway_weeks()
 
 	for row_data in [
-		["Balance",    "CR %s" % _fmt(int(team.balance)),
+		["Balance",      "CR %s" % _fmt(int(team.balance)),
 			Color(0.4, 0.9, 0.4) if team.balance >= 0 else Color(1.0, 0.35, 0.35)],
-		["Wkly Cost",  "CR %s" % _fmt(int(expenses)), Color(1.0, 0.55, 0.35)],
-		["Runway",     "%d wks" % runway if runway < 999 else "Stable",
+		["Wkly Cost",    "CR %s" % _fmt(int(expenses)), Color(1.0, 0.55, 0.35)],
+		["Runway",       "%d wks" % runway if runway < 999 else "Stable",
 			Color(0.4,0.9,0.4) if runway >= 8 else Color(1.0,0.6,0.1) if runway >= 4 else Color(1.0,0.3,0.3)],
-		["Reputation", "%.0f / 100" % team.reputation, Color(0.9, 0.8, 0.3)],
+		["Reputation",   "%.0f / 100" % team.reputation, Color(0.9, 0.8, 0.3)],
+		["Marketability","%.0f / 100" % GameState.get_team_marketability(), Color(0.4, 0.8, 1.0)],
+		["Active Fans",  _fmt_fans(GameState.get_team_active_fans()), Color(0.7, 0.85, 0.6)],
 	]:
 		vbox.add_child(_kv_row(row_data[0], row_data[1], 90, row_data[2]))
 
@@ -262,7 +264,7 @@ func _build_effects_card() -> PanelContainer:
 	var b = GameState.campus_buildings.get("Headquarters", {})
 	var lv = b.get("level", 1)
 	for rd in [
-		["+%d%% Marketability" % lv,         Color(0.6, 0.8, 1.0)],
+		["+%d%% Mktg Bonus" % lv,          Color(0.6, 0.8, 1.0)],
 		["%d Sponsor Slots" % (1 + lv / 2),  Color(0.6, 0.8, 1.0)],
 		["%d TP Slot%s" % [GameState.get_hq_tp_slots(), "s" if GameState.get_hq_tp_slots() != 1 else ""],
 			Color(0.6, 0.8, 1.0)],
@@ -773,6 +775,44 @@ func _build_sponsors_tab(parent: VBoxContainer) -> void:
 
 	parent.add_child(HSeparator.new())
 
+	## ── P32 Financial Graphs ────────────────────────────────────────────────
+	var graphs_lbl = _section_label("FINANCIAL GRAPHS")
+	parent.add_child(graphs_lbl)
+
+	## Graph selector buttons
+	var graph_btn_row = HBoxContainer.new()
+	graph_btn_row.add_theme_constant_override("separation", 6)
+	parent.add_child(graph_btn_row)
+
+	var graph_labels = [
+		["💰 Balance",      "balance"],
+		["⛽ Fuel Price",   "fuel"],
+		["🌍 Economy",      "economy"],
+		["👥 Active Fans",  "fans"],
+		["🛍 Merchandise",  "merch"],
+		["⭐ Reputation",   "reputation"],
+	]
+
+	var graph_container = VBoxContainer.new()
+	graph_container.custom_minimum_size = Vector2(0, 220)
+	parent.add_child(graph_container)
+
+	## Draw first chart by default
+	_draw_graph(graph_container, "balance")
+
+	for gdata in graph_labels:
+		var btn = Button.new()
+		btn.text = gdata[0]
+		btn.custom_minimum_size = Vector2(110, 28)
+		btn.add_theme_font_size_override("font_size", 11)
+		var gkey = gdata[1]
+		btn.pressed.connect(func():
+			for c in graph_container.get_children(): c.queue_free()
+			_draw_graph(graph_container, gkey))
+		graph_btn_row.add_child(btn)
+
+	parent.add_child(HSeparator.new())
+
 	## ── Sponsors ─────────────────────────────────────────────────────────────
 	## Slot bar
 	var slot_row = HBoxContainer.new()
@@ -931,6 +971,8 @@ func _build_fin_indicators() -> PanelContainer:
 		["Max Loan",       "CR %s" % _fmt(int(GameState._calculate_max_loan())),      Color(0.6,0.6,0.6)],
 		["Reputation",     "%.0f / 100" % GameState.player_team.reputation,
 			_fin_stat_col(GameState.player_team.reputation)],
+		["Marketability",  "%.0f / 100" % GameState.get_team_marketability(),         Color(0.4,0.8,1.0)],
+		["Active Fans",    _fmt_fans(GameState.get_team_active_fans()),                Color(0.7,0.85,0.6)],
 		["CEO Wealth",     "CR %s" % _fmt(int(GameState.ceo_accumulated_salary)),     Color(1.0,0.84,0.0)],
 		["Economy",        GameState.global_economy_state,
 			Color(0.4,0.9,0.4) if GameState.global_economy_state == "Boom"
@@ -1779,7 +1821,194 @@ func _skill_col(v: float) -> Color:
 	elif v >= 30: return Color(1.0, 0.6, 0.2)
 	return Color(0.75, 0.4, 0.4)
 
+## ── P32 Graph Drawing ────────────────────────────────────────────────────────
+
+func _draw_graph(container: VBoxContainer, key: String) -> void:
+	## Get data and config for this chart type
+	var history: Array
+	var chart_title: String
+	var line_color: Color
+	var is_categorical := false  ## true for economy (0/1/2 states)
+
+	match key:
+		"balance":
+			history = GameState.history_balance
+			chart_title = "💰 Balance (CR)"
+			line_color = Color(0.3, 0.85, 0.45)
+		"fuel":
+			history = GameState.history_fuel_price
+			chart_title = "⛽ Fuel Price (CR/unit)"
+			line_color = Color(1.0, 0.7, 0.2)
+		"economy":
+			history = GameState.history_economy
+			chart_title = "🌍 Economy State"
+			line_color = Color(0.4, 0.75, 1.0)
+			is_categorical = true
+		"fans":
+			history = GameState.history_active_fans
+			chart_title = "👥 Active Fans"
+			line_color = Color(0.6, 0.9, 0.6)
+		"merch":
+			history = GameState.history_merchandise
+			chart_title = "🛍 Merchandise Income (CR/wk)"
+			line_color = Color(0.9, 0.5, 0.85)
+		"reputation":
+			history = GameState.history_reputation
+			chart_title = "⭐ Reputation (0-100)"
+			line_color = Color(0.95, 0.85, 0.3)
+		_:
+			history = []
+			chart_title = "No Data"
+			line_color = Color.WHITE
+
+	## Title label
+	var title_lbl = Label.new()
+	title_lbl.text = chart_title
+	title_lbl.add_theme_font_size_override("font_size", 13)
+	title_lbl.add_theme_color_override("font_color", line_color)
+	container.add_child(title_lbl)
+
+	if history.is_empty():
+		var empty_lbl = Label.new()
+		empty_lbl.text = "No data yet — advance weeks to populate."
+		empty_lbl.add_theme_font_size_override("font_size", 11)
+		empty_lbl.modulate = Color(0.5, 0.5, 0.5)
+		container.add_child(empty_lbl)
+		return
+
+	## Build chart using a custom Control with _draw()
+	var chart = _make_line_chart(history, line_color, is_categorical)
+	chart.custom_minimum_size = Vector2(0, 180)
+	chart.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	container.add_child(chart)
+
+	## X-axis labels: first and last week label
+	var x_row = HBoxContainer.new()
+	container.add_child(x_row)
+	var first = history[0]
+	var last  = history[history.size() - 1]
+	var lbl_first = Label.new()
+	lbl_first.text = "S%d W%d" % [first["season"], first["week"]]
+	lbl_first.add_theme_font_size_override("font_size", 10)
+	lbl_first.modulate = Color(0.5, 0.5, 0.5)
+	lbl_first.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var lbl_last = Label.new()
+	lbl_last.text = "S%d W%d" % [last["season"], last["week"]]
+	lbl_last.add_theme_font_size_override("font_size", 10)
+	lbl_last.modulate = Color(0.5, 0.5, 0.5)
+	x_row.add_child(lbl_first)
+	x_row.add_child(lbl_last)
+
+## Build a line chart Control node from history data.
+func _make_line_chart(history: Array, line_color: Color, is_categorical: bool) -> Control:
+	var ctrl = Control.new()
+
+	## Extract values
+	var values: Array = []
+	for entry in history:
+		values.append(float(entry["value"]))
+
+	var min_val = values.min() if values.size() > 0 else 0.0
+	var max_val = values.max() if values.size() > 0 else 1.0
+	if is_categorical:
+		min_val = 0.0; max_val = 2.0
+	if abs(max_val - min_val) < 0.001:
+		min_val -= 1.0; max_val += 1.0
+
+	## Store data on the node for _draw()
+	ctrl.set_meta("values",     values)
+	ctrl.set_meta("min_val",    min_val)
+	ctrl.set_meta("max_val",    max_val)
+	ctrl.set_meta("line_color", line_color)
+	ctrl.set_meta("is_cat",     is_categorical)
+
+	ctrl.draw.connect(func():
+		var w = ctrl.size.x
+		var h = ctrl.size.y
+		if w < 2 or h < 2: return
+		var pad_l = 8.0; var pad_r = 8.0; var pad_t = 8.0; var pad_b = 8.0
+		var chart_w = w - pad_l - pad_r
+		var chart_h = h - pad_t - pad_b
+		var mn = ctrl.get_meta("min_val")
+		var mx = ctrl.get_meta("max_val")
+		var vals = ctrl.get_meta("values")
+		var col  = ctrl.get_meta("line_color")
+		var cat  = ctrl.get_meta("is_cat")
+		var n = vals.size()
+		if n < 1: return
+
+		## Background
+		ctrl.draw_rect(Rect2(pad_l, pad_t, chart_w, chart_h),
+			Color(0.08, 0.09, 0.12), true)
+
+		## Grid lines (3 horizontal)
+		for gi in range(4):
+			var gy = pad_t + chart_h * float(gi) / 3.0
+			ctrl.draw_line(Vector2(pad_l, gy), Vector2(pad_l + chart_w, gy),
+				Color(0.2, 0.2, 0.25), 1.0)
+
+		## For categorical: colored band zones
+		if cat:
+			var zone_h = chart_h / 3.0
+			ctrl.draw_rect(Rect2(pad_l, pad_t + zone_h * 2, chart_w, zone_h),
+				Color(1.0, 0.3, 0.3, 0.15), true)  ## Recession zone
+			ctrl.draw_rect(Rect2(pad_l, pad_t + zone_h, chart_w, zone_h),
+				Color(0.9, 0.8, 0.3, 0.1), true)   ## Normal zone
+			ctrl.draw_rect(Rect2(pad_l, pad_t, chart_w, zone_h),
+				Color(0.3, 0.85, 0.45, 0.15), true) ## Boom zone
+
+		## Data line
+		var prev_pt = Vector2.ZERO
+		for i in range(n):
+			var t = float(i) / float(max(n - 1, 1))
+			var v_norm = (vals[i] - mn) / (mx - mn)
+			var px = pad_l + t * chart_w
+			var py = pad_t + chart_h - v_norm * chart_h
+			var pt = Vector2(px, py)
+			if i > 0:
+				ctrl.draw_line(prev_pt, pt, col, 1.5)
+			prev_pt = pt
+
+		## Last value dot
+		if n > 0:
+			ctrl.draw_circle(prev_pt, 3.5, col)
+
+		## Y-axis min/max labels
+		var font = ctrl.get_theme_default_font()
+		if font:
+			var lbl_color = Color(0.5, 0.5, 0.5)
+			if cat:
+				ctrl.draw_string(font, Vector2(pad_l + chart_w + 2, pad_t + 10),
+					"Boom",      HORIZONTAL_ALIGNMENT_LEFT, -1, 9, lbl_color)
+				ctrl.draw_string(font, Vector2(pad_l + chart_w + 2, pad_t + chart_h / 2 + 5),
+					"Normal",    HORIZONTAL_ALIGNMENT_LEFT, -1, 9, lbl_color)
+				ctrl.draw_string(font, Vector2(pad_l + chart_w + 2, pad_t + chart_h - 2),
+					"Recession", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, lbl_color)
+			else:
+				var max_str = _fmt_graph_val(mx)
+				var min_str = _fmt_graph_val(mn)
+				ctrl.draw_string(font, Vector2(2, pad_t + 10),
+					max_str, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, lbl_color)
+				ctrl.draw_string(font, Vector2(2, pad_t + chart_h),
+					min_str, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, lbl_color)
+	)
+
+	return ctrl
+
+func _fmt_graph_val(v: float) -> String:
+	var av = abs(v)
+	if av >= 1_000_000_000: return "%.1fB" % (v / 1_000_000_000.0)
+	if av >= 1_000_000:     return "%.1fM" % (v / 1_000_000.0)
+	if av >= 1_000:         return "%.0fK" % (v / 1_000.0)
+	return "%.0f" % v
+
 func _fmt(n: int) -> String:
 	if n >= 1000000: return "%.2fM" % (n / 1000000.0)
 	if n >= 1000:    return "%dK" % (n / 1000)
 	return str(n)
+
+func _fmt_fans(n: float) -> String:
+	if n >= 1_000_000_000: return "%.2fB" % (n / 1_000_000_000.0)
+	if n >= 1_000_000:     return "%.1fM" % (n / 1_000_000.0)
+	if n >= 1_000:         return "%.1fK" % (n / 1_000.0)
+	return "%d" % int(n)

@@ -1,11 +1,12 @@
 extends Control
-## Version: S18.6 — Renegotiate uses make_renegotiation_approach + open_approach for full lock support.
+## Version: S19.9 — Full attribute chips on all staff rows (no View Card needed for overview).
 
 # ── State ─────────────────────────────────────────────────────────────────────
 var current_tab: String = "my_staff"
 var sort_field: String = "skill"
 var sort_ascending: bool = false
 var role_filter: String = "All"
+var interested_only: bool = false  ## P33: show only staff likely interested in joining
 
 const ROLE_ICONS = {
 	"Race Mechanic":   "🔧",
@@ -31,6 +32,7 @@ var tab_all_btn: Button
 var list_container: VBoxContainer
 var filter_btns: Dictionary = {}
 var card_overlay: PanelContainer = null
+var sort_row_node: HBoxContainer = null  ## ref for dynamic sort bar rebuild
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -102,33 +104,18 @@ func _build_ui() -> void:
 		var _r = role
 		btn.pressed.connect(func():
 			role_filter = _r
+			sort_field = "skill" if _r != "All" else "age"  ## All has no Skill sort
+			_rebuild_sort_bar()
 			_refresh_list()
 		)
 		filter_row.add_child(btn)
 		filter_btns[role] = btn
 
-	# Sort bar
-	var sort_row = HBoxContainer.new()
-	sort_row.add_theme_constant_override("separation", 6)
-	layout.add_child(sort_row)
-	var sort_lbl = Label.new()
-	sort_lbl.text = "Sort:"
-	sort_lbl.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
-	sort_row.add_child(sort_lbl)
-	for field in [["Skill", "skill"], ["Age", "age"], ["Salary", "salary"]]:
-		var btn = Button.new()
-		btn.text = field[0]
-		btn.custom_minimum_size = Vector2(65, 28)
-		var f = field[1]
-		btn.pressed.connect(func():
-			if sort_field == f:
-				sort_ascending = !sort_ascending
-			else:
-				sort_field = f
-				sort_ascending = false
-			_refresh_list()
-		)
-		sort_row.add_child(btn)
+	# Sort bar — dynamic, rebuilt when role filter changes
+	sort_row_node = HBoxContainer.new()
+	sort_row_node.add_theme_constant_override("separation", 4)
+	layout.add_child(sort_row_node)
+	_rebuild_sort_bar()
 
 	# Scroll + list
 	var scroll = ScrollContainer.new()
@@ -140,6 +127,76 @@ func _build_ui() -> void:
 	scroll.add_child(list_container)
 
 	_show_tab("my_staff")
+
+## Rebuild sort bar with fields relevant to the current role_filter
+func _rebuild_sort_bar() -> void:
+	if sort_row_node == null: return
+	for c in sort_row_node.get_children(): c.free()
+
+	var sort_lbl = Label.new()
+	sort_lbl.text = "Sort:"
+	sort_lbl.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+	sort_row_node.add_child(sort_lbl)
+
+	## Fields per role
+	var fields: Array
+	match role_filter:
+		"Team Principal":
+			fields = [["Strategy","strategy"],["Practice","practice"],["Qualifying","qualifying"],
+				["Race Pace","race_pace"],["Pit Mgmt","pit_mgmt"],["PR","pr"],["Rep","reputation"],
+				["Age","age"],["Salary","salary"]]
+		"Race Mechanic":
+			fields = [["Car Setup","setup"],["Pit Stops","pit_stops"],["Car Know","car_know"],
+				["Track Know","track_know"],["Age","age"],["Salary","salary"]]
+		"Pit Crew":
+			fields = [["Pit Speed","pit_stop"],["Repair","repair"],["Teamwork","teamwork"],
+				["Fitness","fitness"],["Age","age"],["Salary","salary"]]
+		"CFO":
+			fields = [["Fin Mgmt","finmgmt"],["Negotiation","negotiation"],["Sales","sales"],
+				["Resource","resource"],["Age","age"],["Salary","salary"]]
+		"Designer":
+			fields = [["Aero","aero"],["Engine","engine"],["Chassis","chassis"],
+				["Gearbox","gearbox"],["Suspension","suspension"],["Brakes","brakes"],
+				["Parts Know","parts_know"],["Reliability","reliability"],
+				["Age","age"],["Salary","salary"]]
+		"Race Strategist":
+			fields = [["Strategy","strategy"],["Race Pace","race_pace"],["Practice","practice"],
+				["Quali Timing","quali_timing"],["Track Know","track_know"],
+				["Age","age"],["Salary","salary"]]
+		_: ## All
+			fields = [["Age","age"],["Salary","salary"],["Rep","reputation"]]
+
+	for field in fields:
+		var btn = Button.new()
+		btn.text = field[0]
+		btn.custom_minimum_size = Vector2(0, 26)
+		btn.add_theme_font_size_override("font_size", 11)
+		var f = field[1]
+		btn.pressed.connect(func():
+			if sort_field == f:
+				sort_ascending = !sort_ascending
+			else:
+				sort_field = f
+				sort_ascending = false
+			_refresh_list())
+		sort_row_node.add_child(btn)
+
+	## Spacer
+	var sp = Control.new(); sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sort_row_node.add_child(sp)
+
+	## Interested Only toggle
+	var btn_interested = Button.new()
+	btn_interested.text = "⭐ Interested Only"
+	btn_interested.custom_minimum_size = Vector2(140, 26)
+	btn_interested.add_theme_font_size_override("font_size", 11)
+	btn_interested.toggle_mode = true
+	btn_interested.button_pressed = interested_only
+	btn_interested.tooltip_text = "Show only staff likely interested in joining your team."
+	btn_interested.toggled.connect(func(on: bool):
+		interested_only = on
+		_refresh_list())
+	sort_row_node.add_child(btn_interested)
 
 # ── Tab switching ─────────────────────────────────────────────────────────────
 
@@ -190,6 +247,69 @@ func _build_my_staff_list() -> void:
 
 		for staff in by_role[role]:
 			list_container.add_child(_make_my_staff_row(staff))
+
+## Returns array of [label, value] for all visible attributes of a staff member by role.
+func _get_role_stats(staff) -> Array:
+	match staff.role:
+		"Team Principal":
+			return [
+				["Strat", staff.race_strategy if "race_strategy" in staff else 0.0],
+				["Practice", staff.practice_management if "practice_management" in staff else 0.0],
+				["Quali", staff.qualifying_management if "qualifying_management" in staff else 0.0],
+				["Race", staff.race_pace_reading if "race_pace_reading" in staff else 0.0],
+				["Pit", staff.pit_stop_management if "pit_stop_management" in staff else 0.0],
+				["PR", staff.pr_skill if "pr_skill" in staff else 0.0],
+				["Rep", staff.reputation if "reputation" in staff else 0.0],
+			]
+		"Race Mechanic":
+			return [
+				["Setup", staff.car_setup if "car_setup" in staff else 0.0],
+				["Pit Stops", staff.pit_stops if "pit_stops" in staff else 0.0],
+				["Car Know", staff.car_knowledge if "car_knowledge" in staff else 0.0],
+				["Rep", staff.reputation if "reputation" in staff else 0.0],
+			]
+		"Pit Crew":
+			return [
+				["Pit Speed", staff.pit_stop_speed if "pit_stop_speed" in staff else 0.0],
+				["Repair", staff.repair_skill if "repair_skill" in staff else 0.0],
+				["Teamwork", staff.teamwork if "teamwork" in staff else 0.0],
+				["Fitness", staff.fitness if "fitness" in staff else 0.0],
+			]
+		"CFO":
+			return [
+				["Fin Mgmt", staff.financial_management if "financial_management" in staff else 0.0],
+				["Negot", staff.sponsor_negotiation if "sponsor_negotiation" in staff else 0.0],
+				["Sales", staff.sales_skill if "sales_skill" in staff else 0.0],
+				["Resource", staff.resource_management if "resource_management" in staff else 0.0],
+				["Rep", staff.reputation if "reputation" in staff else 0.0],
+			]
+		"Designer":
+			return [
+				["Aero", staff.aero if "aero" in staff else 0.0],
+				["Eng", staff.engine if "engine" in staff else 0.0],
+				["Chassis", staff.chassis if "chassis" in staff else 0.0],
+				["Gearbox", staff.gearbox if "gearbox" in staff else 0.0],
+				["Susp", staff.suspension if "suspension" in staff else 0.0],
+				["Brakes", staff.brakes if "brakes" in staff else 0.0],
+				["P.Know", staff.parts_knowledge if "parts_knowledge" in staff else 0.0],
+			]
+		"Race Strategist":
+			return [
+				["Strat", staff.race_strategy if "race_strategy" in staff else 0.0],
+				["Race", staff.race_pace_reading if "race_pace_reading" in staff else 0.0],
+				["Practice", staff.practice_management if "practice_management" in staff else 0.0],
+				["Q.Timing", staff.qualifying_timing if "qualifying_timing" in staff else 0.0],
+				["Rep", staff.reputation if "reputation" in staff else 0.0],
+			]
+	return []
+
+## Adds a coloured stat chip label to a container.
+func _add_stat_chip(container: HBoxContainer, label: String, value: float) -> void:
+	var lbl = Label.new()
+	lbl.text = "%s %.0f" % [label, value]
+	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.add_theme_color_override("font_color", _skill_color(value))
+	container.add_child(lbl)
 
 func _make_my_staff_row(staff) -> PanelContainer:
 	var card = _make_card_panel(true)
@@ -280,6 +400,15 @@ func _make_my_staff_row(staff) -> PanelContainer:
 	release_btn.pressed.connect(func(): _confirm_release_staff(s_id))
 	btn_row.add_child(release_btn)
 
+	## Row 2 — role-specific stat chips
+	var stats = _get_role_stats(staff)
+	if not stats.is_empty():
+		var row2 = HBoxContainer.new()
+		row2.add_theme_constant_override("separation", 12)
+		vbox.add_child(row2)
+		for stat in stats:
+			_add_stat_chip(row2, stat[0], stat[1])
+
 	return card
 
 # ── Available Staff ───────────────────────────────────────────────────────────
@@ -289,8 +418,28 @@ func _build_available_staff_list() -> void:
 	var all_non_player: Array = []
 	for sid in GameState.all_staff:
 		var s = GameState.all_staff[sid]
-		if s.contract_team != GameState.player_team.id:
-			all_non_player.append(s)
+		if s.contract_team == GameState.player_team.id:
+			continue
+		## Interested Only filter
+		if interested_only:
+			var tp_rep = 0.0
+			for champ in GameState.active_championships:
+				var tp = GameState._get_tp_for_championship(champ.id)
+				if tp: tp_rep = max(tp_rep, tp.reputation); break
+			## Free agents have no team loyalty — use 0 as their rep baseline
+			var their_rep = 0.0 if s.contract_team == "" else 50.0
+			for t in GameState.all_teams:
+				if t.id == s.contract_team: their_rep = t.reputation; break
+			var rep_gap = GameState.player_team.reputation - their_rep
+			var base_chance = s.talent * 0.5 + 50.0 \
+				+ clamp(rep_gap * 0.5, -25.0, 25.0) + tp_rep * 0.3
+			## Championship tier penalty for high-talent staff
+			var champ_tier = GameState._get_active_championship_tier()
+			var tier_penalty = max(0.0, s.talent - 50.0) * (4 - champ_tier) * 0.8
+			var chance = base_chance - tier_penalty
+			if chance < 60.0:
+				continue
+		all_non_player.append(s)
 	var filtered = _filter_and_sort(all_non_player)
 
 	if filtered.is_empty():
@@ -356,6 +505,15 @@ func _make_available_staff_row(staff) -> PanelContainer:
 	btn_row.add_child(view_btn)
 
 	_add_approach_button(btn_row, s_id, "staff", staff)
+
+	## Row 2 — role-specific stat chips
+	var stats = _get_role_stats(staff)
+	if not stats.is_empty():
+		var row2 = HBoxContainer.new()
+		row2.add_theme_constant_override("separation", 12)
+		vbox.add_child(row2)
+		for stat in stats:
+			_add_stat_chip(row2, stat[0], stat[1])
 
 	return card
 
@@ -1014,9 +1172,42 @@ func _filter_and_sort(staff_list: Array) -> Array:
 
 func _sort_val(staff) -> float:
 	match sort_field:
-		"age":    return float(staff.age)
-		"salary": return staff.weekly_salary
-		_:        return staff.get_primary_skill()
+		"age":         return float(staff.age)
+		"salary":      return staff.weekly_salary
+		"reputation":  return staff.reputation if "reputation" in staff else 50.0
+		## Team Principal / Strategist
+		"strategy":    return staff.race_strategy if "race_strategy" in staff else 0.0
+		"practice":    return staff.practice_management if "practice_management" in staff else 0.0
+		"qualifying":  return staff.qualifying_management if "qualifying_management" in staff else 0.0
+		"race_pace":   return staff.race_pace_reading if "race_pace_reading" in staff else 0.0
+		"pit_mgmt":    return staff.pit_stop_management if "pit_stop_management" in staff else 0.0
+		"pr":          return staff.pr_skill if "pr_skill" in staff else 0.0
+		"quali_timing":return staff.qualifying_timing if "qualifying_timing" in staff else 0.0
+		## Race Mechanic
+		"setup":       return staff.car_setup if "car_setup" in staff else 0.0
+		"pit_stops":   return staff.pit_stops if "pit_stops" in staff else 0.0
+		"car_know":    return staff.car_knowledge if "car_knowledge" in staff else 0.0
+		"track_know":  return staff.track_knowledge if "track_knowledge" in staff else 0.0
+		## Pit Crew
+		"pit_stop":    return staff.pit_stop_speed if "pit_stop_speed" in staff else 0.0
+		"repair":      return staff.repair_skill if "repair_skill" in staff else 0.0
+		"teamwork":    return staff.teamwork if "teamwork" in staff else 0.0
+		"fitness":     return staff.fitness if "fitness" in staff else 0.0
+		## CFO
+		"finmgmt":     return staff.financial_management if "financial_management" in staff else 0.0
+		"negotiation": return staff.sponsor_negotiation if "sponsor_negotiation" in staff else 0.0
+		"sales":       return staff.sales_skill if "sales_skill" in staff else 0.0
+		"resource":    return staff.resource_management if "resource_management" in staff else 0.0
+		## Designer
+		"aero":        return staff.aero if "aero" in staff else 0.0
+		"engine":      return staff.engine if "engine" in staff else 0.0
+		"chassis":     return staff.chassis if "chassis" in staff else 0.0
+		"gearbox":     return staff.gearbox if "gearbox" in staff else 0.0
+		"suspension":  return staff.suspension if "suspension" in staff else 0.0
+		"brakes":      return staff.brakes if "brakes" in staff else 0.0
+		"parts_know":  return staff.parts_knowledge if "parts_knowledge" in staff else 0.0
+		"reliability": return staff.reliability if "reliability" in staff else 0.0
+		_:             return staff.get_primary_skill()
 
 func _get_staff_attrs(staff) -> Array:
 	match staff.role:

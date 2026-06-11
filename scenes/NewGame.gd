@@ -173,7 +173,7 @@ func _build_title() -> void:
 	center.add_child(btn_quit)
 
 	var lbl_ver = Label.new()
-	lbl_ver.text = "v0.15  ·  Godot 4.6.2"
+	lbl_ver.text = "v0.18  ·  Godot 4.6.2"
 	lbl_ver.add_theme_font_size_override("font_size", 11)
 	lbl_ver.modulate = Color(0.3, 0.3, 0.3)
 	lbl_ver.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

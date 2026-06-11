@@ -1,3 +1,4 @@
+## Version: S19.9 — Added drivers_champion_history and teams_champion_history for competition_factor.
 class_name Championship
 extends Resource
 
@@ -81,6 +82,12 @@ extends Resource
 # Results per round
 @export var results: Dictionary = {}
 
+## Winner history — last N seasons for competition_factor calculation
+## Each entry: {"season": int, "driver_id": String, "driver_name": String}
+@export var drivers_champion_history: Array = []
+## Each entry: {"season": int, "team_id": String, "team_name": String}
+@export var teams_champion_history: Array = []
+
 @export var current_round: int = 0
 @export var season: int = 1
 
@@ -126,3 +133,17 @@ func reset_for_new_season() -> void:
 	results = {}
 	current_round = 0
 	season += 1
+
+## Competition factor: how exciting is this championship?
+## Based on unique drivers champion in last 3 seasons.
+## 1 unique winner (dominance) → 0.82. 2 → 1.00. 3+ → 1.18.
+func get_competition_factor() -> float:
+	if drivers_champion_history.is_empty(): return 1.0
+	var last_3 = drivers_champion_history.slice(max(0, drivers_champion_history.size() - 3))
+	var unique_winners = {}
+	for entry in last_3:
+		unique_winners[entry.get("driver_id", "")] = true
+	match unique_winners.size():
+		1: return 0.82
+		2: return 1.00
+		_: return 1.18

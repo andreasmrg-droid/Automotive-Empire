@@ -1165,18 +1165,14 @@ func _show_menu_popup() -> void:
 	if menu_popup != null and is_instance_valid(menu_popup):
 		menu_popup.queue_free()
 
-	## Dim overlay
+	## Dim overlay — added before popup so it's behind it
 	var dim = ColorRect.new()
 	dim.color = Color(0, 0, 0, 0.65)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
-	dim.gui_input.connect(func(event):
-		if event is InputEventMouseButton and event.pressed:
-			menu_popup.queue_free()
-			menu_popup = null)
 	add_child(dim)
 
-	## Centred card
+	## Centred card — assigned BEFORE connecting dim signal so lambda is never null
 	menu_popup = PanelContainer.new()
 	menu_popup.custom_minimum_size = Vector2(340, 0)
 	## Position: horizontally left of centre, vertically upper quarter
@@ -1199,6 +1195,13 @@ func _show_menu_popup() -> void:
 	style.content_margin_top = 18; style.content_margin_bottom = 18
 	menu_popup.add_theme_stylebox_override("panel", style)
 	add_child(menu_popup)
+
+	## Connect dim AFTER menu_popup is in scene so lambda never captures null
+	dim.gui_input.connect(func(event):
+		if event is InputEventMouseButton and event.pressed:
+			if is_instance_valid(menu_popup): menu_popup.queue_free()
+			menu_popup = null
+			if is_instance_valid(dim): dim.queue_free())
 
 	var vbox = VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 10)

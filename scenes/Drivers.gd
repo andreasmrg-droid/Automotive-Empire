@@ -1,5 +1,5 @@
+## Version: S19.9 — Renamed Marketability → Reputation in View Card.
 extends Control
-## Version: S18.3 — Popup opens immediately after successful approach; TDL routing added.
 
 # ── State ─────────────────────────────────────────────────────────────────────
 var current_tab: String = "my_drivers"
@@ -7,6 +7,7 @@ var sort_field: String = "overall"
 var sort_ascending: bool = false
 var role_filter: String = "All"
 var free_agents_only: bool = false
+var interested_only: bool = false  ## P33: show only drivers likely interested in joining
 
 # ── Node references (built in code) ──────────────────────────────────────────
 var tab_my_btn: Button
@@ -83,7 +84,7 @@ func _build_ui() -> void:
 
 	# ── Sort/filter bar ───────────────────────────────────────
 	sort_bar = HBoxContainer.new()
-	sort_bar.add_theme_constant_override("separation", 6)
+	sort_bar.add_theme_constant_override("separation", 4)
 	layout.add_child(sort_bar)
 
 	var sort_lbl = Label.new()
@@ -91,10 +92,15 @@ func _build_ui() -> void:
 	sort_lbl.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 	sort_bar.add_child(sort_lbl)
 
-	for field in [["Overall", "overall"], ["Pace", "pace"], ["Age", "age"], ["Salary", "salary"]]:
+	for field in [
+		["Ovr", "overall"], ["Pace", "pace"], ["Wet", "wet"],
+		["Focus", "focus"], ["Craft", "craft"], ["Cons", "consistency"],
+		["Fit", "fitness"], ["Age", "age"], ["Salary", "salary"]
+	]:
 		var btn = Button.new()
 		btn.text = field[0]
-		btn.custom_minimum_size = Vector2(75, 28)
+		btn.custom_minimum_size = Vector2(52, 26)
+		btn.add_theme_font_size_override("font_size", 11)
 		var f = field[1]
 		btn.pressed.connect(func():
 			if sort_field == f:
@@ -105,6 +111,23 @@ func _build_ui() -> void:
 			_refresh_list()
 		)
 		sort_bar.add_child(btn)
+
+	## Spacer
+	var sp = Control.new(); sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sort_bar.add_child(sp)
+
+	## Interested Only toggle — only relevant on All Drivers tab
+	var btn_interested = Button.new()
+	btn_interested.text = "⭐ Interested Only"
+	btn_interested.custom_minimum_size = Vector2(140, 26)
+	btn_interested.add_theme_font_size_override("font_size", 11)
+	btn_interested.toggle_mode = true
+	btn_interested.button_pressed = interested_only
+	btn_interested.tooltip_text = "Show only drivers likely to be interested in joining your team."
+	btn_interested.toggled.connect(func(on: bool):
+		interested_only = on
+		_refresh_list())
+	sort_bar.add_child(btn_interested)
 
 	# ── Scroll + list ─────────────────────────────────────────
 	scroll = ScrollContainer.new()
@@ -207,7 +230,7 @@ func _make_my_driver_row(driver) -> PanelContainer:
 
 	for stat in [["Pace", driver.pace], ["Wet", driver.wet], ["Focus", driver.focus],
 			["Craft", driver.race_craft], ["Cons", driver.consistency],
-			["Fit", driver.fitness], ["Mktg", driver.marketability]]:
+			["Fit", driver.fitness]]:
 		_add_stat_chip(row2, stat[0], stat[1])
 
 	# Row 3 — action buttons
@@ -233,12 +256,11 @@ func _make_my_driver_row(driver) -> PanelContainer:
 	renew_btn.text = "📋 Renegotiate"
 	renew_btn.custom_minimum_size = Vector2(140, 28)
 	renew_btn.pressed.connect(func():
-		var neg = GameState.generate_driver_opening_offer(d_id)
-		if neg.is_empty(): return
-		GameState.start_negotiation(neg)
+		var ap = GameState.make_renegotiation_approach(d_id, "driver")
+		if ap.is_empty(): return
 		var panel = preload("res://scenes/ContractNegotiation.tscn").instantiate()
 		get_tree().current_scene.add_child(panel)
-		panel.open(GameState.active_negotiation)
+		panel.open_approach(ap)
 		panel.closed.connect(func(): _refresh_list()))
 	btn_row.add_child(renew_btn)
 
@@ -256,8 +278,32 @@ func _get_sorted_all_drivers() -> Array:
 	var drivers = []
 	for driver_id in GameState.all_drivers:
 		var driver = GameState.all_drivers[driver_id]
+		## Skip player's own drivers
+		if driver.contract_team == GameState.player_team.id:
+			continue
 		if free_agents_only and driver.contract_team != "":
 			continue
+		## Interested Only filter — estimate using same formula as interest check
+		if interested_only:
+			var tp_rep = 0.0
+			for champ in GameState.active_championships:
+				var tp = GameState._get_tp_for_championship(champ.id)
+				if tp: tp_rep = max(tp_rep, tp.reputation); break
+			## Free agents have no team loyalty — use 0 as their rep baseline
+			var their_rep = 0.0 if driver.contract_team == "" else 50.0
+			for t in GameState.all_teams:
+				if t.id == driver.contract_team: their_rep = t.reputation; break
+			var rep_gap = GameState.player_team.reputation - their_rep
+			## Overall skill as proxy for potential (hidden attribute)
+			var base_chance = driver.get_overall_skill() * 0.5 + 50.0 \
+				+ clamp(rep_gap * 0.5, -25.0, 25.0) + tp_rep * 0.3
+			## Championship tier penalty: elite drivers won't join low-tier championships
+			## tier 1=entry, tier 4=top. Skill 99 in tier 1: -117 penalty → never shown
+			var champ_tier = GameState._get_active_championship_tier()
+			var tier_penalty = max(0.0, driver.get_overall_skill() - 50.0) * (4 - champ_tier) * 0.8
+			var chance = base_chance - tier_penalty
+			if chance < 60.0:
+				continue
 		drivers.append(driver)
 
 	drivers.sort_custom(func(a, b):
@@ -269,10 +315,15 @@ func _get_sorted_all_drivers() -> Array:
 
 func _sort_value(driver) -> float:
 	match sort_field:
-		"pace":    return driver.pace
-		"age":     return float(driver.age)
-		"salary":  return float(_driver_salary(driver))
-		_:         return driver.get_overall_skill()
+		"pace":        return driver.pace
+		"wet":         return driver.wet
+		"focus":       return driver.focus
+		"craft":       return driver.race_craft
+		"consistency": return driver.consistency
+		"fitness":     return driver.fitness
+		"age":         return float(driver.age)
+		"salary":      return float(_driver_salary(driver))
+		_:             return driver.get_overall_skill()
 
 func _driver_salary(driver) -> int:
 	# Estimated weekly salary — base from active championship + skill scaling
@@ -345,7 +396,7 @@ func _make_all_driver_row(driver) -> PanelContainer:
 	vbox.add_child(row2)
 	for stat in [["Pace", driver.pace], ["Wet", driver.wet], ["Focus", driver.focus],
 			["Craft", driver.race_craft], ["Cons", driver.consistency],
-			["Fit", driver.fitness], ["Mktg", driver.marketability]]:
+			["Fit", driver.fitness]]:
 		_add_stat_chip(row2, stat[0], stat[1])
 
 	# Buttons
@@ -471,7 +522,7 @@ func _show_driver_card(driver_id: String) -> void:
 		["⚔ Race Craft", driver.race_craft, driver.get_effective_race_craft()],
 		["🔄 Consistency", driver.consistency, driver.get_effective_consistency()],
 		["💬 Feedback", driver.feedback, -1.0],
-		["📣 Marketability", driver.marketability, -1.0],
+		["⭐ Reputation", driver.marketability, -1.0],
 		["💪 Fitness", driver.fitness, -1.0],
 	]
 	for stat in stats:

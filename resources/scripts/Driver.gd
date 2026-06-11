@@ -1,6 +1,6 @@
+## Version: S19.9 — marketability renamed to reputation in display/logic; property kept as marketability for save compatibility.
 class_name Driver
 extends Resource
-## Version: S16.2 — Added track_knowledge dict keyed by track_id. Grows per event at that track.
 
 # Identity
 @export var id: String = ""
@@ -60,8 +60,13 @@ const ADAPTATION_CEILINGS = {
 @export var race_craft: float = 0.0     # Racecraft: positioning, defending, overtaking
 @export var consistency: float = 0.0   # Technical lap-time repeatability; narrows noise
 @export var feedback: float = 0.0      # Quality of car communication to mechanic
-@export var marketability: float = 0.0 # Public appeal; shown, affected by results
+@export var marketability: float = 0.0 # Driver reputation — public appeal; shown, affected by results
 @export var fitness: float = 100.0     # Physical condition; drops after races
+
+## Alias for clarity in UI code — same property
+var reputation: float:
+	get: return marketability
+	set(v): marketability = v
 
 # ── Hidden stats (never shown in UI) ─────────────────────────────────────────
 @export var potential: float = 0.0     # Growth ceiling — HIDDEN from player
@@ -103,10 +108,10 @@ func fitness_penalty() -> float:
 func get_lap_noise_range() -> float:
 	return 0.8 - (consistency / 100.0) * 0.7
 
-# ── Marketability ─────────────────────────────────────────────────────────────
+# ── Reputation (was: Marketability) ──────────────────────────────────────────
 ## Call after each race with the driver's finishing position and grid size.
-## last_25pct_threshold = ceil(grid_size * 0.75) — positions below this lose marketability.
-func update_marketability_after_race(position: int, grid_size: int, is_dns: bool) -> void:
+## Updates driver reputation based on result.
+func update_reputation_after_race(position: int, grid_size: int, is_dns: bool) -> void:
 	if is_dns:
 		marketability = max(0.0, marketability - 2.0)
 		return
@@ -120,7 +125,10 @@ func update_marketability_after_race(position: int, grid_size: int, is_dns: bool
 		var bottom_25_threshold = int(ceil(grid_size * 0.75))
 		if position > bottom_25_threshold:
 			marketability = max(0.0, marketability - 0.5)
-		# Positions between top half and bottom 25% are neutral — no change
+
+## Legacy alias — kept for any existing call sites
+func update_marketability_after_race(position: int, grid_size: int, is_dns: bool) -> void:
+	update_reputation_after_race(position, grid_size, is_dns)
 
 # ── Adaptation ────────────────────────────────────────────────────────────────
 
