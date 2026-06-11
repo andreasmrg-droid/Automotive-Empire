@@ -1,5 +1,7 @@
 extends Control
-## Version: S19.3 — Close on Round 1 before submitting calls cancel_approach_before_submit.
+## Version: S22.7 — Sponsor negotiation handles "waiting" and "counter" states.
+##                    _show_waiting_for_reply() shown after offer submitted.
+##                    Player must advance week to see counter-offer.
 
 signal closed
 
@@ -473,8 +475,15 @@ func _on_submit() -> void:
 			_show_result("✅ Deal Agreed!", "Contract signed successfully.", Color(0.3, 0.9, 0.4))
 		"rejected":
 			_show_result("❌ No Deal", "They walked away from the negotiation.", Color(0.9, 0.3, 0.3))
+		"no_slot":
+			_show_result("⚠ No Slot Available",
+				"You have no free slots for an immediate signing.\nSign for next season instead.",
+				Color(1.0, 0.6, 0.2))
 		"counter":
-			## They moved — rebuild with updated ask
+			_show_waiting_for_reply()
+		"waiting":
+			_show_waiting_for_reply()
+		_:
 			_neg = GameState.active_negotiation
 			_rebuild()
 
@@ -492,6 +501,38 @@ func _on_walk_away() -> void:
 	GameState.abandon_negotiation()
 	_show_result("Negotiation ended.", "You walked away.", Color(0.6, 0.6, 0.6))
 
+
+func _show_waiting_for_reply() -> void:
+	for c in _content.get_children(): c.queue_free()
+	await get_tree().process_frame
+
+	var lbl = Label.new()
+	lbl.text = "⏳ Offer submitted — waiting for their reply next week."
+	lbl.add_theme_font_size_override("font_size", 14)
+	lbl.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_content.add_child(lbl)
+
+	var lbl_round = Label.new()
+	lbl_round.text = "Round %d of %d · Advance the week to receive their counter-offer." % [
+		_neg.get("round", 1) - 1, _neg.get("max_rounds", 4)]
+	lbl_round.add_theme_font_size_override("font_size", 12)
+	lbl_round.modulate = Color(0.5, 0.5, 0.5)
+	lbl_round.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_content.add_child(lbl_round)
+
+	var btn_close = Button.new()
+	btn_close.text = "Close — Return After Week Advance"
+	btn_close.custom_minimum_size = Vector2(260, 44)
+	btn_close.add_theme_font_size_override("font_size", 14)
+	btn_close.pressed.connect(func():
+		queue_free()
+		emit_signal("closed"))
+	var row = HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_child(btn_close)
+	_content.add_child(row)
 
 func _show_result(title: String, body: String, color: Color) -> void:
 	for c in _content.get_children(): c.queue_free()

@@ -1,8 +1,5 @@
 extends Control
-## Race Results Screen
-## Shows: round/championship header, race results with positions/points/prizes,
-## current championship standings, player car condition, attribute changes.
-## Displayed after every simulated race before returning to MainHub.
+## Version: S22.8 — #12 multi-race: consume_next_race_result queue in Continue button.
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -28,10 +25,18 @@ func _build_ui() -> void:
 
 	var lbl_title = Label.new()
 	var wet_tag = "  🌧 WET" if GameState.last_race_wet else ""
-	lbl_title.text = "🏁 ROUND %d / %d  —  %s%s" % [
+	## For GK championships, add group context
+	var group_tag = ""
+	var last_cid = GameState.last_race_championship_id
+	if last_cid in ["C-001","C-002","C-003","C-004"] and GameState.gk_discipline != null:
+		var n_groups = GameState.gk_discipline.get_group_count(last_cid)
+		if n_groups > 1:
+			group_tag = "  ·  Group 1 of %d" % n_groups
+	lbl_title.text = "🏁 ROUND %d / %d  —  %s%s%s" % [
 		GameState.last_race_round,
 		GameState.last_race_num_races,
 		GameState.last_race_championship,
+		group_tag,
 		wet_tag
 	]
 	lbl_title.add_theme_font_size_override("font_size", 20)
@@ -506,7 +511,11 @@ func _build_car_condition(parent: VBoxContainer) -> void:
 func _on_continue() -> void:
 	GameState.apply_post_race_repairs()
 	GameState.apply_sponsor_race_bonuses()
-	get_tree().change_scene_to_file("res://scenes/MainHub.tscn")
+	## If more races queued this week, show next result screen
+	if GameState.consume_next_race_result():
+		get_tree().reload_current_scene()
+	else:
+		get_tree().change_scene_to_file("res://scenes/MainHub.tscn")
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.keycode == KEY_F12:

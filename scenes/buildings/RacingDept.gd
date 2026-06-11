@@ -1,4 +1,7 @@
 extends Control
+## Version: S23.0 — TP proposals panel: new structured proposals with Accept All, per-item Accept/Skip, priority coloring.
+##                    Accept button navigates to Garage for driver/mechanic needed proposals,
+##                    Logistics for car_needed. TDL dismissal separate from proposal visibility.
 
 # ── Node refs ─────────────────────────────────────────────────────────────────
 var _drivers_container: VBoxContainer
@@ -18,6 +21,17 @@ func _ready() -> void:
 	refresh()
 
 func _build_ui() -> void:
+	## Clear all existing children to prevent overlay on rebuild
+	for c in get_children():
+		c.queue_free()
+	## Reset node refs so they get re-assigned below
+	_drivers_container = null
+	_empty_label = null
+	_lbl_slots = null
+	_popup = null
+	_popup_title = null
+	_popup_list = null
+
 	var margin = MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	margin.add_theme_constant_override("margin_left",   28)
@@ -48,6 +62,13 @@ func _build_ui() -> void:
 	_lbl_slots.add_theme_font_size_override("font_size", 14)
 	_lbl_slots.modulate = Color(0.7, 0.7, 0.7)
 	header.add_child(_lbl_slots)
+
+	var btn_racing_world = Button.new()
+	btn_racing_world.text = Locale.t("rw_btn")
+	btn_racing_world.custom_minimum_size = Vector2(140, 36)
+	btn_racing_world.pressed.connect(func():
+		get_tree().change_scene_to_file("res://scenes/RacingWorld.tscn"))
+	header.add_child(btn_racing_world)
 
 	var btn_back = Button.new()
 	btn_back.text = "← Back"
@@ -113,6 +134,11 @@ func _build_ui() -> void:
 
 	right.add_child(_section_label("CHAMPIONSHIP ENTRY"))
 	right.add_child(_build_champ_panel())
+
+	right.add_child(HSeparator.new())
+
+	right.add_child(_section_label(Locale.t("rw_tp_proposals")))
+	right.add_child(_build_tp_proposals_panel())
 
 	right.add_child(HSeparator.new())
 
@@ -319,12 +345,22 @@ func _build_driver_card(driver) -> PanelContainer:
 		btn_row.add_child(btn_unassign)
 
 	var btn_renew = Button.new()
-	btn_renew.text = "Renew (5 seasons)"
+	btn_renew.text = "📋 Renew Contract"
 	btn_renew.custom_minimum_size = Vector2(140, 28)
 	btn_renew.pressed.connect(func():
-		GameState.renew_driver_contract(d_id, 5)
-		refresh()
-	)
+		## Trigger approach/negotiation for renewal
+		var err = GameState.initiate_approach(d_id, "driver", "immediate")
+		if err != "" and err != "not_interested":
+			GameState.add_notification("High", err)
+		elif err == "":
+			var ap = GameState._get_approach_by_subject(d_id)
+			if not ap.is_empty() and ap["status"] == "negotiating":
+				var neg_panel = preload("res://scenes/ContractNegotiation.tscn").instantiate()
+				get_tree().current_scene.add_child(neg_panel)
+				neg_panel.open_approach(ap)
+				neg_panel.closed.connect(func(): refresh())
+				return
+		refresh())
 	btn_row.add_child(btn_renew)
 
 	var btn_release = Button.new()
@@ -335,6 +371,61 @@ func _build_driver_card(driver) -> PanelContainer:
 	btn_row.add_child(btn_release)
 
 	return panel
+
+# ── TP Proposals panel ────────────────────────────────────────────────────────
+func _build_tp_proposals_panel() -> PanelContainer:
+	var panel = _card_panel()
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
+	panel.add_child(vbox)
+
+	var proposals = GameState._last_tp_proposals
+	if proposals.is_empty() and not GameState.player_team_cars.is_empty():
+		proposals = GameState.generate_tp_assignment_proposals()
+		GameState._last_tp_proposals = proposals
+
+	if proposals.is_empty():
+		var lbl = Label.new()
+		lbl.text = Locale.t("tp_popup_empty")
+		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.modulate = Color(0.4, 0.9, 0.4)
+		vbox.add_child(lbl)
+		return panel
+
+	var assignable = proposals.filter(func(p): return p["type"] in ["assign_driver","assign_mechanic"])
+	var critical   = proposals.filter(func(p): return p.get("priority","") == "critical")
+	var warnings   = proposals.filter(func(p): return p.get("priority","") == "warning")
+
+	## Summary line
+	var lbl_sum = Label.new()
+	lbl_sum.text = "%d assignment%s ready" % [assignable.size(), "s" if assignable.size() != 1 else ""]
+	if critical.size() > 0:
+		lbl_sum.text += "  ·  🚫 %d critical" % critical.size()
+		lbl_sum.add_theme_color_override("font_color", Color(1.0, 0.45, 0.45))
+	elif warnings.size() > 0:
+		lbl_sum.text += "  ·  ⚠ %d warning%s" % [warnings.size(), "s" if warnings.size() != 1 else ""]
+		lbl_sum.add_theme_color_override("font_color", Color(1.0, 0.82, 0.3))
+	else:
+		lbl_sum.add_theme_color_override("font_color", Color(0.4, 0.9, 0.5))
+	lbl_sum.add_theme_font_size_override("font_size", 13)
+	vbox.add_child(lbl_sum)
+
+	## Review button — opens popup
+	var btn_review = Button.new()
+	btn_review.text = Locale.t("tp_popup_open_btn")
+	btn_review.custom_minimum_size = Vector2(0, 36)
+	btn_review.add_theme_font_size_override("font_size", 13)
+	btn_review.modulate = Color(0.5, 0.78, 1.0)
+	btn_review.pressed.connect(func(): _open_tp_popup())
+	vbox.add_child(btn_review)
+
+	return panel
+
+func _open_tp_popup() -> void:
+	var popup = preload("res://scenes/TPProposalsPopup.tscn").instantiate()
+	get_tree().current_scene.add_child(popup)
+	popup.open(GameState._last_tp_proposals)
+	popup.closed.connect(func(): _build_ui())
 
 # ── Championship panel ────────────────────────────────────────────────────────
 func _build_champ_panel() -> PanelContainer:

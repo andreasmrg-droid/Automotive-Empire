@@ -1,4 +1,6 @@
 extends Control
+## Version: S22.8 — #5 Assign popup shows all with current assignment status and reassign.
+##                    so the player can make an informed choice.
 ## Version: S17.2 — Full redesign: championship tabs; car cards with 6 part slots;
 ##                    provider (L0) and CNC parts unified; Change popup (any level from stock);
 ##                    per-part condition bars; Remove returns part to stock/inventory.
@@ -593,41 +595,143 @@ func _open_staff_popup(car_id: String, role: String) -> void:
 	for c in _popup_list.get_children(): c.queue_free()
 
 	var is_driver = role == "DRIVER"
+	## Show ALL team members of this type, not just unassigned
 	var people = GameState.all_drivers.values() if is_driver else \
 		GameState.get_player_staff_by_role("Race Mechanic")
 	var eligible = people.filter(func(p):
-		if is_driver:
-			return p.contract_team == GameState.player_team.id
-		else:
-			return p.contract_team == GameState.player_team.id and p.assigned_car_id == "")
+		return p.contract_team == GameState.player_team.id)
 
 	if eligible.is_empty():
 		var lbl = Label.new()
-		lbl.text = "No eligible %s available." % ("drivers" if is_driver else "mechanics")
+		lbl.text = "No %s on your team." % ("drivers" if is_driver else "mechanics")
 		lbl.modulate = Color(0.5,0.5,0.5)
 		_popup_list.add_child(lbl)
-	else:
-		for p in eligible:
-			var row = HBoxContainer.new()
-			row.add_theme_constant_override("separation", 8)
-			var lbl = Label.new()
-			lbl.text = p.full_name()
-			lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			lbl.add_theme_font_size_override("font_size", 13)
-			row.add_child(lbl)
-			var btn = Button.new()
-			btn.text = "Assign"
-			btn.custom_minimum_size = Vector2(64, 26)
-			var cap_car = car_id; var cap_pid = p.id; var cap_role = role
+		return
+
+	## Sort: unassigned first, then assigned
+	eligible.sort_custom(func(a, b):
+		var a_assigned = _get_assignment_label(a, is_driver) != ""
+		var b_assigned = _get_assignment_label(b, is_driver) != ""
+		return int(a_assigned) < int(b_assigned))
+
+	for p in eligible:
+		var assignment_label = _get_assignment_label(p, is_driver)
+		var is_assigned_here = _is_assigned_to_car(p, car_id, is_driver)
+
+		var card = PanelContainer.new()
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var cstyle = StyleBoxFlat.new()
+		cstyle.bg_color = Color(0.12, 0.16, 0.12) if is_assigned_here else Color(0.11, 0.12, 0.15)
+		cstyle.border_width_left = 2
+		cstyle.border_color = Color(0.3, 0.8, 0.35) if is_assigned_here \
+			else (Color(0.5, 0.5, 0.5) if assignment_label != "" else Color(0.3, 0.55, 0.85))
+		for corner in ["top_left","top_right","bottom_left","bottom_right"]:
+			cstyle.set("corner_radius_%s" % corner, 4)
+		cstyle.content_margin_left = 8; cstyle.content_margin_right = 8
+		cstyle.content_margin_top = 6; cstyle.content_margin_bottom = 6
+		card.add_theme_stylebox_override("panel", cstyle)
+		_popup_list.add_child(card)
+
+		var cvb = VBoxContainer.new()
+		cvb.add_theme_constant_override("separation", 3)
+		card.add_child(cvb)
+
+		## Name row
+		var name_row = HBoxContainer.new()
+		name_row.add_theme_constant_override("separation", 8)
+		cvb.add_child(name_row)
+
+		var lbl_name = Label.new()
+		lbl_name.text = p.full_name()
+		lbl_name.add_theme_font_size_override("font_size", 13)
+		lbl_name.add_theme_color_override("font_color",
+			Color(0.4, 0.95, 0.5) if is_assigned_here else Color(0.9, 0.9, 1.0))
+		lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_row.add_child(lbl_name)
+
+		var lbl_age = Label.new()
+		lbl_age.text = "Age %d" % p.age
+		lbl_age.add_theme_font_size_override("font_size", 11)
+		lbl_age.modulate = Color(0.5, 0.5, 0.5)
+		name_row.add_child(lbl_age)
+
+		## Assignment status badge
+		if assignment_label != "":
+			var lbl_assign = Label.new()
+			lbl_assign.text = "← %s" % assignment_label
+			lbl_assign.add_theme_font_size_override("font_size", 10)
+			lbl_assign.add_theme_color_override("font_color",
+				Color(0.4, 0.9, 0.4) if is_assigned_here else Color(0.6, 0.6, 0.6))
+			name_row.add_child(lbl_assign)
+
+		## Assign/Reassign button
+		var btn = Button.new()
+		btn.custom_minimum_size = Vector2(70, 26)
+		var cap_car = car_id; var cap_pid = p.id; var cap_role = role
+		if is_assigned_here:
+			btn.text = "✅ Assigned"
+			btn.modulate = Color(0.4, 0.8, 0.45)
+			btn.disabled = true
+		else:
+			btn.text = "Reassign" if assignment_label != "" else "Assign"
 			btn.pressed.connect(func():
 				if cap_role == "DRIVER": GameState.assign_driver_to_car(cap_pid, cap_car)
 				else: GameState.assign_staff_to_car(cap_pid, cap_car)
 				_popup.visible = false
 				_show_tab(_selected_tab))
-			row.add_child(btn)
-			_popup_list.add_child(row)
+		name_row.add_child(btn)
+
+		## Stats row
+		var stats_row = HBoxContainer.new()
+		stats_row.add_theme_constant_override("separation", 10)
+		cvb.add_child(stats_row)
+
+		if is_driver:
+			var ovr = int((p.pace + p.consistency + p.focus + p.race_craft + p.fitness) / 5.0)
+			for pair in [["Ovr", ovr], ["Pace", int(p.pace)],
+					["Cons", int(p.consistency)], ["Wet", int(p.wet)], ["Fit", int(p.fitness)]]:
+				_add_stat_chip(stats_row, pair[0], pair[1])
+		else:
+			var setup = int(p.car_setup_skill)  if "car_setup_skill" in p else 50
+			var pit   = int(p.pit_stop_skill)   if "pit_stop_skill"  in p else 50
+			var know  = int(p.car_knowledge)    if "car_knowledge"   in p else 50
+			for pair in [["Setup", setup], ["Pit", pit], ["Know", know]]:
+				_add_stat_chip(stats_row, pair[0], pair[1])
 
 	_popup.visible = true
+
+func _get_assignment_label(person, is_driver: bool) -> String:
+	for car in GameState.player_team_cars:
+		if is_driver:
+			if car.driver_id == person.id:
+				return car.car_name if car.car_name != "" else "Car %d" % car.car_number
+		else:
+			if car.mechanic_id == person.id:
+				return car.car_name if car.car_name != "" else "Car %d" % car.car_number
+	return ""
+
+func _is_assigned_to_car(person, car_id: String, is_driver: bool) -> bool:
+	var car = GameState.get_car_by_id(car_id)
+	if not car: return false
+	return (car.driver_id == person.id) if is_driver else (car.mechanic_id == person.id)
+
+func _add_stat_chip(parent: HBoxContainer, label: String, value: int) -> void:
+	var chip = HBoxContainer.new()
+	chip.add_theme_constant_override("separation", 2)
+	parent.add_child(chip)
+	var ll = Label.new()
+	ll.text = label
+	ll.add_theme_font_size_override("font_size", 10)
+	ll.modulate = Color(0.45, 0.45, 0.45)
+	chip.add_child(ll)
+	var lv = Label.new()
+	lv.text = str(value)
+	lv.add_theme_font_size_override("font_size", 11)
+	lv.add_theme_color_override("font_color",
+		Color(0.4, 0.9, 0.4) if value >= 70
+		else Color(1.0, 0.85, 0.3) if value >= 50
+		else Color(0.9, 0.4, 0.4))
+	chip.add_child(lv)
 
 # ── Navigation ────────────────────────────────────────────────────────────────
 func _on_back() -> void:

@@ -1,5 +1,9 @@
 extends Control
-## Version: S20.0 — P32: Financial graphs panel with 6 charts built inline in Financial Dept tab.
+## Version: S22.8 — #6 Chart title overlap fixed; #7 Take Loan at top; #9 DNS requirements checklist in WRA.
+##                    Active loan cards, Take Loan popup (amount slider, duration, live rate/payment).
+##                    Weekly expense panel now shows real loan repayments sum.
+##                    Economy chart updated: now shows continuous index 0-100 (not categorical 0/1/2).
+##                    Key Indicators shows active loans count.
 
 var _current_tab: String = "overview"
 var _tab_buttons: Dictionary = {}
@@ -764,6 +768,32 @@ func _build_nav_buttons() -> VBoxContainer:
 # ══════════════════════════════════════════════════════════════════════════════
 
 func _build_sponsors_tab(parent: VBoxContainer) -> void:
+	## ── Quick action bar: Loan button prominent at top ───────────────────────
+	var action_bar = HBoxContainer.new()
+	action_bar.add_theme_constant_override("separation", 12)
+	parent.add_child(action_bar)
+
+	var loan_slots = GameState.active_loans.size()
+	var max_slots  = GameState.get_max_loan_slots()
+	var btn_loan = Button.new()
+	btn_loan.text = "🏦  Take Loan  (%d/%d slots)" % [loan_slots, max_slots]
+	btn_loan.custom_minimum_size = Vector2(200, 38)
+	btn_loan.add_theme_font_size_override("font_size", 13)
+	btn_loan.disabled = loan_slots >= max_slots
+	btn_loan.modulate = Color(0.5, 0.8, 1.0)
+	btn_loan.pressed.connect(func(): _show_take_loan_popup())
+	action_bar.add_child(btn_loan)
+
+	var lbl_rate = Label.new()
+	lbl_rate.text = "Current rate: %.1f%%/yr  ·  Economy: %s (%.0f)" % [
+		GameState.current_loan_rate, GameState.global_economy_state, GameState.economy_index]
+	lbl_rate.add_theme_font_size_override("font_size", 11)
+	lbl_rate.modulate = Color(0.55, 0.55, 0.55)
+	lbl_rate.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	action_bar.add_child(lbl_rate)
+
+	parent.add_child(HSeparator.new())
+
 	## ── Top row: Income / Expenses / Indicators ─────────────────────────────
 	var cols = HBoxContainer.new()
 	cols.add_theme_constant_override("separation", 12)
@@ -808,6 +838,7 @@ func _build_sponsors_tab(parent: VBoxContainer) -> void:
 		var gkey = gdata[1]
 		btn.pressed.connect(func():
 			for c in graph_container.get_children(): c.queue_free()
+			await get_tree().process_frame
 			_draw_graph(graph_container, gkey))
 		graph_btn_row.add_child(btn)
 
@@ -819,21 +850,21 @@ func _build_sponsors_tab(parent: VBoxContainer) -> void:
 	slot_row.add_theme_constant_override("separation", 10)
 	parent.add_child(slot_row)
 
-	var max_slots  = GameState.get_hq_sponsor_slots()
-	var used_slots = GameState.active_sponsors.size()
+	var sp_max_slots  = GameState.get_hq_sponsor_slots()
+	var sp_used_slots = GameState.active_sponsors.size()
 	var lbl_slots  = Label.new()
-	lbl_slots.text = "Sponsor Slots:  %d / %d" % [used_slots, max_slots]
+	lbl_slots.text = "Sponsor Slots:  %d / %d" % [sp_used_slots, sp_max_slots]
 	lbl_slots.add_theme_font_size_override("font_size", 14)
 	lbl_slots.add_theme_color_override("font_color",
-		Color(0.4, 0.9, 0.4) if used_slots < max_slots else Color(1.0, 0.55, 0.2))
+		Color(0.4, 0.9, 0.4) if sp_used_slots < sp_max_slots else Color(1.0, 0.55, 0.2))
 	slot_row.add_child(lbl_slots)
 	var bar = HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 3)
 	slot_row.add_child(bar)
-	for i in range(max_slots):
+	for i in range(sp_max_slots):
 		var sq = ColorRect.new()
 		sq.custom_minimum_size = Vector2(18, 18)
-		sq.color = Color(0.3, 0.75, 0.3) if i < used_slots else Color(0.25, 0.28, 0.35)
+		sq.color = Color(0.3, 0.75, 0.3) if i < sp_used_slots else Color(0.25, 0.28, 0.35)
 		bar.add_child(sq)
 
 	parent.add_child(HSeparator.new())
@@ -884,6 +915,12 @@ func _build_sponsors_tab(parent: VBoxContainer) -> void:
 	## CFO Proposals
 	parent.add_child(_section_label("CFO PROPOSALS"))
 	parent.add_child(_build_cfo_proposals_panel())
+
+	parent.add_child(HSeparator.new())
+
+	## ── P44 Loans ─────────────────────────────────────────────────────────────
+	parent.add_child(_section_label("LOANS"))
+	parent.add_child(_build_loans_panel())
 
 
 func _build_fin_income() -> PanelContainer:
@@ -942,6 +979,9 @@ func _build_fin_expenses() -> PanelContainer:
 	var rnd_costs = 0
 	for task in GameState.active_rnd_tasks:
 		rnd_costs += int(task.get("cr",0) / max(1, task.get("weeks",1)))
+	var loan_payments = 0
+	for ln in GameState.active_loans:
+		loan_payments += int(ln.get("weekly_payment", 0))
 	var total = 0
 	for item in [
 		["Driver Salaries",     driver_sal],
@@ -949,7 +989,7 @@ func _build_fin_expenses() -> PanelContainer:
 		["Maintenance",         maintenance],
 		["R&D Projects",        rnd_costs],
 		["Fuel (est.)",         GameState.player_team_cars.size() * 200],
-		["Loan Interest",       int(GameState.current_loan * 0.002)],
+		["Loan Repayments",     loan_payments],
 	]:
 		vbox.add_child(_fin_expense_row(item[0], item[1]))
 		total += item[1]
@@ -974,11 +1014,14 @@ func _build_fin_indicators() -> PanelContainer:
 		["Marketability",  "%.0f / 100" % GameState.get_team_marketability(),         Color(0.4,0.8,1.0)],
 		["Active Fans",    _fmt_fans(GameState.get_team_active_fans()),                Color(0.7,0.85,0.6)],
 		["CEO Wealth",     "CR %s" % _fmt(int(GameState.ceo_accumulated_salary)),     Color(1.0,0.84,0.0)],
-		["Economy",        GameState.global_economy_state,
+		["Economy",        "%.0f / 100 (%s)" % [GameState.economy_index, GameState.global_economy_state],
 			Color(0.4,0.9,0.4) if GameState.global_economy_state == "Boom"
 			else Color(1.0,0.6,0.1) if GameState.global_economy_state == "Normal"
 			else Color(1.0,0.3,0.3)],
 		["Fuel Price",     "CR %s/unit" % _fmt(int(GameState.current_fuel_price)),    Color(0.7,0.7,0.7)],
+		["Active Loans",   "%d / %d" % [GameState.active_loans.size(), GameState.get_max_loan_slots()],
+			Color(1.0,0.4,0.4) if GameState.active_loans.size() >= GameState.get_max_loan_slots()
+			else Color(0.6,0.9,0.6)],
 		["Runway",         "%d weeks" % runway if runway < 52 else "Stable",
 			Color(0.4,0.9,0.4) if runway >= 8 else Color(1.0,0.6,0.1) if runway >= 4 else Color(1.0,0.3,0.3)],
 	]:
@@ -1049,6 +1092,319 @@ func _gen_cfo_proposals() -> Array:
 	if GameState.active_sponsors.is_empty() and not GameState.cfo_search_active:
 		out.append({"text":"📋 No active sponsors. Start a search.", "color":Color(0.7,0.7,0.7)})
 	return out
+
+
+## ── P44 Loan Panel ───────────────────────────────────────────────────────────
+
+func _build_loans_panel() -> VBoxContainer:
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
+
+	## Summary row: tier info + rate + Take Loan button
+	var hdr = HBoxContainer.new()
+	hdr.add_theme_constant_override("separation", 12)
+	vbox.add_child(hdr)
+
+	var max_tier   = GameState.get_loan_tier()
+	var cfo        = GameState.get_cfo()
+	var eff_tier   = max_tier if cfo else 1
+	var max_amount = GameState.get_max_loan_amount(eff_tier)
+	var rate       = GameState.get_loan_rate()
+	var slots_used = GameState.active_loans.size()
+	var slots_max  = GameState.get_max_loan_slots()
+
+	var lbl_info = Label.new()
+	lbl_info.text = "Tier %d  ·  Max CR %s  ·  Rate %.1f%%/yr  ·  Slots %d/%d" % [
+		eff_tier, _fmt(int(max_amount)), rate, slots_used, slots_max]
+	lbl_info.add_theme_font_size_override("font_size", 12)
+	lbl_info.modulate = Color(0.65, 0.65, 0.65)
+	lbl_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hdr.add_child(lbl_info)
+
+	if cfo == null:
+		var lbl_nocfo = Label.new()
+		lbl_nocfo.text = "⚠ No CFO — capped at Tier 1, +1.5% rate"
+		lbl_nocfo.add_theme_font_size_override("font_size", 11)
+		lbl_nocfo.add_theme_color_override("font_color", Color(1.0, 0.6, 0.2))
+		vbox.add_child(lbl_nocfo)
+
+	var btn_take = Button.new()
+	btn_take.text = "🏦  Take Loan"
+	btn_take.custom_minimum_size = Vector2(120, 32)
+	btn_take.disabled = (slots_used >= slots_max)
+	btn_take.pressed.connect(func(): _show_take_loan_popup())
+	hdr.add_child(btn_take)
+
+	## Active loan cards
+	if GameState.active_loans.is_empty():
+		var lbl_empty = Label.new()
+		lbl_empty.text = "No active loans."
+		lbl_empty.add_theme_font_size_override("font_size", 12)
+		lbl_empty.modulate = Color(0.45, 0.45, 0.45)
+		vbox.add_child(lbl_empty)
+	else:
+		for loan in GameState.active_loans:
+			vbox.add_child(_build_loan_card(loan))
+
+	return vbox
+
+
+func _build_loan_card(loan: Dictionary) -> PanelContainer:
+	var panel = _card(Color(0.09, 0.11, 0.14))
+	var style = panel.get_theme_stylebox("panel").duplicate()
+	style.border_width_left = 3
+	style.border_color = Color(0.4, 0.6, 1.0)
+	panel.add_theme_stylebox_override("panel", style)
+
+	var vb = VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	panel.add_child(vb)
+
+	## Top row: amount / rate / seasons
+	var top = HBoxContainer.new()
+	top.add_theme_constant_override("separation", 10)
+	vb.add_child(top)
+
+	var lbl_amount = Label.new()
+	lbl_amount.text = "Loan #%d  ·  CR %s" % [loan.get("id", 0), _fmt(int(loan.get("amount_original", 0)))]
+	lbl_amount.add_theme_font_size_override("font_size", 13)
+	lbl_amount.add_theme_color_override("font_color", Color(0.5, 0.78, 1.0))
+	lbl_amount.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(lbl_amount)
+
+	var lbl_rate = Label.new()
+	lbl_rate.text = "%.1f%% p.a." % loan.get("annual_rate", 0.0)
+	lbl_rate.add_theme_font_size_override("font_size", 11)
+	lbl_rate.modulate = Color(0.6, 0.6, 0.6)
+	top.add_child(lbl_rate)
+
+	## Progress row: balance + weekly payment + weeks left
+	var prog = HBoxContainer.new()
+	prog.add_theme_constant_override("separation", 10)
+	vb.add_child(prog)
+
+	var weeks_rem  = loan.get("weeks_remaining", 0)
+	var seasons_rem = int(weeks_rem / 52.0) if weeks_rem > 0 else 0
+	var lbl_bal = Label.new()
+	lbl_bal.text = "Balance: CR %s" % _fmt(int(loan.get("balance_remaining", 0)))
+	lbl_bal.add_theme_font_size_override("font_size", 12)
+	lbl_bal.modulate = Color(0.75, 0.75, 0.75)
+	lbl_bal.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	prog.add_child(lbl_bal)
+
+	var lbl_pay = Label.new()
+	lbl_pay.text = "−CR %s/wk" % _fmt(int(loan.get("weekly_payment", 0)))
+	lbl_pay.add_theme_font_size_override("font_size", 12)
+	lbl_pay.add_theme_color_override("font_color", Color(1.0, 0.55, 0.55))
+	prog.add_child(lbl_pay)
+
+	var lbl_left = Label.new()
+	lbl_left.text = "%d wks (%d seasons)" % [weeks_rem, seasons_rem]
+	lbl_left.add_theme_font_size_override("font_size", 11)
+	lbl_left.modulate = Color(0.55, 0.55, 0.55)
+	prog.add_child(lbl_left)
+
+	## Early repay button
+	var btn_row = HBoxContainer.new()
+	vb.add_child(btn_row)
+	var spacer = Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_row.add_child(spacer)
+
+	var balance_rem = loan.get("balance_remaining", 0.0)
+	var penalty     = balance_rem * (loan.get("annual_rate", 5.0) / 100.0)
+	var total_cost  = balance_rem + penalty
+	var btn_repay = Button.new()
+	btn_repay.text = "💳 Repay Early  (CR %s + CR %s penalty)" % [
+		_fmt(int(balance_rem)), _fmt(int(penalty))]
+	btn_repay.custom_minimum_size = Vector2(0, 28)
+	btn_repay.add_theme_font_size_override("font_size", 11)
+	btn_repay.modulate = Color(1.0, 0.85, 0.5)
+	btn_repay.disabled = (GameState.player_team.balance < total_cost)
+	var loan_id = loan.get("id", 0)
+	btn_repay.pressed.connect(func():
+		var err = GameState.repay_loan_early(loan_id)
+		if err != "":
+			OS.alert(err, "Cannot Repay")
+		else:
+			_show_tab("sponsors"))
+	btn_row.add_child(btn_repay)
+
+	return panel
+
+
+## Shows the Take Loan popup with amount slider and duration picker.
+func _show_take_loan_popup() -> void:
+	var dim = ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.65)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(dim)
+
+	var popup = PanelContainer.new()
+	popup.custom_minimum_size = Vector2(440, 0)
+	popup.set_anchor(SIDE_LEFT, 0.5); popup.set_anchor(SIDE_RIGHT, 0.5)
+	popup.set_anchor(SIDE_TOP, 0.25); popup.set_anchor(SIDE_BOTTOM, 0.25)
+	popup.offset_left = -220; popup.offset_right = 220
+	var pstyle = StyleBoxFlat.new()
+	pstyle.bg_color = Color(0.10, 0.11, 0.15)
+	pstyle.border_width_left = 2; pstyle.border_width_right = 2
+	pstyle.border_width_top = 2; pstyle.border_width_bottom = 2
+	pstyle.border_color = Color(0.4, 0.6, 1.0)
+	for c in ["top_left","top_right","bottom_left","bottom_right"]:
+		pstyle.set("corner_radius_%s" % c, 6)
+	pstyle.content_margin_left = 22; pstyle.content_margin_right = 22
+	pstyle.content_margin_top = 18; pstyle.content_margin_bottom = 18
+	popup.add_theme_stylebox_override("panel", pstyle)
+	add_child(popup)
+
+	var vb = VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 14)
+	popup.add_child(vb)
+
+	var lbl_title = Label.new()
+	lbl_title.text = "🏦  Take a Loan"
+	lbl_title.add_theme_font_size_override("font_size", 17)
+	lbl_title.add_theme_color_override("font_color", Color(0.5, 0.78, 1.0))
+	vb.add_child(lbl_title)
+
+	vb.add_child(HSeparator.new())
+
+	## Rate / tier info
+	var cfo        = GameState.get_cfo()
+	var eff_tier   = GameState.get_loan_tier() if cfo else 1
+	var max_amount = GameState.get_max_loan_amount(eff_tier)
+	var base_rate  = GameState.get_loan_rate()
+
+	var lbl_info = Label.new()
+	lbl_info.text = "Tier %d  ·  Rate %.1f%%/yr  ·  Max CR %s" % [
+		eff_tier, base_rate, _fmt(int(max_amount))]
+	lbl_info.add_theme_font_size_override("font_size", 12)
+	lbl_info.modulate = Color(0.65, 0.65, 0.65)
+	vb.add_child(lbl_info)
+
+	## Amount slider
+	var amount_row = VBoxContainer.new()
+	amount_row.add_theme_constant_override("separation", 4)
+	vb.add_child(amount_row)
+
+	var lbl_amount_hdr = Label.new()
+	lbl_amount_hdr.text = "Loan Amount"
+	lbl_amount_hdr.add_theme_font_size_override("font_size", 12)
+	amount_row.add_child(lbl_amount_hdr)
+
+	var slider_row = HBoxContainer.new()
+	slider_row.add_theme_constant_override("separation", 8)
+	amount_row.add_child(slider_row)
+
+	var slider = HSlider.new()
+	slider.min_value = 1000.0
+	slider.max_value = max(1000.0, max_amount)
+	slider.step = 500.0
+	slider.value = min(10000.0, max_amount)
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider_row.add_child(slider)
+
+	var lbl_amount_val = Label.new()
+	lbl_amount_val.text = "CR %s" % _fmt(int(slider.value))
+	lbl_amount_val.add_theme_font_size_override("font_size", 13)
+	lbl_amount_val.add_theme_color_override("font_color", Color(0.5, 0.9, 0.5))
+	lbl_amount_val.custom_minimum_size = Vector2(90, 0)
+	lbl_amount_val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	slider_row.add_child(lbl_amount_val)
+
+	## Duration picker
+	const TIER_MAX_SEASONS = {1:8, 2:12, 3:16, 4:20, 5:25}
+	var max_seasons = TIER_MAX_SEASONS.get(eff_tier, 8)
+
+	var dur_row = VBoxContainer.new()
+	dur_row.add_theme_constant_override("separation", 4)
+	vb.add_child(dur_row)
+
+	var lbl_dur_hdr = Label.new()
+	lbl_dur_hdr.text = "Duration (seasons)"
+	lbl_dur_hdr.add_theme_font_size_override("font_size", 12)
+	dur_row.add_child(lbl_dur_hdr)
+
+	var dur_btns = HBoxContainer.new()
+	dur_btns.add_theme_constant_override("separation", 6)
+	dur_row.add_child(dur_btns)
+
+	var selected_seasons_ref = [4]  ## ref array so closures can mutate
+	var dur_btn_list: Array = []
+	for s in [4, 6, 8, 10, 12, 16, 20, 25]:
+		if s > max_seasons: continue
+		var dbtn = Button.new()
+		dbtn.text = "%d" % s
+		dbtn.custom_minimum_size = Vector2(36, 28)
+		dbtn.add_theme_font_size_override("font_size", 11)
+		dur_btns.add_child(dbtn)
+		dur_btn_list.append({"btn": dbtn, "seasons": s})
+
+	## Live summary label
+	var lbl_summary = Label.new()
+	lbl_summary.add_theme_font_size_override("font_size", 13)
+	lbl_summary.add_theme_color_override("font_color", Color(0.85, 0.85, 0.6))
+	vb.add_child(lbl_summary)
+
+	## Helper: recalculate and refresh summary
+	var _refresh = func():
+		var amount  = slider.value
+		var seasons = selected_seasons_ref[0]
+		var n_weeks = seasons * 52
+		var weekly_r = (base_rate / 100.0) / 52.0
+		var weekly_pay: float
+		if weekly_r < 0.00001:
+			weekly_pay = amount / float(n_weeks)
+		else:
+			var fac = weekly_r * pow(1.0 + weekly_r, float(n_weeks))
+			var den = pow(1.0 + weekly_r, float(n_weeks)) - 1.0
+			weekly_pay = amount * (fac / den)
+		var total_paid = weekly_pay * n_weeks
+		lbl_summary.text = "CR %s/wk  ·  %d weeks  ·  Total paid: CR %s" % [
+			_fmt(int(weekly_pay)), n_weeks, _fmt(int(total_paid))]
+		lbl_amount_val.text = "CR %s" % _fmt(int(amount))
+		## Highlight selected duration
+		for entry in dur_btn_list:
+			entry["btn"].modulate = Color(0.4, 0.9, 0.5) if entry["seasons"] == seasons else Color.WHITE
+
+	## Wire up duration buttons
+	for entry in dur_btn_list:
+		var s = entry["seasons"]
+		entry["btn"].pressed.connect(func():
+			selected_seasons_ref[0] = s
+			_refresh.call())
+	_refresh.call()  ## initial render
+
+	slider.value_changed.connect(func(_v): _refresh.call())
+
+	## Action buttons
+	var btn_row = HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 10)
+	vb.add_child(btn_row)
+	var spacer = Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_row.add_child(spacer)
+
+	var btn_confirm = Button.new()
+	btn_confirm.text = "✅ Take Loan"
+	btn_confirm.custom_minimum_size = Vector2(120, 34)
+	btn_confirm.add_theme_font_size_override("font_size", 13)
+	btn_confirm.modulate = Color(0.4, 0.9, 0.5)
+	btn_confirm.pressed.connect(func():
+		var err = GameState.take_loan(slider.value, selected_seasons_ref[0])
+		if err != "":
+			OS.alert(err, "Cannot Take Loan")
+			return
+		dim.queue_free(); popup.queue_free()
+		_show_tab("sponsors"))
+	btn_row.add_child(btn_confirm)
+
+	var btn_cancel = Button.new()
+	btn_cancel.text = "Cancel"
+	btn_cancel.custom_minimum_size = Vector2(80, 34)
+	btn_cancel.pressed.connect(func(): dim.queue_free(); popup.queue_free())
+	btn_row.add_child(btn_cancel)
 
 
 ## ── Financial tab helper widgets ─────────────────────────────────────────────
@@ -1658,13 +2014,102 @@ func _build_registration_panel() -> VBoxContainer:
 		Color(0.4, 0.9, 0.4) if reg_count > 0 else Color(1.0, 0.6, 0.2))
 	vbox.add_child(lbl_info)
 
+	## Per-championship requirements checklist
 	for cid in GameState.player_registered_championships:
 		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
-		var lbl = Label.new()
-		lbl.text = "  ✅ %s" % reg.get("name", cid)
-		lbl.add_theme_font_size_override("font_size", 12)
-		lbl.add_theme_color_override("font_color", Color(0.4, 0.85, 0.4))
-		vbox.add_child(lbl)
+		var disc = reg.get("discipline","")
+
+		var card = PanelContainer.new()
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var cstyle = StyleBoxFlat.new()
+		cstyle.bg_color = Color(0.09, 0.11, 0.13)
+		cstyle.border_width_left = 3
+		cstyle.content_margin_left = 10; cstyle.content_margin_right = 10
+		cstyle.content_margin_top = 8;  cstyle.content_margin_bottom = 8
+		card.add_theme_stylebox_override("panel", cstyle)
+		vbox.add_child(card)
+
+		var cvb = VBoxContainer.new()
+		cvb.add_theme_constant_override("separation", 4)
+		card.add_child(cvb)
+
+		## Header
+		var lbl_name = Label.new()
+		lbl_name.text = "✅ %s" % reg.get("name", cid)
+		lbl_name.add_theme_font_size_override("font_size", 12)
+		lbl_name.add_theme_color_override("font_color", Color(0.4, 0.85, 0.4))
+		cvb.add_child(lbl_name)
+
+		## Build requirements list
+		var reqs: Array = []
+
+		## Car requirement
+		var has_car = false
+		for car in GameState.player_team_cars:
+			if car.championship_id == cid: has_car = true; break
+		reqs.append({"ok": has_car, "text": "Car registered to this championship"})
+
+		## Driver per car
+		var cars_for_champ = GameState.player_team_cars.filter(
+			func(c): return c.championship_id == cid)
+		for car in cars_for_champ:
+			var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
+			reqs.append({"ok": car.driver_id != "",
+				"text": "Driver assigned to %s" % car_label})
+			reqs.append({"ok": car.mechanic_id != "",
+				"text": "Mechanic assigned to %s" % car_label})
+			if GameState.get_pit_crew_required(cid):
+				reqs.append({"ok": car.pit_crew_id not in ["","N/A"],
+					"text": "Pit crew assigned to %s" % car_label})
+
+		## TP requirement
+		var tp_ok = false
+		if disc == "GK":
+			for gk_cid in ["C-001","C-002","C-003","C-004"]:
+				if GameState._get_tp_for_championship(gk_cid) != null:
+					tp_ok = true; break
+		else:
+			tp_ok = GameState._get_tp_for_championship(cid) != null
+		reqs.append({"ok": tp_ok, "text": "Team Principal assigned"})
+
+		## Strategist (not GK or Rally)
+		if disc not in ["GK","Rally"]:
+			var strat_ok = GameState._get_strategist_for_championship(cid) != null
+			reqs.append({"ok": strat_ok, "text": "Race Strategist assigned"})
+
+		## Driver age eligibility
+		var min_age = reg.get("min_age", 0)
+		var max_age = reg.get("max_age", 99)
+		if min_age > 0 or max_age < 99:
+			reqs.append({"ok": true,  ## informational
+				"text": "Driver age: %d–%d" % [min_age, max_age]})
+
+		## Render requirements
+		var all_ok = true
+		for req in reqs:
+			if not req["ok"]: all_ok = false
+			var row = HBoxContainer.new()
+			row.add_theme_constant_override("separation", 6)
+			cvb.add_child(row)
+			var icon = Label.new()
+			icon.text = "✅" if req["ok"] else "⚠"
+			icon.add_theme_font_size_override("font_size", 11)
+			row.add_child(icon)
+			var lbl_req = Label.new()
+			lbl_req.text = req["text"]
+			lbl_req.add_theme_font_size_override("font_size", 11)
+			lbl_req.add_theme_color_override("font_color",
+				Color(0.6, 0.9, 0.6) if req["ok"] else Color(1.0, 0.55, 0.2))
+			row.add_child(lbl_req)
+
+		## Border color: green if all met, orange if not
+		cstyle.border_color = Color(0.3, 0.75, 0.35) if all_ok else Color(1.0, 0.55, 0.2)
+
+		## Add TDL item if requirements not met
+		if not all_ok:
+			var msg = "⚠ %s: unmet race requirements before Season %d." % [
+				reg.get("name", cid), GameState.current_season + 1]
+			GameState.add_todo_item(msg)
 
 	var btn = Button.new()
 	btn.text = "🏁  Championship Registration →"
@@ -1841,9 +2286,9 @@ func _draw_graph(container: VBoxContainer, key: String) -> void:
 			line_color = Color(1.0, 0.7, 0.2)
 		"economy":
 			history = GameState.history_economy
-			chart_title = "🌍 Economy State"
+			chart_title = "🌍 Economy Index (0-100)"
 			line_color = Color(0.4, 0.75, 1.0)
-			is_categorical = true
+			is_categorical = false  ## now a continuous 0-100 index
 		"fans":
 			history = GameState.history_active_fans
 			chart_title = "👥 Active Fans"
@@ -1861,7 +2306,7 @@ func _draw_graph(container: VBoxContainer, key: String) -> void:
 			chart_title = "No Data"
 			line_color = Color.WHITE
 
-	## Title label
+	## Title label — added after clear to prevent overlap
 	var title_lbl = Label.new()
 	title_lbl.text = chart_title
 	title_lbl.add_theme_font_size_override("font_size", 13)

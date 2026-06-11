@@ -1,14 +1,31 @@
 extends Node
-## Version: S20.1 — Economy and fuel price fluctuation system live: _update_economy_and_fuel() called every week.
-##                    Driver.track_knowledge dict + update_track_knowledge(). Staff.track_knowledge_by_track
-##                    + get_track_knowledge_for() + update_track_knowledge(). Lap time formula uses
-##                    per-track knowledge for driver (-1% at TK100) and staff synergy.
-##                    Post-race growth now keyed to track_id. Save/load extended for both resources.
-##                    start_negotiation, submit_negotiation_offer, abandon_negotiation,
-##                    _apply_negotiation_result. Driver weekly_salary now per-driver.
-##                    Driver.gd/Staff.gd extended with bonus + release_clause fields.
-##                    get_cnc_manufacturing_weeks/cr, calculate_final_reliability, _cnc_inv_key.
-##                    Fixed _advance_cnc_production inventory format. RE completion now notifies WRA + P1 L2.
+## Version: S23.0 — TP Auto-Assignment Proposals (P31 complete):
+##   generate_tp_assignment_proposals(): sorts cars by prestige, assigns best drivers/
+##   mechanics by effective skill (raw × discipline_adaptation/100). GK multi-tier:
+##   same driver covers multiple cars if no different-track same-week conflict.
+##   Non-GK: exclusive 1:1 assignment. DNS warnings for unavoidable conflicts.
+##   Cross-discipline adaptation warnings. _fire_tp_proposal_notification().
+##   apply_tp_proposals(): applies accepted assignments.
+##   _check_tp_proposal_notifications(): regenerates 3 weeks before race, on roster change.
+##   _last_tp_proposals cached for Racing Department display.
+## --- S22.8 base: 16-issue batch fix session.
+##   #2 GKDiscipline populated at setup_new_game (Season 1); GK Group 0 standings synced from race.
+##   #3 RacingDept Renew triggers negotiation.  #4 Expired contracts release drivers/staff.
+##   #8 Walk-away hides subject from list.  #10 Rally excluded from Strategist requirement.
+##   #11 TDL auto-resolves completed items; _is_todo_item_resolved helper.
+##   #12 Multi-race queue: _pending_race_results; consume_next_race_result().
+##   #13 TDL entry when no next-season championships registered after Week 20.
+##   #14 TP gate removed from Drivers/StaffHub UI; only applied for bond approach in GameState.
+##   #15 assign_staff_to_championship allows TP reassignment (clears old, warns on conflict).
+##   #16 Negotiation tightened: threshold 0.95→0.82; counter concessions 2-6% (was 10%).
+## --- S22.7 base: weekly gate on sponsor negotiation, free agent timing popup.
+##                    20/10/2/1 groups per tier. Shadow sim for non-player groups.
+##                    Age gates: Regional 8-16, National 10-18, Continental 12-20, World 14-22.
+##                    GK World moved to Week 42. CHAMPIONSHIP_REGISTRY age gates corrected.
+##                    GKDiscipline populated each season start, shadow-simmed each race week.
+##                    TP proposals generated for GK multi-tier driver+mechanic assignments.
+##                    P31 expanded: get_tp_proposals_all() covers all disciplines.
+## --- S21.0 base: Economy continuous index, fuel cap 600-2000 CR, P44 Loan system.
 
 # Time
 var current_week: int = 1
@@ -27,7 +44,8 @@ var team_color_primary:   Color  = Color(0.85, 0.15, 0.15)
 var team_color_secondary: Color  = Color(0.95, 0.95, 0.95)
 var game_difficulty:      String = "Realistic"
 
-## ── Fan & Reputation System ───────────────────────────────────────────────────
+## P26 GK Discipline manager — groups, shadow sim, TP proposals
+var gk_discipline: GKDiscipline = null
 ## Reputation inertia: team reputation moves toward target_reputation each season
 var target_reputation:    float  = 15.0   ## What the team has earned this season
 var reputation_velocity:  float  = 0.0    ## How fast rep moves toward target
@@ -54,7 +72,6 @@ func get_difficulty_mult() -> Dictionary:
 
 ## ── P32 History recording ─────────────────────────────────────────────────────
 func _record_weekly_history() -> void:
-	var eco_int = 0 if global_economy_state == "Recession" else (2 if global_economy_state == "Boom" else 1)
 	var merch_income = 0
 	var merch_b = campus_buildings.get("Merchandise Store", {})
 	if merch_b.get("built", false):
@@ -63,7 +80,7 @@ func _record_weekly_history() -> void:
 	var entry = {"week": current_week, "season": current_season}
 	history_balance.append(    entry.merged({"value": player_team.balance}))
 	history_fuel_price.append( entry.merged({"value": current_fuel_price}))
-	history_economy.append(    entry.merged({"value": eco_int}))
+	history_economy.append(    entry.merged({"value": economy_index}))
 	history_active_fans.append(entry.merged({"value": get_team_active_fans()}))
 	history_merchandise.append(entry.merged({"value": float(merch_income)}))
 	history_reputation.append( entry.merged({"value": player_team.reputation}))
@@ -116,8 +133,8 @@ func get_global_fans(discipline: String, tier: int) -> float:
 		top3_avg /= float(min(3, driver_reps.size()))
 	var star_power_factor = 0.7 + (top3_avg / 100.0) * 0.6
 
-	## Economy factor
-	var economy_factor = 1.10 if global_economy_state == "Boom" else (0.90 if global_economy_state == "Recession" else 1.00)
+	## Economy factor — derived from continuous index
+	var economy_factor = 0.9 + (economy_index / 100.0) * 0.2  ## 0.9 at recession, 1.1 at boom
 
 	## Long-term organic growth via natural log curve
 	var long_term = 1.0 + log(1.0 + float(current_season) * 0.05)
@@ -307,6 +324,10 @@ var last_race_championship_id: String = ""
 var last_race_num_races: int = 0
 var last_race_standings:    Array = []
 var last_race_staff_deltas: Array = []
+## Last generated TP assignment proposals — displayed in Racing Department
+var _last_tp_proposals: Array = []
+## Queue for multiple same-week races — each entry is a snapshot dict of all last_race_* vars
+var _pending_race_results: Array = []
 
 ## Maps driver_id / staff_id → championship_id they ran in last season
 ## Used to show "Prev: GK Regional" badge in Drivers/Staff screens
@@ -372,77 +393,84 @@ var cfo_search_weeks_remaining:  int   = 0
 var cfo_search_results:          Array = []
 ## Financial / Economy
 var ceo_accumulated_salary: float  = 0.0
-var global_economy_state:   String = "Normal"
+## Continuous economy index 0-100 (0=deep recession, 50=normal, 100=boom)
+## State label derived: 0-30=Recession, 30-70=Normal, 70-100=Boom
+var economy_index:          float  = 50.0
 var current_fuel_price:     float  = 1200.0
-var current_loan_rate:      float  = 5.0    ## % interest rate for loans
+var current_loan_rate:      float  = 5.0    ## % interest rate for loans (follows economy)
 
 ## Economy fluctuation internals
-var _economy_weeks_remaining: int  = 0   ## weeks until next economy state change
-var _fuel_trend:            float  = 0.0  ## current weekly drift direction/magnitude
+var _economy_momentum:      float  = 0.0   ## carries weekly drift direction
 
-## ── Economy & Fuel Fluctuation ───────────────────────────────────────────────
+## Derived read-only property: economy state label from economy_index
+var global_economy_state: String:
+	get:
+		if economy_index < 30.0: return "Recession"
+		if economy_index > 70.0: return "Boom"
+		return "Normal"
 
-## Called every advance_week(). Updates global_economy_state and current_fuel_price.
-## Economy: cycles between Recession / Normal / Boom on random durations 4–20 weeks.
-## Fuel: drifts ±3% per week, mean-reverts toward base, occasional spikes.
+## P44 Active loans — Array of Dicts:
+## {id, amount_original, balance_remaining, weekly_payment, annual_rate,
+##  seasons_duration, weeks_remaining, taken_season, taken_week, cfo_name}
+var active_loans: Array = []
+var _loan_next_id: int = 1
+
+## ── Economy & Fuel Fluctuation (S21 redesign) ────────────────────────────────
+##
+## Economy: continuous economy_index 0-100, drifts ±0.3-1.5/week with momentum.
+## Full Recession→Boom cycle takes ~150-250 weeks (3-5 seasons). Mean-reverts to 50.
+## State label (global_economy_state) is derived from the index (no longer stored).
+##
+## Fuel: base = 800 + economy_index × 8 (range 800-1600 normally).
+## Weekly move ±1-2% normally, ±5% shock at 3% chance. Hard cap 600-2000 CR.
 func _update_economy_and_fuel() -> void:
-	## ── Economy state ────────────────────────────────────────────────────────
-	_economy_weeks_remaining -= 1
-	if _economy_weeks_remaining <= 0:
-		## Transition to a new state
-		var prev = global_economy_state
-		## Weighted probabilities: Normal most common, extremes less so
-		var roll = randf()
-		if prev == "Normal":
-			global_economy_state = "Boom" if roll < 0.35 else ("Recession" if roll < 0.60 else "Normal")
-		elif prev == "Boom":
-			global_economy_state = "Normal" if roll < 0.70 else ("Recession" if roll < 0.85 else "Boom")
-		else:  ## Recession
-			global_economy_state = "Normal" if roll < 0.70 else ("Boom" if roll < 0.80 else "Recession")
-		## Duration 4–20 weeks
-		_economy_weeks_remaining = randi_range(4, 20)
-		if global_economy_state != prev:
-			add_notification("Normal",
-				"📊 Economy shifted to %s." % global_economy_state)
+	## ── Economy index drift ───────────────────────────────────────────────────
+	var prev_state = global_economy_state  ## read derived property before update
+
+	## Mean-reversion pull toward 50 — stronger when further away
+	var mean_pull = (50.0 - economy_index) * 0.008
+
+	## Random weekly drift ±0.5 with occasional shock week (2% chance) ±3-5
+	var drift = randf_range(-0.5, 0.5)
+	if randf() < 0.02:
+		drift = randf_range(-5.0, 5.0)   ## shock week
+
+	## Momentum carries direction (smooths out jitter)
+	_economy_momentum = _economy_momentum * 0.85 + drift * 0.15
+	economy_index = clamp(economy_index + mean_pull + _economy_momentum, 0.0, 100.0)
+	current_loan_rate = clamp(4.0 + (economy_index / 100.0) * 8.0, 1.0, 12.0)
+	current_loan_rate = round(current_loan_rate * 10.0) / 10.0
+
+	## Notify on state change
+	var new_state = global_economy_state
+	if new_state != prev_state:
+		add_notification("Normal", "📊 Economy shifted to %s (index %.0f)." % [new_state, economy_index])
 
 	## ── Fuel price ───────────────────────────────────────────────────────────
-	## Base price varies by economy state
-	var base_fuel = 1200.0
-	match global_economy_state:
-		"Boom":       base_fuel = 1500.0
-		"Recession":  base_fuel = 900.0
-		_:            base_fuel = 1200.0
+	## Smooth base derived from economy_index
+	var base_fuel = 800.0 + economy_index * 8.0  ## range 800-1600
 
-	## Occasionally update the trend (every ~4 weeks)
-	if current_week % 4 == 0 or _fuel_trend == 0.0:
-		## Trend: -5% to +5% of current price per week, mean-reverting
-		var mean_revert = (base_fuel - current_fuel_price) * 0.08
-		_fuel_trend = mean_revert + randf_range(-0.03, 0.03) * current_fuel_price
-		## Occasional spike (5% chance): +15–30%
-		if randf() < 0.05:
-			_fuel_trend += current_fuel_price * randf_range(0.15, 0.30)
-			add_notification("Normal", "⛽ Fuel price spike! Global supply disruption.")
+	## Mean-reversion pull toward base
+	var fuel_mean_pull = (base_fuel - current_fuel_price) * 0.06
 
-	## Apply trend with noise
+	## Normal weekly move ±1-2%
+	var fuel_move = current_fuel_price * randf_range(-0.02, 0.02)
+
+	## Shock week: ±5% (3% chance)
+	if randf() < 0.03:
+		fuel_move += current_fuel_price * randf_range(-0.05, 0.05)
+		add_notification("Normal", "⛽ Fuel price fluctuation — global supply shift.")
+
 	current_fuel_price = clamp(
-		current_fuel_price + _fuel_trend + randf_range(-20.0, 20.0),
-		400.0, 4000.0)
-	## Round to nearest 10
+		current_fuel_price + fuel_mean_pull + fuel_move,
+		600.0, 2000.0)
 	current_fuel_price = round(current_fuel_price / 10.0) * 10.0
-
-	## ── Loan rate ────────────────────────────────────────────────────────────
-	## Loan rate follows economy: Boom=higher rates, Recession=lower
-	match global_economy_state:
-		"Boom":       current_loan_rate = clamp(current_loan_rate + randf_range(0.0, 0.3), 4.0, 12.0)
-		"Recession":  current_loan_rate = clamp(current_loan_rate - randf_range(0.0, 0.3), 1.0, 8.0)
-		_:            current_loan_rate = clamp(current_loan_rate + randf_range(-0.1, 0.1), 2.0, 10.0)
-	current_loan_rate = round(current_loan_rate * 10.0) / 10.0
 
 ## ── P32 Weekly History recording ──────────────────────────────────────────────
 ## Each entry: {week, season, value}. Capped at 52×5 = 260 entries (5 seasons).
 var history_balance:      Array = []  ## player_team.balance
 var history_fuel_price:   Array = []  ## current_fuel_price
-var history_economy:      Array = []  ## global_economy_state as int (0=Recession,1=Normal,2=Boom)
+var history_economy:      Array = []  ## economy_index (0-100 continuous float)
 var history_active_fans:  Array = []  ## get_team_active_fans()
 var history_merchandise:  Array = []  ## merchandise store income that week
 var history_reputation:   Array = []  ## player_team.reputation
@@ -628,9 +656,9 @@ const CHAMP_CODES: Dictionary = {
 ## entry_fee_per_race is the old field — kept for race prize calculations only
 const CHAMPIONSHIP_REGISTRY = {
 	"C-001": {"name":"GK Regional Championship",    "discipline":"GK",    "tier":1, "min_age":8,  "max_age":16, "entry_fee":9000,     "num_races":6,  "rep":15},
-	"C-002": {"name":"GK National Championship",    "discipline":"GK",    "tier":2, "min_age":10, "max_age":16, "entry_fee":85000,    "num_races":10, "rep":24},
-	"C-003": {"name":"GK Continental Championship", "discipline":"GK",    "tier":3, "min_age":12, "max_age":16, "entry_fee":40000,    "num_races":4,  "rep":31},
-	"C-004": {"name":"GK World Championship",       "discipline":"GK",    "tier":4, "min_age":14, "max_age":16, "entry_fee":12000,    "num_races":1,  "rep":39},
+	"C-002": {"name":"GK National Championship",    "discipline":"GK",    "tier":2, "min_age":10, "max_age":18, "entry_fee":85000,    "num_races":10, "rep":24},
+	"C-003": {"name":"GK Continental Championship", "discipline":"GK",    "tier":3, "min_age":12, "max_age":20, "entry_fee":40000,    "num_races":4,  "rep":31},
+	"C-004": {"name":"GK World Championship",       "discipline":"GK",    "tier":4, "min_age":14, "max_age":22, "entry_fee":12000,    "num_races":1,  "rep":39},
 	"C-005": {"name":"RALLY4",                      "discipline":"Rally", "tier":1, "min_age":16, "max_age":99, "entry_fee":30000,    "num_races":5,  "rep":36},
 	"C-006": {"name":"RALLY3",                      "discipline":"Rally", "tier":2, "min_age":16, "max_age":99, "entry_fee":140000,   "num_races":7,  "rep":42},
 	"C-007": {"name":"RALLY2",                      "discipline":"Rally", "tier":3, "min_age":16, "max_age":99, "entry_fee":700000,   "num_races":14, "rep":52},
@@ -689,8 +717,8 @@ const CHAMPIONSHIP_CALENDARS = {
 		{"round":3,"name":"Chemnitz","track_id":"chemnitz",   "week":25,"rain":15,"laps":24,"lap_km":4.20,"audience":8900},
 		{"round":4,"name":"Le Mans","track_id":"le_mans",    "week":33,"rain":25,"laps":26,"lap_km":13.60,"audience":14500},
 	],
-	"C-004": [ # GK World
-		{"round":1,"name":"Lemans Karting International","track_id":"lemans_karting_international","week":40,"rain":0,"laps":28,"lap_km":1.20,"audience":22000},
+	"C-004": [ # GK World — standalone event, Week 42
+		{"round":1,"name":"Lemans Karting International","track_id":"lemans_karting_international","week":42,"rain":0,"laps":28,"lap_km":1.20,"audience":22000},
 	],
 	"C-005": [ # RALLY4
 		{"round":1,"name":"Sweden","track_id":"sweden", "week":7, "rain":100,"laps":305,"lap_km":1.0,"audience":45000},
@@ -997,6 +1025,7 @@ const CFO_PART_WARNING_THRESHOLD = 2  # CFO warns when any part stock ≤ this
 # Notifications
 var notifications: Array = []
 var dismissed_todo_items: Array = []  ## Items player has dismissed from to-do list
+var custom_todo_items:    Array = []  ## TP proposals and other injected TDL items
 var weeks_in_negative:       int   = 0
 var bankruptcy_screen_shown: bool  = false
 var unread_notification_count: int = 0
@@ -2551,9 +2580,13 @@ func start_negotiation(neg: Dictionary) -> void:
 	emit_signal("negotiation_updated")
 
 ## Player submits their current offer. Returns the outcome.
-## outcome: "accepted" | "counter" | "rejected"
+## outcome: "accepted" | "counter" | "rejected" | "waiting"
+## "waiting" means offer submitted but counter arrives next week (1 round per week rule).
 func submit_negotiation_offer(player_offer: Dictionary) -> String:
 	if active_negotiation.is_empty(): return "rejected"
+	## Enforce 1-round-per-week: if counter is pending, block resubmission until next week
+	if active_negotiation.get("waiting_week", 0) > current_week:
+		return "waiting"
 	active_negotiation["player_offer"] = player_offer
 	active_negotiation["history"].append({
 		"round": active_negotiation["round"],
@@ -2563,15 +2596,50 @@ func submit_negotiation_offer(player_offer: Dictionary) -> String:
 	var outcome = _evaluate_offer(active_negotiation)
 	active_negotiation["round"] += 1
 	if outcome == "accepted" or active_negotiation["round"] > active_negotiation["max_rounds"]:
-		if outcome != "accepted": outcome = "rejected"
+		if outcome != "accepted":
+			outcome = "rejected"
+		else:
+			## Pre-validate slot availability before declaring accepted
+			var start_date = active_negotiation.get("player_offer", {}).get("start_date", "immediate")
+			if start_date == "immediate":
+				var stype = active_negotiation.get("subject_type", "")
+				if stype == "driver":
+					var max_d = get_max_drivers()
+					var d = all_drivers.get(active_negotiation.get("subject_id",""))
+					if d and d.contract_team == "" and player_team.drivers.size() >= max_d:
+						## Slots full — reject with specific outcome
+						active_negotiation["status"] = "rejected"
+						active_negotiation["waiting_week"] = 0
+						emit_signal("negotiation_concluded", false,
+							active_negotiation["subject_id"], active_negotiation["subject_type"])
+						add_notification("High",
+							"Deal fell through — no driver slots available for immediate signing. Sign for next season instead.")
+						active_negotiation = {}
+						emit_signal("log_updated")
+						return "no_slot"
+				elif stype == "staff":
+					var s = all_staff.get(active_negotiation.get("subject_id",""))
+					if s and s.contract_team == "" and s.role == "Team Principal":
+						if get_player_staff_by_role("Team Principal").size() >= get_hq_tp_slots():
+							active_negotiation["status"] = "rejected"
+							active_negotiation["waiting_week"] = 0
+							emit_signal("negotiation_concluded", false,
+								active_negotiation["subject_id"], active_negotiation["subject_type"])
+							add_notification("High", "Deal fell through — TP slots full. Sign for next season.")
+							active_negotiation = {}
+							emit_signal("log_updated")
+							return "no_slot"
 		active_negotiation["status"] = outcome
+		active_negotiation["waiting_week"] = 0
 		_apply_negotiation_result(active_negotiation, outcome == "accepted")
 		emit_signal("negotiation_concluded", outcome == "accepted",
 			active_negotiation["subject_id"], active_negotiation["subject_type"])
 	else:
-		## Generate counter-offer: they move slightly toward player
+		## Counter arrives next week — gate further submission
+		active_negotiation["waiting_week"] = current_week + 1
 		_apply_counter_offer(active_negotiation)
 		emit_signal("negotiation_updated")
+		return "counter"
 	return outcome
 
 ## Walk away — player ends negotiation.
@@ -2583,11 +2651,15 @@ func abandon_negotiation() -> void:
 	if active_negotiation.is_empty(): return
 	var subject_id   = active_negotiation.get("subject_id", "")
 	var subject_type = active_negotiation.get("subject_type", "")
-	## Mark unavailable for 2 seasons
+	## Mark unavailable for 2 seasons — also add to dismissed so TDL clears
 	if subject_id != "":
 		walked_away_subjects[subject_id] = current_season + 2
 		var name_str = _get_subject_display_name(subject_id, subject_type)
 		add_notification("Normal", "%s is no longer interested for 2 seasons." % name_str)
+		## Dismiss any TDL items referencing this subject
+		for item in custom_todo_items.duplicate():
+			if name_str in item:
+				dismiss_todo_item(item)
 	active_negotiation["status"] = "rejected"
 	emit_signal("negotiation_concluded", false, subject_id, subject_type)
 	active_negotiation = {}
@@ -2794,36 +2866,48 @@ func _get_tp_for_championship(champ_id: String):
 			return s
 	return null
 
+func _get_strategist_for_championship(champ_id: String):
+	for sid in all_staff:
+		var s = all_staff[sid]
+		if s.role == "Race Strategist" and s.contract_team == player_team.id \
+				and s.assigned_championship == champ_id:
+			return s
+	return null
+
 ## ── Initiate approach ─────────────────────────────────────────────────────────
 ## Called when player clicks Approach on a driver or staff member.
 ## Requires a TP assigned to an active championship.
 ## Returns "" on success, or an error string.
 func initiate_approach(subject_id: String, subject_type: String,
 		start_date: String) -> String:
-	## TP check
-	var has_tp = false
-	for champ in active_championships:
-		if _get_tp_for_championship(champ.id) != null:
-			has_tp = true; break
-	if not has_tp:
-		return "Assign a Team Principal before making an approach."
-
 	## Already approaching this person?
 	for ap in active_approaches:
 		if ap["subject_id"] == subject_id and ap["status"] not in ["agreed","failed","rejected","expired"]:
 			return "You already have an active approach for this person."
 
 	var current_team_id = ""
+	var is_free_agent = false
 	if subject_type == "driver":
 		var d = all_drivers.get(subject_id)
 		if d == null: return "Driver not found."
 		if d.contract_team == player_team.id: return "Already on your team."
 		current_team_id = d.contract_team
+		is_free_agent = (current_team_id == "")
 	else:
 		var s = all_staff.get(subject_id)
 		if s == null: return "Staff not found."
 		if s.contract_team == player_team.id: return "Already on your team."
 		current_team_id = s.contract_team
+		is_free_agent = (current_team_id == "")
+
+	## TP required ONLY for bond approach (contracted staff/drivers) — not free agents
+	if not is_free_agent:
+		var has_tp = false
+		for champ in active_championships:
+			if _get_tp_for_championship(champ.id) != null:
+				has_tp = true; break
+		if not has_tp:
+			return "Assign a Team Principal before approaching contracted staff or drivers."
 
 	## Interest check — hidden roll
 	var interested = _check_subject_interest(subject_id, subject_type, current_team_id)
@@ -3328,9 +3412,14 @@ func _evaluate_offer(neg: Dictionary) -> String:
 	var max_r   = neg["max_rounds"]
 	var locked  = neg.get("locked_fields", [])
 	var ratio = _calc_offer_ratio(player, ask, locked)
-	var threshold = lerp(0.85, 0.70, float(round_n - 1) / float(max(max_r - 1, 1)))
+	## Threshold: starts at 0.95 (Round 1) and gradually drops to 0.82 (final round).
+	## They are reluctant early — only accept if the player is very close to their ask.
+	## By the final round they have softened but still need ~82% of their ask.
+	var threshold = lerp(0.95, 0.82, float(round_n - 1) / float(max(max_r - 1, 1)))
 	if ratio >= threshold: return "accepted"
-	if ratio < 0.35 and round_n >= max_r - 1: return "rejected"
+	## Walk away if offer is insultingly low in mid-late rounds
+	if ratio < 0.40 and round_n >= 2: return "rejected"
+	if ratio < 0.30: return "rejected"
 	return "counter"
 
 func _calc_offer_ratio(player: Dictionary, ask: Dictionary, locked_fields: Array = []) -> float:
@@ -3338,7 +3427,7 @@ func _calc_offer_ratio(player: Dictionary, ask: Dictionary, locked_fields: Array
 	var count = 0
 	for key in ask:
 		if key == "duration_seasons": continue
-		if key in locked_fields: continue  ## Locked = agreed, skip from ratio
+		if key in locked_fields: continue
 		if ask[key] <= 0: continue
 		var p_val = float(player.get(key, 0))
 		var a_val = float(ask[key])
@@ -3346,33 +3435,56 @@ func _calc_offer_ratio(player: Dictionary, ask: Dictionary, locked_fields: Array
 		count += 1
 	return total_ratio / float(max(count, 1))
 
-## Move their ask slightly toward player's offer.
+## Move their ask slightly toward player's offer — conservative concessions.
+## They concede max 15% of the gap over the full negotiation (was 25%).
+## Concession rate is slow early and picks up only if player is close.
 func _apply_counter_offer(neg: Dictionary) -> void:
 	var player = neg["player_offer"]
 	var ask    = neg["their_ask"]
 	var progress = float(neg["round"]) / float(neg["max_rounds"])
-	## They concede up to 25% of the gap over the full negotiation
+	var ratio = _calc_offer_ratio(player, ask, neg.get("locked_fields", []))
+	## Concede more if player is close (ratio > 0.75), less if far away
+	var concede_rate = lerp(0.02, 0.06, clamp((ratio - 0.5) * 4.0, 0.0, 1.0))
 	for key in ask:
 		if key == "duration_seasons": continue
 		if ask[key] <= 0: continue
 		var gap = ask[key] - player.get(key, 0)
 		if gap > 0:
-			var concession = gap * 0.10 * progress
+			var concession = gap * concede_rate * progress
 			neg["their_ask"][key] = max(player.get(key, 0), ask[key] - concession)
 
 ## Apply the result — actually hire/set contract terms.
 func _apply_negotiation_result(neg: Dictionary, accepted: bool) -> void:
 	if not accepted: return
 	var terms = neg["player_offer"]
+	var start_date = terms.get("start_date", "immediate")
+
 	match neg["subject_type"]:
 		"driver":
 			var driver = all_drivers.get(neg["subject_id"])
 			if driver == null: return
-			## Check slot first
+			## Slot check — only block immediate signing, not next-season
 			var max_d = get_max_drivers()
-			if driver.contract_team == "" and player_team.drivers.size() >= max_d:
-				add_notification("High", "Racing Dept full — can't sign %s." % driver.full_name())
+			if driver.contract_team == "" and player_team.drivers.size() >= max_d \
+					and start_date == "immediate":
+				add_notification("High", "Racing Dept full — can't sign %s immediately. Sign for next season instead." % driver.full_name())
 				return
+			## Next-season signing — mark as pre_signed, don't apply yet
+			if start_date == "next_season":
+				## Find the approach and mark it pre_signed
+				for ap in active_approaches:
+					if ap["subject_id"] == neg["subject_id"] and ap["status"] == "negotiating":
+						ap["type"] = "pre_signed"
+						ap["status"] = "agreed"
+						ap["signed_season"] = current_season
+						break
+				add_log("✅ %s pre-signed — joins Season %d." % [driver.full_name(), current_season + 1])
+				add_notification("Normal",
+					"%s pre-signed and will join at the start of Season %d." % [
+					driver.full_name(), current_season + 1], "hq")
+				emit_signal("log_updated")
+				return
+			## Immediate signing
 			driver.contract_team = player_team.id
 			driver.contract_seasons_remaining = terms.get("duration_seasons", 1)
 			driver.weekly_salary       = terms.get("weekly_salary", 50.0)
@@ -3388,10 +3500,25 @@ func _apply_negotiation_result(neg: Dictionary, accepted: bool) -> void:
 				driver.full_name(), driver.weekly_salary, driver.contract_seasons_remaining,
 				_fmt_int(driver.win_bonus), _fmt_int(driver.podium_bonus)])
 			add_notification("Normal", "%s signed. Assign them to a car in the Garage." % driver.full_name())
+			_fire_assignment_proposals()
 		"staff":
 			var staff = all_staff.get(neg["subject_id"])
 			if staff == null: return
-			## Slot checks (same as hire_staff)
+			## Next-season signing for staff
+			if start_date == "next_season":
+				for ap in active_approaches:
+					if ap["subject_id"] == neg["subject_id"] and ap["status"] == "negotiating":
+						ap["type"] = "pre_signed"
+						ap["status"] = "agreed"
+						ap["signed_season"] = current_season
+						break
+				add_log("✅ %s pre-signed — joins Season %d." % [staff.full_name(), current_season + 1])
+				add_notification("Normal",
+					"%s pre-signed and will join at the start of Season %d." % [
+					staff.full_name(), current_season + 1], "hq")
+				emit_signal("log_updated")
+				return
+			## Slot checks for immediate (same as hire_staff)
 			if staff.contract_team == "":
 				if staff.role == "Team Principal":
 					var existing = get_player_staff_by_role("Team Principal")
@@ -3411,11 +3538,12 @@ func _apply_negotiation_result(neg: Dictionary, accepted: bool) -> void:
 			add_log("✅ %s (%s) signed: CR %.0f/wk, %d seasons" % [
 				staff.full_name(), staff.role, staff.weekly_salary, staff.contract_seasons_remaining])
 			add_notification("Normal", "%s (%s) joined your team." % [staff.full_name(), staff.role])
+			if staff.role in ["Race Mechanic", "Team Principal", "Race Strategist"]:
+				_fire_assignment_proposals()
 		"sponsor":
 			## sign_sponsor adds the original offer — then overwrite with negotiated terms
 			if sign_sponsor(neg["subject_id"]):
 				var negotiated = neg["player_offer"]
-				## Find the sponsor we just added and update with negotiated values
 				for sp in active_sponsors:
 					if sp.get("sponsor_id","") == neg["subject_id"] or \
 							sp.get("name","") == neg.get("sponsor_name",""):
@@ -3483,6 +3611,9 @@ func hire_staff(staff_id: String) -> bool:
 		add_notification("Normal", "%s (%s) joined your team." % [staff.full_name(), staff.role])
 		_clear_notifications_containing("No CFO hired")
 		_clear_notifications_containing("No Team Principal")
+	## Fire assignment proposals for roles that affect car racing
+	if staff.role in ["Race Mechanic", "Team Principal", "Race Strategist"]:
+		_fire_assignment_proposals()
 	emit_signal("log_updated")
 	return true
 
@@ -3555,6 +3686,7 @@ func hire_driver(driver_id: String) -> bool:
 	active_championship.standings[driver_id] = 0
 	add_log("✅ Signed %s — contract: 5 seasons. Assign them to a car in the Drivers screen." % driver.full_name())
 	add_notification("Normal", "%s signed. Build a car in the Garage, then assign them." % driver.full_name())
+	_fire_assignment_proposals()
 	emit_signal("log_updated")
 	return true
 
@@ -3727,6 +3859,7 @@ func add_car(for_champ_id: String = "") -> bool:
 		add_notification("High",
 			"🔧 %s needs a Pit Crew assigned before Race 1 or it will DNS. Hire at Pit Crew Arena." % car.car_name)
 	add_notification("Normal", "%s ready. Assign a driver via the Garage." % car.car_name)
+	_fire_assignment_proposals()
 	emit_signal("log_updated")
 	return true
 
@@ -3815,8 +3948,18 @@ func unassign_mechanic_from_car(car_id: String) -> void:
 func assign_staff_to_championship(staff_id: String, champ_id: String) -> void:
 	if not staff_id in all_staff: return
 	var staff = all_staff[staff_id]
-	## Guard: TP slot — only one TP per championship
+	var reg = CHAMPIONSHIP_REGISTRY.get(champ_id, {})
+	var champ_name = reg.get("name", champ_id)
+
+	## Guard: TP slot — only one TP per championship, but:
+	## - Same TP can be reassigned (clears old assignment)
+	## - GK discipline: one TP covers all tiers — assigning to any GK champ covers all
 	if staff.role == "Team Principal":
+		## Clear old assignment if this TP is already assigned somewhere
+		if staff.assigned_championship != "" and staff.assigned_championship != champ_id:
+			var old_reg = CHAMPIONSHIP_REGISTRY.get(staff.assigned_championship, {})
+			add_log("📋 %s unassigned from %s." % [staff.full_name(), old_reg.get("name", staff.assigned_championship)])
+		## Check no OTHER TP is already on this championship
 		for sid2 in all_staff:
 			var s2 = all_staff[sid2]
 			if s2.id == staff_id: continue
@@ -3825,16 +3968,14 @@ func assign_staff_to_championship(staff_id: String, champ_id: String) -> void:
 				add_notification("High",
 					"Championship already has a Team Principal assigned.")
 				return
-	var reg = CHAMPIONSHIP_REGISTRY.get(champ_id, {})
-	var champ_name = reg.get("name", champ_id)
-	## TP and Strategist: queue for next week (prevents mid-race exploitation)
+
+	## TP and Strategist: queue for next week
 	if staff.role in ["Team Principal", "Race Strategist"]:
 		pending_staff_assignments[staff_id] = champ_id
-		add_log("📋 %s queued to join %s — effective next week." % [staff.full_name(), champ_name])
+		add_log("📋 %s queued for %s — effective next week." % [staff.full_name(), champ_name])
 		add_notification("Normal",
 			"%s will be assigned to %s from next week." % [staff.full_name(), champ_name])
 	else:
-		## Mechanic / Pit Crew: immediate (no advantage to delay)
 		staff.assigned_championship = champ_id
 		add_log("📋 %s assigned to %s" % [staff.full_name(), champ_name])
 
@@ -4021,8 +4162,29 @@ func get_pending_tasks() -> Array[String]:
 				tasks.append("⏱ %s [%s] — no Pit Crew. Assign in Pit Crew Arena." % [car_label, champ_name])
 
 	## Step 3 — Staff roles missing
-	if get_team_principal() == null:
-		tasks.append("⚠ No Team Principal — hire one from Staff screen.")
+	## GK discipline: one TP for all tiers combined
+	var has_gk_active = false
+	var gk_tp_ok = false
+	for champ in active_championships:
+		if champ.discipline == "GK":
+			has_gk_active = true
+			if _get_tp_for_championship(champ.id) != null:
+				gk_tp_ok = true
+	if has_gk_active and not gk_tp_ok:
+		var has_any_tp = get_player_staff_by_role("Team Principal").size() > 0
+		if not has_any_tp:
+			tasks.append("⚠ No Team Principal — hire one from Staff screen.")
+		else:
+			tasks.append("⚠ GK disciplines have no Team Principal assigned. Go to Racing Department.")
+	elif not has_gk_active:
+		## Non-GK: check each active championship
+		var non_gk_missing_tp: Array = []
+		for champ in active_championships:
+			if champ.discipline == "GK": continue
+			if _get_tp_for_championship(champ.id) == null:
+				non_gk_missing_tp.append(champ.championship_name)
+		if non_gk_missing_tp.size() > 0:
+			tasks.append("⚠ No Team Principal for: %s" % ", ".join(non_gk_missing_tp))
 	if get_cfo() == null:
 		tasks.append("💼 No CFO hired — hire one from Staff screen.")
 
@@ -4128,7 +4290,62 @@ func get_pending_tasks() -> Array[String]:
 			and player_registered_championships.is_empty():
 		tasks.append("🏎 Welcome! Buy your first car at the Logistics Center to get started.")
 
+	## Step 10 — No championships registered for next season (mid/late season warning)
+	## Only fire after Week 20 so it doesn't spam at season start
+	if current_week >= 20 and player_registered_championships.is_empty() \
+			and not active_championships.is_empty():
+		tasks.append("📋 No championships registered for next season — register in HQ → WRA.")
+
+	## Auto-clean custom_todo_items that are no longer relevant
+	## (e.g. "Assign a driver to Car X" after driver has been assigned)
+	var to_remove: Array = []
+	for item in custom_todo_items:
+		if _is_todo_item_resolved(item):
+			to_remove.append(item)
+	for item in to_remove:
+		custom_todo_items.erase(item)
+
+	## Custom injected items (TP proposals, etc.)
+	for item in custom_todo_items:
+		tasks.append(item)
+
 	return tasks.filter(func(t): return not t in dismissed_todo_items)
+
+## Returns true if a custom TDL item is no longer relevant and can be auto-removed.
+func _is_todo_item_resolved(item: String) -> bool:
+	## "Assign a driver to Car X [Champ Y]" — resolved if car now has a driver
+	if "Assign a driver to" in item:
+		for car in player_team_cars:
+			var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
+			if car_label in item and car.driver_id != "":
+				return true
+	## "Assign a mechanic to Car X [Champ Y]" — resolved if car now has mechanic
+	if "Assign a mechanic to" in item:
+		for car in player_team_cars:
+			var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
+			if car_label in item and car.mechanic_id != "":
+				return true
+	## "GK TP: assignment update" — resolved if GK TP is now assigned
+	if "GK TP:" in item:
+		for champ in active_championships:
+			if champ.discipline == "GK" and _get_tp_for_championship(champ.id) != null:
+				return true
+	## "Assign X as GK Team Principal" — resolved if any GK TP assigned
+	if "GK Team Principal" in item:
+		for champ in active_championships:
+			if champ.discipline == "GK" and _get_tp_for_championship(champ.id) != null:
+				return true
+	## "Assign X as Team Principal for Y" — resolved if TP now assigned to that champ
+	if "Team Principal for" in item:
+		for champ in active_championships:
+			if champ.championship_name in item and _get_tp_for_championship(champ.id) != null:
+				return true
+	return false
+
+func add_todo_item(item_text: String) -> void:
+	if not item_text in custom_todo_items and not item_text in dismissed_todo_items:
+		custom_todo_items.append(item_text)
+		emit_signal("log_updated")
 
 func dismiss_todo_item(item_text: String) -> void:
 	if not item_text in dismissed_todo_items:
@@ -4399,10 +4616,10 @@ func register_for_championship(champ_id: String) -> bool:
 	if mechs.is_empty():
 		warnings.append("🔧 No Race Mechanic — DNS risk without one assigned to each car")
 
-	if reg["discipline"] != "GK":
+	if reg["discipline"] not in ["GK", "Rally"]:
 		var strats = get_player_staff_by_role("Race Strategist")
 		if strats.is_empty():
-			warnings.append("📡 No Race Strategist — recommended for non-GK championships")
+			warnings.append("📡 No Race Strategist — recommended for non-GK/Rally championships")
 
 	if not warnings.is_empty():
 		var warn_text = "Registered for %s. ⚠ ADVISORY — DNS risk if unresolved before Race 1 (no refunds):\n" % reg["name"]
@@ -5497,6 +5714,7 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 	last_race_results = []
 	hall_of_fame = []
 	dismissed_todo_items = []
+	custom_todo_items    = []
 	active_rnd_tasks = []
 	completed_rnd_tasks = []
 	completed_bp_tasks  = []
@@ -5535,6 +5753,14 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 	var start_champ_name = CHAMPIONSHIP_REGISTRY.get(_starting_champ_id, {}).get("name", "Championship")
 	add_log("Season %d — %s" % [current_season, start_champ_name])
 
+	## Populate GK groups for Season 1 (start_new_season not called for first season)
+	if gk_discipline == null:
+		gk_discipline = GKDiscipline.new()
+	gk_discipline.populate_season(
+		all_drivers, all_staff, player_team.drivers,
+		player_registered_championships, CHAMPIONSHIP_CALENDARS,
+		current_season, player_team_cars)
+
 func _setup_championship() -> void:
 	active_championships.clear()
 	var cid = _starting_champ_id
@@ -5568,6 +5794,9 @@ func _setup_championship() -> void:
 			"lap_km": race.get("lap_km", 1.0), "audience": race["audience"],
 		})
 	active_championships.append(champ)
+	## Do NOT add to player_registered_championships here.
+	## active_championships is the source of truth for Season 1.
+	## player_registered_championships is for next-season registrations only.
 	player_registered_championships = []
 
 func _setup_player_team() -> void:
@@ -5577,11 +5806,15 @@ func _setup_player_team() -> void:
 	player_team.is_player_team = true
 	player_team.balance = 50000.0
 	player_team.reputation = 15.0
-	## Initialise economy fluctuation
-	_economy_weeks_remaining = randi_range(4, 12)
-	_fuel_trend = 0.0
+	## Initialise economy — start at Normal (50)
+	economy_index = 50.0
+	_economy_momentum = 0.0
 	current_fuel_price = 1200.0
 	current_loan_rate = 5.0
+	active_loans.clear()
+	_loan_next_id = 1
+	## Initialise GK discipline manager
+	gk_discipline = GKDiscipline.new()
 	player_team.weekly_driver_salary = 50.0
 	player_team.weekly_mechanic_salary = 250.0
 	all_teams.append(player_team)
@@ -5949,6 +6182,18 @@ func advance_week() -> void:
 
 	current_week += 1
 
+	## Sponsor negotiation: fire counter notification when waiting week arrives
+	if not active_negotiation.is_empty():
+		var waiting = active_negotiation.get("waiting_week", 0)
+		if waiting > 0 and current_week >= waiting:
+			active_negotiation["waiting_week"] = 0
+			var subj = _get_subject_display_name(
+				active_negotiation.get("subject_id",""),
+				active_negotiation.get("subject_type","sponsor"))
+			add_notification("High",
+				"📋 %s has counter-offered — return to negotiate." % subj, "hq")
+			emit_signal("negotiation_updated")
+
 	## Record weekly snapshot for P32 graphs
 	_record_weekly_history()
 
@@ -6000,6 +6245,7 @@ func advance_week() -> void:
 	_advance_cfo_search()
 	_process_sponsors_weekly()
 	_process_supply_contracts_weekly()
+	_process_loans_weekly()
 	_update_ceo_salary()
 
 	# Check for races this week across ALL active championships
@@ -6008,8 +6254,23 @@ func advance_week() -> void:
 		if next_race and next_race["week"] == current_week:
 			_check_race_requirements_for(champ)
 			_simulate_race(next_race, champ)
-	## Sponsor race bonuses handled by apply_sponsor_race_bonuses()
+			## Sponsor race bonuses handled by apply_sponsor_race_bonuses()
 			champ.current_round += 1
+
+	## P26: Shadow-simulate non-player GK groups this week
+	if gk_discipline != null:
+		for cid in ["C-001", "C-002", "C-003", "C-004"]:
+			gk_discipline.shadow_simulate_week(cid, current_week, all_drivers)
+
+	## After all races processed this week — show first result screen
+	if not _pending_race_results.is_empty():
+		## Load the first result snapshot into last_race_* vars for RaceResults to read
+		_apply_pending_race_snapshot(_pending_race_results[0])
+		get_tree().change_scene_to_file("res://scenes/RaceResults.tscn")
+		return  ## Don't continue advance_week processing until results are viewed
+
+	## P31: Check for TP proposals (consolidated, roster-change-gated)
+	_check_tp_proposal_notifications()
 
 	add_log("--- Week %d ---" % current_week)
 
@@ -6141,6 +6402,7 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
  
 	# ── DNS check: player needs a car assigned to THIS championship ──────────
 	var dns_driver_ids: Array = []
+	var dns_car_ids: Array = []   ## tracks cars that DNS regardless of driver assignment
 	# Find player cars for this specific championship
 	var cars_for_champ = player_team_cars.filter(func(car): return car.championship_id == c.id)
 	if cars_for_champ.is_empty():
@@ -6149,15 +6411,27 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 			dns_driver_ids.append(d_id)
 		add_log("🚫 DNS [%s]: No car assigned to this championship." % c.championship_name)
 	else:
-		# Check each car's race eligibility (driver, mechanic, pit crew, fuel)
+		# Check each car's race eligibility (driver, mechanic, pit crew)
 		for car in cars_for_champ:
 			var car_dns = false
 			var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
 
+			# Driver check — required for all disciplines
 			if car.driver_id == "":
 				add_log("🚫 DNS [%s] %s — no driver assigned." % [c.championship_name, car_label])
+				add_notification("Critical",
+					"DNS: %s has no driver for %s! Assign in Garage." % [
+					car_label, c.championship_name], "garage")
 				car_dns = true
 			elif not _can_car_race(car.driver_id):
+				car_dns = true
+
+			# Mechanic check — required for all disciplines
+			if car.mechanic_id == "":
+				add_log("🚫 DNS [%s] %s — no mechanic assigned." % [c.championship_name, car_label])
+				add_notification("Critical",
+					"DNS: %s has no mechanic for %s! Assign in Garage." % [
+					car_label, c.championship_name], "garage")
 				car_dns = true
 
 			# Pit crew check for non-GK
@@ -6169,14 +6443,28 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 						car_label, c.championship_name])
 					car_dns = true
 
-			if car_dns and car.driver_id != "":
-				dns_driver_ids.append(car.driver_id)
- 
+			if car_dns:
+				dns_car_ids.append(car.id)
+				if car.driver_id != "":
+					dns_driver_ids.append(car.driver_id)
+				## Log DNS with car condition unchanged
+				add_log("🏎 Car condition unchanged (DNS)")
+
 	# ── Collect all drivers, skipping DNS cars ────────────────
 	var race_drivers = []
 	for driver_id in c.standings:
-		if driver_id in all_drivers and not driver_id in dns_driver_ids:
-			race_drivers.append(all_drivers[driver_id])
+		if not driver_id in all_drivers: continue
+		if driver_id in dns_driver_ids: continue
+		## For player drivers: also skip if their car is DNS
+		var is_player_driver = driver_id in player_team.drivers
+		if is_player_driver:
+			var has_valid_car = false
+			for car in cars_for_champ:
+				if car.driver_id == driver_id and not car.id in dns_car_ids:
+					has_valid_car = true
+					break
+			if not has_valid_car: continue
+		race_drivers.append(all_drivers[driver_id])
  
 	# Determine weather
 	var is_wet = randf() * 100.0 < race_data["rain_probability"]
@@ -6339,6 +6627,20 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 	# ── Update mechanic + strategist stats ───────────────────────────────────
 	_update_staff_stats_after_race(race_data["laps"], race_data.get("track_id", ""))
 
+	## Sync GK Group 0 (player's group) standings from real championship standings
+	if gk_discipline != null and c.discipline == "GK":
+		var cid = c.id
+		if shadow_standings_has_group_0(cid):
+			for entry in gk_discipline.shadow_standings.get(cid, [[]])[0]:
+				var did = entry["driver_id"]
+				if did in c.standings:
+					entry["points"] = c.standings[did]
+				## Count wins from race results
+				if driver_times.size() > 0 and driver_times[0].get("driver", null) != null:
+					if driver_times[0]["driver"].id == did:
+						entry["wins"] = entry.get("wins", 0) + 1
+				entry["races"] = entry.get("races", 0) + 1
+
 	# ── DNS entries: add to last_race_results with 0 pts ─────
 	# This ensures they appear in the Results screen (last place, DNS label)
 	for d_id in dns_driver_ids:
@@ -6407,14 +6709,24 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 	_consume_race_resources()
 	_earn_race_rp(race_data["laps"])
 
-	# Season ends at week 52 regardless. After the last race the game
-	# continues to week 52 for off-season management.
+	# Season ends at week 52 regardless.
 	if current_week >= max_weeks:
 		_end_season()
 		return
 
-	# Switch to race results scene
-	get_tree().change_scene_to_file("res://scenes/RaceResults.tscn")
+	# Queue this race's results — scene change happens after all same-week races processed
+	_pending_race_results.append({
+		"round":           last_race_round,
+		"laps":            last_race_laps,
+		"name":            last_race_name,
+		"wet":             last_race_wet,
+		"results":         last_race_results.duplicate(),
+		"championship":    last_race_championship,
+		"championship_id": last_race_championship_id,
+		"num_races":       last_race_num_races,
+		"standings":       last_race_standings.duplicate(),
+		"staff_deltas":    last_race_staff_deltas.duplicate(),
+	})
 
 func _update_driver_stats_after_race(driver: Driver, standing_position: int, laps: int, is_wet: bool, grid_size: int, track_id: String = "") -> void:
 	# Fitness drops
@@ -6591,6 +6903,23 @@ func start_new_season() -> void:
 	pending_season_screen = "begin_of_season"
 
 	_process_off_season()
+
+	## P26: Populate GK discipline groups for new season
+	if gk_discipline == null:
+		gk_discipline = GKDiscipline.new()
+	gk_discipline.populate_season(
+		all_drivers,
+		all_staff,
+		player_team.drivers,
+		player_registered_championships,
+		CHAMPIONSHIP_CALENDARS,
+		current_season,
+		player_team_cars)
+	## Generate TP assignment proposals for the new season
+	if not player_team_cars.is_empty():
+		var tp_proposals = generate_tp_assignment_proposals()
+		## Store for Racing Department to display
+		_last_tp_proposals = tp_proposals
 
 	# ── Wipe ALL player cars ─────────────────────────────────────────────────
 	player_team_cars.clear()
@@ -6804,6 +7133,36 @@ func _process_off_season() -> void:
 					staff.full_name(), staff.role])
 
 	var driver_counter = all_drivers.size()
+	## Process player team expired contracts — drivers and staff become free agents
+	var player_drivers_to_release: Array = []
+	for driver_id in player_team.drivers:
+		if driver_id in all_drivers:
+			var driver = all_drivers[driver_id]
+			if driver.contract_seasons_remaining == 0:
+				player_drivers_to_release.append(driver_id)
+	for driver_id in player_drivers_to_release:
+		var driver = all_drivers[driver_id]
+		add_log("👋 %s's contract expired — left the team." % driver.full_name())
+		add_notification("High", "%s has left — contract expired." % driver.full_name())
+		driver.contract_team = ""
+		driver.contract_seasons_remaining = 0
+		player_team.drivers.erase(driver_id)
+		## Remove from all active championship standings
+		for champ in active_championships:
+			champ.standings.erase(driver_id)
+
+	var player_staff_to_release: Array = []
+	for sid in all_staff:
+		var s = all_staff[sid]
+		if s.contract_team == player_team.id and s.contract_seasons_remaining == 0:
+			player_staff_to_release.append(sid)
+	for sid in player_staff_to_release:
+		var s = all_staff[sid]
+		add_log("👋 %s (%s) contract expired — left the team." % [s.full_name(), s.role])
+		add_notification("High", "%s (%s) has left — contract expired." % [s.full_name(), s.role])
+		s.contract_team = ""
+		s.assigned_championship = ""
+
 	for team in all_teams:
 		# Never auto-remove player team drivers — player manages their own roster
 		if team.id == player_team.id:
@@ -6911,9 +7270,13 @@ func save_game() -> void:
 		"history_merchandise":       history_merchandise,
 		"history_reputation":        history_reputation,
 		"current_loan_rate":         current_loan_rate,
-		"economy_weeks_remaining":   _economy_weeks_remaining,
-		"fuel_trend":                _fuel_trend,
+		"economy_index":             economy_index,
+		"economy_momentum":          _economy_momentum,
+		"active_loans":              active_loans,
+		"loan_next_id":              _loan_next_id,
 		"consecutive_win_counts":    consecutive_win_counts,
+		"gk_discipline":             gk_discipline.serialize() if gk_discipline else {},
+		"custom_todo_items":         custom_todo_items,
 	}
 
 	# Save all teams
@@ -7030,9 +7393,21 @@ func load_game(path: String = "user://save_game.json") -> void:
 	if "history_merchandise"       in data: history_merchandise       = data["history_merchandise"]
 	if "history_reputation"        in data: history_reputation        = data["history_reputation"]
 	if "current_loan_rate"         in data: current_loan_rate         = data["current_loan_rate"]
-	if "economy_weeks_remaining"   in data: _economy_weeks_remaining  = data["economy_weeks_remaining"]
-	if "fuel_trend"                in data: _fuel_trend               = data["fuel_trend"]
+	if "economy_index"             in data: economy_index             = float(data["economy_index"])
+	if "economy_momentum"          in data: _economy_momentum         = float(data["economy_momentum"])
+	if "active_loans"              in data: active_loans              = data["active_loans"]
+	if "loan_next_id"              in data: _loan_next_id             = data["loan_next_id"]
 	if "consecutive_win_counts"    in data: consecutive_win_counts    = data["consecutive_win_counts"]
+	## Legacy save compat: old 3-state economy saves had no economy_index
+	if not "economy_index" in data:
+		var old_state = data.get("global_economy_state", "Normal")
+		economy_index = 15.0 if old_state == "Recession" else (85.0 if old_state == "Boom" else 50.0)
+	## P26: GK Discipline
+	if gk_discipline == null:
+		gk_discipline = GKDiscipline.new()
+	if "gk_discipline" in data and not data["gk_discipline"].is_empty():
+		gk_discipline.deserialize(data["gk_discipline"])
+	if "custom_todo_items" in data: custom_todo_items = data["custom_todo_items"]
 
 	# Restore championship
 	_setup_championship()
@@ -7676,6 +8051,759 @@ func _process_sponsors_season_end() -> void:
 	sponsor_offers = sponsor_offers.filter(func(o): return o.expires_season > current_season)
 	_generate_passive_sponsor_offers()
 
+## Loads a pending race snapshot into the last_race_* vars for RaceResults to display.
+func _apply_pending_race_snapshot(snap: Dictionary) -> void:
+	last_race_round          = snap.get("round", 0)
+	last_race_laps           = snap.get("laps", 0)
+	last_race_name           = snap.get("name", "")
+	last_race_wet            = snap.get("wet", false)
+	last_race_results        = snap.get("results", [])
+	last_race_championship   = snap.get("championship", "")
+	last_race_championship_id = snap.get("championship_id", "")
+	last_race_num_races      = snap.get("num_races", 0)
+	last_race_standings      = snap.get("standings", [])
+	last_race_staff_deltas   = snap.get("staff_deltas", [])
+
+## Called by RaceResults Continue button.
+## If more races queued → show next result. Otherwise → return to MainHub.
+## Returns true if another result was loaded (caller should go to RaceResults again).
+## Returns false if queue is empty (caller should go to MainHub).
+func consume_next_race_result() -> bool:
+	if _pending_race_results.is_empty(): return false
+	_pending_race_results.remove_at(0)
+	if _pending_race_results.is_empty(): return false
+	_apply_pending_race_snapshot(_pending_race_results[0])
+	return true
+
+func shadow_standings_has_group_0(cid: String) -> bool:
+	if gk_discipline == null: return false
+	var ss = gk_discipline.shadow_standings.get(cid, [])
+	return ss.size() > 0 and ss[0].size() > 0
+
+## ═══════════════════════════════════════════════════════════════════════════
+## TP AUTO-ASSIGNMENT PROPOSALS (S23)
+## ═══════════════════════════════════════════════════════════════════════════
+##
+## Generates a complete, ready-to-apply assignment plan for all cars/championships.
+## Priority rules:
+##   1. Sort championships by prestige (tier × discipline weight — GP > EPC > SC > OWC > TC > Rally > GK)
+##   2. Assign best driver (by effective skill = raw × adaptation/100) to highest-prestige car first
+##   3. GK multi-tier: same driver/mechanic can cover multiple GK cars IF no same-week different-track conflict
+##   4. Non-GK: one driver per car, no cross-championship sharing
+##   5. If no driver available → DNS warning proposal item
+##   6. Cross-discipline assignment → adaptation warning in proposal
+
+## Discipline prestige weights for priority sorting (higher = more important)
+const DISC_PRESTIGE: Dictionary = {
+	"GP": 7, "EPC": 6, "SC": 5, "OWC": 4, "TC": 3, "Rally": 2, "GK": 1
+}
+
+func generate_tp_assignment_proposals() -> Array:
+	var proposals: Array = []
+
+	## Build sorted list of player cars by championship prestige (highest first)
+	var sorted_cars: Array = player_team_cars.duplicate()
+	sorted_cars.sort_custom(func(a, b):
+		var reg_a = CHAMPIONSHIP_REGISTRY.get(a.championship_id, {})
+		var reg_b = CHAMPIONSHIP_REGISTRY.get(b.championship_id, {})
+		var disc_a = reg_a.get("discipline", "GK")
+		var disc_b = reg_b.get("discipline", "GK")
+		var tier_a = reg_a.get("tier", 1)
+		var tier_b = reg_b.get("tier", 1)
+		var score_a = DISC_PRESTIGE.get(disc_a, 1) * 10 + tier_a
+		var score_b = DISC_PRESTIGE.get(disc_b, 1) * 10 + tier_b
+		return score_a > score_b)
+
+	## Track committed drivers/mechanics per race-week
+	## committed_drivers[driver_id] = Array of {week, track_id} they're committed to
+	var committed_drivers: Dictionary = {}
+	var committed_mechanics: Dictionary = {}
+
+	## Available drivers/mechanics on the team
+	var avail_drivers: Array = []
+	for did in player_team.drivers:
+		var d = all_drivers.get(did)
+		if d: avail_drivers.append(d)
+
+	var avail_mechanics: Array = []
+	for sid in all_staff:
+		var s = all_staff[sid]
+		if s.contract_team == player_team.id and s.role == "Race Mechanic":
+			avail_mechanics.append(s)
+
+	## Get race calendar for conflict checking
+	var race_weeks: Dictionary = {}  ## car_id → Array of {week, track_id}
+	for car in sorted_cars:
+		var cid = car.championship_id
+		var cal = CHAMPIONSHIP_CALENDARS.get(cid, [])
+		race_weeks[car.id] = cal.map(func(r): return {"week": r["week"], "track_id": r.get("track_id","")})
+
+	## Process each car in prestige order
+	for car in sorted_cars:
+		var reg = CHAMPIONSHIP_REGISTRY.get(car.championship_id, {})
+		var disc = reg.get("discipline", "GK")
+		var champ_name = reg.get("name", car.championship_id)
+		var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
+		var is_gk = (disc == "GK")
+		var car_races = race_weeks.get(car.id, [])
+
+		## ── Driver proposal ──────────────────────────────────────────────
+		var best_driver = _find_best_driver_for_car(
+			car, disc, avail_drivers, committed_drivers, car_races, is_gk)
+
+		if best_driver != null:
+			var eff_pace = _effective_stat(best_driver, disc, "pace")
+			var adapt = best_driver.discipline_adaptation.get(disc, 0.0)
+			var note = "Assign %s → %s [%s]  (Eff. pace: %.0f" % [
+				best_driver.full_name(), car_label, champ_name, eff_pace]
+			if adapt < 70.0:
+				note += ", ⚠ Low discipline adaptation %.0f%%" % adapt
+			elif adapt < 40.0:
+				note += ", 🚨 Very low adaptation %.0f%% — DNS risk" % adapt
+			note += ")"
+
+			## Check if GK same-venue multi-assignment
+			var already_assigned = committed_drivers.get(best_driver.id, [])
+			var is_multi = already_assigned.size() > 0
+			if is_multi:
+				note = "⚡ " + note + "  ← also covering another GK tier (same venue)"
+
+			proposals.append({
+				"type":        "assign_driver",
+				"car_id":      car.id,
+				"car_label":   car_label,
+				"champ_id":    car.championship_id,
+				"champ_name":  champ_name,
+				"driver_id":   best_driver.id,
+				"driver_name": best_driver.full_name(),
+				"eff_pace":    eff_pace,
+				"adaptation":  adapt,
+				"note":        note,
+				"priority":    "normal" if adapt >= 70.0 else "warning",
+			})
+
+			## Mark committed for non-GK or GK with specific race weeks
+			if not committed_drivers.has(best_driver.id):
+				committed_drivers[best_driver.id] = []
+			for race in car_races:
+				committed_drivers[best_driver.id].append(race)
+		else:
+			## No driver available
+			var dns_proposals = _build_dns_proposals(car_races, committed_drivers, avail_drivers)
+			if dns_proposals.size() > 0:
+				for dp in dns_proposals:
+					proposals.append({
+						"type":       "dns_warning",
+						"car_id":     car.id,
+						"car_label":  car_label,
+						"champ_name": champ_name,
+						"note":       "⚠ %s — no driver for Week %d (%s). Expected DNS." % [
+							car_label, dp["week"], dp["track_id"]],
+						"priority":   "warning",
+					})
+			else:
+				proposals.append({
+					"type":       "missing_driver",
+					"car_id":     car.id,
+					"car_label":  car_label,
+					"champ_name": champ_name,
+					"note":       "🚫 %s [%s] — no driver available. Hire one." % [car_label, champ_name],
+					"priority":   "critical",
+				})
+
+		## ── Mechanic proposal ────────────────────────────────────────────
+		var best_mech = _find_best_mechanic_for_car(
+			car, disc, avail_mechanics, committed_mechanics, car_races, is_gk)
+
+		if best_mech != null:
+			var eff_setup = _effective_stat_staff(best_mech, disc, "car_setup")
+			var adapt = best_mech.discipline_adaptation.get(disc, best_mech.discipline_adaptation.get("GK", 50.0)) \
+				if best_mech.discipline_adaptation.has(disc) else 50.0
+			var note = "Assign mechanic %s → %s [%s]  (Eff. setup: %.0f" % [
+				best_mech.full_name(), car_label, champ_name, eff_setup]
+			if adapt < 60.0:
+				note += ", ⚠ Low adaptation %.0f%%" % adapt
+			note += ")"
+
+			proposals.append({
+				"type":         "assign_mechanic",
+				"car_id":       car.id,
+				"car_label":    car_label,
+				"champ_id":     car.championship_id,
+				"champ_name":   champ_name,
+				"mechanic_id":  best_mech.id,
+				"mechanic_name": best_mech.full_name(),
+				"eff_setup":    eff_setup,
+				"note":         note,
+				"priority":     "normal" if adapt >= 60.0 else "warning",
+			})
+
+			if not committed_mechanics.has(best_mech.id):
+				committed_mechanics[best_mech.id] = []
+			for race in car_races:
+				committed_mechanics[best_mech.id].append(race)
+		else:
+			proposals.append({
+				"type":       "missing_mechanic",
+				"car_id":     car.id,
+				"car_label":  car_label,
+				"champ_name": champ_name,
+				"note":       "🚫 %s [%s] — no mechanic available. Hire one." % [car_label, champ_name],
+				"priority":   "critical",
+			})
+
+	## Fire notification and TDL based on proposal severity
+	_fire_tp_proposal_notification(proposals)
+	return proposals
+
+## Returns effective stat value for a driver in a discipline
+func _effective_stat(driver, disc: String, stat: String) -> float:
+	var raw: float = 50.0
+	match stat:
+		"pace": raw = driver.pace
+		"consistency": raw = driver.consistency
+		"fitness": raw = driver.fitness
+	var adapt = driver.discipline_adaptation.get(disc, 1.0)
+	return raw * (adapt / 100.0)
+
+## Returns effective stat for staff in a discipline
+func _effective_stat_staff(staff, disc: String, stat: String) -> float:
+	var raw: float = 50.0
+	if stat == "car_setup" and "car_setup_skill" in staff: raw = staff.car_setup_skill
+	elif stat == "car_setup" and "car_setup" in staff: raw = staff.car_setup
+	var adapt = staff.discipline_adaptation.get(disc, 50.0) \
+		if "discipline_adaptation" in staff and staff.discipline_adaptation.has(disc) else 50.0
+	return raw * (adapt / 100.0)
+
+## Finds the best available driver for a car, respecting GK multi-assignment and adaptation.
+func _find_best_driver_for_car(car, disc: String, avail_drivers: Array,
+		committed: Dictionary, car_races: Array, is_gk: bool):
+	var best = null
+	var best_score = -1.0
+	for d in avail_drivers:
+		## GK: same driver can cover multiple tiers if no different-track same-week conflict
+		if is_gk:
+			var conflict = false
+			var d_committed = committed.get(d.id, [])
+			for race in car_races:
+				for comm_race in d_committed:
+					if comm_race["week"] == race["week"] and comm_race["track_id"] != race["track_id"]:
+						conflict = true; break
+				if conflict: break
+			if conflict: continue
+		else:
+			## Non-GK: driver can only cover one championship
+			if committed.has(d.id) and committed[d.id].size() > 0: continue
+
+		## Age eligibility
+		var reg = CHAMPIONSHIP_REGISTRY.get(car.championship_id, {})
+		if d.age < reg.get("min_age", 0) or d.age > reg.get("max_age", 99): continue
+
+		var score = _effective_stat(d, disc, "pace") * 0.6 + \
+			_effective_stat(d, disc, "consistency") * 0.4
+		if score > best_score:
+			best_score = score
+			best = d
+	return best
+
+## Finds the best available mechanic for a car.
+func _find_best_mechanic_for_car(car, disc: String, avail_mechanics: Array,
+		committed: Dictionary, car_races: Array, is_gk: bool):
+	var best = null
+	var best_score = -1.0
+	for s in avail_mechanics:
+		if is_gk:
+			var conflict = false
+			var s_committed = committed.get(s.id, [])
+			for race in car_races:
+				for comm_race in s_committed:
+					if comm_race["week"] == race["week"] and comm_race["track_id"] != race["track_id"]:
+						conflict = true; break
+				if conflict: break
+			if conflict: continue
+		else:
+			if committed.has(s.id) and committed[s.id].size() > 0: continue
+		var setup = s.car_setup_skill if "car_setup_skill" in s else \
+			(s.car_setup if "car_setup" in s else 50.0)
+		var adapt = s.discipline_adaptation.get(disc, 50.0) \
+			if "discipline_adaptation" in s and s.discipline_adaptation.has(disc) else 50.0
+		var score = setup * (adapt / 100.0)
+		if score > best_score:
+			best_score = score
+			best = s
+	return best
+
+## Returns DNS-risk race weeks where a driver conflict means empty car.
+func _build_dns_proposals(car_races: Array, committed: Dictionary, avail_drivers: Array) -> Array:
+	var dns_weeks: Array = []
+	for race in car_races:
+		var can_cover = false
+		for d in avail_drivers:
+			var d_comm = committed.get(d.id, [])
+			var has_conflict = false
+			for comm_race in d_comm:
+				if comm_race["week"] == race["week"] and comm_race["track_id"] != race["track_id"]:
+					has_conflict = true; break
+			if not has_conflict:
+				can_cover = true; break
+		if not can_cover:
+			dns_weeks.append(race)
+	return dns_weeks
+
+## Fires notification and TDL for TP proposals.
+func _fire_tp_proposal_notification(proposals: Array) -> void:
+	if proposals.is_empty(): return
+	var has_critical = proposals.any(func(p): return p.get("priority","") == "critical")
+	var has_warning  = proposals.any(func(p): return p.get("priority","") == "warning")
+	var driver_assigns = proposals.filter(func(p): return p["type"] == "assign_driver").size()
+	var mech_assigns   = proposals.filter(func(p): return p["type"] == "assign_mechanic").size()
+
+	var msg: String
+	var priority: String
+	if has_critical:
+		msg = "🚫 TP: missing personnel — some cars cannot race. → Racing Department"
+		priority = "Critical"
+	elif has_warning:
+		msg = "⚠ TP proposals: %d driver + %d mechanic (low adaptation warnings). → Racing Department" % [driver_assigns, mech_assigns]
+		priority = "High"
+	else:
+		msg = "🏁 TP proposals ready: %d driver + %d mechanic assignments. → Racing Department" % [driver_assigns, mech_assigns]
+		priority = "High"
+
+	add_notification(priority, msg, "racing_dept")
+	## TDL item — routes to Racing Department via _get_todo_destination
+	var tdl_msg = "🏁 TP has %d assignment%s ready — Racing Department" % [
+		driver_assigns + mech_assigns,
+		"s" if driver_assigns + mech_assigns != 1 else ""]
+	add_todo_item(tdl_msg)
+
+## Applies a list of TP proposals — assigns drivers and mechanics to cars.
+## Call after player reviews and accepts proposals in Racing Department.
+func apply_tp_proposals(proposals: Array) -> void:
+	for prop in proposals:
+		match prop["type"]:
+			"assign_driver":
+				var car_id = prop.get("car_id","")
+				var driver_id = prop.get("driver_id","")
+				if car_id != "" and driver_id != "":
+					assign_driver_to_car(driver_id, car_id)
+			"assign_mechanic":
+				var car_id = prop.get("car_id","")
+				var mech_id = prop.get("mechanic_id","")
+				if car_id != "" and mech_id != "":
+					assign_staff_to_car(mech_id, car_id)
+	## Dismiss the TDL item
+	for item in custom_todo_items.duplicate():
+		if "TP proposals ready" in item or "TP proposals:" in item:
+			dismiss_todo_item(item)
+	emit_signal("log_updated")
+
+## Returns all TP/Strategist assignment proposals for all active championships.
+## GK: single TP for all 4 tiers combined (one proposal, not four).
+## Non-GK: 1 TP + 1 Strategist per championship (where applicable).
+## Only generates proposals if the player has a car registered to that championship.
+## Reads active_championships (not player_registered_championships).
+func get_tp_proposals_all() -> Array:
+	var result: Array = []
+
+	## GK: single shared TP for all 4 GK tiers
+	var gk_active: Array = []
+	for champ in active_championships:
+		if champ.discipline == "GK":
+			gk_active.append(champ)
+
+	if not gk_active.is_empty():
+		## Check if player has any car in any GK tier
+		var has_gk_car = false
+		for car in player_team_cars:
+			for champ in gk_active:
+				if car.championship_id == champ.id:
+					has_gk_car = true; break
+			if has_gk_car: break
+
+		if has_gk_car:
+			## GK driver/mechanic proposals from GKDiscipline (car-aware)
+			if gk_discipline != null:
+				for prop in gk_discipline.get_pending_proposals():
+					result.append(prop)
+
+			## Single GK TP check — is any TP assigned to any GK championship?
+			var gk_tp_assigned = false
+			for champ in gk_active:
+				if _get_tp_for_championship(champ.id) != null:
+					gk_tp_assigned = true; break
+			if not gk_tp_assigned:
+				var best_tp = _find_best_unassigned_staff_for_gk()
+				if best_tp:
+					result.append({
+						"type":       "tp_assignment",
+						"champ_id":   "GK",
+						"champ_name": "GK Discipline (all tiers)",
+						"role":       "Team Principal",
+						"staff_id":   best_tp.id,
+						"staff_name": best_tp.full_name(),
+						"note":       "Assign %s as GK Team Principal (covers all GK tiers)" % best_tp.full_name(),
+					})
+
+	## Non-GK: 1 TP + 1 Strategist per championship
+	for champ in active_championships:
+		if champ.discipline == "GK": continue
+
+		## Only propose if player has a car for this championship
+		var has_car = false
+		for car in player_team_cars:
+			if car.championship_id == champ.id:
+				has_car = true; break
+		if not has_car: continue
+
+		var reg = CHAMPIONSHIP_REGISTRY.get(champ.id, {})
+
+		## TP check — stored on Staff.assigned_championship
+		if _get_tp_for_championship(champ.id) == null:
+			var best_tp = _find_best_unassigned_staff("Team Principal", champ.id)
+			if best_tp:
+				result.append({
+					"type":       "tp_assignment",
+					"champ_id":   champ.id,
+					"champ_name": champ.championship_name,
+					"role":       "Team Principal",
+					"staff_id":   best_tp.id,
+					"staff_name": best_tp.full_name(),
+					"note":       "Assign %s as Team Principal for %s" % [
+						best_tp.full_name(), champ.championship_name],
+				})
+
+		## Strategist check (not for Rally)
+		var disc = champ.discipline
+		if disc != "Rally":
+			var strat_assigned = false
+			for sid in all_staff:
+				var s = all_staff[sid]
+				if s.contract_team != player_team.id: continue
+				if s.role != "Race Strategist": continue
+				if s.assigned_championship == champ.id:
+					strat_assigned = true; break
+			if not strat_assigned:
+				var best_strat = _find_best_unassigned_staff("Race Strategist", champ.id)
+				if best_strat:
+					result.append({
+						"type":       "strategist_assignment",
+						"champ_id":   champ.id,
+						"champ_name": champ.championship_name,
+						"role":       "Race Strategist",
+						"staff_id":   best_strat.id,
+						"staff_name": best_strat.full_name(),
+						"note":       "Assign %s as Strategist for %s" % [
+							best_strat.full_name(), champ.championship_name],
+					})
+
+	## Driver/mechanic unassigned car proposals (any discipline)
+	for car in player_team_cars:
+		var champ_name = ""
+		for champ in active_championships:
+			if champ.id == car.championship_id:
+				champ_name = champ.championship_name; break
+		if champ_name == "": continue
+		var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
+		if car.driver_id == "":
+			result.append({
+				"type":    "driver_needed",
+				"champ_id": car.championship_id,
+				"champ_name": champ_name,
+				"car_id":  car.id,
+				"note":    "Assign a driver to %s [%s]" % [car_label, champ_name],
+			})
+		if car.mechanic_id == "":
+			result.append({
+				"type":    "mechanic_needed",
+				"champ_id": car.championship_id,
+				"champ_name": champ_name,
+				"car_id":  car.id,
+				"note":    "Assign a mechanic to %s [%s]" % [car_label, champ_name],
+			})
+
+	return result
+
+## Finds the best available TP for GK — not already assigned to a non-GK championship.
+func _find_best_unassigned_staff_for_gk():
+	var best = null
+	var best_score = -1.0
+	for sid in all_staff:
+		var s = all_staff[sid]
+		if s.contract_team != player_team.id: continue
+		if s.role != "Team Principal": continue
+		## Not already assigned to a non-GK championship
+		var already = false
+		for champ in active_championships:
+			if champ.discipline == "GK": continue
+			if s.assigned_championship == champ.id:
+				already = true; break
+		if already: continue
+		var score = s.race_pace_reading if "race_pace_reading" in s else 50.0
+		if score > best_score:
+			best_score = score
+			best = s
+	return best
+
+## Returns the best available (unassigned) staff member of a given role for a championship.
+func _find_best_unassigned_staff(role: String, champ_id: String):
+	var best = null
+	var best_score = -1.0
+	for sid in all_staff:
+		var s = all_staff[sid]
+		if s.contract_team != player_team.id: continue
+		if s.role != role: continue
+		## Not already assigned to a different championship
+		var already_assigned = false
+		for champ in active_championships:
+			if champ.id == champ_id: continue
+			if role == "Team Principal" and s.assigned_championship == champ.id:
+				already_assigned = true; break
+			if role == "Race Strategist" and s.assigned_championship == champ.id:
+				already_assigned = true; break
+		if already_assigned: continue
+		## Direct property access — Staff is a Resource, not a Dictionary
+		var score = s.race_pace_reading if "race_pace_reading" in s else 50.0
+		if score > best_score:
+			best_score = score
+			best = s
+	return best
+
+## Checks weekly whether TP proposals should fire a notification + TDL item.
+## Rules:
+## 1. Any player car with no driver OR no mechanic within 2 weeks of a race → Critical alert.
+##    No roster-change gate — this fires every week until fixed.
+## 2. Season start (week 1): consolidated TP assignment suggestions for all championships.
+## 3. GK weekly: fires if roster changed AND a GK race is ≤2 weeks away.
+func _check_tp_proposal_notifications() -> void:
+	## Check if any car is missing driver/mechanic within 2 weeks of a race (unconditional)
+	for champ in active_championships:
+		var race = champ.get_next_race()
+		if not race: continue
+		var weeks_until = int(race["week"]) - current_week
+		if weeks_until < 0 or weeks_until > 2: continue
+		for car in player_team_cars:
+			if car.championship_id != champ.id: continue
+			var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
+			if car.driver_id == "":
+				var msg = "🚫 %s [%s] — no driver. Race in %d week%s!" % [
+					car_label, champ.championship_name, weeks_until,
+					"s" if weeks_until != 1 else ""]
+				add_notification("Critical", msg, "garage")
+				add_todo_item(msg)
+			if car.mechanic_id == "":
+				var msg = "🚫 %s [%s] — no mechanic. Race in %d week%s!" % [
+					car_label, champ.championship_name, weeks_until,
+					"s" if weeks_until != 1 else ""]
+				add_notification("Critical", msg, "garage")
+				add_todo_item(msg)
+
+	## Regenerate TP proposals 3 weeks before first race of season, and before each race week
+	var should_generate = false
+	if current_week == 1 and not player_team_cars.is_empty():
+		should_generate = true
+	else:
+		for champ in active_championships:
+			var race = champ.get_next_race()
+			if race and (race["week"] - current_week) <= 3:
+				should_generate = true; break
+
+	if should_generate and not player_team_cars.is_empty():
+		## Only regenerate if roster changed or proposals are empty
+		if _last_tp_proposals.is_empty() or _tp_roster_changed():
+			_last_tp_proposals = generate_tp_assignment_proposals()
+			_tp_roster_snapshot = _take_tp_roster_snapshot()
+
+## Returns true if driver/mechanic roster changed since last TP proposal generation.
+var _tp_roster_snapshot: Dictionary = {}
+
+func _take_tp_roster_snapshot() -> Dictionary:
+	var snap: Dictionary = {}
+	for did in player_team.drivers:
+		var d = all_drivers.get(did)
+		if d: snap[did] = d.age
+	for sid in all_staff:
+		var s = all_staff[sid]
+		if s.contract_team == player_team.id and s.role == "Race Mechanic":
+			snap[sid] = s.contract_seasons_remaining
+	for car in player_team_cars:
+		snap["car_%s" % car.id] = car.championship_id
+	return snap
+
+func _tp_roster_changed() -> bool:
+	var current = _take_tp_roster_snapshot()
+	if current.size() != _tp_roster_snapshot.size(): return true
+	for key in current:
+		if not key in _tp_roster_snapshot or current[key] != _tp_roster_snapshot[key]:
+			return true
+	return false
+
+## Called whenever a car is bought/built or a driver/mechanic is hired.
+## Immediately checks if any unassigned combinations exist and fires TDL items.
+## This is the event-driven trigger — no weekly polling needed for these.
+func _fire_assignment_proposals() -> void:
+	var proposals = get_tp_proposals_all()
+	for prop in proposals:
+		var note = prop.get("note","")
+		if note == "": continue
+		## Only fire actionable assignment proposals, not GK ecosystem proposals
+		var ptype = prop.get("type","")
+		if ptype in ["driver_needed","mechanic_needed","tp_assignment","strategist_assignment"]:
+			## Don't duplicate existing TDL items
+			var already = false
+			for t in custom_todo_items:
+				if t == note: already = true; break
+			if not already and not note in dismissed_todo_items:
+				add_todo_item(note)
+				var priority = "Critical" if ptype in ["driver_needed","mechanic_needed"] else "High"
+				add_notification(priority, note,
+					"garage" if ptype in ["driver_needed","mechanic_needed"] else "racing_dept")
+
+## ── P44 LOAN SYSTEM (S21) ────────────────────────────────────────────────────
+
+## Returns the max loan tier (1-5) unlocked by current HQ level.
+## Tier 1: HQ L1+  Tier 2: HQ L3+  Tier 3: HQ L6+  Tier 4: HQ L9+  Tier 5: HQ L12+
+func get_loan_tier() -> int:
+	var hq_level = campus_buildings.get("Headquarters", {}).get("level", 1)
+	if hq_level >= 12: return 5
+	if hq_level >= 9:  return 4
+	if hq_level >= 6:  return 3
+	if hq_level >= 3:  return 2
+	return 1
+
+## Returns the maximum loan amount available for a given tier.
+## Based on company value × tier percentage. CFO negotiation adds up to +10%.
+func get_max_loan_amount(tier: int = -1) -> float:
+	if tier < 0: tier = get_loan_tier()
+	const TIER_PCT = {1: 0.20, 2: 0.35, 3: 0.50, 4: 0.65, 5: 0.80}
+	var base_pct = TIER_PCT.get(tier, 0.20)
+	var company_val = _calculate_company_value()
+	var max_amount = company_val * base_pct
+	## CFO negotiation bonus — up to +10% of cap at skill 100
+	var cfo = get_cfo()
+	if cfo:
+		var cfo_bonus = (cfo.sponsor_negotiation / 100.0) * 0.10
+		max_amount *= (1.0 + cfo_bonus)
+	## Without CFO: cap at Tier 1 regardless of HQ (applied in take_loan, not here)
+	return max(0.0, max_amount)
+
+## Returns the annual interest rate for a new loan.
+## base = current_loan_rate (from economy).
+## + risk premium for low reputation teams.
+## - CFO financial_management discount (up to -2% at skill 100).
+## + 1.5% penalty if no CFO.
+func get_loan_rate() -> float:
+	var base = current_loan_rate
+	## Risk premium: low rep teams pay more
+	var risk_premium = max(0.0, (50.0 - player_team.reputation) * 0.05)
+	var cfo = get_cfo()
+	var cfo_discount = 0.0
+	if cfo:
+		cfo_discount = (cfo.budget_planning / 100.0) * 2.0   ## up to -2%
+	else:
+		base += 1.5  ## no-CFO penalty
+	return clamp(base + risk_premium - cfo_discount, 0.5, 25.0)
+
+## Returns the max number of simultaneous loans.
+## Default: 2. CFO unlocks 3rd slot.
+func get_max_loan_slots() -> int:
+	return 3 if get_cfo() != null else 2
+
+## Calculates weekly mortgage payment for a loan.
+## P = principal, annual_rate = %, n_weeks = total duration in weeks.
+func _calc_weekly_payment(principal: float, annual_rate: float, n_weeks: int) -> float:
+	if n_weeks <= 0: return principal
+	var weekly_r = (annual_rate / 100.0) / 52.0
+	if weekly_r < 0.00001:
+		return principal / float(n_weeks)
+	var factor = weekly_r * pow(1.0 + weekly_r, float(n_weeks))
+	var denom   = pow(1.0 + weekly_r, float(n_weeks)) - 1.0
+	return principal * (factor / denom)
+
+## Take a loan. tier is clamped to get_loan_tier(). Returns error string or "".
+## Without CFO: tier is capped at 1 regardless of HQ.
+func take_loan(amount: float, seasons: int) -> String:
+	var cfo = get_cfo()
+	var max_tier = get_loan_tier()
+	if cfo == null: max_tier = 1   ## no-CFO cap
+
+	if active_loans.size() >= get_max_loan_slots():
+		return "Maximum active loans reached (%d). Repay one first." % get_max_loan_slots()
+
+	var max_amount = get_max_loan_amount(max_tier)
+	if amount > max_amount:
+		return "Amount exceeds maximum for current tier (CR %s)." % _fmt_int(int(max_amount))
+
+	const MIN_SEASONS = {1:4, 2:4, 3:4, 4:4, 5:4}
+	const MAX_SEASONS = {1:8, 2:12, 3:16, 4:20, 5:25}
+	var tier = get_loan_tier() if cfo else 1
+	var min_s = MIN_SEASONS.get(tier, 4)
+	var max_s = MAX_SEASONS.get(tier, 8)
+	if seasons < min_s or seasons > max_s:
+		return "Duration must be %d–%d seasons for Tier %d." % [min_s, max_s, tier]
+
+	var annual_rate = get_loan_rate()
+	var n_weeks = seasons * 52
+	var weekly_pay = _calc_weekly_payment(amount, annual_rate, n_weeks)
+
+	var loan = {
+		"id":               _loan_next_id,
+		"amount_original":  amount,
+		"balance_remaining": amount,
+		"weekly_payment":   weekly_pay,
+		"annual_rate":      annual_rate,
+		"seasons_duration": seasons,
+		"weeks_remaining":  n_weeks,
+		"taken_season":     current_season,
+		"taken_week":       current_week,
+		"cfo_name":         cfo.full_name() if cfo else "No CFO",
+	}
+	_loan_next_id += 1
+	active_loans.append(loan)
+	player_team.balance += amount
+
+	add_log("🏦 Loan taken: CR %s over %d seasons @ %.1f%% p.a. (CR %s/wk)." % [
+		_fmt_int(int(amount)), seasons, annual_rate, _fmt_int(int(weekly_pay))])
+	add_notification("High",
+		"Loan of CR %s approved. Weekly repayment: CR %s." % [
+			_fmt_int(int(amount)), _fmt_int(int(weekly_pay))], "hq")
+	return ""
+
+## Repay a loan fully. Penalty = 1 season of interest on remaining balance.
+func repay_loan_early(loan_id: int) -> String:
+	for i in range(active_loans.size()):
+		var loan = active_loans[i]
+		if loan["id"] != loan_id: continue
+		var remaining = loan["balance_remaining"]
+		var penalty   = remaining * (loan["annual_rate"] / 100.0)  ## ~1 year interest
+		var total_due = remaining + penalty
+		if player_team.balance < total_due:
+			return "Insufficient balance. Need CR %s (balance + penalty)." % _fmt_int(int(total_due))
+		player_team.balance -= total_due
+		active_loans.remove_at(i)
+		add_log("🏦 Loan #%d repaid early. Penalty: CR %s." % [loan_id, _fmt_int(int(penalty))])
+		add_notification("Normal", "Loan fully repaid. Penalty: CR %s." % _fmt_int(int(penalty)), "hq")
+		return ""
+	return "Loan not found."
+
+## Called every advance_week() — deducts weekly payments from active loans.
+func _process_loans_weekly() -> void:
+	var finished: Array = []
+	for loan in active_loans:
+		if loan["weeks_remaining"] <= 0:
+			finished.append(loan)
+			continue
+		var pay = min(loan["weekly_payment"], loan["balance_remaining"])
+		player_team.balance -= pay
+		loan["balance_remaining"] = max(0.0, loan["balance_remaining"] - pay)
+		loan["weeks_remaining"] -= 1
+		if loan["weeks_remaining"] <= 0 or loan["balance_remaining"] < 1.0:
+			finished.append(loan)
+	for loan in finished:
+		active_loans.erase(loan)
+		add_log("🏦 Loan #%d fully repaid." % loan["id"])
+		add_notification("Normal", "Loan fully repaid! Financial obligations cleared.", "hq")
+
 ## ═══════════════════════════════════════════════════════════════════════════
 ## FINANCIAL HELPERS (S19)
 ## ═══════════════════════════════════════════════════════════════════════════
@@ -7692,11 +8820,9 @@ func _calculate_company_value() -> float:
 		value += car_value
 	return value
 
+## Legacy helper used by HQ — now delegates to get_max_loan_amount().
 func _calculate_max_loan() -> float:
-	var company_val = _calculate_company_value()
-	var rep_factor = 0.5 + (player_team.reputation / 100.0) * 0.5
-	var hq_level = campus_buildings.get("Headquarters", {}).get("level", 1)
-	return company_val * (0.1 + hq_level * 0.05) * rep_factor
+	return get_max_loan_amount()
 
 func _update_ceo_salary() -> void:
 	var weekly_profit = player_team.balance - _prev_week_balance

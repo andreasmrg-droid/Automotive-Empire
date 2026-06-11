@@ -1,5 +1,7 @@
 extends Control
-## Version: S19.9 — Full attribute chips on all staff rows (no View Card needed for overview).
+## Version: S22.8 — #8 walk-away hides row; #14 TP gate for free agents only for bond approach.
+##                    Free agents signable for next season when slots full (or is_free_agent).
+##                    View Card hire button: timing popup + next-season fallback.
 
 # ── State ─────────────────────────────────────────────────────────────────────
 var current_tab: String = "my_staff"
@@ -665,24 +667,32 @@ func _show_staff_card(staff_id: String) -> void:
 		var hire_btn = Button.new()
 		hire_btn.custom_minimum_size = Vector2(160, 32)
 		var slot_msg = _get_slot_message(staff.role)
+		var slot = GameState.get_slot_projection("staff", staff.role)
 		var is_unavailable = not GameState.is_subject_available(staff_id)
 		if is_unavailable:
 			hire_btn.text = "🚫 Not Interested"
 			hire_btn.disabled = true
 			hire_btn.tooltip_text = "Not available for 2 seasons after walking away."
-		elif slot_msg != "":
-			hire_btn.text = "⚠ No Slot"
-			hire_btn.disabled = true
-			hire_btn.tooltip_text = slot_msg
 		elif staff.role not in ["CFO", "Designer"] and not _has_assigned_tp():
 			hire_btn.text = "⚠ No Team Principal"
 			hire_btn.disabled = true
 			hire_btn.tooltip_text = "Assign a Team Principal first."
-		else:
+		elif slot["now_free"] > 0:
 			hire_btn.text = "📋 Negotiate Contract"
 			hire_btn.pressed.connect(func():
 				card_overlay.queue_free(); card_overlay = null
-				_initiate_approach(staff_id, "staff", "immediate"))
+				_show_timing_popup(staff_id, "staff"))
+		elif slot["next_free"] > 0 or staff.contract_team == "":
+			## Free agents always signable for next season
+			hire_btn.text = "📋 Sign for Next Season"
+			hire_btn.modulate = Color(0.7, 0.85, 1.0)
+			hire_btn.pressed.connect(func():
+				card_overlay.queue_free(); card_overlay = null
+				_initiate_approach(staff_id, "staff", "next_season"))
+		else:
+			hire_btn.text = "⚠ No Slot"
+			hire_btn.disabled = true
+			hire_btn.tooltip_text = slot_msg
 		btn_row.add_child(hire_btn)
 	else:
 		## Contracted staff — approach button
@@ -901,11 +911,7 @@ func _add_approach_button(btn_row: HBoxContainer, subject_id: String,
 	var ap_status = _get_approach_status(subject_id)
 
 	if not GameState.is_subject_available(subject_id):
-		btn.text = "🚫 Not interested"
-		btn.disabled = true
-		btn.tooltip_text = "Not available for 2 seasons after walking away."
-		btn_row.add_child(btn)
-		return
+		return  ## Hide walked-away subjects entirely
 
 	match ap_status:
 		"approaching", "bond_offered":
@@ -933,19 +939,22 @@ func _add_approach_button(btn_row: HBoxContainer, subject_id: String,
 			var slot = GameState.get_slot_projection("staff", subject.role)
 			var slot_msg = _get_slot_message(subject.role)
 
-			if not has_tp:
+			if not has_tp and not is_free_agent:
+				## TP required for bond approach on contracted staff, not for free agents
 				btn.text = "⚠ No Team Principal"
 				btn.disabled = true
 				btn.tooltip_text = "Assign a Team Principal first."
-			elif slot_msg != "" and slot["now_free"] <= 0 and slot["next_free"] <= 0:
+			elif slot_msg != "" and slot["now_free"] <= 0 and slot["next_free"] <= 0 \
+					and not is_free_agent:
 				btn.text = "⚠ No Slot"
 				btn.disabled = true
 				btn.tooltip_text = slot_msg
 			elif is_free_agent or on_last_contract:
 				if slot["now_free"] > 0:
 					btn.text = "📋 Negotiate Contract"
-					btn.pressed.connect(func(): _initiate_approach(subject_id, subject_type, "immediate"))
-				elif slot["next_free"] > 0:
+					## Show timing popup — free agents can sign now OR next season
+					btn.pressed.connect(func(): _show_timing_popup(subject_id, subject_type))
+				elif slot["next_free"] > 0 or is_free_agent:
 					btn.text = "📋 Sign for Next Season"
 					btn.modulate = Color(0.7, 0.85, 1.0)
 					btn.pressed.connect(func(): _initiate_approach(subject_id, subject_type, "next_season"))
@@ -1008,9 +1017,6 @@ func _initiate_approach(subject_id: String, subject_type: String, start_date: St
 func _show_timing_popup(subject_id: String, subject_type: String) -> void:
 	var subject_obj = GameState.all_staff.get(subject_id)
 	if subject_obj == null: return
-	if subject_obj.contract_team == "":
-		_initiate_approach(subject_id, subject_type, "immediate")
-		return
 
 	if card_overlay: card_overlay.queue_free()
 	card_overlay = PanelContainer.new()
@@ -1047,6 +1053,7 @@ func _show_timing_popup(subject_id: String, subject_type: String) -> void:
 
 	vb.add_child(HSeparator.new())
 
+	var slot = GameState.get_slot_projection("staff", subject_obj.role)
 	for timing in [["immediate", "🚀 Immediate Transfer", "1.5× + 25% disruption fee"],
 			["next_season", "📅 Next Season", "Standard bond"]]:
 		var btn = Button.new()
@@ -1054,6 +1061,10 @@ func _show_timing_popup(subject_id: String, subject_type: String) -> void:
 		btn.tooltip_text = timing[2]
 		btn.custom_minimum_size = Vector2(0, 36)
 		var t = timing[0]
+		if t == "immediate" and slot["now_free"] <= 0:
+			btn.disabled = true
+			btn.tooltip_text = "No slots available for immediate signing — choose Next Season."
+			btn.modulate = Color(0.5, 0.5, 0.5)
 		btn.pressed.connect(func():
 			card_overlay.queue_free(); card_overlay = null
 			_initiate_approach(subject_id, subject_type, t))

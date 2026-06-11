@@ -1,4 +1,5 @@
-## Version: S19.9 — Renamed Marketability → Reputation in View Card.
+## Version: S22.6 — Free agents show timing popup (not hardcoded immediate).
+## Version: S22.8 — #4 expired contract release; #8 walk-away hides row; #14 TP gate removed.
 extends Control
 
 # ── State ─────────────────────────────────────────────────────────────────────
@@ -698,11 +699,7 @@ func _add_approach_button(btn_row: HBoxContainer, subject_id: String,
 	var ap_status = _get_approach_status(subject_id)
 
 	if not GameState.is_subject_available(subject_id):
-		btn.text = "🚫 Not interested"
-		btn.disabled = true
-		btn.modulate = Color(0.5, 0.5, 0.5)
-		btn.tooltip_text = "Not available for 2 seasons after walking away."
-		btn_row.add_child(btn)
+		## Hide walked-away subjects from the list entirely — don't show the row
 		return
 
 	match ap_status:
@@ -731,19 +728,11 @@ func _add_approach_button(btn_row: HBoxContainer, subject_id: String,
 			var slot = GameState.get_slot_projection("driver")
 			var is_free_agent = subject.contract_team == ""
 			var on_last_contract = subject.contract_seasons_remaining <= 1 and not is_free_agent
-			var has_tp = _has_assigned_tp()
 
-			if not has_tp:
-				btn.text = "⚠ No Team Principal"
-				btn.disabled = true
-				btn.tooltip_text = "Assign a Team Principal first."
-			elif slot["now_free"] > 0 and (is_free_agent or on_last_contract):
+			if slot["now_free"] > 0 and (is_free_agent or on_last_contract):
 				btn.text = "📋 Negotiate Contract"
-				if is_free_agent:
-					btn.pressed.connect(func(): _initiate_approach(subject_id, subject_type, "immediate"))
-				else:
-					btn.pressed.connect(func(): _show_timing_popup(subject_id, subject_type))
-			elif slot["next_free"] > 0:
+				btn.pressed.connect(func(): _show_timing_popup(subject_id, subject_type))
+			elif slot["next_free"] > 0 or is_free_agent:
 				btn.text = "📋 Sign for Next Season"
 				btn.pressed.connect(func(): _initiate_approach(subject_id, subject_type, "next_season"))
 				btn.modulate = Color(0.7, 0.85, 1.0)
@@ -848,6 +837,7 @@ func _show_timing_popup(subject_id: String, subject_type: String) -> void:
 
 	vb.add_child(HSeparator.new())
 
+	var slot = GameState.get_slot_projection(subject_type)
 	for timing in [["immediate", "🚀 Immediate Transfer", "Costs 1.5× + 25% disruption fee"],
 			["next_season", "📅 Next Season", "Standard bond — joins at season start"]]:
 		var btn = Button.new()
@@ -855,6 +845,11 @@ func _show_timing_popup(subject_id: String, subject_type: String) -> void:
 		btn.tooltip_text = timing[2]
 		btn.custom_minimum_size = Vector2(0, 36)
 		var t = timing[0]
+		## Disable Immediate if no current slots
+		if t == "immediate" and slot["now_free"] <= 0:
+			btn.disabled = true
+			btn.tooltip_text = "No slots available for immediate signing — choose Next Season."
+			btn.modulate = Color(0.5, 0.5, 0.5)
 		btn.pressed.connect(func():
 			card_overlay.queue_free(); card_overlay = null
 			_initiate_approach(subject_id, subject_type, t))

@@ -1,5 +1,7 @@
 extends Control
-## Version: S19.0 — TDL → button matches all negotiation task text patterns.
+## Version: S22.1 — TDL pinned above log scroll (never buried by log messages).
+##                    Racing World button in top bar.
+##                    TDL routing: GK TP and TP assignment items → Racing Department.
 
 @onready var title_label = $Layout/TitleLabel
 @onready var week_label = $Layout/WeekLabel
@@ -38,6 +40,7 @@ var tab_cars_btn: Button
 var cars_panel: ScrollContainer
 var cars_box: VBoxContainer
 var menu_popup: PanelContainer
+var tdl_box: VBoxContainer  ## Fixed TDL panel — lives above the scroll log
 
 
 func _ready() -> void:
@@ -74,6 +77,13 @@ func _ready() -> void:
 	staff_btn.custom_minimum_size = Vector2(100, 35)
 	staff_btn.pressed.connect(_on_staff_pressed)
 	top_bar.add_child(staff_btn)
+
+	var racing_world_btn = Button.new()
+	racing_world_btn.text = Locale.t("rw_btn_short")
+	racing_world_btn.custom_minimum_size = Vector2(120, 35)
+	racing_world_btn.pressed.connect(func():
+		get_tree().change_scene_to_file("res://scenes/RacingWorld.tscn"))
+	top_bar.add_child(racing_world_btn)
 
 	# Resource bar
 	resource_bar = HBoxContainer.new()
@@ -179,10 +189,39 @@ func _ready() -> void:
 	main_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	main_area.add_theme_constant_override("separation", 20)
 
-	# Log container
+	# Log area: TDL (fixed) + Log (scrollable) stacked in a VBoxContainer
+	var log_area = VBoxContainer.new()
+	log_area.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	log_area.size_flags_stretch_ratio = 0.6
+	log_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	log_area.add_theme_constant_override("separation", 0)
+	## Reparent log_container into log_area
+	main_area.remove_child(log_container)
+
+	## Fixed TDL panel — always visible at top
+	var tdl_panel = PanelContainer.new()
+	tdl_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tdl_panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	var tdl_style = StyleBoxFlat.new()
+	tdl_style.bg_color = Color(0.10, 0.11, 0.09)
+	tdl_style.border_width_bottom = 1
+	tdl_style.border_color = Color(0.3, 0.3, 0.2)
+	tdl_style.content_margin_left = 8; tdl_style.content_margin_right = 8
+	tdl_style.content_margin_top = 6; tdl_style.content_margin_bottom = 6
+	tdl_panel.add_theme_stylebox_override("panel", tdl_style)
+	tdl_box = VBoxContainer.new()
+	tdl_box.add_theme_constant_override("separation", 4)
+	tdl_panel.add_child(tdl_box)
+	log_area.add_child(tdl_panel)
+
+	## Scrollable log below
 	log_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	log_container.size_flags_stretch_ratio = 0.6
 	log_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	log_area.add_child(log_container)
+	main_area.add_child(log_area)
+	## Move log_area before side_panel (insert at index 0)
+	main_area.move_child(log_area, 0)
+
 	log_box.custom_minimum_size = Vector2(400, 0)
 
 	# Side panel sizing
@@ -721,13 +760,13 @@ func _refresh_driver_stats() -> void:
 	driver_stats_label.add_theme_color_override("font_color", Color.WHITE)
 
 func _refresh_log() -> void:
-	for child in log_box.get_children():
+	## ── TDL (fixed panel, always visible) ────────────────────────────────────
+	for child in tdl_box.get_children():
 		child.queue_free()
 
-	# ── To-Do List — always visible ───────────────────────────────────────────
 	var todo_header = HBoxContainer.new()
 	todo_header.add_theme_constant_override("separation", 8)
-	log_box.add_child(todo_header)
+	tdl_box.add_child(todo_header)
 
 	var todo_lbl = Label.new()
 	todo_lbl.text = "📋 TO-DO"
@@ -742,14 +781,13 @@ func _refresh_log() -> void:
 		lbl_ok.text = "✅ All clear"
 		lbl_ok.add_theme_font_size_override("font_size", 11)
 		lbl_ok.modulate = Color(0.4, 0.9, 0.4)
-		log_box.add_child(lbl_ok)
+		tdl_box.add_child(lbl_ok)
 	else:
 		for task_text in tasks:
 			var task_row = HBoxContainer.new()
 			task_row.add_theme_constant_override("separation", 4)
-			log_box.add_child(task_row)
+			tdl_box.add_child(task_row)
 
-			## Task label
 			var tl = Label.new()
 			tl.text = task_text
 			tl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -762,7 +800,6 @@ func _refresh_log() -> void:
 				Color(1.0, 0.4, 0.4) if is_critical else Color(1.0, 0.7, 0.3))
 			task_row.add_child(tl)
 
-			## Action button — navigate to relevant scene
 			var dest = _get_todo_destination(task_text)
 			if dest != "":
 				var btn_go = Button.new()
@@ -775,7 +812,6 @@ func _refresh_log() -> void:
 					get_tree().change_scene_to_file(d))
 				task_row.add_child(btn_go)
 
-			## Dismiss button — hidden for active negotiations (can't dismiss until resolved)
 			var is_negotiation_task = "Offer sent to" in task_text or \
 				"Negotiations open:" in task_text or "Contract Round" in task_text or \
 				"their reply received" in task_text or "awaiting their reply" in task_text
@@ -790,9 +826,11 @@ func _refresh_log() -> void:
 					GameState.dismiss_todo_item(tt))
 				task_row.add_child(btn_x)
 
-	log_box.add_child(HSeparator.new())
+	## ── Log (scrollable below TDL) ────────────────────────────────────────────
+	for child in log_box.get_children():
+		child.queue_free()
+
 	for message in GameState.weekly_log:
-		## Skip noisy entries — campus/staff costs shown in Financial Dept instead
 		if message.begins_with("Weekly expenses") or message.begins_with("Campus:") \
 				or message.begins_with("💼 "):
 			continue
@@ -804,9 +842,7 @@ func _refresh_log() -> void:
 		if message.begins_with("==="):
 			label.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
 			label.add_theme_font_size_override("font_size", 15)
-			# Dim if not the most recent championship
 			if GameState.active_championships.size() > 1:
-				# Color by discipline
 				const DISC_COLORS = {
 					"GK": Color(0.3, 0.9, 0.3), "Rally": Color(0.9, 0.55, 0.1),
 					"TC": Color(0.3, 0.7, 1.0), "OWC": Color(0.8, 0.3, 0.9),
@@ -1680,6 +1716,11 @@ func _refresh_cars() -> void:
 
 ## Returns scene path for a to-do item based on its content
 func _get_todo_destination(task: String) -> String:
+	## TP proposals — route to Racing Department
+	if "GK TP" in task or "TP suggests" in task or "TPs have" in task \
+			or "assignment suggestion" in task or "assignment update" in task \
+			or "TP has" in task or "TP proposals" in task or "Racing Department" in task:
+		return "res://scenes/buildings/RacingDept.tscn"
 	## Car purchase — always Logistics first
 	if "buy one at Logistics" in task or "No car for" in task or "Buy your first car" in task:
 		return "res://scenes/buildings/Logistics.tscn"

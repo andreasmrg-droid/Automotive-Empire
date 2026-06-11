@@ -1,5 +1,5 @@
 extends Node
-## Version: S19.9 — Fan system keys added.
+## Version: S23.0 — TP proposals popup keys added.
 ## Usage: Locale.t("key")  →  returns translated string for current language.
 ## Adding a language: add a new dict entry in STRINGS below and a matching entry in LANGUAGES.
 ## Dynamic strings with substitutions: Locale.tf("key", [arg1, arg2])
@@ -335,6 +335,35 @@ const STRINGS: Dictionary = {
 	"notif_high":           { "en": "High",                 },
 	"notif_normal":         { "en": "Normal",                },
 	"notif_all_clear":      { "en": "✅ All clear",           },
+
+	# ── RACING WORLD ──────────────────────────────────────────────────────────
+	"rw_title":             { "en": "🌍  RACING WORLD",                      },
+	"rw_btn":               { "en": "🌍 Racing World →",                     },
+	"rw_btn_short":         { "en": "🌍 Racing World",                       },
+	"rw_no_championships":  { "en": "No active championships.\nRegister via HQ → World Racing Association.", },
+	"rw_no_active":         { "en": "No active championships in this discipline.", },
+	"rw_not_in_standings":  { "en": "Not yet in standings.",                 },
+	"rw_round_progress":    { "en": "Round %d / %d",                         },
+	"rw_next_race":         { "en": "Next: %s  (Week %d)",                   },
+	"rw_your_position":     { "en": "P%d of %d  ·  %s  ·  %d pts",          },
+	"rw_team_position":     { "en": "Team P%d of %d  ·  %d pts",             },
+	"rw_gk_no_data":        { "en": "GK group data not yet generated.\nAdvance to next season.", },
+	"rw_gk_not_registered": { "en": "Not registered in any GK tier.\nRegister via HQ → WRA.", },
+	"rw_gk_group_hdr":      { "en": "Group %d%s",                            },
+	"rw_gk_group_n":        { "en": "Group %d",                              },
+	"rw_gk_other_groups":   { "en": "OTHER GROUPS",                          },
+
+	# ── TP PROPOSALS POPUP ────────────────────────────────────────────────────
+	"tp_popup_title":       { "en": "🏁  TP ASSIGNMENT PROPOSALS",            },
+	"tp_popup_accept_all":  { "en": "✅ Accept All",                           },
+	"tp_popup_skip_all":    { "en": "Skip for Now",                            },
+	"tp_popup_open_btn":    { "en": "📋 Review Proposals →",                   },
+	"tp_popup_empty":       { "en": "✅ No assignments needed — all cars covered.", },
+
+	# ── TP PROPOSALS (Racing Department) ──────────────────────────────────────
+	"rw_tp_proposals":      { "en": "TP ASSIGNMENT PROPOSALS",               },
+	"rw_no_proposals":      { "en": "✅ No pending TP suggestions.",          },
+	"rw_accept":            { "en": "✅ Accept",                              },
 
 	# ── READINESS ─────────────────────────────────────────────────────────────
 	"ready_no_car":         { "en": "No car — buy at Logistics", },
