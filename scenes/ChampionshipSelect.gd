@@ -160,9 +160,10 @@ func _refresh_list() -> void:
 func _build_champ_row(champ_id: String) -> PanelContainer:
 	var reg = GameState.CHAMPIONSHIP_REGISTRY[champ_id]
 	var is_registered = champ_id in GameState.player_registered_championships
+	## is_running = player has a car actively competing in this championship
 	var is_running = false
-	for champ in GameState.active_championships:
-		if champ.id == champ_id:
+	for car in GameState.player_team_cars:
+		if car.championship_id == champ_id:
 			is_running = true
 			break
 
@@ -330,18 +331,22 @@ func _tag(text: String, color: Color) -> PanelContainer:
 	return chip
 
 func _on_reregister_all() -> void:
+	## Re-register only championships where player currently has a car
 	var registered_count = 0
 	var failed = []
-	for champ in GameState.active_championships:
-		if champ.id == "":
-			continue
-		if champ.id in GameState.player_registered_championships:
+	var car_champ_ids: Array = []
+	for car in GameState.player_team_cars:
+		if not car.championship_id in car_champ_ids:
+			car_champ_ids.append(car.championship_id)
+	for cid in car_champ_ids:
+		if cid in GameState.player_registered_championships:
 			continue  # already registered
-		if GameState.can_register_for_championship(champ.id):
-			if GameState.register_for_championship(champ.id):
+		if GameState.can_register_for_championship(cid):
+			if GameState.register_for_championship(cid):
 				registered_count += 1
 		else:
-			failed.append(champ.championship_name)
+			var reg = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
+			failed.append(reg.get("name", cid))
 	_refresh_list()
 	if registered_count > 0:
 		GameState.add_notification("Normal",

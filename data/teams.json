@@ -1,0 +1,6425 @@
+{
+  "T-001": {
+	"name": "Blackthorn Racing",
+	"nat": "GBR",
+	"type": "Factory",
+	"rep": 98,
+	"primary_disc": "GP1",
+	"championships": {
+	  "GP1": 2,
+	  "EPC Hyper": 2,
+	  "TC Elite": 2,
+	  "GK": 9
+	},
+	"buildings": {
+	  "HQ": 25,
+	  "Garage": 15,
+	  "Logistics": 16,
+	  "Racing Department": 30,
+	  "RnD Studio": 47,
+	  "CNC Plant": 30,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 6,
+	  "Fitness Clinic": 49,
+	  "Academy": 5,
+	  "Race Track": 3,
+	  "Karting Track": 5,
+	  "Factory": 9,
+	  "Museum": 4,
+	  "Theme Park": 2,
+	  "Public Racing Club": 5,
+	  "Merchandize Store": 5
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 15,
+	  "Strategist": 3,
+	  "Pit Crew": 6,
+	  "CFO": 1,
+	  "Designer": 47
+	},
+	"drivers_pro": 21,
+	"drivers_cadet": 9,
+	"drivers_total": 30,
+	"sponsors": 13
+  },
+  "T-002": {
+	"name": "Redline Syndicate",
+	"nat": "ITA",
+	"type": "Factory",
+	"rep": 92,
+	"primary_disc": "GP1",
+	"championships": {
+	  "GP1": 2,
+	  "GP2": 2,
+	  "TC Elite": 2
+	},
+	"buildings": {
+	  "HQ": 23,
+	  "Garage": 6,
+	  "Logistics": 15,
+	  "Racing Department": 8,
+	  "RnD Studio": 20,
+	  "CNC Plant": 12,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 6,
+	  "Fitness Clinic": 46,
+	  "Race Track": 3,
+	  "Karting Track": 4,
+	  "Factory": 9,
+	  "Museum": 4,
+	  "Public Racing Club": 5,
+	  "Merchandize Store": 5
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 6,
+	  "Strategist": 3,
+	  "Pit Crew": 6,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 0,
+	"drivers_total": 8,
+	"sponsors": 12
+  },
+  "T-003": {
+	"name": "Ironwood Motorsports",
+	"nat": "USA",
+	"type": "Factory",
+	"rep": 88,
+	"primary_disc": "SC Cup",
+	"championships": {
+	  "SC Cup": 2,
+	  "SC Challenge": 2,
+	  "SC Truck": 2,
+	  "SC Dev": 2
+	},
+	"buildings": {
+	  "HQ": 22,
+	  "Garage": 8,
+	  "Logistics": 15,
+	  "Racing Department": 8,
+	  "RnD Studio": 26,
+	  "CNC Plant": 16,
+	  "Ops Sim": 4,
+	  "Pit Crew Arena": 8,
+	  "Fitness Clinic": 44,
+	  "Oval Track": 3,
+	  "Karting Track": 5,
+	  "Factory": 8,
+	  "Museum": 4,
+	  "Public Racing Club": 4,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 8,
+	  "Strategist": 4,
+	  "Pit Crew": 8,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 0,
+	"drivers_total": 8,
+	"sponsors": 12
+  },
+  "T-004": {
+	"name": "Valkyrie Racing",
+	"nat": "GER",
+	"type": "Factory",
+	"rep": 95,
+	"primary_disc": "GP1",
+	"championships": {
+	  "GP1": 2,
+	  "EPC Hyper": 2,
+	  "TC Elite": 2,
+	  "TC Sport": 2,
+	  "GK": 8
+	},
+	"buildings": {
+	  "HQ": 24,
+	  "Garage": 16,
+	  "Logistics": 16,
+	  "Racing Department": 24,
+	  "RnD Studio": 50,
+	  "CNC Plant": 32,
+	  "Ops Sim": 4,
+	  "Pit Crew Arena": 8,
+	  "Fitness Clinic": 48,
+	  "Academy": 4,
+	  "Race Track": 3,
+	  "Karting Track": 5,
+	  "Factory": 9,
+	  "Museum": 4,
+	  "Theme Park": 1,
+	  "Public Racing Club": 5,
+	  "Merchandize Store": 5
+	},
+	"staff": {
+	  "TP": 5,
+	  "Mechanic": 16,
+	  "Strategist": 4,
+	  "Pit Crew": 8,
+	  "CFO": 1,
+	  "Designer": 50
+	},
+	"drivers_pro": 24,
+	"drivers_cadet": 8,
+	"drivers_total": 32,
+	"sponsors": 13
+  },
+  "T-005": {
+	"name": "Cobalt Collective",
+	"nat": "GBR",
+	"type": "Customer",
+	"rep": 77,
+	"primary_disc": "GP2",
+	"championships": {
+	  "GP2": 1,
+	  "GP3": 1,
+	  "GP4": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 19,
+	  "Garage": 9,
+	  "Logistics": 13,
+	  "Racing Department": 15,
+	  "RnD Studio": 29,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 39,
+	  "Academy": 2,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Public Racing Club": 4,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 9,
+	  "Strategist": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 29
+	},
+	"drivers_pro": 9,
+	"drivers_cadet": 6,
+	"drivers_total": 15,
+	"sponsors": 10
+  },
+  "T-006": {
+	"name": "Thunderbolt Team",
+	"nat": "FRA",
+	"type": "Factory",
+	"rep": 89,
+	"primary_disc": "GP1",
+	"championships": {
+	  "GP1": 2,
+	  "EPC League": 2,
+	  "TC Elite": 2,
+	  "TC Sport": 2
+	},
+	"buildings": {
+	  "HQ": 22,
+	  "Garage": 8,
+	  "Logistics": 15,
+	  "Racing Department": 16,
+	  "RnD Studio": 26,
+	  "CNC Plant": 16,
+	  "Ops Sim": 4,
+	  "Pit Crew Arena": 8,
+	  "Fitness Clinic": 45,
+	  "Race Track": 3,
+	  "Karting Track": 4,
+	  "Factory": 8,
+	  "Museum": 4,
+	  "Public Racing Club": 4,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 8,
+	  "Strategist": 4,
+	  "Pit Crew": 8,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 16,
+	"drivers_cadet": 0,
+	"drivers_total": 16,
+	"sponsors": 12
+  },
+  "T-007": {
+	"name": "Shadow Peak Racing",
+	"nat": "USA",
+	"type": "Factory",
+	"rep": 85,
+	"primary_disc": "SC Cup",
+	"championships": {
+	  "SC Cup": 2,
+	  "SC Challenge": 2,
+	  "SC Dev": 2
+	},
+	"buildings": {
+	  "HQ": 21,
+	  "Garage": 6,
+	  "Logistics": 14,
+	  "Racing Department": 6,
+	  "RnD Studio": 20,
+	  "CNC Plant": 12,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 6,
+	  "Fitness Clinic": 43,
+	  "Oval Track": 3,
+	  "Karting Track": 5,
+	  "Factory": 8,
+	  "Museum": 4,
+	  "Public Racing Club": 4,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 6,
+	  "Strategist": 3,
+	  "Pit Crew": 6,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 0,
+	"drivers_total": 6,
+	"sponsors": 11
+  },
+  "T-008": {
+	"name": "Silverline Engineering",
+	"nat": "ITA",
+	"type": "Customer",
+	"rep": 73,
+	"primary_disc": "GP3",
+	"championships": {
+	  "GP3": 1,
+	  "GP4": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 18,
+	  "Garage": 8,
+	  "Logistics": 12,
+	  "Racing Department": 14,
+	  "RnD Studio": 26,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 37,
+	  "Academy": 2,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 8,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 6,
+	"drivers_total": 14,
+	"sponsors": 10
+  },
+  "T-009": {
+	"name": "Driftwood Racing",
+	"nat": "ESP",
+	"type": "Privateer",
+	"rep": 52,
+	"primary_disc": "EPC League",
+	"championships": {
+	  "EPC League": 1,
+	  "EPC Series": 1,
+	  "TC Sport": 1
+	},
+	"buildings": {
+	  "HQ": 13,
+	  "Garage": 3,
+	  "Logistics": 9,
+	  "Racing Department": 8,
+	  "RnD Studio": 11,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 26,
+	  "Race Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 3,
+	  "Strategist": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 11
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 0,
+	"drivers_total": 8,
+	"sponsors": 7
+  },
+  "T-010": {
+	"name": "Stormfront Motorsport",
+	"nat": "GBR",
+	"type": "Customer",
+	"rep": 69,
+	"primary_disc": "Premier Rally",
+	"championships": {
+	  "Premier Rally": 1,
+	  "Rally2": 1,
+	  "Rally3": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 17,
+	  "Garage": 9,
+	  "Logistics": 12,
+	  "Racing Department": 18,
+	  "RnD Studio": 29,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 35,
+	  "Academy": 2,
+	  "Gravel Track": 2,
+	  "Karting Track": 3,
+	  "Factory": 4,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 9,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 29
+	},
+	"drivers_pro": 12,
+	"drivers_cadet": 6,
+	"drivers_total": 18,
+	"sponsors": 9
+  },
+  "T-011": {
+	"name": "Ember Racing",
+	"nat": "USA",
+	"type": "Factory",
+	"rep": 82,
+	"primary_disc": "OWC Pro",
+	"championships": {
+	  "OWC Pro": 2,
+	  "OWC Dev": 2,
+	  "GK": 2
+	},
+	"buildings": {
+	  "HQ": 21,
+	  "Garage": 6,
+	  "Logistics": 14,
+	  "Racing Department": 6,
+	  "RnD Studio": 20,
+	  "CNC Plant": 12,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 4,
+	  "Fitness Clinic": 41,
+	  "Academy": 3,
+	  "Oval Track": 3,
+	  "Karting Track": 5,
+	  "Factory": 8,
+	  "Museum": 4,
+	  "Public Racing Club": 4,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 6,
+	  "Strategist": 2,
+	  "Pit Crew": 4,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 7,
+	"drivers_total": 13,
+	"sponsors": 11
+  },
+  "T-012": {
+	"name": "Horizon Collective",
+	"nat": "FRA",
+	"type": "Privateer",
+	"rep": 46,
+	"primary_disc": "GP4",
+	"championships": {
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 12,
+	  "Garage": 6,
+	  "Logistics": 8,
+	  "Racing Department": 11,
+	  "RnD Studio": 20,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 23,
+	  "Academy": 1,
+	  "Race Track": 1,
+	  "Karting Track": 2,
+	  "Public Racing Club": 2,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 6,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 5,
+	"drivers_total": 11,
+	"sponsors": 7
+  },
+  "T-013": {
+	"name": "Dragon Racing",
+	"nat": "CHN",
+	"type": "Customer",
+	"rep": 67,
+	"primary_disc": "TC Elite",
+	"championships": {
+	  "TC Elite": 1,
+	  "TC Sport": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 17,
+	  "Garage": 8,
+	  "Logistics": 11,
+	  "Racing Department": 16,
+	  "RnD Studio": 26,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 34,
+	  "Academy": 2,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Factory": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 8,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 10,
+	"drivers_cadet": 6,
+	"drivers_total": 16,
+	"sponsors": 9
+  },
+  "T-014": {
+	"name": "Obsidian Motorsport",
+	"nat": "GER",
+	"type": "Factory",
+	"rep": 94,
+	"primary_disc": "GP1",
+	"championships": {
+	  "GP1": 2,
+	  "GP2": 2,
+	  "EPC Hyper": 2,
+	  "GK": 7
+	},
+	"buildings": {
+	  "HQ": 24,
+	  "Garage": 13,
+	  "Logistics": 16,
+	  "Racing Department": 17,
+	  "RnD Studio": 41,
+	  "CNC Plant": 26,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 6,
+	  "Fitness Clinic": 47,
+	  "Academy": 5,
+	  "Race Track": 3,
+	  "Karting Track": 5,
+	  "Factory": 9,
+	  "Museum": 4,
+	  "Theme Park": 1,
+	  "Public Racing Club": 5,
+	  "Merchandize Store": 5
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 13,
+	  "Strategist": 3,
+	  "Pit Crew": 6,
+	  "CFO": 1,
+	  "Designer": 41
+	},
+	"drivers_pro": 17,
+	"drivers_cadet": 9,
+	"drivers_total": 26,
+	"sponsors": 13
+  },
+  "T-015": {
+	"name": "Bluefire Engineering",
+	"nat": "ITA",
+	"type": "Customer",
+	"rep": 72,
+	"primary_disc": "GP2",
+	"championships": {
+	  "GP2": 1,
+	  "GP3": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 18,
+	  "Garage": 8,
+	  "Logistics": 12,
+	  "Racing Department": 14,
+	  "RnD Studio": 26,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 36,
+	  "Academy": 2,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 8,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 6,
+	"drivers_total": 14,
+	"sponsors": 10
+  },
+  "T-016": {
+	"name": "Aurora Performance",
+	"nat": "GBR",
+	"type": "Factory",
+	"rep": 91,
+	"primary_disc": "GP1",
+	"championships": {
+	  "GP1": 2,
+	  "EPC Hyper": 2,
+	  "EPC League": 2,
+	  "TC Elite": 2
+	},
+	"buildings": {
+	  "HQ": 23,
+	  "Garage": 8,
+	  "Logistics": 15,
+	  "Racing Department": 18,
+	  "RnD Studio": 26,
+	  "CNC Plant": 16,
+	  "Ops Sim": 4,
+	  "Pit Crew Arena": 8,
+	  "Fitness Clinic": 46,
+	  "Race Track": 3,
+	  "Karting Track": 4,
+	  "Factory": 9,
+	  "Museum": 4,
+	  "Public Racing Club": 5,
+	  "Merchandize Store": 5
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 8,
+	  "Strategist": 4,
+	  "Pit Crew": 8,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 18,
+	"drivers_cadet": 0,
+	"drivers_total": 18,
+	"sponsors": 12
+  },
+  "T-017": {
+	"name": "Steelhorse Racing",
+	"nat": "USA",
+	"type": "Customer",
+	"rep": 64,
+	"primary_disc": "OWC Pro",
+	"championships": {
+	  "OWC Pro": 1,
+	  "OWC Dev": 1,
+	  "OWC Next Gen": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 16,
+	  "Garage": 8,
+	  "Logistics": 11,
+	  "Racing Department": 13,
+	  "RnD Studio": 26,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 32,
+	  "Academy": 1,
+	  "Oval Track": 2,
+	  "Karting Track": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 8,
+	  "Strategist": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 5,
+	"drivers_total": 13,
+	"sponsors": 9
+  },
+  "T-018": {
+	"name": "Maple Leaf Motorsport",
+	"nat": "CAN",
+	"type": "Privateer",
+	"rep": 45,
+	"primary_disc": "EPC Series",
+	"championships": {
+	  "EPC Series": 1,
+	  "TC Sport": 1
+	},
+	"buildings": {
+	  "HQ": 11,
+	  "Garage": 2,
+	  "Logistics": 8,
+	  "Racing Department": 5,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 23,
+	  "Race Track": 1,
+	  "Karting Track": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 5,
+	"drivers_cadet": 0,
+	"drivers_total": 5,
+	"sponsors": 6
+  },
+  "T-019": {
+	"name": "Desert Fox Racing",
+	"nat": "ESP",
+	"type": "Customer",
+	"rep": 67,
+	"primary_disc": "Premier Rally",
+	"championships": {
+	  "Premier Rally": 1,
+	  "Rally2": 1,
+	  "Rally3": 1,
+	  "Rally4": 1
+	},
+	"buildings": {
+	  "HQ": 17,
+	  "Garage": 4,
+	  "Logistics": 11,
+	  "Racing Department": 8,
+	  "RnD Studio": 14,
+	  "Pit Crew Arena": 4,
+	  "Fitness Clinic": 34,
+	  "Gravel Track": 2,
+	  "Karting Track": 3,
+	  "Factory": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 4,
+	  "Pit Crew": 4,
+	  "CFO": 1,
+	  "Designer": 14
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 0,
+	"drivers_total": 8,
+	"sponsors": 9
+  },
+  "T-020": {
+	"name": "Eclipse Alliance",
+	"nat": "GBR",
+	"type": "Factory",
+	"rep": 86,
+	"primary_disc": "GP1",
+	"championships": {
+	  "GP1": 2,
+	  "EPC Hyper": 2,
+	  "TC Elite": 2,
+	  "GK": 8
+	},
+	"buildings": {
+	  "HQ": 22,
+	  "Garage": 14,
+	  "Logistics": 14,
+	  "Racing Department": 20,
+	  "RnD Studio": 44,
+	  "CNC Plant": 28,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 6,
+	  "Fitness Clinic": 43,
+	  "Academy": 4,
+	  "Race Track": 3,
+	  "Karting Track": 5,
+	  "Factory": 8,
+	  "Museum": 4,
+	  "Public Racing Club": 4,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 14,
+	  "Strategist": 3,
+	  "Pit Crew": 6,
+	  "CFO": 1,
+	  "Designer": 44
+	},
+	"drivers_pro": 20,
+	"drivers_cadet": 8,
+	"drivers_total": 28,
+	"sponsors": 12
+  },
+  "T-021": {
+	"name": "Phantom Collective",
+	"nat": "ITA",
+	"type": "Customer",
+	"rep": 70,
+	"primary_disc": "TC Elite",
+	"championships": {
+	  "TC Elite": 1,
+	  "TC Sport": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 18,
+	  "Garage": 7,
+	  "Logistics": 12,
+	  "Racing Department": 14,
+	  "RnD Studio": 23,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 35,
+	  "Academy": 1,
+	  "Race Track": 2,
+	  "Karting Track": 3,
+	  "Factory": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 7,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 9,
+	"drivers_cadet": 5,
+	"drivers_total": 14,
+	"sponsors": 10
+  },
+  "T-022": {
+	"name": "Rising Sun Racing",
+	"nat": "JPN",
+	"type": "Factory",
+	"rep": 79,
+	"primary_disc": "GP3",
+	"championships": {
+	  "GP3": 2,
+	  "GP4": 2,
+	  "GK": 7
+	},
+	"buildings": {
+	  "HQ": 20,
+	  "Garage": 11,
+	  "Logistics": 13,
+	  "Racing Department": 11,
+	  "RnD Studio": 35,
+	  "CNC Plant": 22,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 4,
+	  "Fitness Clinic": 40,
+	  "Academy": 3,
+	  "Race Track": 3,
+	  "Karting Track": 5,
+	  "Factory": 7,
+	  "Museum": 3,
+	  "Public Racing Club": 4,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 11,
+	  "Strategist": 2,
+	  "Pit Crew": 4,
+	  "CFO": 1,
+	  "Designer": 35
+	},
+	"drivers_pro": 11,
+	"drivers_cadet": 7,
+	"drivers_total": 18,
+	"sponsors": 11
+  },
+  "T-023": {
+	"name": "Prairie Wolf Racing",
+	"nat": "USA",
+	"type": "Customer",
+	"rep": 60,
+	"primary_disc": "OWC Pro",
+	"championships": {
+	  "OWC Pro": 1,
+	  "OWC Dev": 1,
+	  "OWC Next Gen": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 15,
+	  "Garage": 9,
+	  "Logistics": 10,
+	  "Racing Department": 14,
+	  "RnD Studio": 29,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 30,
+	  "Academy": 1,
+	  "Oval Track": 2,
+	  "Karting Track": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 9,
+	  "Strategist": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 29
+	},
+	"drivers_pro": 9,
+	"drivers_cadet": 5,
+	"drivers_total": 14,
+	"sponsors": 8
+  },
+  "T-024": {
+	"name": "Northern Lights Racing",
+	"nat": "GBR",
+	"type": "Customer",
+	"rep": 74,
+	"primary_disc": "GP2",
+	"championships": {
+	  "GP2": 1,
+	  "GP3": 1,
+	  "GP4": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 19,
+	  "Garage": 9,
+	  "Logistics": 12,
+	  "Racing Department": 15,
+	  "RnD Studio": 29,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 37,
+	  "Academy": 2,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 9,
+	  "Strategist": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 29
+	},
+	"drivers_pro": 9,
+	"drivers_cadet": 6,
+	"drivers_total": 15,
+	"sponsors": 10
+  },
+  "T-025": {
+	"name": "Granite Racing",
+	"nat": "FRA",
+	"type": "Privateer",
+	"rep": 44,
+	"primary_disc": "EPC Series",
+	"championships": {
+	  "EPC Series": 1,
+	  "TC Sport": 1
+	},
+	"buildings": {
+	  "HQ": 11,
+	  "Garage": 2,
+	  "Logistics": 7,
+	  "Racing Department": 5,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 22,
+	  "Race Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 5,
+	"drivers_cadet": 0,
+	"drivers_total": 5,
+	"sponsors": 6
+  },
+  "T-026": {
+	"name": "Lone Star Performance",
+	"nat": "USA",
+	"type": "Factory",
+	"rep": 83,
+	"primary_disc": "SC Cup",
+	"championships": {
+	  "SC Cup": 2,
+	  "SC Challenge": 2,
+	  "SC Dev": 2
+	},
+	"buildings": {
+	  "HQ": 21,
+	  "Garage": 6,
+	  "Logistics": 14,
+	  "Racing Department": 6,
+	  "RnD Studio": 20,
+	  "CNC Plant": 12,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 6,
+	  "Fitness Clinic": 42,
+	  "Oval Track": 3,
+	  "Karting Track": 4,
+	  "Factory": 8,
+	  "Museum": 4,
+	  "Public Racing Club": 4,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 6,
+	  "Strategist": 3,
+	  "Pit Crew": 6,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 0,
+	"drivers_total": 6,
+	"sponsors": 11
+  },
+  "T-027": {
+	"name": "Riverstone Engineering",
+	"nat": "FRA",
+	"type": "Privateer",
+	"rep": 49,
+	"primary_disc": "GP4",
+	"championships": {
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 12,
+	  "Garage": 6,
+	  "Logistics": 8,
+	  "Racing Department": 11,
+	  "RnD Studio": 20,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 25,
+	  "Academy": 1,
+	  "Race Track": 1,
+	  "Karting Track": 2,
+	  "Public Racing Club": 2,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 6,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 5,
+	"drivers_total": 11,
+	"sponsors": 7
+  },
+  "T-028": {
+	"name": "Sandstorm Racing",
+	"nat": "ESP",
+	"type": "Privateer",
+	"rep": 44,
+	"primary_disc": "Rally3",
+	"championships": {
+	  "Rally3": 1,
+	  "Rally4": 1
+	},
+	"buildings": {
+	  "HQ": 11,
+	  "Garage": 2,
+	  "Logistics": 7,
+	  "Racing Department": 4,
+	  "RnD Studio": 8,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 22,
+	  "Gravel Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 4,
+	"drivers_cadet": 0,
+	"drivers_total": 4,
+	"sponsors": 6
+  },
+  "T-029": {
+	"name": "Pinnacle Alliance",
+	"nat": "GBR",
+	"type": "Factory",
+	"rep": 97,
+	"primary_disc": "GP1",
+	"championships": {
+	  "GP1": 2,
+	  "GP2": 2,
+	  "GP3": 2,
+	  "EPC Hyper": 2,
+	  "GK": 9
+	},
+	"buildings": {
+	  "HQ": 24,
+	  "Garage": 17,
+	  "Logistics": 16,
+	  "Racing Department": 21,
+	  "RnD Studio": 53,
+	  "CNC Plant": 34,
+	  "Ops Sim": 4,
+	  "Pit Crew Arena": 8,
+	  "Fitness Clinic": 49,
+	  "Academy": 5,
+	  "Race Track": 3,
+	  "Karting Track": 5,
+	  "Factory": 9,
+	  "Museum": 4,
+	  "Theme Park": 1,
+	  "Public Racing Club": 5,
+	  "Merchandize Store": 5
+	},
+	"staff": {
+	  "TP": 5,
+	  "Mechanic": 17,
+	  "Strategist": 4,
+	  "Pit Crew": 8,
+	  "CFO": 1,
+	  "Designer": 53
+	},
+	"drivers_pro": 21,
+	"drivers_cadet": 9,
+	"drivers_total": 30,
+	"sponsors": 13
+  },
+  "T-030": {
+	"name": "Indy Collective",
+	"nat": "USA",
+	"type": "Customer",
+	"rep": 66,
+	"primary_disc": "OWC Pro",
+	"championships": {
+	  "OWC Pro": 1,
+	  "OWC Dev": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 17,
+	  "Garage": 8,
+	  "Logistics": 11,
+	  "Racing Department": 13,
+	  "RnD Studio": 26,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 33,
+	  "Academy": 1,
+	  "Oval Track": 2,
+	  "Karting Track": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 8,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 5,
+	"drivers_total": 13,
+	"sponsors": 9
+  },
+  "T-031": {
+	"name": "Silverstone Wolf Racing",
+	"nat": "FRA",
+	"type": "Customer",
+	"rep": 76,
+	"primary_disc": "EPC League",
+	"championships": {
+	  "EPC League": 1,
+	  "TC Elite": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 19,
+	  "Garage": 8,
+	  "Logistics": 13,
+	  "Racing Department": 17,
+	  "RnD Studio": 26,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 38,
+	  "Academy": 2,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Factory": 3,
+	  "Public Racing Club": 4,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 8,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 11,
+	"drivers_cadet": 6,
+	"drivers_total": 17,
+	"sponsors": 10
+  },
+  "T-032": {
+	"name": "Highland Racing",
+	"nat": "GBR",
+	"type": "Privateer",
+	"rep": 41,
+	"primary_disc": "GP4",
+	"championships": {
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 10,
+	  "Garage": 6,
+	  "Logistics": 7,
+	  "Racing Department": 11,
+	  "RnD Studio": 20,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 21,
+	  "Academy": 1,
+	  "Race Track": 1,
+	  "Karting Track": 2,
+	  "Public Racing Club": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 6,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 5,
+	"drivers_total": 11,
+	"sponsors": 6
+  },
+  "T-033": {
+	"name": "Texas Thunder Racing",
+	"nat": "USA",
+	"type": "Factory",
+	"rep": 80,
+	"primary_disc": "SC Cup",
+	"championships": {
+	  "SC Cup": 2,
+	  "SC Challenge": 2,
+	  "SC Dev": 2
+	},
+	"buildings": {
+	  "HQ": 20,
+	  "Garage": 6,
+	  "Logistics": 13,
+	  "Racing Department": 6,
+	  "RnD Studio": 20,
+	  "CNC Plant": 12,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 6,
+	  "Fitness Clinic": 40,
+	  "Oval Track": 3,
+	  "Karting Track": 4,
+	  "Factory": 8,
+	  "Museum": 4,
+	  "Public Racing Club": 4,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 6,
+	  "Strategist": 3,
+	  "Pit Crew": 6,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 0,
+	"drivers_total": 6,
+	"sponsors": 11
+  },
+  "T-034": {
+	"name": "Velvet Hammer Racing",
+	"nat": "ITA",
+	"type": "Customer",
+	"rep": 69,
+	"primary_disc": "GP3",
+	"championships": {
+	  "GP3": 1,
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 17,
+	  "Garage": 7,
+	  "Logistics": 12,
+	  "Racing Department": 12,
+	  "RnD Studio": 23,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 35,
+	  "Academy": 1,
+	  "Race Track": 2,
+	  "Karting Track": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 7,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 5,
+	"drivers_total": 12,
+	"sponsors": 9
+  },
+  "T-035": {
+	"name": "Coastal Racing",
+	"nat": "ESP",
+	"type": "Privateer",
+	"rep": 44,
+	"primary_disc": "EPC Series",
+	"championships": {
+	  "EPC Series": 1,
+	  "TC Sport": 1
+	},
+	"buildings": {
+	  "HQ": 11,
+	  "Garage": 2,
+	  "Logistics": 7,
+	  "Racing Department": 5,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 22,
+	  "Race Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 5,
+	"drivers_cadet": 0,
+	"drivers_total": 5,
+	"sponsors": 6
+  },
+  "T-036": {
+	"name": "Arctic Fox Racing",
+	"nat": "SWE",
+	"type": "Customer",
+	"rep": 63,
+	"primary_disc": "Premier Rally",
+	"championships": {
+	  "Premier Rally": 1,
+	  "Rally2": 1,
+	  "Rally3": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 16,
+	  "Garage": 9,
+	  "Logistics": 11,
+	  "Racing Department": 18,
+	  "RnD Studio": 29,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 32,
+	  "Academy": 2,
+	  "Gravel Track": 2,
+	  "Karting Track": 3,
+	  "Factory": 5,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 9,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 29
+	},
+	"drivers_pro": 12,
+	"drivers_cadet": 6,
+	"drivers_total": 18,
+	"sponsors": 9
+  },
+  "T-037": {
+	"name": "Hakone Collective",
+	"nat": "JPN",
+	"type": "Factory",
+	"rep": 85,
+	"primary_disc": "TC Elite",
+	"championships": {
+	  "TC Elite": 2,
+	  "TC Sport": 2,
+	  "GK": 8
+	},
+	"buildings": {
+	  "HQ": 21,
+	  "Garage": 12,
+	  "Logistics": 14,
+	  "Racing Department": 23,
+	  "RnD Studio": 38,
+	  "CNC Plant": 24,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 4,
+	  "Fitness Clinic": 43,
+	  "Academy": 3,
+	  "Race Track": 3,
+	  "Karting Track": 5,
+	  "Factory": 8,
+	  "Museum": 4,
+	  "Public Racing Club": 4,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 12,
+	  "Strategist": 2,
+	  "Pit Crew": 4,
+	  "CFO": 1,
+	  "Designer": 38
+	},
+	"drivers_pro": 16,
+	"drivers_cadet": 7,
+	"drivers_total": 23,
+	"sponsors": 11
+  },
+  "T-038": {
+	"name": "Whitewater Racing",
+	"nat": "GBR",
+	"type": "Customer",
+	"rep": 72,
+	"primary_disc": "GP2",
+	"championships": {
+	  "GP2": 1,
+	  "GP3": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 18,
+	  "Garage": 8,
+	  "Logistics": 12,
+	  "Racing Department": 14,
+	  "RnD Studio": 26,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 36,
+	  "Academy": 2,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 8,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 6,
+	"drivers_total": 14,
+	"sponsors": 10
+  },
+  "T-039": {
+	"name": "Midwest Collective",
+	"nat": "USA",
+	"type": "Customer",
+	"rep": 58,
+	"primary_disc": "OWC Pro",
+	"championships": {
+	  "OWC Pro": 1,
+	  "OWC Dev": 1,
+	  "OWC Next Gen": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 15,
+	  "Garage": 9,
+	  "Logistics": 10,
+	  "Racing Department": 14,
+	  "RnD Studio": 29,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 29,
+	  "Academy": 1,
+	  "Oval Track": 2,
+	  "Karting Track": 3,
+	  "Public Racing Club": 2,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 9,
+	  "Strategist": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 29
+	},
+	"drivers_pro": 9,
+	"drivers_cadet": 5,
+	"drivers_total": 14,
+	"sponsors": 8
+  },
+  "T-040": {
+	"name": "Stonewall Racing",
+	"nat": "FRA",
+	"type": "Privateer",
+	"rep": 35,
+	"primary_disc": "GP4",
+	"championships": {
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 9,
+	  "Garage": 6,
+	  "Logistics": 6,
+	  "Racing Department": 11,
+	  "RnD Studio": 20,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 18,
+	  "Academy": 1,
+	  "Race Track": 1,
+	  "Karting Track": 2,
+	  "Public Racing Club": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 6,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 5,
+	"drivers_total": 11,
+	"sponsors": 5
+  },
+  "T-041": {
+	"name": "Venom Racing",
+	"nat": "ITA",
+	"type": "Customer",
+	"rep": 67,
+	"primary_disc": "TC Sport",
+	"championships": {
+	  "TC Sport": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 17,
+	  "Garage": 6,
+	  "Logistics": 11,
+	  "Racing Department": 12,
+	  "RnD Studio": 20,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 34,
+	  "Academy": 1,
+	  "Race Track": 2,
+	  "Karting Track": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 6,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 5,
+	"drivers_total": 12,
+	"sponsors": 9
+  },
+  "T-042": {
+	"name": "Monarch Racing",
+	"nat": "GBR",
+	"type": "Factory",
+	"rep": 88,
+	"primary_disc": "GP1",
+	"championships": {
+	  "GP1": 2,
+	  "EPC Hyper": 2,
+	  "TC Elite": 2,
+	  "GK": 2
+	},
+	"buildings": {
+	  "HQ": 22,
+	  "Garage": 8,
+	  "Logistics": 15,
+	  "Racing Department": 22,
+	  "RnD Studio": 26,
+	  "CNC Plant": 16,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 6,
+	  "Fitness Clinic": 44,
+	  "Academy": 4,
+	  "Race Track": 3,
+	  "Karting Track": 5,
+	  "Factory": 8,
+	  "Museum": 4,
+	  "Public Racing Club": 4,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 8,
+	  "Strategist": 3,
+	  "Pit Crew": 6,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 14,
+	"drivers_cadet": 8,
+	"drivers_total": 22,
+	"sponsors": 12
+  },
+  "T-043": {
+	"name": "Provence Performance",
+	"nat": "FRA",
+	"type": "Customer",
+	"rep": 54,
+	"primary_disc": "GP3",
+	"championships": {
+	  "GP3": 1,
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 14,
+	  "Garage": 7,
+	  "Logistics": 9,
+	  "Racing Department": 12,
+	  "RnD Studio": 23,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 27,
+	  "Academy": 1,
+	  "Race Track": 2,
+	  "Karting Track": 3,
+	  "Public Racing Club": 2,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 7,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 5,
+	"drivers_total": 12,
+	"sponsors": 8
+  },
+  "T-044": {
+	"name": "Andalusian Rally Team",
+	"nat": "ESP",
+	"type": "Privateer",
+	"rep": 42,
+	"primary_disc": "Rally3",
+	"championships": {
+	  "Rally3": 1,
+	  "Rally4": 1
+	},
+	"buildings": {
+	  "HQ": 11,
+	  "Garage": 2,
+	  "Logistics": 7,
+	  "Racing Department": 4,
+	  "RnD Studio": 8,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 21,
+	  "Gravel Track": 1,
+	  "Karting Track": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 4,
+	"drivers_cadet": 0,
+	"drivers_total": 4,
+	"sponsors": 6
+  },
+  "T-045": {
+	"name": "Heartland Racing",
+	"nat": "USA",
+	"type": "Factory",
+	"rep": 79,
+	"primary_disc": "SC Cup",
+	"championships": {
+	  "SC Cup": 2,
+	  "SC Challenge": 2,
+	  "SC Truck": 2,
+	  "SC Dev": 2
+	},
+	"buildings": {
+	  "HQ": 20,
+	  "Garage": 8,
+	  "Logistics": 13,
+	  "Racing Department": 8,
+	  "RnD Studio": 26,
+	  "CNC Plant": 16,
+	  "Ops Sim": 4,
+	  "Pit Crew Arena": 8,
+	  "Fitness Clinic": 40,
+	  "Oval Track": 3,
+	  "Karting Track": 4,
+	  "Factory": 7,
+	  "Museum": 3,
+	  "Public Racing Club": 4,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 8,
+	  "Strategist": 4,
+	  "Pit Crew": 8,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 0,
+	"drivers_total": 8,
+	"sponsors": 11
+  },
+  "T-046": {
+	"name": "Roman Legion Racing",
+	"nat": "ITA",
+	"type": "Customer",
+	"rep": 70,
+	"primary_disc": "EPC League",
+	"championships": {
+	  "EPC League": 1,
+	  "TC Elite": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 18,
+	  "Garage": 8,
+	  "Logistics": 12,
+	  "Racing Department": 17,
+	  "RnD Studio": 26,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 35,
+	  "Academy": 2,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Factory": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 8,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 11,
+	"drivers_cadet": 6,
+	"drivers_total": 17,
+	"sponsors": 10
+  },
+  "T-047": {
+	"name": "Highland Collective",
+	"nat": "GBR",
+	"type": "Customer",
+	"rep": 73,
+	"primary_disc": "GP2",
+	"championships": {
+	  "GP2": 1,
+	  "GP3": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 18,
+	  "Garage": 7,
+	  "Logistics": 12,
+	  "Racing Department": 12,
+	  "RnD Studio": 23,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 37,
+	  "Academy": 1,
+	  "Race Track": 2,
+	  "Karting Track": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 7,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 5,
+	"drivers_total": 12,
+	"sponsors": 10
+  },
+  "T-048": {
+	"name": "Shinkansen Racing",
+	"nat": "JPN",
+	"type": "Customer",
+	"rep": 66,
+	"primary_disc": "TC Sport",
+	"championships": {
+	  "TC Sport": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 17,
+	  "Garage": 6,
+	  "Logistics": 11,
+	  "Racing Department": 13,
+	  "RnD Studio": 20,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 33,
+	  "Academy": 2,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 6,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 6,
+	"drivers_total": 13,
+	"sponsors": 9
+  },
+  "T-049": {
+	"name": "Excalibur Motorsport",
+	"nat": "GBR",
+	"type": "Factory",
+	"rep": 92,
+	"primary_disc": "GP1",
+	"championships": {
+	  "GP1": 2,
+	  "GP2": 2,
+	  "EPC Hyper": 2,
+	  "GK": 9
+	},
+	"buildings": {
+	  "HQ": 23,
+	  "Garage": 15,
+	  "Logistics": 15,
+	  "Racing Department": 28,
+	  "RnD Studio": 47,
+	  "CNC Plant": 30,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 6,
+	  "Fitness Clinic": 46,
+	  "Academy": 5,
+	  "Race Track": 3,
+	  "Karting Track": 5,
+	  "Factory": 9,
+	  "Museum": 4,
+	  "Public Racing Club": 5,
+	  "Merchandize Store": 5
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 15,
+	  "Strategist": 3,
+	  "Pit Crew": 6,
+	  "CFO": 1,
+	  "Designer": 47
+	},
+	"drivers_pro": 19,
+	"drivers_cadet": 9,
+	"drivers_total": 28,
+	"sponsors": 12
+  },
+  "T-050": {
+	"name": "Loire Valley Racing",
+	"nat": "FRA",
+	"type": "Privateer",
+	"rep": 42,
+	"primary_disc": "GP4",
+	"championships": {
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 11,
+	  "Garage": 6,
+	  "Logistics": 7,
+	  "Racing Department": 11,
+	  "RnD Studio": 20,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 21,
+	  "Academy": 1,
+	  "Race Track": 1,
+	  "Karting Track": 2,
+	  "Public Racing Club": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 6,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 5,
+	"drivers_total": 11,
+	"sponsors": 6
+  },
+  "T-051": {
+	"name": "Crossroads Racing",
+	"nat": "USA",
+	"type": "Customer",
+	"rep": 55,
+	"primary_disc": "SC Challenge",
+	"championships": {
+	  "SC Challenge": 1,
+	  "SC Dev": 1
+	},
+	"buildings": {
+	  "HQ": 14,
+	  "Garage": 2,
+	  "Logistics": 9,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 28,
+	  "Oval Track": 2,
+	  "Karting Track": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 8
+  },
+  "T-052": {
+	"name": "Costa Brava Racing",
+	"nat": "ESP",
+	"type": "Privateer",
+	"rep": 41,
+	"primary_disc": "EPC Series",
+	"championships": {
+	  "EPC Series": 1,
+	  "TC Sport": 1
+	},
+	"buildings": {
+	  "HQ": 10,
+	  "Garage": 2,
+	  "Logistics": 7,
+	  "Racing Department": 5,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 21,
+	  "Race Track": 1,
+	  "Karting Track": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 5,
+	"drivers_cadet": 0,
+	"drivers_total": 5,
+	"sponsors": 6
+  },
+  "T-053": {
+	"name": "Nordic Storm Racing",
+	"nat": "SWE",
+	"type": "Customer",
+	"rep": 64,
+	"primary_disc": "Rally2",
+	"championships": {
+	  "Rally2": 1,
+	  "Rally3": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 16,
+	  "Garage": 8,
+	  "Logistics": 11,
+	  "Racing Department": 16,
+	  "RnD Studio": 26,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 32,
+	  "Academy": 2,
+	  "Gravel Track": 2,
+	  "Karting Track": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 8,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 10,
+	"drivers_cadet": 6,
+	"drivers_total": 16,
+	"sponsors": 9
+  },
+  "T-054": {
+	"name": "Liberty Racing",
+	"nat": "USA",
+	"type": "Factory",
+	"rep": 82,
+	"primary_disc": "OWC Pro",
+	"championships": {
+	  "OWC Pro": 2,
+	  "OWC Dev": 2,
+	  "GK": 7
+	},
+	"buildings": {
+	  "HQ": 21,
+	  "Garage": 11,
+	  "Logistics": 14,
+	  "Racing Department": 18,
+	  "RnD Studio": 35,
+	  "CNC Plant": 22,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 4,
+	  "Fitness Clinic": 41,
+	  "Academy": 3,
+	  "Oval Track": 3,
+	  "Karting Track": 5,
+	  "Factory": 8,
+	  "Museum": 4,
+	  "Public Racing Club": 4,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 11,
+	  "Strategist": 2,
+	  "Pit Crew": 4,
+	  "CFO": 1,
+	  "Designer": 35
+	},
+	"drivers_pro": 11,
+	"drivers_cadet": 7,
+	"drivers_total": 18,
+	"sponsors": 11
+  },
+  "T-055": {
+	"name": "Thames Valley Engineering",
+	"nat": "GBR",
+	"type": "Customer",
+	"rep": 67,
+	"primary_disc": "GP3",
+	"championships": {
+	  "GP3": 1,
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 17,
+	  "Garage": 7,
+	  "Logistics": 11,
+	  "Racing Department": 12,
+	  "RnD Studio": 23,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 34,
+	  "Academy": 1,
+	  "Race Track": 2,
+	  "Karting Track": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 7,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 5,
+	"drivers_total": 12,
+	"sponsors": 9
+  },
+  "T-056": {
+	"name": "Andes Racing",
+	"nat": "CHL",
+	"type": "Privateer",
+	"rep": 32,
+	"primary_disc": "GP4",
+	"championships": {
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 8,
+	  "Garage": 6,
+	  "Logistics": 5,
+	  "Racing Department": 11,
+	  "RnD Studio": 20,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 16,
+	  "Academy": 1,
+	  "Race Track": 1,
+	  "Karting Track": 2,
+	  "Public Racing Club": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 6,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 5,
+	"drivers_total": 11,
+	"sponsors": 5
+  },
+  "T-057": {
+	"name": "Great Wall Motorsport",
+	"nat": "CHN",
+	"type": "Customer",
+	"rep": 61,
+	"primary_disc": "TC Sport",
+	"championships": {
+	  "TC Sport": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 15,
+	  "Garage": 6,
+	  "Logistics": 10,
+	  "Racing Department": 12,
+	  "RnD Studio": 20,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 31,
+	  "Academy": 1,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 6,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 5,
+	"drivers_total": 12,
+	"sponsors": 8
+  },
+  "T-058": {
+	"name": "Britannia Racing",
+	"nat": "GBR",
+	"type": "Factory",
+	"rep": 89,
+	"primary_disc": "GP1",
+	"championships": {
+	  "GP1": 2,
+	  "GP2": 2,
+	  "GP3": 2,
+	  "EPC Hyper": 2,
+	  "GK": 9
+	},
+	"buildings": {
+	  "HQ": 22,
+	  "Garage": 17,
+	  "Logistics": 15,
+	  "Racing Department": 30,
+	  "RnD Studio": 53,
+	  "CNC Plant": 34,
+	  "Ops Sim": 4,
+	  "Pit Crew Arena": 8,
+	  "Fitness Clinic": 45,
+	  "Academy": 5,
+	  "Race Track": 3,
+	  "Karting Track": 5,
+	  "Factory": 8,
+	  "Museum": 4,
+	  "Public Racing Club": 4,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 5,
+	  "Mechanic": 17,
+	  "Strategist": 4,
+	  "Pit Crew": 8,
+	  "CFO": 1,
+	  "Designer": 53
+	},
+	"drivers_pro": 21,
+	"drivers_cadet": 9,
+	"drivers_total": 30,
+	"sponsors": 12
+  },
+  "T-059": {
+	"name": "Paulista Racing",
+	"nat": "BRA",
+	"type": "Customer",
+	"rep": 67,
+	"primary_disc": "GP2",
+	"championships": {
+	  "GP2": 1,
+	  "GP3": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 17,
+	  "Garage": 8,
+	  "Logistics": 11,
+	  "Racing Department": 14,
+	  "RnD Studio": 26,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 34,
+	  "Academy": 2,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 8,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 6,
+	"drivers_total": 14,
+	"sponsors": 9
+  },
+  "T-060": {
+	"name": "Outback Racing",
+	"nat": "AUS",
+	"type": "Privateer",
+	"rep": 42,
+	"primary_disc": "Rally3",
+	"championships": {
+	  "Rally3": 1,
+	  "Rally4": 1
+	},
+	"buildings": {
+	  "HQ": 11,
+	  "Garage": 2,
+	  "Logistics": 7,
+	  "Racing Department": 4,
+	  "RnD Studio": 8,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 21,
+	  "Gravel Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 4,
+	"drivers_cadet": 0,
+	"drivers_total": 4,
+	"sponsors": 6
+  },
+  "T-061": {
+	"name": "Great Lakes Racing",
+	"nat": "USA",
+	"type": "Customer",
+	"rep": 58,
+	"primary_disc": "OWC Dev",
+	"championships": {
+	  "OWC Dev": 1,
+	  "OWC Next Gen": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 15,
+	  "Garage": 7,
+	  "Logistics": 10,
+	  "Racing Department": 12,
+	  "RnD Studio": 23,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 29,
+	  "Academy": 1,
+	  "Oval Track": 2,
+	  "Karting Track": 3,
+	  "Public Racing Club": 2,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 7,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 5,
+	"drivers_total": 12,
+	"sponsors": 8
+  },
+  "T-062": {
+	"name": "Black Forest Racing",
+	"nat": "GER",
+	"type": "Customer",
+	"rep": 72,
+	"primary_disc": "TC Elite",
+	"championships": {
+	  "TC Elite": 1,
+	  "TC Sport": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 18,
+	  "Garage": 8,
+	  "Logistics": 12,
+	  "Racing Department": 16,
+	  "RnD Studio": 26,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 36,
+	  "Academy": 2,
+	  "Race Track": 2,
+	  "Karting Track": 3,
+	  "Factory": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 8,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 10,
+	"drivers_cadet": 6,
+	"drivers_total": 16,
+	"sponsors": 10
+  },
+  "T-063": {
+	"name": "Scottish Thistle Racing",
+	"nat": "GBR",
+	"type": "Privateer",
+	"rep": 38,
+	"primary_disc": "GP4",
+	"championships": {
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 10,
+	  "Garage": 6,
+	  "Logistics": 6,
+	  "Racing Department": 11,
+	  "RnD Studio": 20,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 19,
+	  "Academy": 1,
+	  "Race Track": 1,
+	  "Karting Track": 2,
+	  "Public Racing Club": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 6,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 5,
+	"drivers_total": 11,
+	"sponsors": 6
+  },
+  "T-064": {
+	"name": "Cornbelt Collective",
+	"nat": "USA",
+	"type": "Customer",
+	"rep": 55,
+	"primary_disc": "SC Truck",
+	"championships": {
+	  "SC Truck": 1,
+	  "SC Dev": 1
+	},
+	"buildings": {
+	  "HQ": 14,
+	  "Garage": 2,
+	  "Logistics": 9,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 28,
+	  "Oval Track": 2,
+	  "Karting Track": 3,
+	  "Factory": 2,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 8
+  },
+  "T-065": {
+	"name": "Colosseum GT",
+	"nat": "ITA",
+	"type": "Customer",
+	"rep": 67,
+	"primary_disc": "TC Sport",
+	"championships": {
+	  "TC Sport": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 17,
+	  "Garage": 6,
+	  "Logistics": 11,
+	  "Racing Department": 12,
+	  "RnD Studio": 20,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 34,
+	  "Academy": 1,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 6,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 5,
+	"drivers_total": 12,
+	"sponsors": 9
+  },
+  "T-066": {
+	"name": "Maple Motorsport",
+	"nat": "CAN",
+	"type": "Customer",
+	"rep": 52,
+	"primary_disc": "OWC Dev",
+	"championships": {
+	  "OWC Dev": 1,
+	  "OWC Next Gen": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 13,
+	  "Garage": 7,
+	  "Logistics": 9,
+	  "Racing Department": 12,
+	  "RnD Studio": 23,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 26,
+	  "Academy": 1,
+	  "Oval Track": 2,
+	  "Karting Track": 3,
+	  "Public Racing Club": 2,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 7,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 5,
+	"drivers_total": 12,
+	"sponsors": 7
+  },
+  "T-067": {
+	"name": "Mistral Thunder",
+	"nat": "FRA",
+	"type": "Factory",
+	"rep": 80,
+	"primary_disc": "TC Elite",
+	"championships": {
+	  "TC Elite": 2,
+	  "TC Sport": 2,
+	  "GK": 7
+	},
+	"buildings": {
+	  "HQ": 20,
+	  "Garage": 11,
+	  "Logistics": 13,
+	  "Racing Department": 22,
+	  "RnD Studio": 35,
+	  "CNC Plant": 22,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 4,
+	  "Fitness Clinic": 40,
+	  "Academy": 3,
+	  "Race Track": 3,
+	  "Karting Track": 4,
+	  "Factory": 8,
+	  "Museum": 4,
+	  "Public Racing Club": 4,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 11,
+	  "Strategist": 2,
+	  "Pit Crew": 4,
+	  "CFO": 1,
+	  "Designer": 35
+	},
+	"drivers_pro": 15,
+	"drivers_cadet": 7,
+	"drivers_total": 22,
+	"sponsors": 11
+  },
+  "T-068": {
+	"name": "Highland Thistle",
+	"nat": "GBR",
+	"type": "Customer",
+	"rep": 66,
+	"primary_disc": "GP3",
+	"championships": {
+	  "GP3": 1,
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 17,
+	  "Garage": 7,
+	  "Logistics": 11,
+	  "Racing Department": 12,
+	  "RnD Studio": 23,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 33,
+	  "Academy": 1,
+	  "Race Track": 2,
+	  "Karting Track": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 7,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 5,
+	"drivers_total": 12,
+	"sponsors": 9
+  },
+  "T-069": {
+	"name": "Pearl River Racing",
+	"nat": "CHN",
+	"type": "Customer",
+	"rep": 52,
+	"primary_disc": "TC Sport",
+	"championships": {
+	  "TC Sport": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 13,
+	  "Garage": 6,
+	  "Logistics": 9,
+	  "Racing Department": 12,
+	  "RnD Studio": 20,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 26,
+	  "Academy": 1,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Public Racing Club": 2,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 6,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 5,
+	"drivers_total": 12,
+	"sponsors": 7
+  },
+  "T-070": {
+	"name": "Thames Collective",
+	"nat": "GBR",
+	"type": "Customer",
+	"rep": 70,
+	"primary_disc": "GP2",
+	"championships": {
+	  "GP2": 1,
+	  "GP3": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 18,
+	  "Garage": 8,
+	  "Logistics": 12,
+	  "Racing Department": 14,
+	  "RnD Studio": 26,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 35,
+	  "Academy": 2,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 8,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 6,
+	"drivers_total": 14,
+	"sponsors": 10
+  },
+  "T-071": {
+	"name": "Andes Performance",
+	"nat": "CHL",
+	"type": "Privateer",
+	"rep": 26,
+	"primary_disc": "GP4",
+	"championships": {
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 7,
+	  "Garage": 6,
+	  "Logistics": 4,
+	  "Racing Department": 11,
+	  "RnD Studio": 20,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 13,
+	  "Academy": 1,
+	  "Race Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 6,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 5,
+	"drivers_total": 11,
+	"sponsors": 4
+  },
+  "T-072": {
+	"name": "Rhine Valley Collective",
+	"nat": "GER",
+	"type": "Customer",
+	"rep": 73,
+	"primary_disc": "TC Elite",
+	"championships": {
+	  "TC Elite": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 18,
+	  "Garage": 7,
+	  "Logistics": 12,
+	  "Racing Department": 14,
+	  "RnD Studio": 23,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 37,
+	  "Academy": 2,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Factory": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 7,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 6,
+	"drivers_total": 14,
+	"sponsors": 10
+  },
+  "T-073": {
+	"name": "Scottish Collective",
+	"nat": "GBR",
+	"type": "Privateer",
+	"rep": 32,
+	"primary_disc": "GP4",
+	"championships": {
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 8,
+	  "Garage": 6,
+	  "Logistics": 5,
+	  "Racing Department": 11,
+	  "RnD Studio": 20,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 16,
+	  "Academy": 1,
+	  "Race Track": 1,
+	  "Karting Track": 2,
+	  "Public Racing Club": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 6,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 5,
+	"drivers_total": 11,
+	"sponsors": 5
+  },
+  "T-074": {
+	"name": "Midwest Thunder",
+	"nat": "USA",
+	"type": "Customer",
+	"rep": 51,
+	"primary_disc": "SC Truck",
+	"championships": {
+	  "SC Truck": 1,
+	  "SC Dev": 1
+	},
+	"buildings": {
+	  "HQ": 13,
+	  "Garage": 2,
+	  "Logistics": 9,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 26,
+	  "Oval Track": 2,
+	  "Karting Track": 2,
+	  "Factory": 2,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 7
+  },
+  "T-075": {
+	"name": "Capitoline Collective",
+	"nat": "ITA",
+	"type": "Customer",
+	"rep": 69,
+	"primary_disc": "TC Elite",
+	"championships": {
+	  "TC Elite": 1,
+	  "TC Sport": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 17,
+	  "Garage": 7,
+	  "Logistics": 12,
+	  "Racing Department": 14,
+	  "RnD Studio": 23,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 35,
+	  "Academy": 1,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Factory": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 7,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 9,
+	"drivers_cadet": 5,
+	"drivers_total": 14,
+	"sponsors": 9
+  },
+  "T-076": {
+	"name": "Great Lakes Collective",
+	"nat": "USA",
+	"type": "Customer",
+	"rep": 54,
+	"primary_disc": "OWC Dev",
+	"championships": {
+	  "OWC Dev": 1,
+	  "OWC Next Gen": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 14,
+	  "Garage": 7,
+	  "Logistics": 9,
+	  "Racing Department": 12,
+	  "RnD Studio": 23,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 27,
+	  "Academy": 1,
+	  "Oval Track": 2,
+	  "Karting Track": 3,
+	  "Public Racing Club": 2,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 7,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 5,
+	"drivers_total": 12,
+	"sponsors": 8
+  },
+  "T-077": {
+	"name": "Hakone Thunder",
+	"nat": "JPN",
+	"type": "Customer",
+	"rep": 66,
+	"primary_disc": "TC Elite",
+	"championships": {
+	  "TC Elite": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 17,
+	  "Garage": 7,
+	  "Logistics": 11,
+	  "Racing Department": 14,
+	  "RnD Studio": 23,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 33,
+	  "Academy": 2,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Factory": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 7,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 6,
+	"drivers_total": 14,
+	"sponsors": 9
+  },
+  "T-078": {
+	"name": "Britannia Collective",
+	"nat": "GBR",
+	"type": "Customer",
+	"rep": 72,
+	"primary_disc": "GP3",
+	"championships": {
+	  "GP3": 1,
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 18,
+	  "Garage": 7,
+	  "Logistics": 12,
+	  "Racing Department": 12,
+	  "RnD Studio": 23,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 36,
+	  "Academy": 1,
+	  "Race Track": 2,
+	  "Karting Track": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 7,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 5,
+	"drivers_total": 12,
+	"sponsors": 10
+  },
+  "T-079": {
+	"name": "Southern Cross Racing",
+	"nat": "AUS",
+	"type": "Customer",
+	"rep": 49,
+	"primary_disc": "SC Cup",
+	"championships": {
+	  "SC Cup": 1,
+	  "SC Challenge": 1
+	},
+	"buildings": {
+	  "HQ": 12,
+	  "Garage": 2,
+	  "Logistics": 8,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 25,
+	  "Oval Track": 2,
+	  "Karting Track": 2,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 7
+  },
+  "T-080": {
+	"name": "Outback Collective",
+	"nat": "AUS",
+	"type": "Privateer",
+	"rep": 39,
+	"primary_disc": "Rally3",
+	"championships": {
+	  "Rally3": 1,
+	  "Rally4": 1
+	},
+	"buildings": {
+	  "HQ": 10,
+	  "Garage": 2,
+	  "Logistics": 7,
+	  "Racing Department": 4,
+	  "RnD Studio": 8,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 20,
+	  "Gravel Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 4,
+	"drivers_cadet": 0,
+	"drivers_total": 4,
+	"sponsors": 6
+  },
+  "T-081": {
+	"name": "Maple Thunder",
+	"nat": "CAN",
+	"type": "Customer",
+	"rep": 54,
+	"primary_disc": "OWC Dev",
+	"championships": {
+	  "OWC Dev": 1,
+	  "OWC Next Gen": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 14,
+	  "Garage": 7,
+	  "Logistics": 9,
+	  "Racing Department": 12,
+	  "RnD Studio": 23,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 27,
+	  "Academy": 1,
+	  "Oval Track": 2,
+	  "Karting Track": 3,
+	  "Public Racing Club": 2,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 7,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 5,
+	"drivers_total": 12,
+	"sponsors": 8
+  },
+  "T-082": {
+	"name": "Kyoto Thunder",
+	"nat": "JPN",
+	"type": "Customer",
+	"rep": 67,
+	"primary_disc": "TC Sport",
+	"championships": {
+	  "TC Sport": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 17,
+	  "Garage": 6,
+	  "Logistics": 11,
+	  "Racing Department": 12,
+	  "RnD Studio": 20,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 34,
+	  "Academy": 1,
+	  "Race Track": 2,
+	  "Karting Track": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 6,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 5,
+	"drivers_total": 12,
+	"sponsors": 9
+  },
+  "T-083": {
+	"name": "Plainsman Performance",
+	"nat": "USA",
+	"type": "Customer",
+	"rep": 52,
+	"primary_disc": "SC Truck",
+	"championships": {
+	  "SC Truck": 1,
+	  "SC Dev": 1
+	},
+	"buildings": {
+	  "HQ": 13,
+	  "Garage": 2,
+	  "Logistics": 9,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 26,
+	  "Oval Track": 2,
+	  "Karting Track": 3,
+	  "Factory": 2,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 7
+  },
+  "T-084": {
+	"name": "Blackthorn Collective",
+	"nat": "GBR",
+	"type": "Customer",
+	"rep": 69,
+	"primary_disc": "GP2",
+	"championships": {
+	  "GP2": 1,
+	  "GP3": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 17,
+	  "Garage": 8,
+	  "Logistics": 12,
+	  "Racing Department": 14,
+	  "RnD Studio": 26,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 35,
+	  "Academy": 2,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 8,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 6,
+	"drivers_total": 14,
+	"sponsors": 9
+  },
+  "T-085": {
+	"name": "Redline Collective",
+	"nat": "ITA",
+	"type": "Customer",
+	"rep": 67,
+	"primary_disc": "TC Elite",
+	"championships": {
+	  "TC Elite": 1,
+	  "TC Sport": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 17,
+	  "Garage": 7,
+	  "Logistics": 11,
+	  "Racing Department": 14,
+	  "RnD Studio": 23,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 34,
+	  "Academy": 1,
+	  "Race Track": 2,
+	  "Karting Track": 3,
+	  "Factory": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 7,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 9,
+	"drivers_cadet": 5,
+	"drivers_total": 14,
+	"sponsors": 9
+  },
+  "T-086": {
+	"name": "Valkyrie Collective",
+	"nat": "GER",
+	"type": "Customer",
+	"rep": 74,
+	"primary_disc": "TC Elite",
+	"championships": {
+	  "TC Elite": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 19,
+	  "Garage": 7,
+	  "Logistics": 12,
+	  "Racing Department": 14,
+	  "RnD Studio": 23,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 37,
+	  "Academy": 2,
+	  "Race Track": 2,
+	  "Karting Track": 3,
+	  "Factory": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 7,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 6,
+	"drivers_total": 14,
+	"sponsors": 10
+  },
+  "T-087": {
+	"name": "Cobalt Thunder",
+	"nat": "GBR",
+	"type": "Privateer",
+	"rep": 41,
+	"primary_disc": "GP4",
+	"championships": {
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 10,
+	  "Garage": 6,
+	  "Logistics": 7,
+	  "Racing Department": 11,
+	  "RnD Studio": 20,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 21,
+	  "Academy": 1,
+	  "Race Track": 1,
+	  "Karting Track": 2,
+	  "Public Racing Club": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 6,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 5,
+	"drivers_total": 11,
+	"sponsors": 6
+  },
+  "T-088": {
+	"name": "Thunderbolt Collective",
+	"nat": "FRA",
+	"type": "Customer",
+	"rep": 63,
+	"primary_disc": "GP3",
+	"championships": {
+	  "GP3": 1,
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 16,
+	  "Garage": 7,
+	  "Logistics": 11,
+	  "Racing Department": 12,
+	  "RnD Studio": 23,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 32,
+	  "Academy": 1,
+	  "Race Track": 2,
+	  "Karting Track": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 7,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 5,
+	"drivers_total": 12,
+	"sponsors": 9
+  },
+  "T-089": {
+	"name": "Stormfront Collective",
+	"nat": "GBR",
+	"type": "Customer",
+	"rep": 55,
+	"primary_disc": "Rally2",
+	"championships": {
+	  "Rally2": 1,
+	  "Rally3": 1,
+	  "Rally4": 1
+	},
+	"buildings": {
+	  "HQ": 14,
+	  "Garage": 3,
+	  "Logistics": 9,
+	  "Racing Department": 6,
+	  "RnD Studio": 11,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 28,
+	  "Gravel Track": 2,
+	  "Karting Track": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 11
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 0,
+	"drivers_total": 6,
+	"sponsors": 8
+  },
+  "T-090": {
+	"name": "Nova Karting",
+	"nat": "ITA",
+	"type": "Privateer",
+	"rep": 39,
+	"primary_disc": "GK National",
+	"championships": {
+	  "GK": 7
+	},
+	"buildings": {
+	  "HQ": 10,
+	  "Garage": 7,
+	  "Logistics": 7,
+	  "Racing Department": 14,
+	  "RnD Studio": 23,
+	  "Academy": 3,
+	  "Karting Track": 1,
+	  "Public Racing Club": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 1,
+	  "Mechanic": 7,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 7,
+	"drivers_total": 14,
+	"sponsors": 6
+  },
+  "T-091": {
+	"name": "SpeedForge Kart",
+	"nat": "GBR",
+	"type": "Privateer",
+	"rep": 45,
+	"primary_disc": "GK Continental",
+	"championships": {
+	  "GK": 8
+	},
+	"buildings": {
+	  "HQ": 11,
+	  "Garage": 8,
+	  "Logistics": 8,
+	  "Racing Department": 16,
+	  "RnD Studio": 26,
+	  "Academy": 4,
+	  "Karting Track": 2,
+	  "Public Racing Club": 2,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 1,
+	  "Mechanic": 8,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 8,
+	"drivers_total": 16,
+	"sponsors": 6
+  },
+  "T-092": {
+	"name": "Apex Kart Racing",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 44,
+	"primary_disc": "GK Continental",
+	"championships": {
+	  "GK": 8
+	},
+	"buildings": {
+	  "HQ": 11,
+	  "Garage": 8,
+	  "Logistics": 7,
+	  "Racing Department": 16,
+	  "RnD Studio": 26,
+	  "Academy": 4,
+	  "Karting Track": 1,
+	  "Public Racing Club": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 1,
+	  "Mechanic": 8,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 8,
+	"drivers_total": 16,
+	"sponsors": 6
+  },
+  "T-093": {
+	"name": "Vortex Kart Team",
+	"nat": "FRA",
+	"type": "Privateer",
+	"rep": 42,
+	"primary_disc": "GK National",
+	"championships": {
+	  "GK": 7
+	},
+	"buildings": {
+	  "HQ": 11,
+	  "Garage": 7,
+	  "Logistics": 7,
+	  "Racing Department": 14,
+	  "RnD Studio": 23,
+	  "Academy": 3,
+	  "Karting Track": 1,
+	  "Public Racing Club": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 1,
+	  "Mechanic": 7,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 7,
+	"drivers_total": 14,
+	"sponsors": 6
+  },
+  "T-094": {
+	"name": "Blaze Karting",
+	"nat": "ESP",
+	"type": "Privateer",
+	"rep": 35,
+	"primary_disc": "GK Regional",
+	"championships": {
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 9,
+	  "Garage": 6,
+	  "Logistics": 6,
+	  "Racing Department": 12,
+	  "RnD Studio": 20,
+	  "Academy": 2,
+	  "Karting Track": 1,
+	  "Public Racing Club": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 1,
+	  "Mechanic": 6,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 6,
+	"drivers_total": 12,
+	"sponsors": 5
+  },
+  "T-095": {
+	"name": "Quantum Kart",
+	"nat": "JPN",
+	"type": "Privateer",
+	"rep": 48,
+	"primary_disc": "GK Continental",
+	"championships": {
+	  "GK": 7
+	},
+	"buildings": {
+	  "HQ": 12,
+	  "Garage": 7,
+	  "Logistics": 8,
+	  "Racing Department": 14,
+	  "RnD Studio": 23,
+	  "Academy": 3,
+	  "Karting Track": 1,
+	  "Public Racing Club": 2,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 1,
+	  "Mechanic": 7,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 7,
+	"drivers_total": 14,
+	"sponsors": 7
+  },
+  "T-096": {
+	"name": "Storm Kart Racing",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 49,
+	"primary_disc": "GK Continental",
+	"championships": {
+	  "GK": 8
+	},
+	"buildings": {
+	  "HQ": 12,
+	  "Garage": 8,
+	  "Logistics": 8,
+	  "Racing Department": 16,
+	  "RnD Studio": 26,
+	  "Academy": 4,
+	  "Karting Track": 3,
+	  "Public Racing Club": 2,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 1,
+	  "Mechanic": 8,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 8,
+	"drivers_total": 16,
+	"sponsors": 7
+  },
+  "T-097": {
+	"name": "Forge Kart Team",
+	"nat": "GER",
+	"type": "Privateer",
+	"rep": 52,
+	"primary_disc": "GK World",
+	"championships": {
+	  "GK": 9
+	},
+	"buildings": {
+	  "HQ": 13,
+	  "Garage": 9,
+	  "Logistics": 9,
+	  "Racing Department": 18,
+	  "RnD Studio": 29,
+	  "Academy": 5,
+	  "Karting Track": 5,
+	  "Public Racing Club": 2,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 1,
+	  "Mechanic": 9,
+	  "CFO": 1,
+	  "Designer": 29
+	},
+	"drivers_pro": 9,
+	"drivers_cadet": 9,
+	"drivers_total": 18,
+	"sponsors": 7
+  },
+  "T-098": {
+	"name": "Velocity Kart",
+	"nat": "GBR",
+	"type": "Privateer",
+	"rep": 46,
+	"primary_disc": "GK National",
+	"championships": {
+	  "GK": 7
+	},
+	"buildings": {
+	  "HQ": 12,
+	  "Garage": 7,
+	  "Logistics": 8,
+	  "Racing Department": 14,
+	  "RnD Studio": 23,
+	  "Academy": 3,
+	  "Karting Track": 1,
+	  "Public Racing Club": 2,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 1,
+	  "Mechanic": 7,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 7,
+	"drivers_total": 14,
+	"sponsors": 7
+  },
+  "T-099": {
+	"name": "Titan Kart Racing",
+	"nat": "ITA",
+	"type": "Privateer",
+	"rep": 54,
+	"primary_disc": "GK World",
+	"championships": {
+	  "GK": 8
+	},
+	"buildings": {
+	  "HQ": 14,
+	  "Garage": 8,
+	  "Logistics": 9,
+	  "Racing Department": 16,
+	  "RnD Studio": 26,
+	  "Academy": 4,
+	  "Karting Track": 4,
+	  "Public Racing Club": 2,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 1,
+	  "Mechanic": 8,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 8,
+	"drivers_total": 16,
+	"sponsors": 8
+  },
+  "T-100": {
+	"name": "Jade Circuit Racing",
+	"nat": "CHN",
+	"type": "Privateer",
+	"rep": 23,
+	"primary_disc": "GP4",
+	"championships": {
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 6,
+	  "Garage": 6,
+	  "Logistics": 4,
+	  "Racing Department": 11,
+	  "RnD Studio": 20,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 12,
+	  "Academy": 1,
+	  "Race Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 6,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 5,
+	"drivers_total": 11,
+	"sponsors": 4
+  },
+  "T-101": {
+	"name": "Yangtze Motorsport",
+	"nat": "CHN",
+	"type": "Customer",
+	"rep": 44,
+	"primary_disc": "GP3",
+	"championships": {
+	  "GP3": 1,
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 11,
+	  "Garage": 7,
+	  "Logistics": 7,
+	  "Racing Department": 12,
+	  "RnD Studio": 23,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 22,
+	  "Academy": 1,
+	  "Race Track": 2,
+	  "Karting Track": 3,
+	  "Public Racing Club": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 7,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 5,
+	"drivers_total": 12,
+	"sponsors": 6
+  },
+  "T-102": {
+	"name": "Himalaya Racing",
+	"nat": "IND",
+	"type": "Customer",
+	"rep": 51,
+	"primary_disc": "GP3",
+	"championships": {
+	  "GP3": 1,
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 13,
+	  "Garage": 7,
+	  "Logistics": 9,
+	  "Racing Department": 12,
+	  "RnD Studio": 23,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 26,
+	  "Academy": 1,
+	  "Race Track": 2,
+	  "Karting Track": 3,
+	  "Public Racing Club": 2,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 7,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 5,
+	"drivers_total": 12,
+	"sponsors": 7
+  },
+  "T-103": {
+	"name": "Monsoon Motorsport",
+	"nat": "IND",
+	"type": "Privateer",
+	"rep": 32,
+	"primary_disc": "GP4",
+	"championships": {
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 8,
+	  "Garage": 6,
+	  "Logistics": 5,
+	  "Racing Department": 11,
+	  "RnD Studio": 20,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 16,
+	  "Academy": 1,
+	  "Race Track": 1,
+	  "Karting Track": 2,
+	  "Public Racing Club": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 6,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 5,
+	"drivers_total": 11,
+	"sponsors": 5
+  },
+  "T-104": {
+	"name": "Desert Falcon Racing",
+	"nat": "UAE",
+	"type": "Customer",
+	"rep": 70,
+	"primary_disc": "EPC League",
+	"championships": {
+	  "EPC League": 1,
+	  "TC Elite": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 18,
+	  "Garage": 8,
+	  "Logistics": 12,
+	  "Racing Department": 17,
+	  "RnD Studio": 26,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 35,
+	  "Academy": 2,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Factory": 3,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 4
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 8,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 11,
+	"drivers_cadet": 6,
+	"drivers_total": 17,
+	"sponsors": 10
+  },
+  "T-105": {
+	"name": "Gulf Racing",
+	"nat": "UAE",
+	"type": "Customer",
+	"rep": 57,
+	"primary_disc": "EPC Series",
+	"championships": {
+	  "EPC Series": 1,
+	  "TC Sport": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 14,
+	  "Garage": 7,
+	  "Logistics": 10,
+	  "Racing Department": 15,
+	  "RnD Studio": 23,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 29,
+	  "Academy": 1,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Public Racing Club": 2,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 7,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 10,
+	"drivers_cadet": 5,
+	"drivers_total": 15,
+	"sponsors": 8
+  },
+  "T-106": {
+	"name": "Serra Gaucha Racing",
+	"nat": "BRA",
+	"type": "Customer",
+	"rep": 64,
+	"primary_disc": "GP2",
+	"championships": {
+	  "GP2": 1,
+	  "GP3": 1,
+	  "GK": 6
+	},
+	"buildings": {
+	  "HQ": 16,
+	  "Garage": 8,
+	  "Logistics": 11,
+	  "Racing Department": 14,
+	  "RnD Studio": 26,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 32,
+	  "Academy": 2,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Public Racing Club": 3,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 8,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 26
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 6,
+	"drivers_total": 14,
+	"sponsors": 9
+  },
+  "T-107": {
+	"name": "Amazonia Racing",
+	"nat": "BRA",
+	"type": "Privateer",
+	"rep": 38,
+	"primary_disc": "GP4",
+	"championships": {
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 10,
+	  "Garage": 6,
+	  "Logistics": 6,
+	  "Racing Department": 11,
+	  "RnD Studio": 20,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 19,
+	  "Academy": 1,
+	  "Race Track": 1,
+	  "Karting Track": 2,
+	  "Public Racing Club": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 6,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 5,
+	"drivers_total": 11,
+	"sponsors": 6
+  },
+  "T-108": {
+	"name": "Copacabana Racing",
+	"nat": "BRA",
+	"type": "Customer",
+	"rep": 52,
+	"primary_disc": "SC Cup",
+	"championships": {
+	  "SC Cup": 1,
+	  "SC Challenge": 1
+	},
+	"buildings": {
+	  "HQ": 13,
+	  "Garage": 2,
+	  "Logistics": 9,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 26,
+	  "Oval Track": 2,
+	  "Karting Track": 2,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 7
+  },
+  "T-109": {
+	"name": "Sierra Madre Racing",
+	"nat": "MEX",
+	"type": "Customer",
+	"rep": 57,
+	"primary_disc": "GP3",
+	"championships": {
+	  "GP3": 1,
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 14,
+	  "Garage": 7,
+	  "Logistics": 10,
+	  "Racing Department": 12,
+	  "RnD Studio": 23,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 29,
+	  "Academy": 1,
+	  "Race Track": 2,
+	  "Karting Track": 3,
+	  "Public Racing Club": 2,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 7,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 23
+	},
+	"drivers_pro": 7,
+	"drivers_cadet": 5,
+	"drivers_total": 12,
+	"sponsors": 8
+  },
+  "T-110": {
+	"name": "Azteca Motorsport",
+	"nat": "MEX",
+	"type": "Privateer",
+	"rep": 35,
+	"primary_disc": "GP4",
+	"championships": {
+	  "GP4": 1,
+	  "GK": 5
+	},
+	"buildings": {
+	  "HQ": 9,
+	  "Garage": 6,
+	  "Logistics": 6,
+	  "Racing Department": 11,
+	  "RnD Studio": 20,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 18,
+	  "Academy": 1,
+	  "Race Track": 1,
+	  "Karting Track": 2,
+	  "Public Racing Club": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 6,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 20
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 5,
+	"drivers_total": 11,
+	"sponsors": 5
+  },
+  "T-111": {
+	"name": "Tequila Sunrise Racing",
+	"nat": "MEX",
+	"type": "Customer",
+	"rep": 46,
+	"primary_disc": "SC Cup",
+	"championships": {
+	  "SC Cup": 1,
+	  "SC Challenge": 1
+	},
+	"buildings": {
+	  "HQ": 12,
+	  "Garage": 2,
+	  "Logistics": 8,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 23,
+	  "Oval Track": 2,
+	  "Karting Track": 2,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 7
+  },
+  "T-112": {
+	"name": "Ural Racing",
+	"nat": "RUS",
+	"type": "Customer",
+	"rep": 57,
+	"primary_disc": "Premier Rally",
+	"championships": {
+	  "Premier Rally": 1,
+	  "Rally2": 1,
+	  "Rally3": 1,
+	  "Rally4": 1
+	},
+	"buildings": {
+	  "HQ": 14,
+	  "Garage": 4,
+	  "Logistics": 10,
+	  "Racing Department": 8,
+	  "RnD Studio": 14,
+	  "Pit Crew Arena": 4,
+	  "Fitness Clinic": 29,
+	  "Gravel Track": 2,
+	  "Karting Track": 3,
+	  "Factory": 2,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 4,
+	  "Pit Crew": 4,
+	  "CFO": 1,
+	  "Designer": 14
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 0,
+	"drivers_total": 8,
+	"sponsors": 8
+  },
+  "T-113": {
+	"name": "Siberian Storm",
+	"nat": "RUS",
+	"type": "Privateer",
+	"rep": 38,
+	"primary_disc": "Rally3",
+	"championships": {
+	  "Rally3": 1,
+	  "Rally4": 1
+	},
+	"buildings": {
+	  "HQ": 10,
+	  "Garage": 2,
+	  "Logistics": 6,
+	  "Racing Department": 4,
+	  "RnD Studio": 8,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 19,
+	  "Gravel Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 4,
+	"drivers_cadet": 0,
+	"drivers_total": 4,
+	"sponsors": 6
+  },
+  "T-114": {
+	"name": "Volga Racing",
+	"nat": "RUS",
+	"type": "Privateer",
+	"rep": 26,
+	"primary_disc": "Rally4",
+	"championships": {
+	  "Rally4": 1
+	},
+	"buildings": {
+	  "HQ": 7,
+	  "Garage": 1,
+	  "Logistics": 4,
+	  "Racing Department": 2,
+	  "RnD Studio": 5,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 13,
+	  "Gravel Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 1,
+	  "Mechanic": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 5
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 4
+  },
+  "T-115": {
+	"name": "Baltic Motorsport",
+	"nat": "FIN",
+	"type": "Customer",
+	"rep": 55,
+	"primary_disc": "Premier Rally",
+	"championships": {
+	  "Premier Rally": 1,
+	  "Rally2": 1,
+	  "Rally3": 1,
+	  "Rally4": 1
+	},
+	"buildings": {
+	  "HQ": 14,
+	  "Garage": 4,
+	  "Logistics": 9,
+	  "Racing Department": 8,
+	  "RnD Studio": 14,
+	  "Pit Crew Arena": 4,
+	  "Fitness Clinic": 28,
+	  "Gravel Track": 2,
+	  "Karting Track": 2,
+	  "Factory": 2,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 4,
+	  "Pit Crew": 4,
+	  "CFO": 1,
+	  "Designer": 14
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 0,
+	"drivers_total": 8,
+	"sponsors": 8
+  },
+  "T-116": {
+	"name": "Alpine Rally Team",
+	"nat": "AUT",
+	"type": "Customer",
+	"rep": 54,
+	"primary_disc": "Premier Rally",
+	"championships": {
+	  "Premier Rally": 1,
+	  "Rally2": 1,
+	  "Rally3": 1,
+	  "Rally4": 1
+	},
+	"buildings": {
+	  "HQ": 14,
+	  "Garage": 4,
+	  "Logistics": 9,
+	  "Racing Department": 8,
+	  "RnD Studio": 14,
+	  "Pit Crew Arena": 4,
+	  "Fitness Clinic": 27,
+	  "Gravel Track": 2,
+	  "Karting Track": 3,
+	  "Factory": 1,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 4,
+	  "Pit Crew": 4,
+	  "CFO": 1,
+	  "Designer": 14
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 0,
+	"drivers_total": 8,
+	"sponsors": 8
+  },
+  "T-117": {
+	"name": "Corsica Rally Team",
+	"nat": "FRA",
+	"type": "Customer",
+	"rep": 55,
+	"primary_disc": "Premier Rally",
+	"championships": {
+	  "Premier Rally": 1,
+	  "Rally2": 1,
+	  "Rally3": 1
+	},
+	"buildings": {
+	  "HQ": 14,
+	  "Garage": 3,
+	  "Logistics": 9,
+	  "Racing Department": 6,
+	  "RnD Studio": 11,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 28,
+	  "Gravel Track": 2,
+	  "Karting Track": 2,
+	  "Factory": 2,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 11
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 0,
+	"drivers_total": 6,
+	"sponsors": 8
+  },
+  "T-118": {
+	"name": "Monte Carlo Racing",
+	"nat": "MCO",
+	"type": "Customer",
+	"rep": 60,
+	"primary_disc": "Premier Rally",
+	"championships": {
+	  "Premier Rally": 1,
+	  "Rally2": 1
+	},
+	"buildings": {
+	  "HQ": 15,
+	  "Garage": 2,
+	  "Logistics": 10,
+	  "Racing Department": 4,
+	  "RnD Studio": 8,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 30,
+	  "Gravel Track": 2,
+	  "Karting Track": 3,
+	  "Factory": 4,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 4,
+	"drivers_cadet": 0,
+	"drivers_total": 4,
+	"sponsors": 8
+  },
+  "T-119": {
+	"name": "Safari Rally Team",
+	"nat": "KEN",
+	"type": "Privateer",
+	"rep": 38,
+	"primary_disc": "Premier Rally",
+	"championships": {
+	  "Premier Rally": 1,
+	  "Rally2": 1,
+	  "Rally3": 1,
+	  "Rally4": 1
+	},
+	"buildings": {
+	  "HQ": 10,
+	  "Garage": 4,
+	  "Logistics": 6,
+	  "Racing Department": 8,
+	  "RnD Studio": 14,
+	  "Pit Crew Arena": 4,
+	  "Fitness Clinic": 19,
+	  "Gravel Track": 1,
+	  "Karting Track": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 4,
+	  "Pit Crew": 4,
+	  "CFO": 1,
+	  "Designer": 14
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 0,
+	"drivers_total": 8,
+	"sponsors": 6
+  },
+  "T-120": {
+	"name": "Gravel Kings",
+	"nat": "GBR",
+	"type": "Privateer",
+	"rep": 32,
+	"primary_disc": "Rally2",
+	"championships": {
+	  "Rally2": 1,
+	  "Rally3": 1,
+	  "Rally4": 1
+	},
+	"buildings": {
+	  "HQ": 8,
+	  "Garage": 3,
+	  "Logistics": 5,
+	  "Racing Department": 6,
+	  "RnD Studio": 11,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 16,
+	  "Gravel Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 11
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 0,
+	"drivers_total": 6,
+	"sponsors": 5
+  },
+  "T-121": {
+	"name": "Stage One Racing",
+	"nat": "FRA",
+	"type": "Privateer",
+	"rep": 29,
+	"primary_disc": "Rally2",
+	"championships": {
+	  "Rally2": 1,
+	  "Rally3": 1,
+	  "Rally4": 1
+	},
+	"buildings": {
+	  "HQ": 7,
+	  "Garage": 3,
+	  "Logistics": 5,
+	  "Racing Department": 6,
+	  "RnD Studio": 11,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 15,
+	  "Gravel Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 11
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 0,
+	"drivers_total": 6,
+	"sponsors": 4
+  },
+  "T-122": {
+	"name": "Appalachian Racing",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 27,
+	"primary_disc": "SC Cup",
+	"championships": {
+	  "SC Cup": 1,
+	  "SC Challenge": 1
+	},
+	"buildings": {
+	  "HQ": 7,
+	  "Garage": 2,
+	  "Logistics": 5,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 14,
+	  "Oval Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 4
+  },
+  "T-123": {
+	"name": "Bayou Racing",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 30,
+	"primary_disc": "SC Cup",
+	"championships": {
+	  "SC Cup": 1,
+	  "SC Challenge": 1
+	},
+	"buildings": {
+	  "HQ": 8,
+	  "Garage": 2,
+	  "Logistics": 5,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 15,
+	  "Oval Track": 1,
+	  "Karting Track": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 5
+  },
+  "T-124": {
+	"name": "Piedmont Motorsport",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 26,
+	"primary_disc": "SC Cup",
+	"championships": {
+	  "SC Cup": 1,
+	  "SC Challenge": 1
+	},
+	"buildings": {
+	  "HQ": 7,
+	  "Garage": 2,
+	  "Logistics": 4,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 13,
+	  "Oval Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 4
+  },
+  "T-125": {
+	"name": "Great Plains Racing",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 29,
+	"primary_disc": "SC Cup",
+	"championships": {
+	  "SC Cup": 1,
+	  "SC Challenge": 1,
+	  "SC Truck": 1
+	},
+	"buildings": {
+	  "HQ": 7,
+	  "Garage": 3,
+	  "Logistics": 5,
+	  "Racing Department": 3,
+	  "RnD Studio": 11,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 15,
+	  "Oval Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 3,
+	  "Strategist": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 11
+	},
+	"drivers_pro": 3,
+	"drivers_cadet": 0,
+	"drivers_total": 3,
+	"sponsors": 4
+  },
+  "T-126": {
+	"name": "Blue Ridge Racing",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 24,
+	"primary_disc": "SC Cup",
+	"championships": {
+	  "SC Cup": 1,
+	  "SC Challenge": 1
+	},
+	"buildings": {
+	  "HQ": 6,
+	  "Garage": 2,
+	  "Logistics": 4,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 12,
+	  "Oval Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 4
+  },
+  "T-127": {
+	"name": "Sunbelt Racing",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 27,
+	"primary_disc": "SC Cup",
+	"championships": {
+	  "SC Cup": 1,
+	  "SC Truck": 1
+	},
+	"buildings": {
+	  "HQ": 7,
+	  "Garage": 2,
+	  "Logistics": 5,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 14,
+	  "Oval Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 4
+  },
+  "T-128": {
+	"name": "Thunder Valley Racing",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 23,
+	"primary_disc": "SC Cup",
+	"championships": {
+	  "SC Cup": 1,
+	  "SC Challenge": 1
+	},
+	"buildings": {
+	  "HQ": 6,
+	  "Garage": 2,
+	  "Logistics": 4,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 12,
+	  "Oval Track": 1,
+	  "Karting Track": 1,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 4
+  },
+  "T-129": {
+	"name": "Speedway Nation",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 26,
+	"primary_disc": "SC Cup",
+	"championships": {
+	  "SC Cup": 1,
+	  "SC Challenge": 1
+	},
+	"buildings": {
+	  "HQ": 7,
+	  "Garage": 2,
+	  "Logistics": 4,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 13,
+	  "Oval Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 4
+  },
+  "T-130": {
+	"name": "Talladega Collective",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 21,
+	"primary_disc": "SC Cup",
+	"championships": {
+	  "SC Cup": 1,
+	  "SC Truck": 1
+	},
+	"buildings": {
+	  "HQ": 5,
+	  "Garage": 2,
+	  "Logistics": 4,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 11,
+	  "Oval Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 3
+  },
+  "T-131": {
+	"name": "Bristol Thunder",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 26,
+	"primary_disc": "SC Cup",
+	"championships": {
+	  "SC Cup": 1,
+	  "SC Truck": 1
+	},
+	"buildings": {
+	  "HQ": 7,
+	  "Garage": 2,
+	  "Logistics": 4,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 13,
+	  "Oval Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 4
+  },
+  "T-132": {
+	"name": "Michigan Motorsport",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 23,
+	"primary_disc": "SC Cup",
+	"championships": {
+	  "SC Cup": 1
+	},
+	"buildings": {
+	  "HQ": 6,
+	  "Garage": 1,
+	  "Logistics": 4,
+	  "Racing Department": 1,
+	  "RnD Studio": 5,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 12,
+	  "Oval Track": 1,
+	  "Karting Track": 1,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 1,
+	  "Mechanic": 1,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 5
+	},
+	"drivers_pro": 1,
+	"drivers_cadet": 0,
+	"drivers_total": 1,
+	"sponsors": 4
+  },
+  "T-133": {
+	"name": "Phoenix Racing",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 21,
+	"primary_disc": "SC Cup",
+	"championships": {
+	  "SC Cup": 1,
+	  "SC Challenge": 1
+	},
+	"buildings": {
+	  "HQ": 5,
+	  "Garage": 2,
+	  "Logistics": 4,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 11,
+	  "Oval Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 3
+  },
+  "T-134": {
+	"name": "Texas Truck Team",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 20,
+	"primary_disc": "SC Truck",
+	"championships": {
+	  "SC Truck": 1,
+	  "SC Dev": 1
+	},
+	"buildings": {
+	  "HQ": 5,
+	  "Garage": 2,
+	  "Logistics": 3,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 10,
+	  "Oval Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 3
+  },
+  "T-135": {
+	"name": "Carolina Truck Racing",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 23,
+	"primary_disc": "SC Truck",
+	"championships": {
+	  "SC Truck": 1,
+	  "SC Dev": 1
+	},
+	"buildings": {
+	  "HQ": 6,
+	  "Garage": 2,
+	  "Logistics": 4,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 12,
+	  "Oval Track": 1,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 4
+  },
+  "T-136": {
+	"name": "Midwest Truck Collective",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 19,
+	"primary_disc": "SC Truck",
+	"championships": {
+	  "SC Truck": 1,
+	  "SC Dev": 1
+	},
+	"buildings": {
+	  "HQ": 5,
+	  "Garage": 2,
+	  "Logistics": 3,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 10,
+	  "Oval Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 3
+  },
+  "T-137": {
+	"name": "Lone Star Trucks",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 21,
+	"primary_disc": "SC Truck",
+	"championships": {
+	  "SC Truck": 1,
+	  "SC Dev": 1
+	},
+	"buildings": {
+	  "HQ": 5,
+	  "Garage": 2,
+	  "Logistics": 4,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 11,
+	  "Oval Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 3
+  },
+  "T-138": {
+	"name": "Frontier Racing",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 24,
+	"primary_disc": "SC Truck",
+	"championships": {
+	  "SC Truck": 1,
+	  "SC Dev": 1
+	},
+	"buildings": {
+	  "HQ": 6,
+	  "Garage": 2,
+	  "Logistics": 4,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 12,
+	  "Oval Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 4
+  },
+  "T-139": {
+	"name": "Dixie Motorsport",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 26,
+	"primary_disc": "SC Challenge",
+	"championships": {
+	  "SC Challenge": 1,
+	  "SC Dev": 1
+	},
+	"buildings": {
+	  "HQ": 7,
+	  "Garage": 2,
+	  "Logistics": 4,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 13,
+	  "Oval Track": 1,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 4
+  },
+  "T-140": {
+	"name": "Oval Masters Racing",
+	"nat": "USA",
+	"type": "Customer",
+	"rep": 42,
+	"primary_disc": "OWC Pro",
+	"championships": {
+	  "OWC Pro": 1,
+	  "OWC Dev": 1,
+	  "OWC Next Gen": 1
+	},
+	"buildings": {
+	  "HQ": 11,
+	  "Garage": 3,
+	  "Logistics": 7,
+	  "Racing Department": 3,
+	  "RnD Studio": 11,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 21,
+	  "Oval Track": 2,
+	  "Karting Track": 2,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 3,
+	  "Strategist": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 11
+	},
+	"drivers_pro": 3,
+	"drivers_cadet": 0,
+	"drivers_total": 3,
+	"sponsors": 6
+  },
+  "T-141": {
+	"name": "Indy Speed Team",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 30,
+	"primary_disc": "OWC Pro",
+	"championships": {
+	  "OWC Pro": 1,
+	  "OWC Dev": 1,
+	  "OWC Next Gen": 1
+	},
+	"buildings": {
+	  "HQ": 8,
+	  "Garage": 3,
+	  "Logistics": 5,
+	  "Racing Department": 3,
+	  "RnD Studio": 11,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 15,
+	  "Oval Track": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 3,
+	  "Strategist": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 11
+	},
+	"drivers_pro": 3,
+	"drivers_cadet": 0,
+	"drivers_total": 3,
+	"sponsors": 5
+  },
+  "T-142": {
+	"name": "Long Beach Racing",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 27,
+	"primary_disc": "OWC Pro",
+	"championships": {
+	  "OWC Pro": 1,
+	  "OWC Dev": 1,
+	  "OWC Next Gen": 1
+	},
+	"buildings": {
+	  "HQ": 7,
+	  "Garage": 3,
+	  "Logistics": 5,
+	  "Racing Department": 3,
+	  "RnD Studio": 11,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 14,
+	  "Oval Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 3,
+	  "Strategist": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 11
+	},
+	"drivers_pro": 3,
+	"drivers_cadet": 0,
+	"drivers_total": 3,
+	"sponsors": 4
+  },
+  "T-143": {
+	"name": "Oval Masters Racing",
+	"nat": "USA",
+	"type": "Customer",
+	"rep": 42,
+	"primary_disc": "OWC Pro",
+	"championships": {
+	  "OWC Pro": 1,
+	  "OWC Dev": 1,
+	  "OWC Next Gen": 1
+	},
+	"buildings": {
+	  "HQ": 11,
+	  "Garage": 3,
+	  "Logistics": 7,
+	  "Racing Department": 3,
+	  "RnD Studio": 11,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 21,
+	  "Oval Track": 2,
+	  "Karting Track": 3,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 3,
+	  "Strategist": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 11
+	},
+	"drivers_pro": 3,
+	"drivers_cadet": 0,
+	"drivers_total": 3,
+	"sponsors": 6
+  },
+  "T-144": {
+	"name": "Road America Collective",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 24,
+	"primary_disc": "OWC Pro",
+	"championships": {
+	  "OWC Pro": 1,
+	  "OWC Dev": 1,
+	  "OWC Next Gen": 1
+	},
+	"buildings": {
+	  "HQ": 6,
+	  "Garage": 3,
+	  "Logistics": 4,
+	  "Racing Department": 3,
+	  "RnD Studio": 11,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 12,
+	  "Oval Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 3,
+	  "Strategist": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 11
+	},
+	"drivers_pro": 3,
+	"drivers_cadet": 0,
+	"drivers_total": 3,
+	"sponsors": 4
+  },
+  "T-145": {
+	"name": "Portland Racing",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 26,
+	"primary_disc": "OWC Pro",
+	"championships": {
+	  "OWC Pro": 1,
+	  "OWC Dev": 1,
+	  "OWC Next Gen": 1
+	},
+	"buildings": {
+	  "HQ": 7,
+	  "Garage": 3,
+	  "Logistics": 4,
+	  "Racing Department": 3,
+	  "RnD Studio": 11,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 13,
+	  "Oval Track": 1,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 3,
+	  "Strategist": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 11
+	},
+	"drivers_pro": 3,
+	"drivers_cadet": 0,
+	"drivers_total": 3,
+	"sponsors": 4
+  },
+  "T-146": {
+	"name": "Mid-Ohio Motorsport",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 23,
+	"primary_disc": "OWC Pro",
+	"championships": {
+	  "OWC Pro": 1,
+	  "OWC Dev": 1,
+	  "OWC Next Gen": 1
+	},
+	"buildings": {
+	  "HQ": 6,
+	  "Garage": 3,
+	  "Logistics": 4,
+	  "Racing Department": 3,
+	  "RnD Studio": 11,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 12,
+	  "Oval Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 3,
+	  "Strategist": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 11
+	},
+	"drivers_pro": 3,
+	"drivers_cadet": 0,
+	"drivers_total": 3,
+	"sponsors": 4
+  },
+  "T-147": {
+	"name": "Barber Racing",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 26,
+	"primary_disc": "OWC Pro",
+	"championships": {
+	  "OWC Pro": 1,
+	  "OWC Next Gen": 1
+	},
+	"buildings": {
+	  "HQ": 7,
+	  "Garage": 2,
+	  "Logistics": 4,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 13,
+	  "Oval Track": 1,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 4
+  },
+  "T-148": {
+	"name": "Andretti Collective",
+	"nat": "USA",
+	"type": "Customer",
+	"rep": 49,
+	"primary_disc": "OWC Pro",
+	"championships": {
+	  "OWC Pro": 1,
+	  "OWC Dev": 1,
+	  "OWC Next Gen": 1
+	},
+	"buildings": {
+	  "HQ": 12,
+	  "Garage": 3,
+	  "Logistics": 8,
+	  "Racing Department": 3,
+	  "RnD Studio": 11,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 25,
+	  "Oval Track": 2,
+	  "Karting Track": 2,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 3,
+	  "Strategist": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 11
+	},
+	"drivers_pro": 3,
+	"drivers_cadet": 0,
+	"drivers_total": 3,
+	"sponsors": 7
+  },
+  "T-149": {
+	"name": "USF Collective",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 27,
+	"primary_disc": "OWC Dev",
+	"championships": {
+	  "OWC Dev": 1,
+	  "OWC Next Gen": 1
+	},
+	"buildings": {
+	  "HQ": 7,
+	  "Garage": 2,
+	  "Logistics": 5,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 14,
+	  "Oval Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 4
+  },
+  "T-150": {
+	"name": "Pro Mazda Team",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 24,
+	"primary_disc": "OWC Next Gen",
+	"championships": {
+	  "OWC Next Gen": 1
+	},
+	"buildings": {
+	  "HQ": 6,
+	  "Garage": 1,
+	  "Logistics": 4,
+	  "Racing Department": 1,
+	  "RnD Studio": 5,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 12,
+	  "Oval Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 1,
+	  "Mechanic": 1,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 5
+	},
+	"drivers_pro": 1,
+	"drivers_cadet": 0,
+	"drivers_total": 1,
+	"sponsors": 4
+  },
+  "T-151": {
+	"name": "Sarthe Racing",
+	"nat": "FRA",
+	"type": "Privateer",
+	"rep": 41,
+	"primary_disc": "EPC League",
+	"championships": {
+	  "EPC League": 1,
+	  "EPC Series": 1
+	},
+	"buildings": {
+	  "HQ": 10,
+	  "Garage": 2,
+	  "Logistics": 7,
+	  "Racing Department": 6,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 21,
+	  "Race Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 0,
+	"drivers_total": 6,
+	"sponsors": 6
+  },
+  "T-152": {
+	"name": "Portimao Endurance",
+	"nat": "PRT",
+	"type": "Privateer",
+	"rep": 38,
+	"primary_disc": "EPC League",
+	"championships": {
+	  "EPC League": 1,
+	  "EPC Series": 1
+	},
+	"buildings": {
+	  "HQ": 10,
+	  "Garage": 2,
+	  "Logistics": 6,
+	  "Racing Department": 6,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 19,
+	  "Race Track": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 0,
+	"drivers_total": 6,
+	"sponsors": 6
+  },
+  "T-153": {
+	"name": "Nurburgring Collective",
+	"nat": "GER",
+	"type": "Privateer",
+	"rep": 42,
+	"primary_disc": "EPC Series",
+	"championships": {
+	  "EPC Series": 1
+	},
+	"buildings": {
+	  "HQ": 11,
+	  "Garage": 1,
+	  "Logistics": 7,
+	  "Racing Department": 3,
+	  "RnD Studio": 5,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 21,
+	  "Race Track": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 1,
+	  "Mechanic": 1,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 5
+	},
+	"drivers_pro": 3,
+	"drivers_cadet": 0,
+	"drivers_total": 3,
+	"sponsors": 6
+  },
+  "T-154": {
+	"name": "Andretti Collective",
+	"nat": "USA",
+	"type": "Customer",
+	"rep": 49,
+	"primary_disc": "OWC Pro",
+	"championships": {
+	  "OWC Pro": 1,
+	  "OWC Dev": 1,
+	  "OWC Next Gen": 1
+	},
+	"buildings": {
+	  "HQ": 12,
+	  "Garage": 3,
+	  "Logistics": 8,
+	  "Racing Department": 3,
+	  "RnD Studio": 11,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 25,
+	  "Oval Track": 2,
+	  "Karting Track": 2,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 3,
+	  "Strategist": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 11
+	},
+	"drivers_pro": 3,
+	"drivers_cadet": 0,
+	"drivers_total": 3,
+	"sponsors": 7
+  },
+  "T-155": {
+	"name": "Monza Endurance",
+	"nat": "ITA",
+	"type": "Privateer",
+	"rep": 39,
+	"primary_disc": "EPC Series",
+	"championships": {
+	  "EPC Series": 1
+	},
+	"buildings": {
+	  "HQ": 10,
+	  "Garage": 1,
+	  "Logistics": 7,
+	  "Racing Department": 3,
+	  "RnD Studio": 5,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 20,
+	  "Race Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 1,
+	  "Mechanic": 1,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 5
+	},
+	"drivers_pro": 3,
+	"drivers_cadet": 0,
+	"drivers_total": 3,
+	"sponsors": 6
+  },
+  "T-156": {
+	"name": "Safari Rally Team",
+	"nat": "KEN",
+	"type": "Privateer",
+	"rep": 38,
+	"primary_disc": "Premier Rally",
+	"championships": {
+	  "Premier Rally": 1,
+	  "Rally2": 1,
+	  "Rally3": 1,
+	  "Rally4": 1
+	},
+	"buildings": {
+	  "HQ": 10,
+	  "Garage": 4,
+	  "Logistics": 6,
+	  "Racing Department": 8,
+	  "RnD Studio": 14,
+	  "Pit Crew Arena": 4,
+	  "Fitness Clinic": 19,
+	  "Gravel Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 4,
+	  "Mechanic": 4,
+	  "Pit Crew": 4,
+	  "CFO": 1,
+	  "Designer": 14
+	},
+	"drivers_pro": 8,
+	"drivers_cadet": 0,
+	"drivers_total": 8,
+	"sponsors": 6
+  },
+  "T-157": {
+	"name": "Gravel Kings",
+	"nat": "GBR",
+	"type": "Privateer",
+	"rep": 32,
+	"primary_disc": "Rally2",
+	"championships": {
+	  "Rally2": 1,
+	  "Rally3": 1,
+	  "Rally4": 1
+	},
+	"buildings": {
+	  "HQ": 8,
+	  "Garage": 3,
+	  "Logistics": 5,
+	  "Racing Department": 6,
+	  "RnD Studio": 11,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 16,
+	  "Gravel Track": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 11
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 0,
+	"drivers_total": 6,
+	"sponsors": 5
+  },
+  "T-158": {
+	"name": "Stage One Racing",
+	"nat": "FRA",
+	"type": "Privateer",
+	"rep": 29,
+	"primary_disc": "Rally2",
+	"championships": {
+	  "Rally2": 1,
+	  "Rally3": 1,
+	  "Rally4": 1
+	},
+	"buildings": {
+	  "HQ": 7,
+	  "Garage": 3,
+	  "Logistics": 5,
+	  "Racing Department": 6,
+	  "RnD Studio": 11,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 15,
+	  "Gravel Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 11
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 0,
+	"drivers_total": 6,
+	"sponsors": 4
+  },
+  "T-159": {
+	"name": "Le Mans Collective",
+	"nat": "FRA",
+	"type": "Customer",
+	"rep": 52,
+	"primary_disc": "EPC League",
+	"championships": {
+	  "EPC League": 1,
+	  "EPC Series": 1
+	},
+	"buildings": {
+	  "HQ": 13,
+	  "Garage": 2,
+	  "Logistics": 9,
+	  "Racing Department": 6,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 26,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Factory": 2,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 0,
+	"drivers_total": 6,
+	"sponsors": 7
+  },
+  "T-160": {
+	"name": "Scandinavian Storm",
+	"nat": "NOR",
+	"type": "Privateer",
+	"rep": 38,
+	"primary_disc": "Rally3",
+	"championships": {
+	  "Rally3": 1,
+	  "Rally4": 1
+	},
+	"buildings": {
+	  "HQ": 10,
+	  "Garage": 2,
+	  "Logistics": 6,
+	  "Racing Department": 4,
+	  "RnD Studio": 8,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 19,
+	  "Gravel Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 4,
+	"drivers_cadet": 0,
+	"drivers_total": 4,
+	"sponsors": 6
+  },
+  "T-161": {
+	"name": "Basque Rally Team",
+	"nat": "ESP",
+	"type": "Privateer",
+	"rep": 35,
+	"primary_disc": "Rally3",
+	"championships": {
+	  "Rally3": 1,
+	  "Rally4": 1
+	},
+	"buildings": {
+	  "HQ": 9,
+	  "Garage": 2,
+	  "Logistics": 6,
+	  "Racing Department": 4,
+	  "RnD Studio": 8,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 18,
+	  "Gravel Track": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 4,
+	"drivers_cadet": 0,
+	"drivers_total": 4,
+	"sponsors": 5
+  },
+  "T-162": {
+	"name": "Carpathian Racing",
+	"nat": "POL",
+	"type": "Privateer",
+	"rep": 30,
+	"primary_disc": "Rally4",
+	"championships": {
+	  "Rally4": 1
+	},
+	"buildings": {
+	  "HQ": 8,
+	  "Garage": 1,
+	  "Logistics": 5,
+	  "Racing Department": 2,
+	  "RnD Studio": 5,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 15,
+	  "Gravel Track": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 1,
+	  "Mechanic": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 5
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 5
+  },
+  "T-163": {
+	"name": "Spa Endurance Team",
+	"nat": "BEL",
+	"type": "Customer",
+	"rep": 54,
+	"primary_disc": "EPC League",
+	"championships": {
+	  "EPC League": 1,
+	  "EPC Series": 1
+	},
+	"buildings": {
+	  "HQ": 14,
+	  "Garage": 2,
+	  "Logistics": 9,
+	  "Racing Department": 6,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 27,
+	  "Race Track": 2,
+	  "Karting Track": 4,
+	  "Factory": 2,
+	  "Merchandize Store": 3
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 6,
+	"drivers_cadet": 0,
+	"drivers_total": 6,
+	"sponsors": 8
+  },
+  "T-164": {
+	"name": "Tatra Racing",
+	"nat": "CZE",
+	"type": "Privateer",
+	"rep": 33,
+	"primary_disc": "Rally4",
+	"championships": {
+	  "Rally4": 1
+	},
+	"buildings": {
+	  "HQ": 8,
+	  "Garage": 1,
+	  "Logistics": 6,
+	  "Racing Department": 2,
+	  "RnD Studio": 5,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 17,
+	  "Gravel Track": 1,
+	  "Merchandize Store": 2
+	},
+	"staff": {
+	  "TP": 1,
+	  "Mechanic": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 5
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 5
+  },
+  "T-165": {
+	"name": "Magyar Motorsport",
+	"nat": "HUN",
+	"type": "Privateer",
+	"rep": 29,
+	"primary_disc": "Rally4",
+	"championships": {
+	  "Rally4": 1
+	},
+	"buildings": {
+	  "HQ": 7,
+	  "Garage": 1,
+	  "Logistics": 5,
+	  "Racing Department": 2,
+	  "RnD Studio": 5,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 15,
+	  "Gravel Track": 1,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 1,
+	  "Mechanic": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 5
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 4
+  },
+  "T-166": {
+	"name": "Checkered Flag Racing",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 24,
+	"primary_disc": "SC Cup",
+	"championships": {
+	  "SC Cup": 1,
+	  "SC Challenge": 1,
+	  "SC Truck": 1
+	},
+	"buildings": {
+	  "HQ": 6,
+	  "Garage": 3,
+	  "Logistics": 4,
+	  "Racing Department": 3,
+	  "RnD Studio": 11,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 12,
+	  "Oval Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 3,
+	  "Strategist": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 11
+	},
+	"drivers_pro": 3,
+	"drivers_cadet": 0,
+	"drivers_total": 3,
+	"sponsors": 4
+  },
+  "T-167": {
+	"name": "Heartland Thunder SC",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 27,
+	"primary_disc": "SC Challenge",
+	"championships": {
+	  "SC Challenge": 1,
+	  "SC Truck": 1
+	},
+	"buildings": {
+	  "HQ": 7,
+	  "Garage": 2,
+	  "Logistics": 5,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 14,
+	  "Oval Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 4
+  },
+  "T-168": {
+	"name": "Lone Star Collective SC",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 26,
+	"primary_disc": "SC Challenge",
+	"championships": {
+	  "SC Challenge": 1,
+	  "SC Dev": 1
+	},
+	"buildings": {
+	  "HQ": 7,
+	  "Garage": 2,
+	  "Logistics": 4,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 13,
+	  "Oval Track": 1,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 4
+  },
+  "T-169": {
+	"name": "Dixie Thunder",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 20,
+	"primary_disc": "SC Truck",
+	"championships": {
+	  "SC Truck": 1
+	},
+	"buildings": {
+	  "HQ": 5,
+	  "Garage": 1,
+	  "Logistics": 3,
+	  "Racing Department": 1,
+	  "RnD Studio": 5,
+	  "Ops Sim": 1,
+	  "Pit Crew Arena": 1,
+	  "Fitness Clinic": 10,
+	  "Oval Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 1,
+	  "Mechanic": 1,
+	  "Strategist": 1,
+	  "Pit Crew": 1,
+	  "CFO": 1,
+	  "Designer": 5
+	},
+	"drivers_pro": 1,
+	"drivers_cadet": 0,
+	"drivers_total": 1,
+	"sponsors": 3
+  },
+  "T-170": {
+	"name": "Gateway Racing",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 26,
+	"primary_disc": "OWC Pro",
+	"championships": {
+	  "OWC Pro": 1,
+	  "OWC Dev": 1,
+	  "OWC Next Gen": 1
+	},
+	"buildings": {
+	  "HQ": 7,
+	  "Garage": 3,
+	  "Logistics": 4,
+	  "Racing Department": 3,
+	  "RnD Studio": 11,
+	  "Ops Sim": 3,
+	  "Pit Crew Arena": 3,
+	  "Fitness Clinic": 13,
+	  "Oval Track": 1,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 3,
+	  "Mechanic": 3,
+	  "Strategist": 3,
+	  "Pit Crew": 3,
+	  "CFO": 1,
+	  "Designer": 11
+	},
+	"drivers_pro": 3,
+	"drivers_cadet": 0,
+	"drivers_total": 3,
+	"sponsors": 4
+  },
+  "T-171": {
+	"name": "Chicagoland Motorsport",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 24,
+	"primary_disc": "OWC Pro",
+	"championships": {
+	  "OWC Pro": 1,
+	  "OWC Next Gen": 1
+	},
+	"buildings": {
+	  "HQ": 6,
+	  "Garage": 2,
+	  "Logistics": 4,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 12,
+	  "Oval Track": 1,
+	  "Karting Track": 2,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 4
+  },
+  "T-172": {
+	"name": "Lone Eagle Racing",
+	"nat": "USA",
+	"type": "Privateer",
+	"rep": 23,
+	"primary_disc": "SC Truck",
+	"championships": {
+	  "SC Truck": 1,
+	  "SC Dev": 1
+	},
+	"buildings": {
+	  "HQ": 6,
+	  "Garage": 2,
+	  "Logistics": 4,
+	  "Racing Department": 2,
+	  "RnD Studio": 8,
+	  "Ops Sim": 2,
+	  "Pit Crew Arena": 2,
+	  "Fitness Clinic": 12,
+	  "Oval Track": 1,
+	  "Merchandize Store": 1
+	},
+	"staff": {
+	  "TP": 2,
+	  "Mechanic": 2,
+	  "Strategist": 2,
+	  "Pit Crew": 2,
+	  "CFO": 1,
+	  "Designer": 8
+	},
+	"drivers_pro": 2,
+	"drivers_cadet": 0,
+	"drivers_total": 2,
+	"sponsors": 4
+  }
+}

@@ -499,6 +499,11 @@ var fuel_kg: float = 30.0         # kg, starts with 2 races worth (15 kg × 1 ca
 
 # Car objects — replaces car_conditions dictionary
 var player_team_cars: Array = []  # Array of Car objects
+## AI Team Manager — instantiated in _ready(), owns all AI generation logic
+var ai_manager: RefCounted = null
+
+## AI team cars keyed by championship_id → Array of Car objects
+var ai_cars: Dictionary = {}
 
 # Staff pool — all staff in the game world (hired + available)
 var all_staff: Dictionary = {}    # staff_id → Staff
@@ -511,10 +516,7 @@ var part_inventory: Dictionary = {}
 # Part costs per championship (from CNC sheet — buy price per unit)
 const PART_COSTS = {
 	## GK series — small, inexpensive kart parts
-	"C-001": {"Engine":  1950, "Aero":  1625, "Brakes":   487, "Suspension":   650, "Chassis":  1137, "Gearbox":   650},
-	"C-002": {"Engine":  3200, "Aero":  2800, "Brakes":   750, "Suspension":  1100, "Chassis":  1900, "Gearbox":  1100},
-	"C-003": {"Engine":  5500, "Aero":  4800, "Brakes":  1200, "Suspension":  1800, "Chassis":  3200, "Gearbox":  1800},
-	"C-004": {"Engine":  9000, "Aero":  8000, "Brakes":  2000, "Suspension":  3000, "Chassis":  5500, "Gearbox":  3000},
+	"C-001": {"Engine": 0, "Aero": 0, "Brakes": 0, "Suspension": 0, "Chassis": 0, "Gearbox": 0},  ## GK: spec parts, cost is per-race spares only
 	## Rally series
 	"C-005": {"Engine": 18000, "Aero": 12000, "Brakes":  5000, "Suspension":  8000, "Chassis": 15000, "Gearbox":  9000},
 	"C-006": {"Engine": 32000, "Aero": 22000, "Brakes":  9000, "Suspension": 14000, "Chassis": 27000, "Gearbox": 16000},
@@ -551,10 +553,7 @@ const PARTS_LIST = ["Aero", "Engine", "Gearbox", "Suspension", "Brakes", "Chassi
 ## base_total_cost: full car unit cost at Season 1 (scales +5%/season from providers).
 ## sale_multiplier: recommended markup when player sells own-built cars.
 const CNC_DATA = {
-	"C-001": {"design_weeks":  2, "engine_weeks": 1, "base_total_cost":    6500, "sale_multiplier": 1.5},
-	"C-002": {"design_weeks":  2, "engine_weeks": 1, "base_total_cost":   12500, "sale_multiplier": 1.6},
-	"C-003": {"design_weeks":  2, "engine_weeks": 1, "base_total_cost":   16000, "sale_multiplier": 1.7},
-	"C-004": {"design_weeks":  3, "engine_weeks": 1, "base_total_cost":   24000, "sale_multiplier": 1.8},
+	"C-001": {"design_weeks": 2, "engine_weeks": 1, "base_total_cost": 6500, "sale_multiplier": 1.5},
 	"C-005": {"design_weeks":  8, "engine_weeks": 2, "base_total_cost":   85000, "sale_multiplier": 1.6},
 	"C-006": {"design_weeks":  8, "engine_weeks": 2, "base_total_cost":  125000, "sale_multiplier": 1.7},
 	"C-007": {"design_weeks": 12, "engine_weeks": 3, "base_total_cost":  340000, "sale_multiplier": 1.8},
@@ -579,7 +578,7 @@ const CNC_DATA = {
 
 ## First race week per championship — from Excel Race Calendar sheet.
 const FIRST_RACE_WEEK = {
-	"C-001": 6,  "C-002": 6,  "C-003": 6,  "C-004": 6,
+	"C-001": 6,
 	"C-005": 5,  "C-006": 5,  "C-007": 4,  "C-008": 5,
 	"C-009": 6,  "C-010": 6,
 	"C-011": 6,  "C-012": 6,  "C-013": 6,
@@ -642,7 +641,7 @@ const NOTIFICATION_DESTINATION_LABELS: Dictionary = {
 
 ## Championship short codes — used in RnD task ID generation
 const CHAMP_CODES: Dictionary = {
-	"C-001":"GKR","C-002":"GKN","C-003":"GKC","C-004":"GKW",
+	"C-001":"GK",
 	"C-005":"RL4","C-006":"RL3","C-007":"RL2","C-008":"RLP",
 	"C-009":"TCS","C-010":"TCE",
 	"C-011":"OWN","C-012":"OWD","C-013":"OWP",
@@ -655,10 +654,35 @@ const CHAMP_CODES: Dictionary = {
 ## entry_fee: one-time registration fee (not per race)
 ## entry_fee_per_race is the old field — kept for race prize calculations only
 const CHAMPIONSHIP_REGISTRY = {
-	"C-001": {"name":"GK Regional Championship",    "discipline":"GK",    "tier":1, "min_age":8,  "max_age":16, "entry_fee":9000,     "num_races":6,  "rep":15},
-	"C-002": {"name":"GK National Championship",    "discipline":"GK",    "tier":2, "min_age":10, "max_age":18, "entry_fee":85000,    "num_races":10, "rep":24},
-	"C-003": {"name":"GK Continental Championship", "discipline":"GK",    "tier":3, "min_age":12, "max_age":20, "entry_fee":40000,    "num_races":4,  "rep":31},
-	"C-004": {"name":"GK World Championship",       "discipline":"GK",    "tier":4, "min_age":14, "max_age":22, "entry_fee":12000,    "num_races":1,  "rep":39},
+	"C-001": {
+		"name":"GK Championship", "discipline":"GK", "tier":1,
+		"min_age":8, "max_age":17, "max_cars":9, "min_cars":1,
+		"entry_fee":10000, "num_races":29, "rep":15,
+		"car_type_id":"A_01",
+		"drivers_per_car":1,
+		"min_participation":352, "optimum_participation":640,
+		"spec_aero":true, "spec_engine":true, "spec_gearbox":true,
+		"spec_suspension":false, "spec_brakes":false, "spec_chassis":true,
+		"has_playoffs":false, "has_mandatory_pit":false,
+		"has_driver_changes":false, "has_stages":false,
+		"prize_1st":1200, "prize_2nd":600, "prize_3rd":300,
+		"end_season_prize_1st":20000, "end_season_prize_2nd":10000,
+		"end_season_prize_3rd":5000, "end_season_prize_4th":2500,
+		"end_season_prize_5th":1250, "end_season_prize_6th":1000,
+		"end_season_prize_7th":800, "end_season_prize_8th":750,
+		"end_season_prize_9th":650, "end_season_prize_10th":500,
+		"fuel_per_weekend":20, "spares_per_race":200,
+		"spares_per_10pct_damage":100,
+		"base_driver_salary":300, "base_mechanic_salary":420,
+		"base_tp_salary":580,
+		"yellow_flag":true, "full_yellow":true, "safety_car":false, "vsc":false,
+		"max_overtake_gap":2.1,
+		"practice":"15 min free practice",
+		"qualifying":"8 min one-shot",
+		"race_format":"Sprint - Standing Start",
+		"avg_audience":2200,
+		"base_service_time":0,
+	},
 	"C-005": {"name":"RALLY4",                      "discipline":"Rally", "tier":1, "min_age":16, "max_age":99, "entry_fee":30000,    "num_races":5,  "rep":36},
 	"C-006": {"name":"RALLY3",                      "discipline":"Rally", "tier":2, "min_age":16, "max_age":99, "entry_fee":140000,   "num_races":7,  "rep":42},
 	"C-007": {"name":"RALLY2",                      "discipline":"Rally", "tier":3, "min_age":16, "max_age":99, "entry_fee":700000,   "num_races":14, "rep":52},
@@ -691,34 +715,28 @@ static func track_slug(name: String) -> String:
 	return name.to_lower().replace(" ", "_").replace("-", "_").replace("'", "").replace(",", "")
 
 const CHAMPIONSHIP_CALENDARS = {
-	"C-001": [ # GK Regional
-		{"round":1,"name":"Super Karting Raceway","track_id":"super_karting_raceway",    "week":6, "rain":0,  "laps":20,"lap_km":0.42,"audience":120},
-		{"round":2,"name":"Riverside Kart Park","track_id":"riverside_kart_park",       "week":12,"rain":20, "laps":20,"lap_km":0.51,"audience":95},
-		{"round":3,"name":"The Brickyard Junior","track_id":"the_brickyard_junior",      "week":18,"rain":0,  "laps":24,"lap_km":0.40,"audience":150},
-		{"round":4,"name":"Ocean Breeze Arena","track_id":"ocean_breeze_arena",         "week":24,"rain":100,"laps":20,"lap_km":0.39,"audience":40},
-		{"round":5,"name":"Pinnacle Heights","track_id":"pinnacle_heights",             "week":32,"rain":10, "laps":20,"lap_km":0.55,"audience":180},
-		{"round":6,"name":"Metro Kart Complex","track_id":"metro_kart_complex",         "week":40,"rain":40, "laps":20,"lap_km":0.66,"audience":310},
-	],
-	"C-002": [ # GK National
-		{"round":1, "name":"Super Karting Raceway",        "track_id":"super_karting_raceway",        "week":4, "rain":0,  "laps":18,"lap_km":0.90,"audience":1200},
-		{"round":2, "name":"Valley International Karting", "track_id":"valley_international_karting", "week":8, "rain":5,  "laps":18,"lap_km":1.05,"audience":1450},
-		{"round":3, "name":"Ocean Breeze Arena",           "track_id":"ocean_breeze_arena",           "week":12,"rain":0,  "laps":16,"lap_km":1.10,"audience":1900},
-		{"round":4, "name":"Black Tarmac Challenge",       "track_id":"black_tarmac_challenge",       "week":16,"rain":15, "laps":20,"lap_km":0.80,"audience":1650},
-		{"round":5, "name":"Speedway Center",              "track_id":"speedway_center",              "week":20,"rain":0,  "laps":20,"lap_km":0.95,"audience":2100},
-		{"round":6, "name":"High Plains Raceway",          "track_id":"high_plains_raceway",          "week":24,"rain":0,  "laps":20,"lap_km":1.00,"audience":2300},
-		{"round":7, "name":"Kartland",                     "track_id":"kartland",                     "week":28,"rain":45, "laps":15,"lap_km":1.02,"audience":850},
-		{"round":8, "name":"Metro Kart Complex",           "track_id":"metro_kart_complex",           "week":32,"rain":100,"laps":16,"lap_km":0.90,"audience":550},
-		{"round":9, "name":"PF International Kart Circuit","track_id":"pf_international_kart_circuit","week":36,"rain":0,  "laps":20,"lap_km":1.10,"audience":3400},
-		{"round":10,"name":"Trackhouse Motorplex","track_id":"trackhouse_motorplex",        "week":40,"rain":0,  "laps":24,"lap_km":1.20,"audience":4800},
-	],
-	"C-003": [ # GK Continental
-		{"round":1,"name":"Le Castellet","track_id":"le_castellet","week":9, "rain":0, "laps":27,"lap_km":5.80,"audience":6500},
-		{"round":2,"name":"Spa","track_id":"spa",        "week":17,"rain":20,"laps":25,"lap_km":7.00,"audience":7200},
-		{"round":3,"name":"Chemnitz","track_id":"chemnitz",   "week":25,"rain":15,"laps":24,"lap_km":4.20,"audience":8900},
-		{"round":4,"name":"Le Mans","track_id":"le_mans",    "week":33,"rain":25,"laps":26,"lap_km":13.60,"audience":14500},
-	],
-	"C-004": [ # GK World — standalone event, Week 42
-		{"round":1,"name":"Lemans Karting International","track_id":"lemans_karting_international","week":42,"rain":0,"laps":28,"lap_km":1.20,"audience":22000},
+	"C-001": [ ## GK Championship — 21 races from Excel (weeks 6–46)
+		{"round":1,"gk_round":1,"name":"Chemnitz","track_id":"chemnitz","week":6,"rain":15,"laps":15,"lap_km":4.2,"audience":8900},
+		{"round":2,"gk_round":1,"name":"Le Castellet","track_id":"le_castellet","week":8,"rain":0,"laps":27,"lap_km":5.8,"audience":6500},
+		{"round":3,"gk_round":1,"name":"Le Mans","track_id":"le_mans","week":10,"rain":25,"laps":26,"lap_km":13.6,"audience":14500},
+		{"round":4,"gk_round":1,"name":"Spa","track_id":"spa","week":12,"rain":20,"laps":25,"lap_km":7.0,"audience":7200},
+		{"round":5,"gk_round":1,"name":"Arlington","track_id":"arlington","week":14,"rain":0,"laps":20,"lap_km":0.9,"audience":2100},
+		{"round":6,"gk_round":1,"name":"Charlotte","track_id":"charlotte","week":16,"rain":10,"laps":24,"lap_km":1.2,"audience":4800},
+		{"round":7,"gk_round":1,"name":"Charlotte","track_id":"charlotte","week":18,"rain":10,"laps":24,"lap_km":1.2,"audience":4800},
+		{"round":8,"gk_round":1,"name":"Daytona","track_id":"daytona","week":20,"rain":5,"laps":20,"lap_km":1.5,"audience":8000},
+		{"round":9,"gk_round":2,"name":"Indianapolis","track_id":"indianapolis","week":22,"rain":0,"laps":20,"lap_km":2.5,"audience":12000},
+		{"round":10,"gk_round":2,"name":"Las Vegas","track_id":"las_vegas","week":24,"rain":5,"laps":20,"lap_km":1.8,"audience":6000},
+		{"round":11,"gk_round":2,"name":"Los Angeles","track_id":"los_angeles","week":26,"rain":0,"laps":20,"lap_km":1.0,"audience":5000},
+		{"round":12,"gk_round":2,"name":"Silverstone","track_id":"silverstone","week":28,"rain":30,"laps":25,"lap_km":5.9,"audience":9500},
+		{"round":13,"gk_round":2,"name":"Arlington","track_id":"arlington","week":30,"rain":0,"laps":20,"lap_km":0.9,"audience":2100},
+		{"round":14,"gk_round":2,"name":"Daytona","track_id":"daytona","week":32,"rain":5,"laps":20,"lap_km":1.5,"audience":8000},
+		{"round":15,"gk_round":2,"name":"Indianapolis","track_id":"indianapolis","week":34,"rain":0,"laps":20,"lap_km":2.5,"audience":12000},
+		{"round":16,"gk_round":2,"name":"Los Angeles","track_id":"los_angeles","week":36,"rain":0,"laps":20,"lap_km":1.0,"audience":5000},
+		{"round":17,"gk_round":2,"name":"Miami","track_id":"miami","week":38,"rain":20,"laps":20,"lap_km":1.4,"audience":7000},
+		{"round":18,"gk_round":2,"name":"Spielberg","track_id":"spielberg","week":40,"rain":10,"laps":24,"lap_km":4.3,"audience":8000},
+		{"round":19,"gk_round":3,"name":"Charlotte","track_id":"charlotte","week":42,"rain":10,"laps":24,"lap_km":1.2,"audience":4800},
+		{"round":20,"gk_round":3,"is_semifinal":true,"name":"GK Semi-Final — Las Vegas","track_id":"las_vegas","week":44,"rain":5,"laps":20,"lap_km":1.8,"audience":6000},
+		{"round":21,"gk_round":4,"is_final":true,"name":"GK Grand Final — Le Mans","track_id":"le_mans","week":46,"rain":25,"laps":26,"lap_km":13.6,"audience":14500},
 	],
 	"C-005": [ # RALLY4
 		{"round":1,"name":"Sweden","track_id":"sweden", "week":7, "rain":100,"laps":305,"lap_km":1.0,"audience":45000},
@@ -1057,6 +1075,7 @@ signal bankruptcy_triggered()
 
 func _ready() -> void:
 	RND_TASKS = _build_rnd_tasks()
+	ai_manager = load("res://autoloads/AIManager.gd").new()
 
 ## Builds RND_TASKS — called in _ready() for initial load.
 func _build_rnd_tasks() -> Dictionary:
@@ -1081,7 +1100,7 @@ func _build_rnd_tasks_for_season(season: int) -> Dictionary:
 	var s = str(season)
 
 	const CHAMP_TIER = {
-		"C-001":1,"C-002":1,"C-003":2,"C-004":2,
+		"C-001":1,
 		"C-005":1,"C-006":1,"C-007":2,"C-008":4,
 		"C-009":2,"C-010":3,
 		"C-011":1,"C-012":2,"C-013":4,
@@ -1118,15 +1137,14 @@ func _build_rnd_tasks_for_season(season: int) -> Dictionary:
 		"Suspension": [5,  120, 15000,  "unlock_susp_cnc",    1.0],
 	}
 	const PART_SPEC_MAP = {
-		"C-001":[true,true,true,false,false,true], "C-002":[true,true,true,false,true,false],
-		"C-003":[true,false,true,false,false,false],"C-004":[true,false,false,false,false,false],
+		"C-001":[true,true,true,false,false,true],
 		"C-005":[true,true,true,false,false,true],  "C-006":[false,true,true,false,false,false],
 		"C-007":[false,false,false,false,false,false],"C-008":[false,false,false,false,false,false],
 		"C-009":[true,true,true,true,true,true],    "C-010":[true,true,true,true,true,true],
 		"C-011":[true,true,true,true,true,true],    "C-012":[true,true,true,true,true,true],
 		"C-013":[true,false,true,false,true,true],  "C-014":[true,false,true,false,false,true],
 		"C-015":[true,false,false,false,false,true], "C-016":[true,false,false,false,false,true],
-		"C-017":[true,false,false,false,false,true], "C-018":[true,true,true,true,true,true],
+		"C-017":[true,false,true,true,true,true], "C-018":[true,true,true,true,true,true],
 		"C-019":[true,true,true,false,false,true],  "C-020":[false,false,false,false,false,false],
 		"C-021":[true,true,true,true,true,true],    "C-022":[true,true,true,true,true,true],
 		"C-023":[true,true,true,true,true,true],    "C-024":[false,false,false,false,false,false],
@@ -1847,8 +1865,7 @@ func _get_championship_driver_salary() -> float:
 	if active_championship == null:
 		return 50.0
 	match active_championship.id:
-		"C-001": return 50.0
-		"C-002": return 180.0
+		"C-001": return 20.0
 		"C-021": return 420.0
 		"C-024": return 2850.0
 	return 50.0
@@ -1921,13 +1938,13 @@ func _check_resource_notifications() -> void:
 		elif fuel_kg < fuel_needed:
 			add_notification("High", "Fuel running low (%.1f kg). Less than 1 race worth remaining." % fuel_kg)
 
-	# No car for running championship warning
-	for champ in active_championships:
-		var reg = CHAMPIONSHIP_REGISTRY.get(champ.id, {})
-		var champ_name = reg.get("name", champ.id)
-		var cars_for_champ = player_team_cars.filter(func(c): return c.championship_id == champ.id)
+	# No car for running championship warning — only player's registered championships
+	for champ_id in player_registered_championships:
+		var reg = CHAMPIONSHIP_REGISTRY.get(champ_id, {})
+		var champ_name = reg.get("name", champ_id)
+		var cars_for_champ = player_team_cars.filter(func(c): return c.championship_id == champ_id)
 		if cars_for_champ.is_empty():
-			var race1_week = FIRST_RACE_WEEK.get(champ.id, 6)
+			var race1_week = FIRST_RACE_WEEK.get(champ_id, 6)
 			if current_week >= race1_week - 4:
 				add_notification("Critical",
 					"🚨 No car entered for %s! Race 1 is Week %d — buy a car at the Logistics Center or you will DNS all races." % [champ_name, race1_week])
@@ -2081,7 +2098,7 @@ func _create_starting_staff(role: String, skill_min: float, skill_max: float) ->
 			s.repair_skill     = skill * 0.85
 		"Pit Crew":
 			s.pit_stop_speed   = skill
-			s.teamwork         = skill * 0.9
+			s.fatigue_resistance = clamp(skill * 0.9 + randf_range(-10.0, 10.0), 1.0, 100.0)
 		"Race Strategist":
 			s.race_strategy    = skill
 			s.qualifying_timing= skill * 0.85
@@ -2279,49 +2296,50 @@ func _generate_staff_attributes(staff: Staff, base_quality: float) -> void:
 
 	match staff.role:
 		"Race Mechanic":
-			staff.car_setup      = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
-			staff.pit_stops      = clamp(q + randf_range(-20.0, 20.0), 5.0, 95.0)
-			staff.car_knowledge  = clamp(q + randf_range(-10.0, 10.0), 5.0, 95.0)
-			staff.track_knowledge = clamp(randf_range(5.0, 40.0), 5.0, 95.0) # Grows with events
+			staff.car_setup      = clamp(q + randf_range(-15.0, 15.0), 1.0, 100.0)
+			staff.pit_stops      = clamp(q + randf_range(-20.0, 20.0), 1.0, 100.0)
+			staff.parts_knowledge = clamp(q + randf_range(-10.0, 10.0), 1.0, 100.0)
+			staff.track_knowledge  = clamp(randf_range(5.0, 40.0), 1.0, 100.0) # Grows with events
+			staff.race_pace        = clamp(q + randf_range(-15.0, 15.0), 1.0, 100.0)
 			staff.discipline_adaptation["GK"] = clamp(q * 0.5, 1.0, 100.0)
 
 		"Pit Crew":
-			staff.pit_stop_speed = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
-			staff.repair_skill   = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
-			staff.teamwork       = clamp(q + randf_range(-10.0, 10.0), 5.0, 95.0)
-			staff.fitness        = randf_range(70.0, 100.0)
+			staff.pit_stop_speed     = clamp(q + randf_range(-15.0, 15.0), 1.0, 100.0)
+			staff.repair_skill       = clamp(q + randf_range(-15.0, 15.0), 1.0, 100.0)
+			staff.fatigue_resistance = clamp(q + randf_range(-20.0, 20.0), 1.0, 100.0)
+			staff.fitness            = 100.0
 
 		"Team Principal":
-			staff.race_strategy        = clamp(q + randf_range(-10.0, 10.0), 5.0, 95.0)
-			staff.practice_management  = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
-			staff.qualifying_management = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
-			staff.race_pace_reading    = clamp(q + randf_range(-10.0, 10.0), 5.0, 95.0)
-			staff.car_setup_oversight  = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
-			staff.pit_stop_management  = clamp(q + randf_range(-20.0, 20.0), 5.0, 95.0)
-			staff.pr_skill             = clamp(q + randf_range(-20.0, 20.0), 5.0, 95.0)
-			staff.car_knowledge        = clamp(q + randf_range(-10.0, 10.0), 5.0, 95.0)
-			staff.track_knowledge      = clamp(randf_range(10.0, 50.0), 5.0, 95.0)
+			staff.race_strategy        = clamp(q + randf_range(-10.0, 10.0), 1.0, 100.0)
+			staff.practice_management  = clamp(q + randf_range(-15.0, 15.0), 1.0, 100.0)
+			staff.qualifying_management = clamp(q + randf_range(-15.0, 15.0), 1.0, 100.0)
+			staff.race_pace_reading    = clamp(q + randf_range(-10.0, 10.0), 1.0, 100.0)
+			staff.car_setup_oversight  = clamp(q + randf_range(-15.0, 15.0), 1.0, 100.0)
+			staff.pit_stop_management  = clamp(q + randf_range(-20.0, 20.0), 1.0, 100.0)
+			staff.pr_skill             = clamp(q + randf_range(-20.0, 20.0), 1.0, 100.0)
+			staff.parts_knowledge      = clamp(q + randf_range(-15.0, 15.0), 1.0, 100.0)
+			staff.track_knowledge      = clamp(randf_range(10.0, 50.0), 1.0, 100.0)
 
 		"CFO":
-			staff.loan_management     = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
-			staff.interest_rates      = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
-			staff.sales_skill         = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
-			staff.sponsor_negotiation = clamp(q + randf_range(-10.0, 10.0), 5.0, 95.0)
-			staff.resource_management = clamp(q + randf_range(-10.0, 10.0), 5.0, 95.0)
-			staff.budget_planning     = clamp(q + randf_range(-10.0, 10.0), 5.0, 95.0)
+			staff.loan_management     = clamp(q + randf_range(-15.0, 15.0), 1.0, 100.0)
+			staff.sales_skill         = clamp(q + randf_range(-15.0, 15.0), 1.0, 100.0)
+			staff.sponsor_negotiation = clamp(q + randf_range(-10.0, 10.0), 1.0, 100.0)
+			staff.resource_management = clamp(q + randf_range(-10.0, 10.0), 1.0, 100.0)
+			staff.budget_planning     = clamp(q + randf_range(-10.0, 10.0), 1.0, 100.0)
+			staff.speculation         = clamp(q + randf_range(-20.0, 20.0), 1.0, 100.0)
 
 		"Designer":
 			# Each designer has a specialisation — one stat is notably higher
 			var specialisms = ["engine", "aero", "brakes", "suspension", "chassis", "gearbox"]
 			var specialism = specialisms[randi() % specialisms.size()]
-			staff.engine     = clamp(q * 0.7 + randf_range(-10.0, 10.0), 5.0, 95.0)
-			staff.aero       = clamp(q * 0.7 + randf_range(-10.0, 10.0), 5.0, 95.0)
-			staff.brakes     = clamp(q * 0.7 + randf_range(-10.0, 10.0), 5.0, 95.0)
-			staff.suspension = clamp(q * 0.7 + randf_range(-10.0, 10.0), 5.0, 95.0)
-			staff.chassis    = clamp(q * 0.7 + randf_range(-10.0, 10.0), 5.0, 95.0)
-			staff.gearbox    = clamp(q * 0.7 + randf_range(-10.0, 10.0), 5.0, 95.0)
-			staff.reliability    = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
-			staff.parts_knowledge = clamp(q + randf_range(-10.0, 10.0), 5.0, 95.0)
+			staff.engine     = clamp(q * 0.7 + randf_range(-10.0, 10.0), 1.0, 100.0)
+			staff.aero       = clamp(q * 0.7 + randf_range(-10.0, 10.0), 1.0, 100.0)
+			staff.brakes     = clamp(q * 0.7 + randf_range(-10.0, 10.0), 1.0, 100.0)
+			staff.suspension = clamp(q * 0.7 + randf_range(-10.0, 10.0), 1.0, 100.0)
+			staff.chassis    = clamp(q * 0.7 + randf_range(-10.0, 10.0), 1.0, 100.0)
+			staff.gearbox    = clamp(q * 0.7 + randf_range(-10.0, 10.0), 1.0, 100.0)
+			staff.reliability    = clamp(q + randf_range(-15.0, 15.0), 1.0, 100.0)
+			staff.parts_knowledge = clamp(q + randf_range(-10.0, 10.0), 1.0, 100.0)
 			staff.discipline_adaptation["GK"] = clamp(q * 0.4, 1.0, 100.0)
 			# Boost specialism by 15-25 points
 			match specialism:
@@ -2333,11 +2351,11 @@ func _generate_staff_attributes(staff: Staff, base_quality: float) -> void:
 				"gearbox":    staff.gearbox    = min(95.0, staff.gearbox + randf_range(15.0, 25.0))
 
 		"Race Strategist":
-			staff.race_strategy       = clamp(q + randf_range(-10.0, 10.0), 5.0, 95.0)
-			staff.race_pace_reading   = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
-			staff.practice_scheduling = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
-			staff.qualifying_timing   = clamp(q + randf_range(-15.0, 15.0), 5.0, 95.0)
-			staff.track_knowledge     = clamp(randf_range(5.0, 35.0), 5.0, 95.0)
+			staff.race_strategy       = clamp(q + randf_range(-10.0, 10.0), 1.0, 100.0)
+			staff.race_pace_reading   = clamp(q + randf_range(-15.0, 15.0), 1.0, 100.0)
+			staff.practice_scheduling = clamp(q + randf_range(-15.0, 15.0), 1.0, 100.0)
+			staff.qualifying_timing   = clamp(q + randf_range(-15.0, 15.0), 1.0, 100.0)
+			staff.track_knowledge     = clamp(randf_range(5.0, 35.0), 1.0, 100.0)
 			staff.discipline_adaptation["GK"] = clamp(q * 0.4, 1.0, 100.0)
 
 ## ═══════════════════════════════════════════════════════════════════════════
@@ -2751,7 +2769,7 @@ func _check_subject_interest(subject_id: String, subject_type: String,
 			tp_mod = max(tp_mod, tp.reputation * 0.3)
 			break
 
-	var final_chance = clamp(base_chance + rep_mod + tp_mod, 5.0, 95.0)
+	var final_chance = clamp(base_chance + rep_mod + tp_mod, 1.0, 100.0)
 	return randf() * 100.0 < final_chance
 
 ## ── Bond estimate ─────────────────────────────────────────────────────────────
@@ -3782,7 +3800,7 @@ func generate_car_name(for_champ_id: String = "") -> String:
 		champ_id = player_registered_championships[0]
 
 	const CHAMP_CODES = {
-		"C-001": "GKR", "C-002": "GKN", "C-003": "GKC", "C-004": "GKW",
+		"C-001": "GK",
 		"C-005": "RL4", "C-006": "RL3", "C-007": "RL2", "C-008": "RLP",
 		"C-009": "TCS", "C-010": "TCE",
 		"C-011": "OWN", "C-012": "OWD", "C-013": "OWP",
@@ -3833,7 +3851,7 @@ func add_car(for_champ_id: String = "") -> bool:
 		"Suspension": 100.0, "Brakes": 100.0, "Chassis": 100.0}
 	# Use championship-appropriate telemetry
 	const CHAMP_CAR_TYPE = {
-		"C-001": "A_01", "C-002": "A_02", "C-003": "A_02", "C-004": "A_02",
+		"C-001": "A_01",
 		"C-005": "A_05", "C-006": "A_05", "C-007": "A_05", "C-008": "A_05",
 		"C-009": "A_09", "C-010": "A_09",
 		"C-011": "A_11", "C-012": "A_11", "C-013": "A_11",
@@ -4690,7 +4708,7 @@ func get_pending_registrations() -> Array:
 ## Helper: format int with comma thousands separator
 func _get_wra_group_for_championship(cid: String) -> String:
 	const CID_TO_GROUP = {
-		"C-001":"Karting","C-002":"Karting","C-003":"Karting","C-004":"Karting",
+		"C-001":"Karting",
 		"C-005":"Rally","C-006":"Rally","C-007":"Rally","C-008":"Rally",
 		"C-009":"Touring","C-010":"Touring",
 		"C-011":"Open Wheel","C-012":"Open Wheel","C-013":"Open Wheel",
@@ -4968,7 +4986,7 @@ func _get_wra_group_season(cid: String) -> int:
 	const GROUP_MAP = {
 		"Formula":["C-021","C-022","C-023","C-024"],
 		"Touring":["C-005","C-006"],
-		"Karting":["C-001","C-002","C-003","C-004"],
+		"Karting":["C-001"],
 		"Open Wheel":["C-007","C-008","C-009"],
 		"Stock Car":["C-010","C-011","C-012","C-013"],
 		"Rally":["C-014","C-015","C-016","C-017"],
@@ -5760,40 +5778,97 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 		all_drivers, all_staff, player_team.drivers,
 		player_registered_championships, CHAMPIONSHIP_CALENDARS,
 		current_season, player_team_cars)
+	_sync_gk_group0_to_standings()
+
+
+func _sync_gk_group0_to_standings() -> void:
+	## Writes player's GK group driver IDs into champ.standings
+	## so _simulate_race() can find all competitors.
+	if gk_discipline == null: return
+	for champ in active_championships:
+		if champ.id != "C-001": continue
+		champ.standings.clear()  ## Clear old standings — fresh for this round
+		var group0 = gk_discipline.get_player_group("C-001")
+		for did in group0:
+			champ.standings[did] = 0
+			var d = all_drivers.get(did)
+			if d and d.contract_team != "":
+				if not champ.team_standings.has(d.contract_team):
+					champ.team_standings[d.contract_team] = 0
+		break  ## Only one GK championship
 
 func _setup_championship() -> void:
+	## Creates ALL 24 championships at game start — the entire racing world exists from Season 1.
+	## The player's starting championship is tracked via player_registered_championships.
 	active_championships.clear()
-	var cid = _starting_champ_id
-	var reg = CHAMPIONSHIP_REGISTRY.get(cid, CHAMPIONSHIP_REGISTRY["C-001"])
-	var champ = Championship.new()
-	champ.id = cid
-	champ.championship_name = reg["name"]
-	champ.discipline        = reg.get("discipline", "GK")
-	champ.tier              = reg.get("tier", 1)
-	champ.min_age           = reg.get("min_age", 8)
-	champ.max_age           = reg.get("max_age", 99)
-	champ.entry_fee_per_race = float(reg.get("entry_fee", 9000)) / max(reg.get("num_races", 6), 1)
-	champ.num_races          = reg.get("num_races", 6)
-	champ.points_system      = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
-	champ.prize_1st  = 300.0
-	champ.prize_2nd  = 150.0
-	champ.prize_3rd  = 75.0
-	champ.sp_per_10_pct_damage   = 100
-	champ.fuel_per_car_per_race  = 15.0
-	champ.condition_loss_per_lap = 0.5
-	champ.condition_loss_per_stage    = 0.0
-	champ.repair_time_per_1pct        = 0.0
-	champ.has_mid_race_repairs        = false
-	champ.service_park_every_n_stages = 0
-	champ.pit_stop_repair_pct         = 0.0
-	champ.calendar = []
-	for race in CHAMPIONSHIP_CALENDARS.get(cid, CHAMPIONSHIP_CALENDARS.get("C-001", [])):
-		champ.calendar.append({
-			"round": race["round"], "name": race["name"], "week": race["week"],
-			"rain_probability": race["rain"], "laps": race["laps"],
-			"lap_km": race.get("lap_km", 1.0), "audience": race["audience"],
-		})
-	active_championships.append(champ)
+
+	const PRIZE_MONEY: Dictionary = {
+		"C-001": [1200, 600, 300],  ## per-race prizes
+		"C-005": [2500, 1250, 625],    "C-006": [5000, 2500, 1250],
+		"C-007": [7000, 3500, 1750],   "C-008": [28000, 14000, 7000],
+		"C-009": [4000, 2000, 1000],   "C-010": [40000, 20000, 10000],
+		"C-011": [3000, 1500, 750],    "C-012": [6000, 3000, 1500],
+		"C-013": [30000, 15000, 7500], "C-014": [8000, 4000, 2000],
+		"C-015": [14000, 7000, 3500],  "C-016": [28000, 14000, 7000],
+		"C-017": [100000, 50000, 25000],"C-018": [4000, 2000, 1000],
+		"C-019": [12000, 6000, 3000],  "C-020": [40000, 20000, 10000],
+		"C-021": [1500, 750, 375],     "C-022": [8000, 4000, 2000],
+		"C-023": [15000, 7000, 3750],  "C-024": [250000, 125000, 72500],
+	}
+
+	const END_SEASON_PRIZE: Dictionary = {
+		"C-009": 86000,    "C-010": 240000,   "C-011": 100000,
+		"C-012": 350000,   "C-013": 10500000, "C-014": 22500,
+		"C-015": 1350000,  "C-016": 2150000,  "C-017": 12850000,
+		"C-019": 144000,   "C-020": 550000,   "C-024": 140000000,
+	}
+
+	for cid in CHAMPIONSHIP_REGISTRY:
+		var reg = CHAMPIONSHIP_REGISTRY[cid]
+		var champ = Championship.new()
+		champ.id = cid
+		champ.championship_name = reg["name"]
+		champ.discipline        = reg.get("discipline", "GK")
+		champ.tier              = reg.get("tier", 1)
+		champ.min_age           = reg.get("min_age", 8)
+		champ.max_age           = reg.get("max_age", 99)
+		champ.entry_fee_per_race = float(reg.get("entry_fee", 9000)) / max(reg.get("num_races", 6), 1)
+		champ.num_races          = reg.get("num_races", 6)
+
+		## Points system — discipline-specific
+		match champ.discipline:
+			"Rally":
+				champ.points_system = [18, 15, 13, 10, 8, 6, 4, 3, 2, 1]
+			"OWC":
+				champ.points_system = [50, 40, 35, 32, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20]
+			"SC":
+				champ.points_system = [55, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17]
+			_:
+				champ.points_system = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
+
+		var pm = PRIZE_MONEY.get(cid, [300, 150, 75])
+		champ.prize_1st = float(pm[0])
+		champ.prize_2nd = float(pm[1])
+		champ.prize_3rd = float(pm[2])
+
+		champ.sp_per_10_pct_damage   = 100
+		champ.fuel_per_car_per_race  = 15.0
+		champ.condition_loss_per_lap = 0.5
+		champ.condition_loss_per_stage    = 0.0
+		champ.repair_time_per_1pct        = 0.0
+		champ.has_mid_race_repairs        = false
+		champ.service_park_every_n_stages = 0
+		champ.pit_stop_repair_pct         = 0.0
+		champ.calendar = []
+		for race in CHAMPIONSHIP_CALENDARS.get(cid, CHAMPIONSHIP_CALENDARS.get("C-001", [])):
+			champ.calendar.append({
+				"round": race["round"], "name": race["name"], "week": race["week"],
+				"rain_probability": race["rain"], "laps": race["laps"],
+				"lap_km": race.get("lap_km", 1.0), "audience": race["audience"],
+			})
+		active_championships.append(champ)
+
+	print("[GameState] %d championships created" % active_championships.size())
 	## Do NOT add to player_registered_championships here.
 	## active_championships is the source of truth for Season 1.
 	## player_registered_championships is for next-season registrations only.
@@ -5831,15 +5906,18 @@ func _generate_drivers() -> void:
 
 	var driver_idx = 0
 
-	# GK free agents — ages 8-15, 20 drivers
-	for i in range(20):
+	## GK: generate a small pool of uncontracted cadets for player to hire as starting driver
+	## These are NOT added to GKDiscipline groups — they only serve as FA pool for hiring
+	for i in range(8):
 		var nat = nats[randi() % nats.size()]
 		var sex = "Male" if randf() > 0.3 else "Female"
-		var age = randi_range(8, 15)
+		var age = randi_range(13, 17)
 		var name_data = NameGenerator.get_full_name(nat, sex)
 		var d = _create_driver_for_discipline(
-			"D-FA-%03d" % driver_idx, name_data["first"], name_data["last"],
+			"D-GK-FA-%03d" % driver_idx, name_data["first"], name_data["last"],
 			nat, age, sex, "GK", 1)
+		## Mark as cadet without academy so GKDiscipline excludes them from group population
+		d.contract_type = "cadet"
 		all_drivers[d.id] = d
 		driver_idx += 1
 
@@ -5937,18 +6015,19 @@ func _create_driver_for_discipline(id: String, first: String, last: String,
 	peak_factor = clamp(peak_factor, 0.3, 1.0)
 	var tier_bonus = (tier - 1) * 15.0  # T1=0, T2=+15, T3=+30, T4=+45
 
-	d.pace        = clamp(randf_range(20.0, 55.0) + age_factor * 30.0 + tier_bonus + peak_factor * 10.0, 5.0, 99.0)
-	d.wet         = clamp(randf_range(15.0, 45.0) + age_factor * 25.0 + tier_bonus * 0.8, 5.0, 99.0)
-	d.focus       = clamp(randf_range(20.0, 50.0) + age_factor * 25.0 + tier_bonus * 0.9, 5.0, 99.0)
-	d.race_craft  = clamp(randf_range(15.0, 45.0) + age_factor * 30.0 + tier_bonus, 5.0, 99.0)
-	d.consistency = clamp(randf_range(15.0, 45.0) + age_factor * 25.0 + tier_bonus * 0.8, 5.0, 99.0)
-	d.feedback    = clamp(randf_range(20.0, 55.0) + age_factor * 20.0 + tier_bonus * 0.7, 5.0, 99.0)
+	d.pace        = clamp(randf_range(20.0, 55.0) + age_factor * 30.0 + tier_bonus + peak_factor * 10.0, 1.0, 100.0)
+	d.car_control = clamp(randf_range(15.0, 45.0) + age_factor * 25.0 + tier_bonus * 0.8, 1.0, 100.0)
+	d.focus       = clamp(randf_range(20.0, 50.0) + age_factor * 25.0 + tier_bonus * 0.9, 1.0, 100.0)
+	d.race_craft  = clamp(randf_range(15.0, 45.0) + age_factor * 30.0 + tier_bonus, 1.0, 100.0)
+	d.consistency = clamp(randf_range(15.0, 45.0) + age_factor * 25.0 + tier_bonus * 0.8, 1.0, 100.0)
+	d.feedback    = clamp(randf_range(20.0, 55.0) + age_factor * 20.0 + tier_bonus * 0.7, 1.0, 100.0)
 	d.marketability = clamp(randf_range(5.0, 30.0) + age_factor * 15.0 + tier_bonus * 0.5, 1.0, 99.0)
-	d.fitness     = randf_range(75.0, 100.0)
-	d.potential   = randf_range(40.0, 95.0)
-	d.aggression  = randf_range(20.0, 80.0)
-	d.experience  = age_factor * 40.0
-	d.morale      = 100.0
+	d.fitness            = 100.0
+	d.fatigue_resistance = clamp(randf_range(25.0, 65.0) + age_factor * 15.0 + float(tier) * 5.0, 1.0, 100.0)
+	d.potential          = randf_range(40.0, 95.0)
+	d.aggression         = randf_range(20.0, 80.0)
+	d.experience         = age_factor * 40.0
+	d.morale             = 100.0
 
 	# Discipline adaptation — good in their primary discipline, low elsewhere
 	for disc in d.discipline_adaptation.keys():
@@ -5980,17 +6059,18 @@ func _create_driver(id: String, first: String, last: String, nationality: String
 
 	var age_factor = float(age - 8) / 8.0
 	d.pace        = randf_range(20.0, 50.0) + age_factor * 25.0
-	d.wet         = randf_range(15.0, 45.0) + age_factor * 20.0
+	d.car_control = randf_range(15.0, 45.0) + age_factor * 20.0
 	d.focus       = randf_range(20.0, 50.0) + age_factor * 20.0
 	d.race_craft  = randf_range(15.0, 45.0) + age_factor * 25.0
 	d.consistency = randf_range(15.0, 45.0) + age_factor * 20.0  # NEW
 	d.feedback    = randf_range(20.0, 60.0) + age_factor * 15.0  # NEW
 	d.marketability = randf_range(5.0, 25.0) + age_factor * 10.0 # NEW — low at start
-	d.fitness     = randf_range(70.0, 100.0)
-	d.potential   = randf_range(50.0, 95.0)
-	d.aggression  = randf_range(20.0, 80.0)
-	d.experience  = age_factor * 30.0
-	d.morale      = 100.0
+	d.fitness            = 100.0
+	d.fatigue_resistance = clamp(randf_range(20.0, 60.0) + age_factor * 20.0, 1.0, 100.0)
+	d.potential          = randf_range(50.0, 95.0)
+	d.aggression         = randf_range(20.0, 80.0)
+	d.experience         = age_factor * 30.0
+	d.morale             = 100.0
 
 	var talent_factor = d.potential / 100.0
 	var starting_gk = 5.0 + (talent_factor * 10.0) + (age_factor * 5.0)
@@ -6000,176 +6080,12 @@ func _create_driver(id: String, first: String, last: String, nationality: String
 	return d
 
 func _generate_ai_teams() -> void:
-	## Real teams from Excel AI Teams Championship Participation Matrix.
-	## Each team gets drivers appropriate for their championships.
-	## Minimum cars per championship enforced.
+	## Delegated to AIManager instance — see res://autoloads/AIManager.gd
+	ai_manager.generate_teams()
+	ai_manager.generate_ai_staff()
+	ai_manager.load_ai_drivers()
+	ai_manager.load_car_assignments()
 
-	# Map Excel column names to championship IDs
-	const TEAM_PARTICIPATION = {
-		"Mercedes":    ["C-001","C-002","C-003","C-004","C-009","C-010","C-024"],
-		"Ferrari":     ["C-001","C-002","C-003","C-004","C-009","C-010","C-020","C-024"],
-		"McLaren":     ["C-001","C-002","C-003","C-004","C-009","C-010","C-013","C-018","C-024"],
-		"Red Bull":    ["C-024"],
-		"Alpine":      ["C-020","C-024"],
-		"Haas":        ["C-016","C-024"],
-		"Racing Bulls":["C-024"],
-		"Williams":    ["C-024"],
-		"Audi":        ["C-024"],
-		"Cadillac":    ["C-020","C-024"],
-		"Aston Martin":["C-010","C-020","C-024"],
-		"Invicta":     ["C-022","C-023"],
-		"Hitech":      ["C-021","C-022","C-023"],
-		"Campos":      ["C-021","C-022","C-023"],
-		"DAMS":        ["C-022","C-023"],
-		"MP":          ["C-021","C-022","C-023"],
-		"Prema":       ["C-001","C-002","C-003","C-004","C-021","C-022","C-023"],
-		"Rodin":       ["C-021","C-022"],
-		"ART":         ["C-021","C-022","C-023"],
-		"Trident":     ["C-022","C-023"],
-		"Charouz":     ["C-022","C-023"],
-		"Carlin":      ["C-021","C-022","C-023"],
-	}
-
-	# Budget tiers — scales initial balance and driver quality
-	const TEAM_TIER = {
-		"Mercedes": 4, "Ferrari": 4, "McLaren": 4, "Red Bull": 4,
-		"Alpine": 3, "Haas": 3, "Racing Bulls": 3, "Williams": 3,
-		"Audi": 3, "Cadillac": 3, "Aston Martin": 3,
-		"Invicta": 2, "Hitech": 2, "Campos": 2, "DAMS": 2,
-		"MP": 2, "ART": 2, "Trident": 2, "Charouz": 1, "Carlin": 2,
-		"Prema": 3, "Rodin": 2,
-	}
-
-	const TEAM_NAT = {
-		"Mercedes": "German", "Ferrari": "Italian", "McLaren": "British",
-		"Red Bull": "Austrian", "Alpine": "French", "Haas": "American",
-		"Racing Bulls": "Italian", "Williams": "British", "Audi": "German",
-		"Cadillac": "American", "Aston Martin": "British",
-		"Invicta": "British", "Hitech": "British", "Campos": "Spanish",
-		"DAMS": "French", "MP": "Dutch", "Prema": "Italian",
-		"Rodin": "British", "ART": "French", "Trident": "Italian",
-		"Charouz": "Czech", "Carlin": "British",
-	}
-
-	var ai_idx = 0
-	for team_name in TEAM_PARTICIPATION:
-		var team = Team.new()
-		team.id = "T-AI-%02d" % ai_idx
-		team.team_name = team_name
-		team.nationality = TEAM_NAT.get(team_name, "British")
-		team.is_player_team = false
-		var tier = TEAM_TIER.get(team_name, 2)
-		team.balance = randf_range(50000.0, 200000.0) * float(tier)
-		team.reputation = 15.0 + tier * 15.0 + randf_range(-5.0, 5.0)
-		team.weekly_driver_salary = 50.0 * float(tier)
-		team.weekly_mechanic_salary = 200.0 + float(tier) * 100.0
-		all_teams.append(team)
-
-		# Register team in ALL their championships' standings
-		var champ_ids = TEAM_PARTICIPATION[team_name]
-		for champ_id in champ_ids:
-			for champ in active_championships:
-				if champ.id == champ_id:
-					champ.team_standings[team.id] = 0
-
-		# Generate 2 drivers per championship this team runs (age-appropriate)
-		# Each driver is specific to ONE championship — no cross-contamination
-		var drv_idx = 0
-		for primary_champ_id in champ_ids:
-			var reg = CHAMPIONSHIP_REGISTRY.get(primary_champ_id, {})
-			var discipline = reg.get("discipline", "GK")
-			var min_age = reg.get("min_age", 8)
-			var max_age = min(reg.get("max_age", 99), min_age + 20)
-			if max_age < min_age:
-				max_age = min_age + 5
-			# Always 2 drivers per championship for competitive grids
-			for j in range(2):
-				var driver_id = "D-AI-%02d-%d" % [ai_idx, drv_idx]
-				var nat = NameGenerator.get_nationality_for_team(team.nationality)
-				var sex = "Male" if randf() > 0.25 else "Female"
-				var age = randi_range(min_age, max_age)
-				var name_data = NameGenerator.get_full_name(nat, sex)
-				var driver = _create_driver_for_discipline(
-					driver_id, name_data["first"], name_data["last"],
-					nat, age, sex, discipline, tier)
-				driver.contract_team = team.id
-				all_drivers[driver_id] = driver
-				team.drivers.append(driver_id)
-				# Add ONLY to this specific championship's standings
-				for champ in active_championships:
-					if champ.id == primary_champ_id:
-						champ.standings[driver_id] = 0
-				drv_idx += 1
-
-		ai_idx += 1
-
-	# Ensure GK Regional has enough drivers (minimum 15 for a good grid)
-	_ensure_minimum_gk_drivers()
-
-## Ensures GK Regional has a competitive grid (minimum 15 AI drivers).
-## Generates anonymous local karting teams to fill the grid if needed.
-func _ensure_minimum_gk_drivers() -> void:
-	var gk_champ = null
-	for champ in active_championships:
-		if champ.id == "C-001":
-			gk_champ = champ
-			break
-	if gk_champ == null:
-		return
-
-	var current_gk_count = gk_champ.standings.size()
-	var needed = max(0, 15 - current_gk_count)
-	if needed == 0:
-		return
-
-	var local_nats = ["British","Italian","German","French","Spanish","Finnish",
-		"Brazilian","Japanese","American","Australian"]
-	var local_teams_data = [
-		["Karting Italia","Italian"],["Speed Academy","Spanish"],
-		["Nordic Kart","Finnish"],["British Racing","British"],
-		["German Motorsport","German"],["French Kart Team","French"],
-		["Brazilian Speed","Brazilian"],["Japanese Racing","Japanese"],
-		["USA Kart Pro","American"],
-	]
-
-	var fill_idx = 0
-	var teams_used = 0
-	while fill_idx < needed:
-		var tdata = local_teams_data[teams_used % local_teams_data.size()]
-		var team_id = "T-GK-%02d" % teams_used
-		var existing_team = null
-		for t in all_teams:
-			if t.id == team_id:
-				existing_team = t
-				break
-		if existing_team == null:
-			var team = Team.new()
-			team.id = team_id
-			team.team_name = tdata[0]
-			team.nationality = tdata[1]
-			team.is_player_team = false
-			team.balance = randf_range(20000.0, 60000.0)
-			team.reputation = randf_range(5.0, 15.0)
-			team.weekly_driver_salary = 50.0
-			team.weekly_mechanic_salary = 200.0
-			all_teams.append(team)
-			gk_champ.team_standings[team.id] = 0
-			existing_team = team
-		teams_used += 1
-
-		var driver_id = "D-GK-FILL-%03d" % fill_idx
-		var nat = local_nats[randi() % local_nats.size()]
-		var sex = "Male" if randf() > 0.3 else "Female"
-		var age = randi_range(8, 14)
-		var name_data = NameGenerator.get_full_name(nat, sex)
-		var driver = _create_driver_for_discipline(
-			driver_id, name_data["first"], name_data["last"],
-			nat, age, sex, "GK", 1)
-		driver.contract_team = existing_team.id
-		all_drivers[driver_id] = driver
-		existing_team.drivers.append(driver_id)
-		gk_champ.standings[driver_id] = 0
-		fill_idx += 1
 
 func advance_week() -> void:
 	weekly_log = []
@@ -6252,15 +6168,47 @@ func advance_week() -> void:
 	for champ in active_championships:
 		var next_race = champ.get_next_race()
 		if next_race and next_race["week"] == current_week:
-			_check_race_requirements_for(champ)
+			## Only check requirements for player's championships
+			var is_player_champ = champ.id in player_registered_championships
+			if is_player_champ:
+				_check_race_requirements_for(champ)
 			_simulate_race(next_race, champ)
 			## Sponsor race bonuses handled by apply_sponsor_race_bonuses()
 			champ.current_round += 1
 
 	## P26: Shadow-simulate non-player GK groups this week
 	if gk_discipline != null:
-		for cid in ["C-001", "C-002", "C-003", "C-004"]:
-			gk_discipline.shadow_simulate_week(cid, current_week, all_drivers)
+		gk_discipline.shadow_simulate_week(current_week, all_drivers)
+
+	## GK round advancement — check if this week was the last race of a gk_round
+	if gk_discipline != null:
+		var gk_cal = CHAMPIONSHIP_CALENDARS.get("C-001", [])
+		## Find the gk_round of this week's race
+		var this_gk_round = -1
+		var next_gk_round = -1
+		for i in range(gk_cal.size()):
+			if gk_cal[i]["week"] == current_week:
+				this_gk_round = gk_cal[i].get("gk_round", -1)
+				## Check if next race has a different gk_round
+				if i + 1 < gk_cal.size():
+					next_gk_round = gk_cal[i + 1].get("gk_round", -1)
+				break
+		## If last race of a gk_round (next is different or doesn't exist)
+		if this_gk_round > 0 and next_gk_round != this_gk_round:
+			gk_discipline.advance_round(all_drivers)
+			_sync_gk_group0_to_standings()
+			var new_round = gk_discipline.get_current_round()
+			var player_eliminated = true
+			for did in player_team.drivers:
+				if not gk_discipline.is_eliminated(did):
+					player_eliminated = false
+					break
+			if player_eliminated and this_gk_round < 4:
+				add_notification("High",
+					"🏁 Your driver was eliminated at the end of GK Round %d. Season over for GK." % this_gk_round)
+			elif not player_eliminated:
+				add_notification("Normal",
+					"✅ GK Round %d complete — advancing to Round %d!" % [this_gk_round, new_round])
 
 	## After all races processed this week — show first result screen
 	if not _pending_race_results.is_empty():
@@ -6502,14 +6450,16 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 		var effective_wet   = driver.get_effective_wet()
 		var effective_focus = driver.get_effective_focus()
 
-		# Pace factor: compress to ±1.5% around base (pace 60 = neutral)
-		# pace 99 → ×0.985, pace 20 → ×1.015
-		var pace_factor = 1.0 - ((effective_pace - 60.0) / 60.0) * 0.015
-		pace_factor = clamp(pace_factor, 0.97, 1.03)
+		## Pace factor: wider spread so skill differences matter meaningfully.
+		## GK uses ±5% (karts are sensitive to driver skill).
+		## effective_pace 60 = neutral. 100 → ×0.95, 20 → ×1.05
+		var spread = 0.05 if c.id == "C-001" else 0.03
+		var pace_factor = 1.0 - ((effective_pace - 60.0) / 60.0) * spread
+		pace_factor = clamp(pace_factor, 1.0 - spread * 2.0, 1.0 + spread * 2.0)
 
 		var wet_factor = 1.0
 		if is_wet:
-			# Wet skill 99 = no penalty, wet skill 20 = +3% penalty
+			# Car control 99 = no penalty, car_control 20 = +3% penalty
 			wet_factor = 1.0 + ((100.0 - effective_wet) / 100.0) * 0.03
 
 		# Focus: small effect ±0.5%
@@ -6571,7 +6521,7 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 	for entry in driver_times:
 		var d = entry["driver"]
 		pre_race_stats[d.id] = {
-			"pace": d.pace, "wet": d.wet, "focus": d.focus,
+			"pace": d.pace, "car_control": d.car_control, "focus": d.focus,
 			"experience": d.experience, "fitness": d.fitness
 		}
 
@@ -6618,7 +6568,7 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 			var pre = pre_race_stats[driver.id]
 			driver_times[i]["stat_deltas"] = {
 				"pace": driver.pace - pre["pace"],
-				"wet": driver.wet - pre["wet"],
+				"car_control": driver.car_control - pre.get("car_control", driver.car_control),
 				"focus": driver.focus - pre["focus"],
 				"experience": driver.experience - pre["experience"],
 				"fitness": driver.fitness - pre["fitness"],
@@ -6631,7 +6581,7 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 	if gk_discipline != null and c.discipline == "GK":
 		var cid = c.id
 		if shadow_standings_has_group_0(cid):
-			for entry in gk_discipline.shadow_standings.get(cid, [[]])[0]:
+			for entry in gk_discipline.get_standings(cid):
 				var did = entry["driver_id"]
 				if did in c.standings:
 					entry["points"] = c.standings[did]
@@ -6714,19 +6664,26 @@ func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 		_end_season()
 		return
 
-	# Queue this race's results — scene change happens after all same-week races processed
-	_pending_race_results.append({
-		"round":           last_race_round,
-		"laps":            last_race_laps,
-		"name":            last_race_name,
-		"wet":             last_race_wet,
-		"results":         last_race_results.duplicate(),
-		"championship":    last_race_championship,
-		"championship_id": last_race_championship_id,
-		"num_races":       last_race_num_races,
-		"standings":       last_race_standings.duplicate(),
-		"staff_deltas":    last_race_staff_deltas.duplicate(),
-	})
+	# Queue results ONLY for championships the player is registered in
+	var player_in_this_champ = false
+	for pid in player_team.drivers:
+		if c.standings.has(pid):
+			player_in_this_champ = true
+			break
+
+	if player_in_this_champ:
+		_pending_race_results.append({
+			"round":           last_race_round,
+			"laps":            last_race_laps,
+			"name":            last_race_name,
+			"is_wet":          last_race_wet,
+			"results":         last_race_results.duplicate(),
+			"championship":    last_race_championship,
+			"championship_id": last_race_championship_id,
+			"num_races":       last_race_num_races,
+			"standings":       last_race_standings.duplicate(),
+			"staff_deltas":    last_race_staff_deltas.duplicate(),
+		})
 
 func _update_driver_stats_after_race(driver: Driver, standing_position: int, laps: int, is_wet: bool, grid_size: int, track_id: String = "") -> void:
 	# Fitness drops
@@ -6771,8 +6728,8 @@ func _update_driver_stats_after_race(driver: Driver, standing_position: int, lap
 		driver.focus = min(driver.potential, driver.focus + improvement * 0.3)
 	if driver.race_craft < driver.potential:
 		driver.race_craft = min(driver.potential, driver.race_craft + improvement * 0.4)
-	if is_wet and driver.wet < driver.potential:
-		driver.wet = min(driver.potential, driver.wet + improvement * 0.6)
+	if is_wet and driver.car_control < driver.potential:
+		driver.car_control = min(driver.potential, driver.car_control + improvement * 0.6)
 
 	# Morale
 	if standing_position == 1:
@@ -6907,6 +6864,17 @@ func start_new_season() -> void:
 	## P26: Populate GK discipline groups for new season
 	if gk_discipline == null:
 		gk_discipline = GKDiscipline.new()
+	## Clear old GK cadet drivers before repopulating to avoid accumulation
+	## GK drivers are identified by active_discipline == "GK" and not having a non-GK car
+	var gk_driver_ids_to_clear: Array = []
+	for did in all_drivers:
+		var d = all_drivers[did]
+		if d.active_discipline == "GK" and d.contract_team != player_team.id:
+			gk_driver_ids_to_clear.append(did)
+	for did in gk_driver_ids_to_clear:
+		all_drivers.erase(did)
+	print("[GameState] Cleared %d GK AI drivers for season reset" % gk_driver_ids_to_clear.size())
+
 	gk_discipline.populate_season(
 		all_drivers,
 		all_staff,
@@ -6934,37 +6902,25 @@ func start_new_season() -> void:
 	cnc_parts_inventory.clear()
 	add_log("🏎 All cars retired for Season %d. Buy or build new cars before Race 1." % current_season)
 
-	# ── AI team car regeneration ─────────────────────────────────────────────
-	for team in all_teams:
-		if team.id == player_team.id:
-			continue
-		_regenerate_ai_team_cars(team)
+	## AI team cars are rebuilt by ai_manager.load_car_assignments() below
+	## _regenerate_ai_team_cars() is disabled — it hardcoded C-001 for all teams
 
-	# ── Reset and activate championships ─────────────────────────────────────
-	# ── Rebuild active_championships from player_registered_championships ────
-	# Championships the player didn't re-register for are dropped.
-	# Existing registered ones carry over (reset for new season).
-	var prev_by_id: Dictionary = {}
+	# ── Reset all championships for new season ───────────────────────────────
+	## ALL 24 championships reset and stay active — the world keeps running.
+	## Player's registered championships only affect: results screen, DNS checks,
+	## notifications. They do NOT control which championships exist.
 	for champ in active_championships:
-		prev_by_id[champ.id] = champ
+		champ.reset_for_new_season()
 
-	active_championships.clear()
+	## Sync GK Group 0 to standings after reset
+	_sync_gk_group0_to_standings()
 
+	## Notify player if not registered anywhere
 	if player_registered_championships.is_empty():
 		add_notification("High",
 			"⚠ No championships registered for Season %d! Use the Championships screen to register." % current_season)
 	else:
-		for champ_id in player_registered_championships:
-			if champ_id in prev_by_id:
-				var existing = prev_by_id[champ_id]
-				existing.reset_for_new_season()
-				active_championships.append(existing)
-			else:
-				var new_champ = _create_championship(champ_id)
-				if new_champ:
-					active_championships.append(new_champ)
-					add_log("🏆 Now competing in: %s" % new_champ.championship_name)
-		## Fire no-car notification for any registered champ without a car
+		## Check player has a car for each registered championship
 		for champ_id in player_registered_championships:
 			var has_car = false
 			for car in player_team_cars:
@@ -6983,19 +6939,8 @@ func start_new_season() -> void:
 			"Season %d [%s]: New car needed. Delivery: Week %d. Race 1: Week %d." % [
 			current_season, champ.championship_name, delivery_wk, race1_wk])
 
-	# Re-register all eligible AI drivers and teams
-	# Player drivers enter standings when assigned to a car for that championship
-	for champ in active_championships:
-		for team in all_teams:
-			if team.id == player_team.id:
-				continue  # Player drivers added via car assignment, not here
-			for driver_id in team.drivers:
-				if driver_id in all_drivers:
-					var driver = all_drivers[driver_id]
-					if driver.age >= champ.min_age and driver.age <= champ.max_age:
-						champ.standings[driver_id] = 0
-		for team in all_teams:
-			champ.team_standings[team.id] = 0
+	## Re-register AI drivers and teams into championship standings for new season
+	ai_manager.load_car_assignments()
 
 	add_log("=== SEASON %d BEGINS ===" % current_season)
 
@@ -7042,8 +6987,7 @@ func _create_championship(champ_id: String) -> Championship:
 	champ.max_age = reg["max_age"]
 	champ.num_races = reg["num_races"]
 	const PRIZE_MONEY = {
-		"C-001": [300.0, 150.0, 75.0],   "C-002": [1200.0, 600.0, 300.0],
-		"C-003": [2000.0, 1000.0, 500.0], "C-004": [20000.0, 10000.0, 5000.0],
+		"C-001": [1200.0, 600.0, 300.0],  ## per-race prizes
 		"C-005": [2500.0, 1250.0, 625.0], "C-006": [5000.0, 2500.0, 1250.0],
 		"C-007": [28000.0, 14000.0, 7000.0], "C-008": [85000.0, 42500.0, 21250.0],
 		"C-009": [4000.0, 2000.0, 1000.0], "C-010": [40000.0, 20000.0, 10000.0],
@@ -7115,12 +7059,27 @@ func _process_off_season() -> void:
 		driver.fitness = 100.0
 		driver.experience = min(100.0, driver.experience + 1.0)
 		driver.seasons_without_contract += 1
-		# Decrement contract
-		if driver.contract_seasons_remaining > 0:
+		# Decrement contract — academy drivers use age-based bond, not season count
+		if driver.contract_type == "academy":
+			## Academy bond ends at age 18 — notify player
+			if driver.contract_team == player_team.id:
+				if driver.age == 17:
+					add_notification("High",
+						"🎓 %s will turn 18 next season — offer a professional contract or release from the academy." % driver.full_name())
+				elif driver.age >= 18:
+					add_notification("Critical",
+						"🎓 %s has turned 18 — academy bond expired. Offer professional contract or they will leave." % driver.full_name())
+			## Academy bond: seasons_remaining tracks seasons until 18
+			driver.contract_seasons_remaining = max(0, 18 - driver.age)
+		elif driver.contract_seasons_remaining > 0:
 			driver.contract_seasons_remaining -= 1
 			if driver.contract_seasons_remaining == 0 and driver.contract_team == player_team.id:
-				add_notification("High",
-					"⚠ %s's contract has expired! Re-sign them or they will leave." % driver.full_name())
+				if driver.contract_type == "cadet":
+					add_notification("High",
+						"⚠ Cadet %s's contract has expired! Re-sign or they will leave." % driver.full_name())
+				else:
+					add_notification("High",
+						"⚠ %s's contract has expired! Re-sign them or they will leave." % driver.full_name())
 
 	# Decrement staff contracts
 	for staff_id in all_staff:
@@ -7313,17 +7272,17 @@ func save_game() -> void:
 			"active_discipline": d.active_discipline,
 			"discipline_change_season": d.discipline_change_season,
 			"pace": d.pace,
-			"wet": d.wet,
+			"car_control": d.car_control,
 			"focus": d.focus,
 			"race_craft": d.race_craft,
 			"consistency": d.consistency,
 			"feedback": d.feedback,
 			"marketability": d.marketability,
-			"fitness": d.fitness,
+			"fitness": d.fitness, "fatigue_resistance": d.fatigue_resistance,
 			"potential": d.potential,
 			"aggression": d.aggression,
 			"experience": d.experience,
-			"morale": d.morale,
+			"morale": d.morale, "is_cadet": d.is_cadet, "academy_team": d.academy_team, "contract_type": d.contract_type, "academy_upkeep_income": d.academy_upkeep_income,
 			"seasons_without_contract": d.seasons_without_contract,
 			"discipline_adaptation": d.discipline_adaptation,
 			"peak_adaptation": d.peak_adaptation,
@@ -7457,7 +7416,7 @@ func load_game(path: String = "user://save_game.json") -> void:
 		d.active_discipline = dd["active_discipline"]
 		d.discipline_change_season = dd["discipline_change_season"]
 		d.pace = dd["pace"]
-		d.wet = dd["wet"]
+		d.car_control = dd.get("car_control", dd.get("wet", 50.0))
 		d.focus = dd["focus"]
 		d.race_craft = dd["race_craft"]
 		d.consistency = dd.get("consistency", 20.0)
@@ -7471,7 +7430,9 @@ func load_game(path: String = "user://save_game.json") -> void:
 		d.seasons_without_contract = dd["seasons_without_contract"]
 		d.discipline_adaptation = dd["discipline_adaptation"]
 		d.peak_adaptation = dd["peak_adaptation"]
-		d.track_knowledge = dd.get("track_knowledge", {})
+		d.track_knowledge          = dd.get("track_knowledge", {})
+		d.contract_type            = dd.get("contract_type", "professional")
+		d.academy_upkeep_income    = dd.get("academy_upkeep_income", 0)
 		all_drivers[driver_id] = d
 
 	# Restore cars
@@ -7558,20 +7519,20 @@ func _serialize_staff() -> Dictionary:
 			"discipline_adaptation": s.discipline_adaptation,
 			# Role attributes
 			"car_setup": s.car_setup, "pit_stops": s.pit_stops,
-			"car_knowledge": s.car_knowledge, "track_knowledge": s.track_knowledge,
+			"parts_knowledge": s.parts_knowledge, "track_knowledge": s.track_knowledge,
 			"pit_stop_speed": s.pit_stop_speed, "repair_skill": s.repair_skill,
-			"teamwork": s.teamwork, "fitness": s.fitness,
+			"fitness": s.fitness, "fatigue_resistance": s.fatigue_resistance,
 			"race_strategy": s.race_strategy, "practice_management": s.practice_management,
 			"qualifying_management": s.qualifying_management,
 			"race_pace_reading": s.race_pace_reading,
 			"car_setup_oversight": s.car_setup_oversight,
 			"pit_stop_management": s.pit_stop_management, "pr_skill": s.pr_skill,
-			"loan_management": s.loan_management, "interest_rates": s.interest_rates,
+			"loan_management": s.loan_management, "speculation": s.speculation,
 			"sales_skill": s.sales_skill, "sponsor_negotiation": s.sponsor_negotiation,
 			"resource_management": s.resource_management, "budget_planning": s.budget_planning,
 			"engine": s.engine, "aero": s.aero, "brakes": s.brakes,
 			"suspension": s.suspension, "chassis": s.chassis, "gearbox": s.gearbox,
-			"reliability": s.reliability, "parts_knowledge": s.parts_knowledge,
+			"reliability": s.reliability,
 			"practice_scheduling": s.practice_scheduling,
 			"qualifying_timing": s.qualifying_timing,
 			"championship_bonus": s.championship_bonus,
@@ -7606,11 +7567,11 @@ func _deserialize_staff(data_dict: Dictionary) -> void:
 		s.discipline_adaptation = sd["discipline_adaptation"]
 		s.car_setup = sd.get("car_setup", 0.0)
 		s.pit_stops = sd.get("pit_stops", 0.0)
-		s.car_knowledge = sd.get("car_knowledge", 0.0)
+		s.parts_knowledge = sd.get("parts_knowledge", sd.get("car_knowledge", 0.0))
 		s.track_knowledge = sd.get("track_knowledge", 0.0)
 		s.pit_stop_speed = sd.get("pit_stop_speed", 0.0)
 		s.repair_skill = sd.get("repair_skill", 0.0)
-		s.teamwork = sd.get("teamwork", 0.0)
+		s.fatigue_resistance = sd.get("fatigue_resistance", sd.get("teamwork", 0.0))
 		s.fitness = sd.get("fitness", 100.0)
 		s.race_strategy = sd.get("race_strategy", 0.0)
 		s.practice_management = sd.get("practice_management", 0.0)
@@ -7620,7 +7581,7 @@ func _deserialize_staff(data_dict: Dictionary) -> void:
 		s.pit_stop_management = sd.get("pit_stop_management", 0.0)
 		s.pr_skill = sd.get("pr_skill", 0.0)
 		s.loan_management = sd.get("loan_management", 0.0)
-		s.interest_rates = sd.get("interest_rates", 0.0)
+		s.speculation = sd.get("speculation", sd.get("interest_rates", 0.0))
 		s.sales_skill = sd.get("sales_skill", 0.0)
 		s.sponsor_negotiation = sd.get("sponsor_negotiation", 0.0)
 		s.resource_management = sd.get("resource_management", 0.0)
@@ -8056,7 +8017,7 @@ func _apply_pending_race_snapshot(snap: Dictionary) -> void:
 	last_race_round          = snap.get("round", 0)
 	last_race_laps           = snap.get("laps", 0)
 	last_race_name           = snap.get("name", "")
-	last_race_wet            = snap.get("wet", false)
+	last_race_wet            = snap.get("is_wet", snap.get("wet", false))
 	last_race_results        = snap.get("results", [])
 	last_race_championship   = snap.get("championship", "")
 	last_race_championship_id = snap.get("championship_id", "")
@@ -8077,8 +8038,8 @@ func consume_next_race_result() -> bool:
 
 func shadow_standings_has_group_0(cid: String) -> bool:
 	if gk_discipline == null: return false
-	var ss = gk_discipline.shadow_standings.get(cid, [])
-	return ss.size() > 0 and ss[0].size() > 0
+	if cid != "C-001": return false
+	return gk_discipline.get_standings(cid).size() > 0
 
 ## ═══════════════════════════════════════════════════════════════════════════
 ## TP AUTO-ASSIGNMENT PROPOSALS (S23)

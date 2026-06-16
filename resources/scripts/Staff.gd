@@ -1,7 +1,9 @@
 class_name Staff
 extends Resource
-## Version: S16.2 — Added track_knowledge_by_track dict. Flat track_knowledge kept for
-##                    backward compat and UI display (shows best known track).
+## Version: S24.1 — Added peak_adaptation dict for TP/Mechanic/Strategist.
+##                    get_adaptation_floor(), update_peak_adaptation() added.
+##                    race_pace (Mechanic), fatigue_resistance (Pit Crew),
+##                    speculation (CFO), parts_knowledge (TP/Mechanic/Designer).
 
 # ── Identity ──────────────────────────────────────────────────────────────────
 @export var id: String = ""
@@ -32,26 +34,38 @@ extends Resource
 @export var assigned_championship: String = "" # championship_id; "" = unassigned
 @export var assigned_car_id: String = ""     # car_id; for Mechanic and Pit Crew
 
-# Discipline adaptation (shared by Mechanic, Designer, Strategist)
+# Discipline adaptation — applies to TP, Race Mechanic, Race Strategist ONLY.
+# CFO and Designer do NOT use discipline adaptation.
 @export var discipline_adaptation: Dictionary = {
 	"GK": 1.0, "Rally": 1.0, "TC": 1.0,
 	"OWC": 1.0, "SC": 1.0, "EPC": 1.0, "GP": 1.0
 }
 
+# Peak adaptation ever reached per discipline (floor = peak × 0.35).
+# Primary discipline grows toward 100. Same system as Driver.
+# Only meaningful for TP, Race Mechanic, Race Strategist.
+@export var peak_adaptation: Dictionary = {
+	"GK": 1.0, "Rally": 1.0, "TC": 1.0,
+	"OWC": 1.0, "SC": 1.0, "EPC": 1.0, "GP": 1.0
+}
+
 # ── Race Mechanic attributes ──────────────────────────────────────────────────
-@export var car_setup: float = 0.0       # Quality of setup work — affects lap time
-@export var pit_stops: float = 0.0       # Pit stop execution quality
-@export var car_knowledge: float = 0.0   # Understanding of car systems
-@export var track_knowledge: float = 0.0 # Track-specific setup knowledge; grows per event
+@export var car_setup: float = 0.0        # Quality of setup work — primary Setup_Gain_per_Lap stat
+@export var pit_stops: float = 0.0        # Pit stop execution quality — reduces Base_Service_Time
+@export var parts_knowledge: float = 0.0  # Shared field. Mechanic: repair/degradation awareness.
+											   # TP: in-race multiplier for Mechanic+Strategist.
+											   # Designer: improves design process via race telemetry.
+@export var track_knowledge: float = 0.0  # Track-specific setup knowledge; grows per event, drops over time
+@export var race_pace: float = 0.0        # Feeds Staff_Synergy_Factor in lap time — multiplied by TP
 ## Per-track knowledge — keyed by track_id. Same system as Driver.
 ## Flat track_knowledge above = max of all known tracks (for UI display).
 @export var track_knowledge_by_track: Dictionary = {}
 
 # ── Pit Crew attributes ───────────────────────────────────────────────────────
-@export var pit_stop_speed: float = 0.0  # Speed of pit stop operations
-@export var repair_skill: float = 0.0    # Quality and speed of repairs
-@export var teamwork: float = 0.0        # Coordination with rest of crew
-@export var fitness: float = 100.0       # Physical condition; drops after events, recovers weekly
+@export var pit_stop_speed: float = 0.0      # Speed of pit stop operations — affects Base_Service_Time
+@export var repair_skill: float = 0.0        # Quality and speed of repairs — inside and between sessions
+@export var fitness: float = 100.0           # DYNAMIC. Drops per action, partial recovery between sessions
+@export var fatigue_resistance: float = 0.0  # Reduces fitness drop rate. Slightly improved by Fitness Clinic
 
 # ── Team Principal attributes ─────────────────────────────────────────────────
 ## TP attributes act as MULTIPLIERS on other staff's values (per spec)
@@ -64,12 +78,12 @@ extends Resource
 @export var pr_skill: float = 0.0              # Boosts team reputation and marketability
 
 # ── CFO attributes ────────────────────────────────────────────────────────────
-@export var loan_management: float = 0.0     # Improves loan amount available
-@export var interest_rates: float = 0.0      # Reduces loan interest rate
+@export var loan_management: float = 0.0     # All loan decisions — amount, interest rate, early repayment
 @export var sales_skill: float = 0.0         # Boosts commercial car sales revenue
-@export var sponsor_negotiation: float = 0.0 # Improves sponsor deal value
-@export var resource_management: float = 0.0 # Improves SP/fuel warning thresholds and cost
-@export var budget_planning: float = 0.0     # Accuracy of financial projections
+@export var sponsor_negotiation: float = 0.0 # Improves all contract negotiations (drivers, staff, sponsors)
+@export var resource_management: float = 0.0 # Reduces weekly expenses — materials, maintenance
+@export var budget_planning: float = 0.0     # Decision insights for team expansion or contraction
+@export var speculation: float = 0.0         # Economy index predictions — fuel contracts, market timing
 
 # ── Designer attributes ───────────────────────────────────────────────────────
 @export var engine: float = 0.0      # Engine development skill
@@ -79,7 +93,6 @@ extends Resource
 @export var chassis: float = 0.0     # Chassis development skill
 @export var gearbox: float = 0.0     # Gearbox development skill
 @export var reliability: float = 0.0 # Reduces part failure probability
-@export var parts_knowledge: float = 0.0 # Knowledge of available parts market
 
 # ── Race Strategist attributes ────────────────────────────────────────────────
 # race_strategy, race_pace_reading, track_knowledge shared with TP fields above
@@ -115,7 +128,7 @@ func get_primary_skill() -> float:
 		"Race Mechanic":    return car_setup
 		"Pit Crew":         return pit_stop_speed
 		"Team Principal":   return race_strategy
-		"CFO":              return resource_management
+		"CFO":              return sponsor_negotiation
 		"Designer":         return (engine + aero + chassis + gearbox + brakes + suspension) / 6.0
 		"Race Strategist":  return race_strategy
 	return 0.0
@@ -136,14 +149,50 @@ func get_primary_skill_label() -> String:
 func get_repair_efficiency() -> float:
 	if role != "Race Mechanic":
 		return 1.0
-	# car_setup 0→0.5 efficiency, car_setup 100→1.0 efficiency
-	return 0.5 + (car_setup / 100.0) * 0.5
+	## parts_knowledge 0→0.5 efficiency, 100→1.0 efficiency
+	return 0.5 + (parts_knowledge / 100.0) * 0.5
 
 ## Returns TP multiplier for a given skill area (0.9–1.2 range).
 ## Applied to other staff's attributes when TP is present.
 ## tp_skill should be one of the TP's relevant attributes (0-100).
 static func tp_multiplier(tp_skill: float) -> float:
 	return 0.9 + (tp_skill / 100.0) * 0.3
+
+
+
+## ── Adaptation helpers ───────────────────────────────────────────────────────
+
+## Returns adaptation floor for a discipline: peak × 0.35
+func get_adaptation_floor(discipline: String) -> float:
+	return peak_adaptation.get(discipline, 1.0) * 0.35
+
+## Updates peak after each race event
+func update_peak_adaptation(discipline: String) -> void:
+	var current = discipline_adaptation.get(discipline, 1.0)
+	if current > peak_adaptation.get(discipline, 1.0):
+		peak_adaptation[discipline] = current
+
+## ── Fitness / Fatigue (Pit Crew and Drivers) ─────────────────────────────────
+
+## Degradation per pit stop action.
+func apply_pitstop_fatigue(pit_stop_time_seconds: float) -> void:
+	var drop = (pit_stop_time_seconds / 2.0) * (1.0 - fatigue_resistance / 100.0)
+	fitness = max(0.0, fitness - drop)
+
+## Degradation per repair action.
+func apply_repair_fatigue(repair_time_minutes: float) -> void:
+	var drop = (repair_time_minutes * 0.5) * (1.0 - fatigue_resistance / 100.0)
+	fitness = max(0.0, fitness - drop)
+
+## Partial recovery between sessions within same race weekend.
+## recovery_rate: Practice→Qualifying = 0.30, Qualifying→Race = 0.60
+func recover_fitness(recovery_rate: float) -> void:
+	var recovered = (100.0 - fitness) * recovery_rate
+	fitness = min(100.0, fitness + recovered)
+
+## Full reset at the start of a new race weekend.
+func reset_fitness() -> void:
+	fitness = 100.0
 
 ## Returns per-track knowledge (0–100) for a specific track_id.
 func get_track_knowledge_for(track_id: String) -> float:

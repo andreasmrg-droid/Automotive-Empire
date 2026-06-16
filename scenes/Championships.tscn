@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://bukiclfn8xx41"]
+
+[ext_resource type="Script" uid="uid://c04jaknatemq0" path="res://scenes/Championships.gd" id="1"]
+
+[node name="Championships" type="Control" unique_id=1372169694]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")

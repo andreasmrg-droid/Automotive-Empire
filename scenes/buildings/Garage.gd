@@ -50,8 +50,8 @@ func _ready() -> void:
 	## Default tab = first active championship that has a car, else first champ
 	for car in GameState.player_team_cars:
 		if _selected_tab == "": _selected_tab = car.championship_id
-	if _selected_tab == "" and GameState.active_championships.size() > 0:
-		_selected_tab = GameState.active_championships[0].id
+	if _selected_tab == "" and GameState.player_team_cars.size() > 0:
+		_selected_tab = GameState.player_team_cars[0].championship_id
 	_build_ui()
 
 func _build_ui() -> void:
@@ -192,7 +192,12 @@ func _build_tabs() -> void:
 	for c in _tab_bar.get_children(): c.queue_free()
 	_tab_btns.clear()
 
-	var champs = GameState.active_championships
+	## Only show championships where player has a car
+	var player_cids: Array = []
+	for car in GameState.player_team_cars:
+		if not car.championship_id in player_cids:
+			player_cids.append(car.championship_id)
+	var champs = GameState.active_championships.filter(func(c): return c.id in player_cids)
 	if champs.is_empty():
 		var lbl = Label.new()
 		lbl.text = "No active championships."

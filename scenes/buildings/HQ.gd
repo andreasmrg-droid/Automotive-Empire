@@ -285,7 +285,18 @@ func _build_champs_strip() -> VBoxContainer:
 	var vbox = VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 8)
 
-	if GameState.active_championships.is_empty():
+	## Only show championships where the player has a car
+	var player_champ_ids: Array = []
+	for car in GameState.player_team_cars:
+		if not car.championship_id in player_champ_ids:
+			player_champ_ids.append(car.championship_id)
+
+	var player_champs: Array = []
+	for champ in GameState.active_championships:
+		if champ.id in player_champ_ids:
+			player_champs.append(champ)
+
+	if player_champs.is_empty():
 		var lbl = Label.new()
 		lbl.text = "No active championships. Register via World Racing Association tab."
 		lbl.modulate = Color(0.5, 0.5, 0.5)
@@ -294,7 +305,7 @@ func _build_champs_strip() -> VBoxContainer:
 		vbox.add_child(lbl)
 		return vbox
 
-	for champ in GameState.active_championships:
+	for champ in player_champs:
 		var card = _card(Color(0.10, 0.13, 0.18))
 		var inner = HBoxContainer.new()
 		inner.add_theme_constant_override("separation", 12)
@@ -631,13 +642,21 @@ func _show_tp_assign_popup(tp_id: String) -> void:
 	vb.add_child(hdr)
 	vb.add_child(HSeparator.new())
 
-	if GameState.active_championships.is_empty():
+	## TP assignment: only show player's championships (has a car)
+	var player_champ_ids2: Array = []
+	for car in GameState.player_team_cars:
+		if not car.championship_id in player_champ_ids2:
+			player_champ_ids2.append(car.championship_id)
+	var player_champs2 = GameState.active_championships.filter(
+		func(c): return c.id in player_champ_ids2)
+
+	if player_champs2.is_empty():
 		var e = Label.new()
 		e.text = "No active championships."
 		e.modulate = Color(0.5, 0.5, 0.5)
 		vb.add_child(e)
 	else:
-		for champ in GameState.active_championships:
+		for champ in player_champs2:
 			var reg = GameState.CHAMPIONSHIP_REGISTRY.get(champ.id, {})
 			var champ_name = reg.get("name", champ.id)
 			var slot_taken = false
@@ -2065,9 +2084,8 @@ func _build_registration_panel() -> VBoxContainer:
 		## TP requirement
 		var tp_ok = false
 		if disc == "GK":
-			for gk_cid in ["C-001","C-002","C-003","C-004"]:
-				if GameState._get_tp_for_championship(gk_cid) != null:
-					tp_ok = true; break
+			if GameState._get_tp_for_championship("C-001") != null:
+				tp_ok = true
 		else:
 			tp_ok = GameState._get_tp_for_championship(cid) != null
 		reqs.append({"ok": tp_ok, "text": "Team Principal assigned"})

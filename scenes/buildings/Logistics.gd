@@ -396,9 +396,22 @@ func _build_tab_buy_car(parent: VBoxContainer) -> void:
 		Color(1.0, 0.4, 0.4) if cur_cars >= max_cars else Color(0.4, 0.9, 0.4))
 	sv.add_child(slots_lbl)
 
-	if not GameState.active_championships.is_empty():
+	## Only show championships where player has a car or is registered
+	var player_cids: Array = []
+	for car in GameState.player_team_cars:
+		if not car.championship_id in player_cids:
+			player_cids.append(car.championship_id)
+	for cid in GameState.player_registered_championships:
+		if not cid in player_cids:
+			player_cids.append(cid)
+	var player_champs_log: Array = []
+	for champ in GameState.active_championships:
+		if champ.id in player_cids:
+			player_champs_log.append(champ)
+
+	if not player_champs_log.is_empty():
 		sv.add_child(HSeparator.new())
-		for champ in GameState.active_championships:
+		for champ in player_champs_log:
 			var reg = GameState.CHAMPIONSHIP_REGISTRY.get(champ.id, {})
 			var champ_name = reg.get("name", champ.id)
 			var cars_in_champ = GameState.player_team_cars.filter(
@@ -433,10 +446,8 @@ func _build_tab_buy_car(parent: VBoxContainer) -> void:
 	parent.add_child(slots_panel)
 
 	# ── Championship car cards ─────────────────────────────────────────────────
-	var champ_ids: Array = []
-	for champ in GameState.active_championships:
-		if champ.id != "" and not champ.id in champ_ids:
-			champ_ids.append(champ.id)
+	## Car cards: only player's championships
+	var champ_ids: Array = player_cids.duplicate()
 	if champ_ids.is_empty():
 		champ_ids = ["C-001"]
 

@@ -1,4 +1,5 @@
 extends Control
+## Version: S24.0 — wet → car_control in stat deltas display.
 ## Version: S22.8 — #12 multi-race: consume_next_race_result queue in Continue button.
 
 func _ready() -> void:
@@ -584,7 +585,7 @@ func _build_driver_improvements(parent: VBoxContainer) -> void:
 		row.add_theme_constant_override("separation", 8)
 		parent.add_child(row)
 
-		for sk in [["Pace","pace"],["Wet","wet"],["Focus","focus"],["Exp","experience"],["Fit","fitness"]]:
+		for sk in [["Pace","pace"],["Car Ctrl","car_control"],["Focus","focus"],["Exp","experience"],["Fit","fitness"]]:
 			var dv = deltas.get(sk[1], 0.0)
 			if abs(dv) > 0.01:
 				var dl = Label.new()

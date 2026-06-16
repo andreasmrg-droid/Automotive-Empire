@@ -5,45 +5,45 @@ extends Node
 
 var data: Dictionary = {
 	"Italian": {
-		"male_seeds": ["Marco", "Luca", "Andrea", "Matteo", "Lorenzo", "Giovanni", "Francesco", "Roberto", "Alessandro", "Davide", "Stefano", "Riccardo", "Simone", "Gabriele", "Edoardo"],
-		"female_seeds": ["Giulia", "Sofia", "Valentina", "Chiara", "Alessia", "Francesca", "Martina", "Laura", "Sara", "Elena", "Beatrice", "Federica", "Silvia", "Elisa", "Roberta"],
-		"surname_seeds": ["Rossi", "Ferrari", "Colombo", "Ricci", "Marino", "Greco", "Bruno", "Gallo", "Conti", "De Luca", "Mancini", "Costa", "Giordano", "Rizzo", "Lombardi"],
+		"male_seeds": ["Marco", "Luca", "Andrea", "Matteo", "Lorenzo", "Giovanni", "Francesco", "Roberto", "Alessandro", "Davide", "Stefano", "Riccardo", "Simone", "Gabriele", "Edoardo", "Nicola", "Pietro", "Antonio", "Bruno", "Carlo", "Filippo", "Giorgio", "Massimo", "Paolo", "Sergio", "Vincenzo", "Alberto", "Claudio", "Dario", "Enrico"],
+		"female_seeds": ["Sofia", "Giulia", "Martina", "Sara", "Laura", "Valentina", "Chiara", "Francesca", "Elena", "Maria", "Alessia", "Federica", "Silvia", "Paola", "Cristina", "Barbara", "Roberta", "Serena", "Elisa", "Monica", "Beatrice", "Camilla", "Giorgia", "Ilaria", "Irene", "Claudia", "Daniela", "Michela", "Rossella", "Annalisa"],
+		"surname_seeds": ["Rossi", "Ferrari", "Colombo", "Ricci", "Marino", "Greco", "Bruno", "Gallo", "Conti", "De Luca", "Mancini", "Costa", "Giordano", "Rizzo", "Lombardi", "Esposito", "Bianchi", "Romano", "Gatti", "Ferri", "Ferretti", "Moretti", "De Angelis", "Barbieri", "Gentile", "Caruso", "Amato", "Marini", "Riva", "Villa"],
 		"male_syl": ["Mar", "Lu", "An", "Gi", "Ro", "Fab", "Ste", "Dav", "Ale", "Ren", "Nic", "Pie", "Vin", "Sal", "Tor"],
 		"female_syl": ["Giu", "So", "Val", "Chi", "Ale", "Mar", "Fra", "Sar", "Ele", "Bea", "Fed", "Sil", "Eli", "Rob", "Cla"],
 		"sur_roots": ["Ross", "Ferr", "Colomb", "Ricc", "Marin", "Grec", "Brun", "Gall", "Cont", "Manc", "Cost", "Giord", "Rizz", "Lomb", "Espos"],
 		"sur_end": ["i", "o", "elli", "etti", "ini", "one", "ino", "ello", "acci", "ucci"]
 	},
 	"Spanish": {
-		"male_seeds": ["Carlos", "Miguel", "Alejandro", "Diego", "Pablo", "Javier", "Antonio", "Manuel", "Fernando", "Rafael", "Sergio", "Alberto", "Raul", "Ivan", "Adrian","Felix"],
-		"female_seeds": ["Sofia", "Lucia", "Maria", "Carmen", "Isabella", "Elena", "Ana", "Marta", "Paula", "Laura", "Cristina", "Patricia", "Beatriz", "Alicia", "Nuria", "Gemma"],
-		"surname_seeds": ["Garcia", "Martinez", "Lopez", "Sanchez", "Fernandez", "Gonzalez", "Rodriguez", "Perez", "Alvarez", "Torres", "Ramirez", "Flores", "Moreno", "Jimenez", "Ruiz", "Carasco"],
+		"male_seeds": ["Carlos", "Miguel", "Alejandro", "Diego", "Pablo", "Javier", "Antonio", "Manuel", "Fernando", "Rafael", "Sergio", "Alberto", "Raul", "Ivan", "Adrian", "Felix", "Oscar", "Alvaro", "Ruben", "Victor", "Daniel", "David", "Jorge", "Pedro", "Eduardo", "Roberto", "Mario", "Luis", "Angel", "Marcos"],
+		"female_seeds": ["Sofia", "Maria", "Carmen", "Isabel", "Laura", "Paula", "Elena", "Lucia", "Ana", "Sara", "Patricia", "Cristina", "Marta", "Sandra", "Silvia", "Rosa", "Monica", "Beatriz", "Natalia", "Pilar", "Nuria", "Raquel", "Susana", "Alicia", "Irene", "Esther", "Miriam", "Rocio", "Lola", "Amparo"],
+		"surname_seeds": ["Garcia", "Martinez", "Lopez", "Sanchez", "Fernandez", "Gonzalez", "Rodriguez", "Perez", "Alvarez", "Torres", "Ramirez", "Flores", "Moreno", "Jimenez", "Ruiz", "Diaz", "Hernandez", "Molina", "Castillo", "Romero", "Navarro", "Delgado", "Gutierrez", "Ortega", "Vargas", "Ramos", "Gil", "Serrano", "Blanco", "Vega"],
 		"male_syl": ["Car", "Mig", "Ale", "Die", "Pab", "Jav", "Ant", "Man", "Fer", "Raf", "Ser", "Alb", "Rau", "Iva", "Adr"],
 		"female_syl": ["Sof", "Luc", "Mar", "Car", "Isa", "Ele", "Ana", "Pau", "Lau", "Cri", "Pat", "Bea", "Ali", "Nur", "Ire"],
 		"sur_roots": ["Garc", "Mart", "Lop", "Sanch", "Fern", "Gonz", "Rodr", "Per", "Alv", "Torr", "Ram", "Flor", "Mor", "Jim", "Ru"],
 		"sur_end": ["ez", "es", "oz", "az", "iz", "ero", "era", "ado", "eda", "illo"]
 	},
 	"French": {
-		"male_seeds": ["Pierre", "Jules", "Esteban", "Charles", "Antoine", "Nicolas", "Thomas", "Julien", "Alexandre", "Maxime", "Lucas", "Hugo", "Theo", "Baptiste", "Romain"],
-		"female_seeds": ["Camille", "Lea", "Manon", "Chloe", "Emma", "Ines", "Clara", "Lucie", "Marie", "Julie", "Sophie", "Alice", "Charlotte", "Pauline", "Amelie"],
-		"surname_seeds": ["Gasly", "Ocon", "Vergne", "Grosjean", "Panis", "Dupont", "Martin", "Bernard", "Dubois", "Laurent", "Simon", "Michel", "Lefevre", "Roux", "Moreau"],
+		"male_seeds": ["Pierre", "Jules", "Esteban", "Charles", "Antoine", "Nicolas", "Thomas", "Julien", "Alexandre", "Maxime", "Lucas", "Hugo", "Theo", "Baptiste", "Romain", "Florian", "Quentin", "Adrien", "Clement", "Cyril", "Mathieu", "Vincent", "Sebastien", "Guillaume", "Arnaud", "Francois", "Philippe", "Laurent", "Eric", "Jean"],
+		"female_seeds": ["Marie", "Sophie", "Emma", "Camille", "Chloe", "Lea", "Manon", "Julie", "Alice", "Laura", "Charlotte", "Lucie", "Clara", "Amelie", "Pauline", "Marine", "Justine", "Clementine", "Margot", "Oceane", "Elise", "Sarah", "Emilie", "Caroline", "Aurelie", "Mathilde", "Helene", "Isabelle", "Nathalie", "Catherine"],
+		"surname_seeds": ["Dupont", "Martin", "Bernard", "Dubois", "Laurent", "Simon", "Michel", "Lefevre", "Roux", "Moreau", "Petit", "Girard", "Bonnet", "Dupuis", "Mercier", "Lemaire", "Chevalier", "Faure", "Rousseau", "Blanchard", "Gerard", "Garnier", "Marchand", "Clement", "Gauthier", "Perrot", "Renard", "Morel", "Fontaine", "Bertin"],
 		"male_syl": ["Pie", "Jul", "Est", "Cha", "Ant", "Nic", "Tho", "Ale", "Max", "Luc", "Hug", "The", "Bap", "Rom", "Flo"],
 		"female_syl": ["Cam", "Lea", "Man", "Chl", "Emm", "Ine", "Cla", "Luc", "Mar", "Jul", "Sop", "Ali", "Pau", "Ame", "Elo"],
 		"sur_roots": ["Gasl", "Dup", "Mart", "Bern", "Dub", "Laur", "Sim", "Mich", "Lef", "Roux", "Mor", "Petit", "Grand", "Blanc", "Noir"],
 		"sur_end": ["ot", "et", "eau", "on", "in", "ant", "ier", "ard", "aux", "eux"]
 	},
 	"German": {
-		"male_seeds": ["Sebastian", "Nico", "Felix", "Maximilian", "Leon", "Lukas", "Jonas", "Elias", "Noah", "Finn", "Paul", "Ben", "Tim", "Jan", "Moritz"],
-		"female_seeds": ["Anna", "Laura", "Sarah", "Julia", "Hannah", "Lea", "Emma", "Mia", "Lena", "Sophie", "Lisa", "Katharina", "Franziska", "Johanna", "Clara"],
-		"surname_seeds": ["Muller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker", "Schulz", "Hoffmann", "Schafer", "Koch", "Richter", "Klein", "Wolf"],
+		"male_seeds": ["Sebastian", "Nico", "Felix", "Maximilian", "Leon", "Lukas", "Jonas", "Elias", "Noah", "Finn", "Paul", "Ben", "Tim", "Jan", "Moritz", "Tobias", "Florian", "Simon", "Markus", "Stefan", "David", "Michael", "Daniel", "Christian", "Alexander", "Thomas", "Andreas", "Klaus", "Rolf", "Werner"],
+		"female_seeds": ["Emma", "Hannah", "Mia", "Lea", "Laura", "Anna", "Lena", "Jana", "Lisa", "Julia", "Sarah", "Katharina", "Sandra", "Nicole", "Sabine", "Claudia", "Monika", "Christine", "Petra", "Anja", "Marie", "Sophie", "Charlotte", "Luisa", "Franziska", "Theresa", "Magdalena", "Elisabeth", "Johanna", "Greta"],
+		"surname_seeds": ["Muller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker", "Schulz", "Hoffmann", "Schafer", "Koch", "Richter", "Klein", "Wolf", "Braun", "Hartmann", "Kruger", "Werner", "Lange", "Zimmermann", "Krause", "Baumann", "Lehmann", "Neumann", "Schwarz", "Walter", "Lorenz", "Schmitt", "Vogel"],
 		"male_syl": ["Seb", "Nic", "Fel", "Max", "Leo", "Luk", "Jon", "Eli", "Noa", "Fin", "Pau", "Ben", "Tim", "Jan", "Mor"],
 		"female_syl": ["Ann", "Lau", "Sar", "Jul", "Han", "Lea", "Emm", "Mia", "Len", "Sop", "Lis", "Kat", "Fra", "Joh", "Cla"],
 		"sur_roots": ["Mull", "Schm", "Schn", "Fisch", "Web", "Mey", "Wagn", "Beck", "Schulz", "Hoff", "Koch", "Richt", "Klein", "Wolf", "Braun"],
 		"sur_end": ["er", "mann", "en", "el", "ke", "ler", "ner", "ger", "fer", "her"]
 	},
 	"British": {
-		"male_seeds": ["Jack", "George", "Lewis", "Oliver", "Harry", "James", "William", "Thomas", "Alexander", "Henry", "Charlie", "Edward", "Frederick", "Arthur", "Archie"],
-		"female_seeds": ["Emma", "Olivia", "Sophia", "Isabella", "Charlotte", "Amelia", "Lily", "Grace", "Eleanor", "Victoria", "Alice", "Beatrice", "Rosie", "Harriet", "Imogen"],
-		"surname_seeds": ["Hamilton", "Russell", "Norris", "Button", "Coulthard", "Smith", "Jones", "Williams", "Taylor", "Brown", "Davies", "Evans", "Wilson", "Thomas", "Roberts"],
+		"male_seeds": ["Jack", "George", "Oliver", "Harry", "James", "William", "Thomas", "Alexander", "Henry", "Charlie", "Edward", "Rory", "Callum", "Finn", "Liam", "Noah", "Ethan", "Oscar", "Alfie", "Max", "Leo", "Sebastian", "Arthur", "Frederick", "Theodore", "Albert", "Edmund", "Hugo", "Felix", "Rupert"],
+		"female_seeds": ["Emma", "Olivia", "Sophie", "Charlotte", "Amelia", "Isla", "Evie", "Poppy", "Daisy", "Lucy", "Grace", "Alice", "Hannah", "Eleanor", "Freya", "Harriet", "Imogen", "Rosie", "Millie", "Ellie", "Phoebe", "Florence", "Matilda", "Beatrice", "Clara", "Violet", "Iris", "Arabella", "Penelope", "Georgia"],
+		"surname_seeds": ["Smith", "Jones", "Williams", "Taylor", "Brown", "Davies", "Evans", "Wilson", "Thomas", "Roberts", "Johnson", "Walker", "White", "Hall", "Harris", "Martin", "Thompson", "Robinson", "Clark", "Lewis", "Lee", "Scott", "Turner", "Moore", "Hughes", "Richardson", "Wood", "Watson", "Wright", "Mitchell"],
 		"male_syl": ["Jac", "Geo", "Lew", "Oli", "Har", "Jam", "Wil", "Tho", "Ale", "Hen", "Cha", "Edw", "Fre", "Art", "Arc"],
 		"female_syl": ["Emm", "Oli", "Sop", "Isa", "Cha", "Ame", "Lil", "Gra", "Ele", "Vic", "Ali", "Bea", "Ros", "Har", "Imo"],
 		"sur_roots": ["Ham", "Russ", "Norr", "Butt", "Coul", "Smit", "Jon", "Willi", "Tayl", "Brow", "Dav", "Evan", "Wils", "Thom", "Rob"],
@@ -77,7 +77,7 @@ var data: Dictionary = {
 		"sur_end": ["a", "os", "es", "eira", "o", "ues", "ins", "us", "as", "ez"]
 	},
 	"Greek": {
-		"male_seeds": ["Nikos", "Kostas", "Giorgos", "Dimitris", "Alexandros", "Petros", "Yannis", "Stavros", "Christos", "Panagiotis", "Vasilis", "Michalis", "Thanasis", "Spyros", "Andreas","Dimosthenis"],
+		"male_seeds": ["Nikos", "Kostas", "Giorgos", "Dimitris", "Alexandros", "Petros", "Yannis", "Stavros", "Christos", "Panagiotis", "Vasilis", "Michalis", "Thanasis", "Spyros", "Andreas"],
 		"female_seeds": ["Maria", "Eleni", "Katerina", "Sofia", "Anna", "Christina", "Ioanna", "Despina", "Athina", "Vasiliki", "Dimitra", "Stavroula", "Evgenia", "Panagiota", "Theodora"],
 		"surname_seeds": ["Papadopoulos", "Georgiou", "Nikolaou", "Andreou", "Christodoulou", "Petrou", "Stavrou", "Ioannou", "Kyriakou", "Konstantinou", "Alexiou", "Demetriou", "Vassiliou", "Michaelides", "Antoniou"],
 		"male_syl": ["Nik", "Kos", "Gio", "Dim", "Ale", "Pet", "Yan", "Sta", "Chr", "Pan", "Vas", "Mic", "Tha", "Spy", "And"],
@@ -106,7 +106,7 @@ var data: Dictionary = {
 	"Finnish": {
 		"male_seeds": ["Mikko", "Jari", "Kimi", "Valtteri", "Mika", "Pekka", "Juha", "Timo", "Heikki", "Ari", "Teemu", "Sami", "Janne", "Petteri", "Ville"],
 		"female_seeds": ["Aino", "Siiri", "Helmi", "Emilia", "Laura", "Hanna", "Sanna", "Minna", "Tiina", "Leena", "Kaisa", "Miia", "Johanna", "Riikka", "Tuulia"],
-		"surname_seeds": ["Makinen", "Gronholm", "Latvala", "Hirvonen", "Rovanpera", "Solberg", "Nieminen", "Korhonen", "Virtanen", "Makela", "Leinonen", "Heikkinen", "Koskinen", "Jarvinen", "Peltonen"],
+		"surname_seeds": ["Makinen", "Gronholm", "Latvala", "Hirvonen", "Rovanpera", "Solberg", "Nieminen", "Korhonen", "Virtanen", "Makela", "Leinonen", "Heikkinen", "Koskinen", "Jarvina", "Peltonen"],
 		"male_syl": ["Mik", "Jar", "Kim", "Val", "Mik", "Pek", "Juh", "Tim", "Hei", "Ari", "Tee", "Sam", "Jan", "Pet", "Vil"],
 		"female_syl": ["Ain", "Sii", "Hel", "Emi", "Lau", "Han", "San", "Min", "Tii", "Lee", "Kai", "Mii", "Joh", "Rii", "Tuu"],
 		"sur_roots": ["Mak", "Gron", "Lat", "Hirv", "Rov", "Sol", "Niem", "Korh", "Virt", "Mak", "Lein", "Heikk", "Koski", "Jarv", "Pelt"],
@@ -239,18 +239,18 @@ var data: Dictionary = {
 		"sur_end": ["ald", "od", "son", "son", "ell", "art", "on", "zie", "er", "ay"]
 	},
 	"Brazilian": {
-		"male_seeds": ["Felipe", "Bruno", "Gabriel", "Rafael", "Thiago", "Lucas", "Matheus", "Gustavo", "Rodrigo", "Leonardo", "Fabio", "Renato", "Marcelo", "Eduardo", "Diego"],
-		"female_seeds": ["Ana", "Julia", "Beatriz", "Larissa", "Gabriela", "Camila", "Fernanda", "Amanda", "Leticia", "Mariana", "Natalia", "Rafaela", "Isabela", "Vitoria", "Carolina"],
-		"surname_seeds": ["Silva", "Santos", "Oliveira", "Souza", "Rodrigues", "Ferreira", "Alves", "Pereira", "Lima", "Gomes", "Costa", "Ribeiro", "Martins", "Carvalho", "Almeida"],
+		"male_seeds": ["Felipe", "Bruno", "Rafael", "Lucas", "Thiago", "Gustavo", "Vitor", "Rodrigo", "Diego", "Matheus", "Caio", "Henrique", "Gabriel", "Leandro", "Eduardo", "Alexandre", "Marcelo", "Ricardo", "Paulo", "Andre", "Renato", "Fabio", "Otavio", "Guilherme", "Leonardo", "Adriano", "Murilo", "Renan", "Danilo", "Enzo"],
+		"female_seeds": ["Ana", "Maria", "Juliana", "Fernanda", "Mariana", "Patricia", "Camila", "Beatriz", "Larissa", "Amanda", "Leticia", "Gabriela", "Vanessa", "Tatiana", "Renata", "Claudia", "Silvia", "Carolina", "Bianca", "Natalia", "Debora", "Priscila", "Viviane", "Aline", "Cristiane", "Luciana", "Rafaela", "Isabela", "Bruna", "Giovanna"],
+		"surname_seeds": ["Silva", "Santos", "Ferreira", "Pereira", "Oliveira", "Costa", "Rodrigues", "Martins", "Gomes", "Sousa", "Lima", "Carvalho", "Alves", "Monteiro", "Cardoso", "Moreira", "Nunes", "Fernandes", "Barbosa", "Pinto", "Nascimento", "Araujo", "Cavalcanti", "Azevedo", "Melo", "Dias", "Campos", "Correia", "Mendes", "Teixeira"],
 		"male_syl": ["Fel", "Bru", "Gab", "Raf", "Thi", "Luc", "Mat", "Gus", "Rod", "Leo", "Fab", "Ren", "Mar", "Edu", "Die"],
 		"female_syl": ["Ana", "Jul", "Bea", "Lar", "Gab", "Cam", "Fer", "Ama", "Let", "Mar", "Nat", "Raf", "Isa", "Vit", "Car"],
 		"sur_roots": ["Silv", "Sant", "Oliv", "Souz", "Rodr", "Ferr", "Alv", "Per", "Lim", "Gom", "Cost", "Rib", "Mart", "Carv", "Alm"],
 		"sur_end": ["a", "os", "eira", "a", "es", "a", "es", "a", "a", "es"]
 	},
 	"American": {
-		"male_seeds": ["Tyler", "Ryan", "Chase", "Austin", "Cole", "Hunter", "Logan", "Blake", "Cody", "Tanner", "Zach", "Kyle", "Brett", "Derek", "Shane"],
-		"female_seeds": ["Emma", "Olivia", "Ava", "Isabella", "Sophia", "Mia", "Charlotte", "Amelia", "Harper", "Evelyn", "Abigail", "Emily", "Elizabeth", "Sofia", "Madison"],
-		"surname_seeds": ["Andretti", "Allmendinger", "Newgarden", "Dixon", "Power", "Johnson", "Smith", "Williams", "Brown", "Jones", "Miller", "Davis", "Wilson", "Moore", "Taylor"],
+		"male_seeds": ["James", "John", "Robert", "Michael", "William", "David", "Richard", "Joseph", "Thomas", "Charles", "Daniel", "Matthew", "Anthony", "Mark", "Steven", "Paul", "Andrew", "Joshua", "Ryan", "Tyler", "Brandon", "Justin", "Kevin", "Eric", "Jason", "Jeffrey", "Scott", "Gary", "Adam", "Benjamin"],
+		"female_seeds": ["Mary", "Patricia", "Jennifer", "Linda", "Barbara", "Elizabeth", "Susan", "Jessica", "Sarah", "Karen", "Lisa", "Nancy", "Betty", "Margaret", "Sandra", "Ashley", "Dorothy", "Kimberly", "Emily", "Donna", "Michelle", "Carol", "Amanda", "Melissa", "Deborah", "Stephanie", "Rebecca", "Sharon", "Laura", "Cynthia"],
+		"surname_seeds": ["Smith", "Johnson", "Williams", "Jones", "Brown", "Davis", "Miller", "Wilson", "Moore", "Taylor", "Anderson", "Thomas", "Jackson", "White", "Harris", "Martin", "Thompson", "Garcia", "Martinez", "Robinson", "Clark", "Rodriguez", "Lewis", "Lee", "Walker", "Hall", "Allen", "Young", "King", "Wright"],
 		"male_syl": ["Tyl", "Rya", "Cha", "Aus", "Col", "Hun", "Log", "Bla", "Cod", "Tan", "Zac", "Kyl", "Bre", "Der", "Sha"],
 		"female_syl": ["Emm", "Oli", "Ava", "Isa", "Sop", "Mia", "Cha", "Ame", "Har", "Eve", "Abi", "Emi", "Eli", "Sof", "Mad"],
 		"sur_roots": ["And", "Allm", "Newg", "Dix", "Pow", "John", "Smit", "Will", "Brow", "Jon", "Mill", "Dav", "Wils", "Moor", "Tayl"],
@@ -344,7 +344,7 @@ var data: Dictionary = {
 		"male_syl": ["Moh", "Abd", "Fai", "Kha", "Sul", "Tur", "Ban", "Sau", "Maj", "Tar", "Wal", "Nas", "Man", "Fah", "Ibr"],
 		"female_syl": ["Fat", "Sar", "Nor", "Hes", "Ree", "Luj", "Mah", "Ree", "Arw", "Lin", "Sha", "Din", "Ala", "Ran", "Gha"],
 		"sur_roots": ["Al Sa", "Al Rash", "Al Qaht", "Al Gham", "Al Zahr", "Al Sheh", "Al Ota", "Al Har", "Al Dos", "Al Mal", "Al Shah", "Al Yam", "Al Bis", "Al Ahm", "Al Mut"],
-		"sur_end": ["ud", "id", "ani", "di", "ani", "ri", "bi", "bi", "ari", "iki"]
+		"sur_end": ["ud", "id", "ani", "di", "ani", "ri", "ibi", "bi", "ari", "iki"]
 	},
 	"Lebanese": {
 		"male_seeds": ["Georges", "Pierre", "Michel", "Antoine", "Elie", "Tony", "Charbel", "Rami", "Karim", "Samer", "Tarek", "Ziad", "Wissam", "Rabih", "Fady"],
@@ -365,11 +365,11 @@ var data: Dictionary = {
 		"sur_end": ["ali", "rissi", "dou", "ani", "ibi", "da", "ami", "i", "i", "ada"]
 	},
 	"South African": {
-		"male_seeds": ["Jody", "Deon", "Nico", "Darryl", "Warren", "Kyle", "Kelvin", "Shaun", "Trevor", "Brett", "Liam", "Andre", "Pieter", "Hendrik", "Christoff"],
-		"female_seeds": ["Emma", "Sophia", "Olivia", "Mia", "Ava", "Isabella", "Charlotte", "Amelia", "Lerato", "Thandi", "Nomsa", "Zanele", "Palesa", "Harper", "Evelyn"],
+		"male_seeds": ["Liam", "Noah", "Oliver", "Jack", "James", "William", "Mason", "Ethan", "Lucas", "Logan", "Oscar", "Finn", "Archie", "Charlie", "Hunter"],
+		"female_seeds": ["Olivia", "Charlotte", "Isla", "Ava", "Mia", "Amelia", "Grace", "Sophie", "Ruby", "Harper", "Zoe", "Ella", "Lily", "Chloe", "Emma"],
 		"surname_seeds": ["Van der Merwe", "Botha", "Pretorius", "Steenkamp", "Du Plessis", "Van Zyl", "Cronje", "Nel", "Engelbrecht", "De Villiers", "Fourie", "Venter", "Smit", "Coetzee", "Potgieter"],
-		"male_syl": ["Jod", "Deo", "Nic", "Dar", "War", "Kyl", "Kel", "Sha", "Tre", "Bre", "Lia", "And", "Pie", "Hen", "Chr"],
-		"female_syl": ["Emm", "Sop", "Oli", "Mia", "Ava", "Isa", "Cha", "Ame", "Ler", "Tha", "Nom", "Zan", "Pal", "Har", "Eve"],
+		"male_syl": ["Lia", "Noa", "Oli", "Jac", "Jam", "Wil", "Mas", "Eth", "Luc", "Log", "Osc", "Fin", "Arc", "Cha", "Hun"],
+		"female_syl": ["Oli", "Cha", "Isl", "Ava", "Mia", "Ame", "Gra", "Sop", "Rub", "Har", "Zoe", "Ell", "Lil", "Chl", "Emm"],
 		"sur_roots": ["Both", "Pretor", "Steenk", "Du Pless", "Van Z", "Cron", "Nel", "Engelb", "De Vill", "Four", "Vent", "Smit", "Coetz", "Potg", "Viss"],
 		"sur_end": ["a", "ius", "amp", "is", "yl", "je", "", "recht", "iers", "er"]
 	},
@@ -397,7 +397,7 @@ var data: Dictionary = {
 		"surname_seeds": ["Al Sabah", "Al Rashidi", "Al Mutairi", "Al Ajmi", "Al Shimmari", "Al Enezi", "Al Otaibi", "Al Dosari", "Al Azmi", "Al Kandari", "Al Sayed", "Al Hamad", "Al Farsi", "Al Mansouri", "Al Bloushi"],
 		"male_syl": ["Moh", "Abd", "Ham", "Jab", "Kha", "Naw", "Ahm", "Nas", "Fah", "Fai", "Mis", "Bad", "Tal", "Sau", "Tur"],
 		"female_syl": ["Fat", "Sar", "Nou", "Hes", "Ree", "Dan", "Lul", "She", "Mah", "Nou", "Asm", "Sha", "Ala", "Gha", "Sun"],
-		"sur_roots": ["Al Sa", "Al Rash", "Al Mut", "Al Ajm", "Al Shimm", "Al En", "Al Ota", "Al Dos", "Al Azm", "Al Kand", "Al Say", "Al Ham", "Al Far", "Al Mans", "Al Blo"],
+		"sur_roots": ["Al Sa", "Al Rash", "Al Mut", "Al Ajm", "Al Shimm", "Al En", "Al Ota", "Al Har", "Al Dos", "Al Azm", "Al Kand", "Al Say", "Al Ham", "Al Far", "Al Blo"],
 		"sur_end": ["bah", "idi", "airi", "i", "ari", "ezi", "ibi", "ari", "i", "ushi"]
 	},
 	"Japanese": {
@@ -410,11 +410,11 @@ var data: Dictionary = {
 		"sur_end": ["oda", "i", "ima", "ashi", "o", "a", "e", "o", "o", "o"]
 	},
 	"Chinese": {
-		"male_seeds": ["Wei", "Lei", "Ming", "Jian", "Hao", "Yang", "Peng", "Fei", "Chen", "Long", "Xiao", "Jun", "Tao", "Bin", "Cheng"],
-		"female_seeds": ["Li", "Na", "Fang", "Ying", "Yan", "Xin", "Hui", "Jing", "Ling", "Mei", "Xue", "Rong", "Qian", "Zhen", "Lan"],
+		"male_seeds": ["Wei", "Lei", "Ming", "Hao", "Jian", "Yang", "Peng", "Fei", "Jun", "Long", "Chen", "Tao", "Bin", "Cheng", "Xiao"],
+		"female_seeds": ["Li", "Na", "Fang", "Ying", "Yan", "Xin", "Hui", "Jing", "Ling", "Mei", "Xue", "Qian", "Rong", "Zhen", "Lan"],
 		"surname_seeds": ["Wang", "Li", "Zhang", "Liu", "Chen", "Yang", "Huang", "Zhao", "Wu", "Zhou", "Xu", "Sun", "Ma", "Hu", "Zhu"],
-		"male_syl": ["Wei", "Lei", "Min", "Jia", "Hao", "Yan", "Pen", "Fei", "Che", "Lon", "Xia", "Jun", "Tao", "Bin", "Che"],
-		"female_syl": ["Li", "Na", "Fan", "Yin", "Yan", "Xin", "Hui", "Jin", "Lin", "Mei", "Xue", "Ron", "Qia", "Zhe", "Lan"],
+		"male_syl": ["Wei", "Lei", "Min", "Hao", "Jia", "Yan", "Pen", "Fei", "Jun", "Lon", "Che", "Tao", "Bin", "Che", "Xia"],
+		"female_syl": ["Li", "Na", "Fan", "Yin", "Yan", "Xin", "Hui", "Jin", "Lin", "Mei", "Xue", "Qia", "Ron", "Zhe", "Lan"],
 		"sur_roots": ["Wang", "Li", "Zhan", "Liu", "Che", "Yan", "Huan", "Zhao", "Wu", "Zhou", "Xu", "Sun", "Ma", "Hu", "Zhu"],
 		"sur_end": ["g", "i", "g", "u", "n", "g", "g", "u", "u", "u"]
 	},
@@ -437,13 +437,13 @@ var data: Dictionary = {
 		"sur_end": ["h", "es", "ams", "n", "on", "or", "son", "e", "in", "ell"]
 	},
 	"Indian": {
-		"male_seeds": ["Arjun", "Rishi", "Kush", "Virat", "Rohan", "Aditya", "Rahul", "Vikram", "Sanjay", "Rajesh", "Prateek", "Nikhil", "Ankit", "Suresh", "Dhruv"],
-		"female_seeds": ["Priya", "Ananya", "Divya", "Pooja", "Neha", "Aisha", "Kavya", "Sneha", "Riya", "Simran", "Nisha", "Shruti", "Pallavi", "Meera", "Tara"],
-		"surname_seeds": ["Sharma", "Patel", "Singh", "Kumar", "Mehta", "Gupta", "Joshi", "Malhotra", "Kapoor", "Verma", "Bose", "Chatterjee", "Iyer", "Nair", "Reddy"],
-		"male_syl": ["Arj", "Ris", "Kus", "Vir", "Roh", "Adi", "Rah", "Vik", "San", "Raj", "Pra", "Nik", "Ank", "Sur", "Dhr"],
-		"female_syl": ["Pri", "Ana", "Div", "Poo", "Neh", "Ais", "Kav", "Sne", "Riy", "Sim", "Nis", "Shr", "Pal", "Mee", "Tar"],
-		"sur_roots": ["Sharm", "Pat", "Sin", "Kum", "Meht", "Gupt", "Josh", "Malhotr", "Kapoo", "Verm", "Bos", "Chatt", "Iy", "Nai", "Redd"],
-		"sur_end": ["a", "el", "gh", "ar", "a", "a", "i", "a", "r", "y"]
+		"male_seeds": ["Arjun", "Rohan", "Aditya", "Vikram", "Rahul", "Karan", "Aryan", "Dev", "Ishaan", "Kabir", "Reyansh", "Vihaan", "Aarav", "Krishna", "Siddharth"],
+		"female_seeds": ["Aanya", "Diya", "Anika", "Saanvi", "Myra", "Aadhya", "Kiara", "Ananya", "Pari", "Riya", "Ira", "Zara", "Meher", "Siya", "Avni"],
+		"surname_seeds": ["Sharma", "Verma", "Gupta", "Malhotra", "Kapoor", "Mehta", "Joshi", "Patel", "Singh", "Chopra", "Bhatia", "Kaur", "Reddy", "Iyer", "Nair"],
+		"male_syl": ["Arj", "Roh", "Adi", "Vik", "Rah", "Kar", "Ary", "Dev", "Ish", "Kab", "Rey", "Vih", "Aar", "Kri", "Sid"],
+		"female_syl": ["Aan", "Diy", "Ani", "Saa", "Myr", "Aad", "Kia", "Par", "Riy", "Ira", "Zar", "Meh", "Siy", "Avn"],
+		"sur_roots": ["Sharm", "Verm", "Gupt", "Malhot", "Kapoo", "Meht", "Josh", "Pat", "Sin", "Chopr", "Bhat", "Kau", "Redd", "Iy", "Nai"],
+		"sur_end": ["a", "a", "a", "ra", "r", "a", "i", "el", "gh", "a", "ia", "r", "y", "er"]
 	},
 	"Thai": {
 		"male_seeds": ["Nattawut", "Thanatip", "Voravut", "Peerapat", "Kantapon", "Chanapol", "Saravut", "Jirawat", "Kittipat", "Thitipong", "Atthaphon", "Supachai", "Wanchai", "Pakorn", "Ronnachai"],
@@ -475,11 +475,11 @@ var data: Dictionary = {
 	"New Zealander": {
 		"male_seeds": ["Liam", "Noah", "Oliver", "Jack", "James", "William", "Mason", "Ethan", "Lucas", "Logan", "Oscar", "Finn", "Archie", "Charlie", "Hunter"],
 		"female_seeds": ["Olivia", "Charlotte", "Isla", "Ava", "Mia", "Amelia", "Grace", "Sophie", "Ruby", "Harper", "Zoe", "Ella", "Lily", "Chloe", "Emma"],
-		"surname_seeds": ["Smith", "Jones", "Williams", "Brown", "Taylor", "Wilson", "Johnson", "White", "Martin", "Thompson", "Anderson", "Robinson", "Clark", "Mitchell", "Walker"],
+		"surname_seeds": ["Smith", "Jones", "Williams", "Brown", "Taylor", "Wilson", "Johnson", "White", "Martin", "Anderson", "Thompson", "Davis", "Robinson", "Clark", "Mitchell"],
 		"male_syl": ["Lia", "Noa", "Oli", "Jac", "Jam", "Wil", "Mas", "Eth", "Luc", "Log", "Osc", "Fin", "Arc", "Cha", "Hun"],
 		"female_syl": ["Oli", "Cha", "Isl", "Ava", "Mia", "Ame", "Gra", "Sop", "Rub", "Har", "Zoe", "Ell", "Lil", "Chl", "Emm"],
-		"sur_roots": ["Smit", "Jon", "Willi", "Brow", "Tayl", "Wils", "John", "Whit", "Mart", "Thomp", "Anders", "Robin", "Clar", "Mitch", "Walk"],
-		"sur_end": ["h", "es", "ams", "n", "or", "on", "son", "e", "in", "er"]
+		"sur_roots": ["Smit", "Jon", "Willi", "Brow", "Tayl", "Wils", "John", "Whit", "Mart", "Anders", "Thomp", "Dav", "Robin", "Clar", "Mitch"],
+		"sur_end": ["h", "es", "ams", "n", "or", "on", "son", "e", "in", "ell"]
 	},
 	"Catalan": {
 		"male_seeds": ["Marc", "Pol", "Arnau", "Oriol", "Pau", "Biel", "Guillem", "Jordi", "Lluc", "Miquel", "Nil", "Roger", "Sergi", "Toni", "Xavi"],
@@ -525,6 +525,24 @@ var data: Dictionary = {
 		"female_syl": ["Sia", "Rhi", "Meg", "Bet", "Cer", "Nia", "Ang", "Cat", "Ele", "Ffi", "Gwe", "Haf", "Low", "Man", "Non"],
 		"sur_roots": ["Jon", "Willi", "Dav", "Evan", "Thom", "Rob", "Hugh", "Lew", "Morg", "Griff", "Edw", "Owen", "Pric", "Phill", "Rees"],
 		"sur_end": ["es", "ams", "ies", "s", "as", "erts", "es", "is", "an", "iths"]
+	},
+	"Monegasque": {
+		"male_seeds": ["Charles", "Louis", "Antoine", "Pierre", "Henri", "Etienne", "Remy", "Maxime", "Jules", "Theo", "Baptiste", "Clement", "Florian", "Gaetan", "Laurent"],
+		"female_seeds": ["Charlotte", "Marie", "Sophie", "Camille", "Isabelle", "Elise", "Amelie", "Lucie", "Chloe", "Emma", "Lea", "Clara", "Julie", "Manon", "Alice"],
+		"surname_seeds": ["Grimaldi", "Leclerc", "Noghes", "Boulanger", "Castanier", "Medecin", "Rainier", "Gianni", "Giraudo", "Robino", "Taupenot", "Chiappori", "Beaumont"],
+		"male_syl": ["Cha", "Lou", "Ant", "Pie", "Hen", "Eti", "Rem", "Max", "Jul", "The", "Bap", "Cle", "Flo", "Gae", "Lau"],
+		"female_syl": ["Cha", "Mar", "Sop", "Cam", "Isa", "Eli", "Ame", "Luc", "Chl", "Emm", "Lea", "Cla", "Jul", "Man", "Ali"],
+		"sur_roots": ["Grim", "Lec", "Nog", "Boul", "Cast", "Med", "Rain", "Gian", "Gir", "Rob", "Tau", "Chia", "Beau"],
+		"sur_end": ["aldi", "lerc", "anger", "anier", "ecin", "ier", "ni", "udo", "no", "penot", "ppori", "mont"]
+	},
+	"Kenyan": {
+		"male_seeds": ["Brian", "David", "James", "John", "Peter", "Samuel", "Daniel", "Joseph", "Michael", "Kevin", "Eric", "Paul", "Victor", "Dennis", "Patrick"],
+		"female_seeds": ["Aisha", "Grace", "Faith", "Mary", "Sarah", "Diana", "Christine", "Mercy", "Joyce", "Catherine", "Esther", "Gladys", "Beatrice", "Agnes", "Pauline"],
+		"surname_seeds": ["Kamau", "Njoroge", "Mwangi", "Ochieng", "Otieno", "Kiplagat", "Korir", "Mutai", "Kipsang", "Cheruiyot", "Kimani", "Waweru", "Ngugi", "Kariuki", "Nyambura"],
+		"male_syl": ["Bri", "Dav", "Jam", "Joh", "Pet", "Sam", "Dan", "Jos", "Mic", "Kev", "Eri", "Pau", "Vic", "Den", "Pat"],
+		"female_syl": ["Ais", "Gra", "Fai", "Mar", "Sar", "Dia", "Chr", "Mer", "Joy", "Cat", "Est", "Gla", "Bea", "Agn", "Pau"],
+		"sur_roots": ["Kam", "Njor", "Mwan", "Ochi", "Otie", "Kipla", "Kor", "Mut", "Kipsa", "Cheru", "Kim", "Waw", "Ngu", "Kari", "Nyam"],
+		"sur_end": ["au", "oge", "gi", "eng", "no", "gat", "ir", "ai", "ng", "iyot", "ani", "eru", "uki", "bura"]
 	}
 }
 

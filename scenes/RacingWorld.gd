@@ -30,7 +30,7 @@ const ALL_DISCS = ["GK", "GP", "Rally", "TC", "OWC", "SC", "EPC"]
 
 ## Championship IDs per discipline — most prestigious FIRST (top of screen)
 const DISC_CHAMPS = {
-	"GK":    ["C-004","C-003","C-002","C-001"],   ## World → Continental → National → Regional
+	"GK":    ["C-001"],   ## Single GK Championship
 	"GP":    ["C-024","C-023","C-022","C-021"],   ## GP1 → GP2 → GP3 → GP4
 	"Rally": ["C-008","C-007","C-006","C-005"],   ## Premier → Rally2 → Rally3 → Rally4
 	"TC":    ["C-010","C-009"],                   ## TC Elite → TC Sport
@@ -321,7 +321,7 @@ func _build_gk_active_card(cid: String, champ: Championship,
 
 		## Other groups — shadow standings, filtered to exclude Group 1 driver IDs
 		var group1_ids: Array = champ.standings.keys()
-		var all_standings = gkd.get_standings(cid)
+		var all_standings = gkd.get_all_standings(cid)
 		if all_standings.size() > 1:
 			vb.add_child(_section_label("OTHER GROUPS"))
 			var grid = GridContainer.new()

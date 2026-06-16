@@ -54,16 +54,27 @@ func _build_ui() -> void:
 
 	left.add_child(_section_lbl("🏆  CHAMPIONSHIPS THIS SEASON"))
 
-	if GameState.active_championships.is_empty():
+	## Only show championships where the player has a car
+	var player_champ_ids: Array = []
+	for car in GameState.player_team_cars:
+		if not car.championship_id in player_champ_ids:
+			player_champ_ids.append(car.championship_id)
+
+	var player_champs: Array = []
+	for champ in GameState.active_championships:
+		if champ.id in player_champ_ids:
+			player_champs.append(champ)
+
+	if player_champs.is_empty():
 		var lbl_none = Label.new()
-		lbl_none.text = "No championships active. Register first."
+		lbl_none.text = "No championships registered. Use Championship Registration."
 		lbl_none.modulate = Color(0.55, 0.55, 0.55)
 		left.add_child(lbl_none)
 		var btn_reg = _action_btn("🏆 Championship Registration →", Color(0.15, 0.40, 0.65))
 		btn_reg.pressed.connect(func(): _go("res://scenes/ChampionshipSelect.tscn"))
 		left.add_child(btn_reg)
 	else:
-		for champ in GameState.active_championships:
+		for champ in player_champs:
 			left.add_child(_build_champ_card(champ))
 
 	var right = VBoxContainer.new()

@@ -1,5 +1,5 @@
 extends Control
-## Version: S16.5 — Budget = CHAMP_BASE_BUDGETS × DIFFICULTY_ECONOMY multiplier.
+## Version: S24.0 — Added Championships browser button on title screen. — Budget = CHAMP_BASE_BUDGETS × DIFFICULTY_ECONOMY multiplier.
 ##                    GKR 50K · Rally4 250K · SC Dev 1.5M · GP4 350K (at Realistic).
 ##                    Screen 4 no longer gates by budget. Screen 5 shows champ-specific budget.
 ## Screen 1: Title  →  2: CEO  →  3: Team  →  4: Championship  →  5: Difficulty  →  6: Summary
@@ -165,6 +165,11 @@ func _build_title() -> void:
 	btn_cont.pressed.connect(_on_continue_pressed)
 	center.add_child(btn_cont)
 
+	var btn_champs = _big_button("🏆  CHAMPIONSHIPS", Color(0.10, 0.18, 0.30))
+	btn_champs.pressed.connect(func():
+		get_tree().change_scene_to_file("res://scenes/Championships.tscn"))
+	center.add_child(btn_champs)
+
 	var btn_quit = Button.new()
 	btn_quit.text = "Quit to Desktop"
 	btn_quit.custom_minimum_size = Vector2(200, 36)
@@ -172,8 +177,9 @@ func _build_title() -> void:
 	btn_quit.pressed.connect(func(): get_tree().quit())
 	center.add_child(btn_quit)
 
+#Game Version Shown in the beginning of the Game
 	var lbl_ver = Label.new()
-	lbl_ver.text = "v0.18  ·  Godot 4.6.2"
+	lbl_ver.text = "v0.19  ·  Godot 4.6.2"
 	lbl_ver.add_theme_font_size_override("font_size", 11)
 	lbl_ver.modulate = Color(0.3, 0.3, 0.3)
 	lbl_ver.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

@@ -1,0 +1,762 @@
+extends Control
+## Version: S22.8 — #5 Assign popup shows all with current assignment status and reassign.
+##                    so the player can make an informed choice.
+## Version: S17.2 — Full redesign: championship tabs; car cards with 6 part slots;
+##                    provider (L0) and CNC parts unified; Change popup (any level from stock);
+##                    per-part condition bars; Remove returns part to stock/inventory.
+
+# ── Constants ─────────────────────────────────────────────────────────────────
+const PART_CODES  = ["AER","ENG","GRB","SUS","BRK","CHS"]
+const PART_NAMES  = {"AER":"Aerodynamics","ENG":"Engine","GRB":"Gearbox",
+	"SUS":"Suspension","BRK":"Brakes","CHS":"Chassis"}
+const PART_COLORS = {"AER":Color(0.25,0.65,1.0),"ENG":Color(1.0,0.4,0.2),
+	"GRB":Color(0.65,0.3,0.9),"SUS":Color(0.25,0.85,0.5),
+	"BRK":Color(1.0,0.25,0.25),"CHS":Color(0.85,0.55,0.1)}
+const PART_SPEC_MAP = {
+	"C-001":[true,true,true,false,false,true],"C-002":[true,true,true,false,true,false],
+	"C-003":[true,false,true,false,false,false],"C-004":[true,false,false,false,false,false],
+	"C-005":[true,true,true,false,false,true],"C-006":[false,true,true,false,false,false],
+	"C-007":[false,false,false,false,false,false],"C-008":[false,false,false,false,false,false],
+	"C-009":[true,true,true,true,true,true],"C-010":[true,true,true,true,true,true],
+	"C-011":[true,true,true,true,true,true],"C-012":[true,true,true,true,true,true],
+	"C-013":[true,false,true,false,true,true],"C-014":[true,false,true,false,false,true],
+	"C-015":[true,false,false,false,false,true],"C-016":[true,false,false,false,false,true],
+	"C-017":[true,false,false,false,false,true],"C-018":[true,true,true,true,true,true],
+	"C-019":[true,true,true,false,false,true],"C-020":[false,false,false,false,false,false],
+	"C-021":[true,true,true,true,true,true],"C-022":[true,true,true,true,true,true],
+	"C-023":[true,true,true,true,true,true],"C-024":[false,false,false,false,false,false],
+}
+
+# ── State ─────────────────────────────────────────────────────────────────────
+var _selected_tab: String = ""   ## championship id of active tab
+var _popup: PanelContainer       ## reusable overlay (mechanic/driver/change-part)
+var _popup_title: Label
+var _popup_list: VBoxContainer
+var _assigning_car_id: String = ""
+var _assigning_pcode:  String = ""
+var _popup_mode: String = "mechanic"   ## "mechanic" | "driver" | "part"
+
+# ── Node refs ─────────────────────────────────────────────────────────────────
+var _lbl_level:  Label
+var _lbl_slots:  Label
+var _lbl_income: Label
+var _tab_bar:    HBoxContainer
+var _content:    VBoxContainer   ## swapped per tab
+var _tab_btns:   Dictionary = {} ## champ_id → Button
+
+# ── Lifecycle ─────────────────────────────────────────────────────────────────
+func _ready() -> void:
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	## Default tab = first active championship that has a car, else first champ
+	for car in GameState.player_team_cars:
+		if _selected_tab == "": _selected_tab = car.championship_id
+	if _selected_tab == "" and GameState.active_championships.size() > 0:
+		_selected_tab = GameState.active_championships[0].id
+	_build_ui()
+
+func _build_ui() -> void:
+	var margin = MarginContainer.new()
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	for s in ["margin_left","margin_right"]: margin.add_theme_constant_override(s, 20)
+	for s in ["margin_top","margin_bottom"]: margin.add_theme_constant_override(s, 14)
+	add_child(margin)
+
+	var root = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 10)
+	margin.add_child(root)
+
+	# ── Header ────────────────────────────────────────────────────────────────
+	var hdr = HBoxContainer.new()
+	hdr.add_theme_constant_override("separation", 14)
+	root.add_child(hdr)
+
+	_lbl_level = Label.new()
+	_lbl_level.add_theme_font_size_override("font_size", 22)
+	_lbl_level.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hdr.add_child(_lbl_level)
+
+	_lbl_slots = Label.new()
+	_lbl_slots.add_theme_font_size_override("font_size", 13)
+	_lbl_slots.modulate = Color(0.7,0.7,0.7)
+	hdr.add_child(_lbl_slots)
+
+	_lbl_income = Label.new()
+	_lbl_income.add_theme_font_size_override("font_size", 13)
+	_lbl_income.modulate = Color(0.4,0.9,0.5)
+	hdr.add_child(_lbl_income)
+
+	var btn_back = Button.new()
+	btn_back.text = "← Back"
+	btn_back.custom_minimum_size = Vector2(90, 34)
+	btn_back.pressed.connect(_on_back)
+	hdr.add_child(btn_back)
+
+	root.add_child(HSeparator.new())
+
+	# ── Action bar ────────────────────────────────────────────────────────────
+	var abar = HBoxContainer.new()
+	abar.add_theme_constant_override("separation", 12)
+	root.add_child(abar)
+
+	var btn_buy = Button.new()
+	btn_buy.text = "🛒 Buy Car  →  Logistics"
+	btn_buy.custom_minimum_size = Vector2(200, 34)
+	btn_buy.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/buildings/Logistics.tscn"))
+	abar.add_child(btn_buy)
+
+	var btn_mech = Button.new()
+	btn_mech.text = "🔧 Hire Mechanic  →  Staff"
+	btn_mech.custom_minimum_size = Vector2(200, 34)
+	btn_mech.pressed.connect(func():
+		GameState.pending_staff_filter = "Race Mechanic"
+		get_tree().change_scene_to_file("res://scenes/Staff.tscn"))
+	abar.add_child(btn_mech)
+
+	var lbl_hint = Label.new()
+	lbl_hint.text = "Buy a full car at Logistics (L0 provider parts) or build one at CNC."
+	lbl_hint.add_theme_font_size_override("font_size", 11)
+	lbl_hint.modulate = Color(0.5,0.5,0.5)
+	lbl_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	abar.add_child(lbl_hint)
+
+	root.add_child(HSeparator.new())
+
+	# ── Championship tabs ─────────────────────────────────────────────────────
+	_tab_bar = HBoxContainer.new()
+	_tab_bar.add_theme_constant_override("separation", 4)
+	root.add_child(_tab_bar)
+
+	# ── Content area ──────────────────────────────────────────────────────────
+	var scroll = ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(scroll)
+
+	_content = VBoxContainer.new()
+	_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_content.add_theme_constant_override("separation", 14)
+	scroll.add_child(_content)
+
+	# ── Popup overlay ─────────────────────────────────────────────────────────
+	_popup = PanelContainer.new()
+	_popup.set_anchors_preset(Control.PRESET_CENTER)
+	_popup.custom_minimum_size = Vector2(440, 0)
+	_popup.visible = false
+	var ps = StyleBoxFlat.new()
+	ps.bg_color = Color(0.10,0.10,0.14,0.98)
+	for side in ["left","right","top","bottom"]: ps.set("border_width_%s" % side, 2)
+	ps.border_color = Color(0.35,0.65,1.0)
+	for corner in ["top_left","top_right","bottom_left","bottom_right"]: ps.set("corner_radius_%s" % corner, 6)
+	for side in ["left","right","top","bottom"]: ps.set("content_margin_%s" % side, 16)
+	_popup.add_theme_stylebox_override("panel", ps)
+	add_child(_popup)
+
+	var pvbox = VBoxContainer.new()
+	pvbox.add_theme_constant_override("separation", 10)
+	_popup.add_child(pvbox)
+
+	var phdr = HBoxContainer.new()
+	pvbox.add_child(phdr)
+	_popup_title = Label.new()
+	_popup_title.add_theme_font_size_override("font_size", 16)
+	_popup_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	phdr.add_child(_popup_title)
+	var pbtn_close = Button.new()
+	pbtn_close.text = "✕"
+	pbtn_close.custom_minimum_size = Vector2(30,30)
+	pbtn_close.pressed.connect(func(): _popup.visible = false)
+	phdr.add_child(pbtn_close)
+	pvbox.add_child(HSeparator.new())
+
+	var pscroll = ScrollContainer.new()
+	pscroll.custom_minimum_size = Vector2(0,180)
+	pvbox.add_child(pscroll)
+	_popup_list = VBoxContainer.new()
+	_popup_list.add_theme_constant_override("separation", 6)
+	_popup_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pscroll.add_child(_popup_list)
+
+	_refresh_header()
+	_build_tabs()
+	_show_tab(_selected_tab)
+
+# ── Header refresh ────────────────────────────────────────────────────────────
+func _refresh_header() -> void:
+	var bld = GameState.campus_buildings.get("Garage", {})
+	_lbl_level.text  = "🔧 GARAGE  ·  Level %d" % bld.get("level", 1)
+	_lbl_slots.text  = "Cars: %d / %d" % [GameState.player_team_cars.size(), GameState.get_max_cars()]
+	var inc = bld.get("weekly_income", 0)
+	_lbl_income.text = "CR %s / wk" % _fmt(inc) if inc > 0 else ""
+
+# ── Tab bar ───────────────────────────────────────────────────────────────────
+func _build_tabs() -> void:
+	for c in _tab_bar.get_children(): c.queue_free()
+	_tab_btns.clear()
+
+	var champs = GameState.active_championships
+	if champs.is_empty():
+		var lbl = Label.new()
+		lbl.text = "No active championships."
+		lbl.modulate = Color(0.5,0.5,0.5)
+		_tab_bar.add_child(lbl)
+		return
+
+	for champ in champs:
+		var btn = Button.new()
+		btn.text = champ.championship_name
+		btn.custom_minimum_size = Vector2(0,32)
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.add_theme_font_size_override("font_size", 12)
+		if champ.id == _selected_tab:
+			btn.modulate = Color(0.4,0.85,1.0)
+		var cid = champ.id
+		btn.pressed.connect(func(): _show_tab(cid))
+		_tab_bar.add_child(btn)
+		_tab_btns[champ.id] = btn
+
+func _show_tab(champ_id: String) -> void:
+	_selected_tab = champ_id
+	## Update tab button colours
+	for cid in _tab_btns:
+		_tab_btns[cid].modulate = Color(0.4,0.85,1.0) if cid == champ_id else Color(1,1,1)
+	## Rebuild content
+	for c in _content.get_children(): c.queue_free()
+
+	var cars = GameState.player_team_cars.filter(func(c): return c.championship_id == champ_id)
+
+	if cars.is_empty():
+		var lbl = Label.new()
+		lbl.text = "No cars for this championship.\nBuy a car at Logistics or manufacture one at the CNC Plant."
+		lbl.modulate = Color(0.5,0.5,0.5)
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.add_theme_font_size_override("font_size", 13)
+		_content.add_child(lbl)
+	else:
+		for car in cars:
+			_content.add_child(_build_car_card(car))
+
+# ── Car card ──────────────────────────────────────────────────────────────────
+func _build_car_card(car) -> PanelContainer:
+	var panel = _make_panel(Color(0.09,0.10,0.14), Color(0.3,0.55,0.9), 3)
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	panel.add_child(vbox)
+
+	# ── Car header row ────────────────────────────────────────────────────────
+	var hdr = HBoxContainer.new()
+	hdr.add_theme_constant_override("separation", 10)
+	vbox.add_child(hdr)
+
+	var lbl_name = Label.new()
+	lbl_name.text = "🏎 %s" % _car_name(car)
+	lbl_name.add_theme_font_size_override("font_size", 15)
+	lbl_name.add_theme_color_override("font_color", Color(0.7,0.9,1.0))
+	lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hdr.add_child(lbl_name)
+
+	## Overall condition bar
+	var cond_lbl = Label.new()
+	cond_lbl.text = "Condition: %.0f%%" % car.condition
+	cond_lbl.add_theme_font_size_override("font_size", 12)
+	var cc = Color(0.3,0.9,0.3) if car.condition > 60 else (Color(1.0,0.75,0.1) if car.condition > 30 else Color(1.0,0.3,0.3))
+	cond_lbl.add_theme_color_override("font_color", cc)
+	hdr.add_child(cond_lbl)
+
+	# ── Driver & Mechanic row ─────────────────────────────────────────────────
+	var staff_row = HBoxContainer.new()
+	staff_row.add_theme_constant_override("separation", 20)
+	vbox.add_child(staff_row)
+
+	## Driver
+	var drv_box = _make_staff_slot(car, "DRIVER")
+	staff_row.add_child(drv_box)
+
+	## Mechanic
+	var mech_box = _make_staff_slot(car, "MECHANIC")
+	staff_row.add_child(mech_box)
+
+	vbox.add_child(HSeparator.new())
+
+	# ── Parts grid (2 rows × 3 cols) ──────────────────────────────────────────
+	var parts_title = Label.new()
+	parts_title.text = "PARTS"
+	parts_title.add_theme_font_size_override("font_size", 11)
+	parts_title.modulate = Color(0.55,0.55,0.55)
+	vbox.add_child(parts_title)
+
+	var grid = GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 8)
+	vbox.add_child(grid)
+
+	var spec_arr = PART_SPEC_MAP.get(car.championship_id, [false,false,false,false,false,false])
+	var all_parts = GameState.get_all_parts_for_car(car.id)
+
+	for i in range(PART_CODES.size()):
+		var pcode = PART_CODES[i]
+		var is_spec = spec_arr[i]
+		var part_data = all_parts.get(pcode, {})
+		grid.add_child(_build_part_slot(car, pcode, is_spec, part_data))
+
+	return panel
+
+# ── Staff slot (driver / mechanic) ────────────────────────────────────────────
+func _make_staff_slot(car, role: String) -> VBoxContainer:
+	var box = VBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var lbl_role = Label.new()
+	lbl_role.text = role
+	lbl_role.add_theme_font_size_override("font_size", 10)
+	lbl_role.modulate = Color(0.5,0.5,0.5)
+	box.add_child(lbl_role)
+
+	var is_driver = role == "DRIVER"
+	var assigned_id = car.driver_id if is_driver else car.mechanic_id
+	var person = GameState.all_drivers.get(assigned_id) if is_driver else GameState.all_staff.get(assigned_id)
+
+	var lbl_name = Label.new()
+	lbl_name.add_theme_font_size_override("font_size", 13)
+	if person:
+		lbl_name.text = person.full_name()
+		lbl_name.add_theme_color_override("font_color", Color(0.9,0.9,0.9))
+	else:
+		lbl_name.text = "⚠ None assigned"
+		lbl_name.add_theme_color_override("font_color", Color(1.0,0.55,0.2))
+	box.add_child(lbl_name)
+
+	var btn_row = HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 6)
+	box.add_child(btn_row)
+
+	var btn_assign = Button.new()
+	btn_assign.text = "Change" if person else "Assign"
+	btn_assign.custom_minimum_size = Vector2(72, 26)
+	btn_assign.add_theme_font_size_override("font_size", 11)
+	var cap_car_id = car.id
+	var cap_role = role
+	btn_assign.pressed.connect(func(): _open_staff_popup(cap_car_id, cap_role))
+	btn_row.add_child(btn_assign)
+
+	if person:
+		var btn_un = Button.new()
+		btn_un.text = "Unassign"
+		btn_un.custom_minimum_size = Vector2(72, 26)
+		btn_un.add_theme_font_size_override("font_size", 11)
+		btn_un.modulate = Color(1.0,0.5,0.5)
+		btn_un.pressed.connect(func():
+			if cap_role == "DRIVER": GameState.unassign_driver_from_car(cap_car_id)
+			else: GameState.unassign_mechanic_from_car(cap_car_id)
+			_show_tab(_selected_tab))
+		btn_row.add_child(btn_un)
+
+	return box
+
+# ── Part slot card ────────────────────────────────────────────────────────────
+func _build_part_slot(car, pcode: String, is_spec: bool, part_data: Dictionary) -> PanelContainer:
+	var col = PART_COLORS.get(pcode, Color(0.5,0.5,0.5))
+	var is_empty = part_data.is_empty()
+	var bg = Color(0.07,0.08,0.11) if not is_empty else Color(0.10,0.08,0.08)
+	var panel = _make_panel(bg, col if not is_empty else Color(0.4,0.2,0.2), 3)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 4)
+	panel.add_child(vbox)
+
+	# Part name + SPEC/OPEN badge
+	var row1 = HBoxContainer.new()
+	row1.add_theme_constant_override("separation", 6)
+	vbox.add_child(row1)
+
+	var lbl_name = Label.new()
+	lbl_name.text = PART_NAMES.get(pcode, pcode)
+	lbl_name.add_theme_font_size_override("font_size", 12)
+	lbl_name.add_theme_color_override("font_color", col)
+	lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row1.add_child(lbl_name)
+
+	var lbl_spec = Label.new()
+	lbl_spec.text = "SPEC" if is_spec else "OPEN"
+	lbl_spec.add_theme_font_size_override("font_size", 9)
+	lbl_spec.add_theme_color_override("font_color",
+		Color(1.0,0.6,0.2) if is_spec else Color(0.4,0.88,0.55))
+	row1.add_child(lbl_spec)
+
+	# Installed part info
+	if is_empty:
+		var lbl_empty = Label.new()
+		lbl_empty.text = "⚠ EMPTY SLOT"
+		lbl_empty.add_theme_font_size_override("font_size", 11)
+		lbl_empty.add_theme_color_override("font_color", Color(1.0,0.35,0.35))
+		vbox.add_child(lbl_empty)
+	else:
+		var ptype  = part_data.get("type", "provider")
+		var level  = part_data.get("level", 0)
+		var rel    = part_data.get("reliability", 60.0)
+		var qual   = part_data.get("quality", 1.0)
+		var cond   = part_data.get("condition", 100.0)
+
+		## Level label
+		var lv_row = HBoxContainer.new()
+		lv_row.add_theme_constant_override("separation", 6)
+		vbox.add_child(lv_row)
+		var lbl_lv = Label.new()
+		lbl_lv.text = "L%d" % level
+		lbl_lv.add_theme_font_size_override("font_size", 13)
+		var lv_colors = {0:Color(0.55,0.55,0.55),1:Color(0.4,0.88,0.55),
+			2:Color(0.55,0.75,1.0),3:Color(1.0,0.75,0.3),
+			4:Color(1.0,0.45,0.45),5:Color(0.85,0.4,1.0)}
+		lbl_lv.add_theme_color_override("font_color", lv_colors.get(level, Color(0.7,0.7,0.7)))
+		lv_row.add_child(lbl_lv)
+		if ptype == "provider":
+			var lbl_prov = Label.new()
+			lbl_prov.text = "Provider"
+			lbl_prov.add_theme_font_size_override("font_size", 10)
+			lbl_prov.modulate = Color(0.6,0.6,0.6)
+			lv_row.add_child(lbl_prov)
+		else:
+			var lbl_cnc = Label.new()
+			lbl_cnc.text = "CNC"
+			lbl_cnc.add_theme_font_size_override("font_size", 10)
+			lbl_cnc.add_theme_color_override("font_color", Color(0.4,0.9,0.4))
+			lv_row.add_child(lbl_cnc)
+
+		## Stats row
+		var stats = Label.new()
+		stats.text = "Rel: %.0f%%  Qual: %.2f×" % [rel, qual]
+		stats.add_theme_font_size_override("font_size", 10)
+		stats.modulate = Color(0.65,0.65,0.65)
+		vbox.add_child(stats)
+
+		## Condition bar
+		var cond_row = HBoxContainer.new()
+		cond_row.add_theme_constant_override("separation", 4)
+		vbox.add_child(cond_row)
+		var cond_lbl = Label.new()
+		cond_lbl.text = "%.0f%%" % cond
+		cond_lbl.add_theme_font_size_override("font_size", 10)
+		var cc = Color(0.3,0.9,0.3) if cond > 60 else (Color(1.0,0.75,0.1) if cond > 30 else Color(1.0,0.3,0.3))
+		cond_lbl.add_theme_color_override("font_color", cc)
+		cond_row.add_child(cond_lbl)
+		var bar = ProgressBar.new()
+		bar.min_value = 0; bar.max_value = 100; bar.value = cond
+		bar.show_percentage = false
+		bar.custom_minimum_size = Vector2(0, 8)
+		bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		cond_row.add_child(bar)
+
+	# Buttons row
+	var btn_row = HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 4)
+	vbox.add_child(btn_row)
+
+	var cap_car_id = car.id
+	var cap_pcode  = pcode
+	var cap_cid    = car.championship_id
+
+	if not is_empty:
+		## Change button — opens part picker popup
+		var btn_change = Button.new()
+		btn_change.text = "Change"
+		btn_change.custom_minimum_size = Vector2(62, 24)
+		btn_change.add_theme_font_size_override("font_size", 10)
+		btn_change.pressed.connect(func(): _open_part_popup(cap_car_id, cap_pcode, cap_cid))
+		btn_row.add_child(btn_change)
+		## Remove button
+		var btn_remove = Button.new()
+		btn_remove.text = "Remove"
+		btn_remove.custom_minimum_size = Vector2(62, 24)
+		btn_remove.add_theme_font_size_override("font_size", 10)
+		btn_remove.modulate = Color(1.0,0.5,0.5)
+		var ptype2 = part_data.get("type","provider")
+		btn_remove.pressed.connect(func():
+			if ptype2 == "cnc": GameState.remove_part_from_car(cap_car_id, cap_pcode)
+			else: GameState.remove_provider_part(cap_car_id, cap_pcode)
+			_show_tab(_selected_tab))
+		btn_row.add_child(btn_remove)
+	else:
+		## Install button — opens part picker popup
+		var btn_install = Button.new()
+		btn_install.text = "Install →"
+		btn_install.custom_minimum_size = Vector2(72, 24)
+		btn_install.add_theme_font_size_override("font_size", 10)
+		btn_install.pressed.connect(func(): _open_part_popup(cap_car_id, cap_pcode, cap_cid))
+		btn_row.add_child(btn_install)
+
+	return panel
+
+# ── Part picker popup ─────────────────────────────────────────────────────────
+func _open_part_popup(car_id: String, pcode: String, champ_id: String) -> void:
+	_assigning_car_id = car_id
+	_assigning_pcode  = pcode
+	_popup_mode       = "part"
+	_popup_title.text = "Install %s" % PART_NAMES.get(pcode, pcode)
+
+	for c in _popup_list.get_children(): c.queue_free()
+
+	const PCODE_TO_NAME = {"AER":"Aero","ENG":"Engine","GRB":"Gearbox",
+		"SUS":"Suspension","BRK":"Brakes","CHS":"Chassis"}
+	var part_name = PCODE_TO_NAME.get(pcode, pcode)
+
+	## ── CNC options ──────────────────────────────────────────────────────────
+	var cnc_keys = GameState.get_cnc_stock_for_slot(champ_id, pcode)
+	if not cnc_keys.is_empty():
+		var sec = Label.new()
+		sec.text = "CNC PARTS IN WAREHOUSE"
+		sec.add_theme_font_size_override("font_size", 11)
+		sec.add_theme_color_override("font_color", Color(0.4,0.9,0.4))
+		_popup_list.add_child(sec)
+		for inv_key in cnc_keys:
+			var item = GameState.cnc_parts_inventory.get(inv_key, {})
+			var bp_id = item.get("blueprint_id","")
+			var lvl = 0
+			var bp_name = item.get("part", part_name)
+			if bp_id != "" and bp_id in GameState.known_blueprints:
+				var bp = GameState.known_blueprints[bp_id]
+				lvl = bp.get("level", 0)
+				bp_name = bp.get("name", bp_name)
+			var qty = item.get("quantity", 0)
+			var row = HBoxContainer.new()
+			row.add_theme_constant_override("separation", 8)
+			_popup_list.add_child(row)
+			var lbl = Label.new()
+			lbl.text = "%s  L%d" % [bp_name, lvl]
+			lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			lbl.add_theme_font_size_override("font_size", 12)
+			row.add_child(lbl)
+			var lbl_qty = Label.new()
+			lbl_qty.text = "×%d" % qty
+			lbl_qty.add_theme_font_size_override("font_size", 11)
+			lbl_qty.modulate = Color(0.6,0.6,0.6)
+			row.add_child(lbl_qty)
+			var btn = Button.new()
+			btn.text = "Install"
+			btn.custom_minimum_size = Vector2(64, 26)
+			var cap_car = car_id; var cap_cid = champ_id; var cap_pc = pcode
+			btn.pressed.connect(func():
+				GameState.swap_part_on_car(cap_car, cap_cid, cap_pc)
+				_popup.visible = false
+				_show_tab(_selected_tab))
+			row.add_child(btn)
+
+	## ── Provider (L0) options ─────────────────────────────────────────────────
+	var prov_stock = GameState.get_part_stock(part_name, champ_id)
+	if prov_stock > 0:
+		_popup_list.add_child(HSeparator.new())
+		var sec2 = Label.new()
+		sec2.text = "PROVIDER PARTS (L0)"
+		sec2.add_theme_font_size_override("font_size", 11)
+		sec2.add_theme_color_override("font_color", Color(0.7,0.7,0.7))
+		_popup_list.add_child(sec2)
+		var row = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		_popup_list.add_child(row)
+		var lbl = Label.new()
+		lbl.text = "%s  L0  (Provider)" % part_name
+		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lbl.add_theme_font_size_override("font_size", 12)
+		row.add_child(lbl)
+		var lbl_qty = Label.new()
+		lbl_qty.text = "×%d" % prov_stock
+		lbl_qty.add_theme_font_size_override("font_size", 11)
+		lbl_qty.modulate = Color(0.6,0.6,0.6)
+		row.add_child(lbl_qty)
+		var btn = Button.new()
+		btn.text = "Install"
+		btn.custom_minimum_size = Vector2(64, 26)
+		var cap_car = car_id; var cap_cid = champ_id; var cap_pc = pcode
+		btn.pressed.connect(func():
+			GameState.install_provider_part(cap_car, cap_cid, cap_pc)
+			_popup.visible = false
+			_show_tab(_selected_tab))
+		row.add_child(btn)
+
+	if cnc_keys.is_empty() and prov_stock <= 0:
+		var lbl_none = Label.new()
+		lbl_none.text = "No parts available.\nBuy provider parts at Logistics or manufacture CNC parts."
+		lbl_none.modulate = Color(0.5,0.5,0.5)
+		lbl_none.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lbl_none.add_theme_font_size_override("font_size", 12)
+		_popup_list.add_child(lbl_none)
+		var btn_logi = Button.new()
+		btn_logi.text = "→ Logistics"
+		btn_logi.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/buildings/Logistics.tscn"))
+		_popup_list.add_child(btn_logi)
+
+	_popup.visible = true
+
+# ── Staff assignment popup ────────────────────────────────────────────────────
+func _open_staff_popup(car_id: String, role: String) -> void:
+	_assigning_car_id = car_id
+	_popup_mode = role.to_lower()
+	_popup_title.text = "Assign %s" % role.capitalize()
+	for c in _popup_list.get_children(): c.queue_free()
+
+	var is_driver = role == "DRIVER"
+	## Show ALL team members of this type, not just unassigned
+	var people = GameState.all_drivers.values() if is_driver else \
+		GameState.get_player_staff_by_role("Race Mechanic")
+	var eligible = people.filter(func(p):
+		return p.contract_team == GameState.player_team.id)
+
+	if eligible.is_empty():
+		var lbl = Label.new()
+		lbl.text = "No %s on your team." % ("drivers" if is_driver else "mechanics")
+		lbl.modulate = Color(0.5,0.5,0.5)
+		_popup_list.add_child(lbl)
+		return
+
+	## Sort: unassigned first, then assigned
+	eligible.sort_custom(func(a, b):
+		var a_assigned = _get_assignment_label(a, is_driver) != ""
+		var b_assigned = _get_assignment_label(b, is_driver) != ""
+		return int(a_assigned) < int(b_assigned))
+
+	for p in eligible:
+		var assignment_label = _get_assignment_label(p, is_driver)
+		var is_assigned_here = _is_assigned_to_car(p, car_id, is_driver)
+
+		var card = PanelContainer.new()
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var cstyle = StyleBoxFlat.new()
+		cstyle.bg_color = Color(0.12, 0.16, 0.12) if is_assigned_here else Color(0.11, 0.12, 0.15)
+		cstyle.border_width_left = 2
+		cstyle.border_color = Color(0.3, 0.8, 0.35) if is_assigned_here \
+			else (Color(0.5, 0.5, 0.5) if assignment_label != "" else Color(0.3, 0.55, 0.85))
+		for corner in ["top_left","top_right","bottom_left","bottom_right"]:
+			cstyle.set("corner_radius_%s" % corner, 4)
+		cstyle.content_margin_left = 8; cstyle.content_margin_right = 8
+		cstyle.content_margin_top = 6; cstyle.content_margin_bottom = 6
+		card.add_theme_stylebox_override("panel", cstyle)
+		_popup_list.add_child(card)
+
+		var cvb = VBoxContainer.new()
+		cvb.add_theme_constant_override("separation", 3)
+		card.add_child(cvb)
+
+		## Name row
+		var name_row = HBoxContainer.new()
+		name_row.add_theme_constant_override("separation", 8)
+		cvb.add_child(name_row)
+
+		var lbl_name = Label.new()
+		lbl_name.text = p.full_name()
+		lbl_name.add_theme_font_size_override("font_size", 13)
+		lbl_name.add_theme_color_override("font_color",
+			Color(0.4, 0.95, 0.5) if is_assigned_here else Color(0.9, 0.9, 1.0))
+		lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_row.add_child(lbl_name)
+
+		var lbl_age = Label.new()
+		lbl_age.text = "Age %d" % p.age
+		lbl_age.add_theme_font_size_override("font_size", 11)
+		lbl_age.modulate = Color(0.5, 0.5, 0.5)
+		name_row.add_child(lbl_age)
+
+		## Assignment status badge
+		if assignment_label != "":
+			var lbl_assign = Label.new()
+			lbl_assign.text = "← %s" % assignment_label
+			lbl_assign.add_theme_font_size_override("font_size", 10)
+			lbl_assign.add_theme_color_override("font_color",
+				Color(0.4, 0.9, 0.4) if is_assigned_here else Color(0.6, 0.6, 0.6))
+			name_row.add_child(lbl_assign)
+
+		## Assign/Reassign button
+		var btn = Button.new()
+		btn.custom_minimum_size = Vector2(70, 26)
+		var cap_car = car_id; var cap_pid = p.id; var cap_role = role
+		if is_assigned_here:
+			btn.text = "✅ Assigned"
+			btn.modulate = Color(0.4, 0.8, 0.45)
+			btn.disabled = true
+		else:
+			btn.text = "Reassign" if assignment_label != "" else "Assign"
+			btn.pressed.connect(func():
+				if cap_role == "DRIVER": GameState.assign_driver_to_car(cap_pid, cap_car)
+				else: GameState.assign_staff_to_car(cap_pid, cap_car)
+				_popup.visible = false
+				_show_tab(_selected_tab))
+		name_row.add_child(btn)
+
+		## Stats row
+		var stats_row = HBoxContainer.new()
+		stats_row.add_theme_constant_override("separation", 10)
+		cvb.add_child(stats_row)
+
+		if is_driver:
+			var ovr = int((p.pace + p.consistency + p.focus + p.race_craft + p.fitness) / 5.0)
+			for pair in [["Ovr", ovr], ["Pace", int(p.pace)],
+					["Cons", int(p.consistency)], ["Wet", int(p.wet)], ["Fit", int(p.fitness)]]:
+				_add_stat_chip(stats_row, pair[0], pair[1])
+		else:
+			var setup = int(p.car_setup_skill)  if "car_setup_skill" in p else 50
+			var pit   = int(p.pit_stop_skill)   if "pit_stop_skill"  in p else 50
+			var know  = int(p.car_knowledge)    if "car_knowledge"   in p else 50
+			for pair in [["Setup", setup], ["Pit", pit], ["Know", know]]:
+				_add_stat_chip(stats_row, pair[0], pair[1])
+
+	_popup.visible = true
+
+func _get_assignment_label(person, is_driver: bool) -> String:
+	for car in GameState.player_team_cars:
+		if is_driver:
+			if car.driver_id == person.id:
+				return car.car_name if car.car_name != "" else "Car %d" % car.car_number
+		else:
+			if car.mechanic_id == person.id:
+				return car.car_name if car.car_name != "" else "Car %d" % car.car_number
+	return ""
+
+func _is_assigned_to_car(person, car_id: String, is_driver: bool) -> bool:
+	var car = GameState.get_car_by_id(car_id)
+	if not car: return false
+	return (car.driver_id == person.id) if is_driver else (car.mechanic_id == person.id)
+
+func _add_stat_chip(parent: HBoxContainer, label: String, value: int) -> void:
+	var chip = HBoxContainer.new()
+	chip.add_theme_constant_override("separation", 2)
+	parent.add_child(chip)
+	var ll = Label.new()
+	ll.text = label
+	ll.add_theme_font_size_override("font_size", 10)
+	ll.modulate = Color(0.45, 0.45, 0.45)
+	chip.add_child(ll)
+	var lv = Label.new()
+	lv.text = str(value)
+	lv.add_theme_font_size_override("font_size", 11)
+	lv.add_theme_color_override("font_color",
+		Color(0.4, 0.9, 0.4) if value >= 70
+		else Color(1.0, 0.85, 0.3) if value >= 50
+		else Color(0.9, 0.4, 0.4))
+	chip.add_child(lv)
+
+# ── Navigation ────────────────────────────────────────────────────────────────
+func _on_back() -> void:
+	get_tree().change_scene_to_file("res://scenes/Campus.tscn")
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+func _car_name(car) -> String:
+	return car.car_name if car.car_name != "" else "Car %d" % car.car_number
+
+func _fmt(n: int) -> String:
+	if n >= 1000000: return "%.1fM" % (n / 1000000.0)
+	if n >= 1000:    return "%.0fK" % (n / 1000.0)
+	return str(n)
+
+func _make_panel(bg: Color, border: Color, bw: int = 2) -> PanelContainer:
+	var panel = PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var style = StyleBoxFlat.new()
+	style.bg_color = bg
+	style.border_width_left = bw; style.border_width_right = 1
+	style.border_width_top = 1;   style.border_width_bottom = 1
+	style.border_color = border
+	for corner in ["top_left","top_right","bottom_left","bottom_right"]:
+		style.set("corner_radius_%s" % corner, 5)
+	style.content_margin_left = 10; style.content_margin_right  = 10
+	style.content_margin_top  = 8;  style.content_margin_bottom = 8
+	panel.add_theme_stylebox_override("panel", style)
+	return panel

@@ -16,8 +16,7 @@ func get_random_nationality() -> String:
 	return nationalities[randi() % nationalities.size()]
 
 func get_first_name(nationality: String, sex: String) -> String:
-	if not has_nationality(nationality):
-		nationality = "British"
+	nationality = resolve_nationality(nationality)
 	var nat_data = NameData.data[nationality]
 	var seed_key = "male_seeds" if sex == "Male" else "female_seeds"
 	if seed_key in nat_data and not nat_data[seed_key].is_empty():
@@ -25,16 +24,14 @@ func get_first_name(nationality: String, sex: String) -> String:
 	return _generate_first_name(nat_data, sex)
 
 func get_surname(nationality: String) -> String:
-	if not has_nationality(nationality):
-		nationality = "British"
+	nationality = resolve_nationality(nationality)
 	var nat_data = NameData.data[nationality]
 	if "surname_seeds" in nat_data and not nat_data["surname_seeds"].is_empty():
 		return nat_data["surname_seeds"][randi() % nat_data["surname_seeds"].size()]
 	return _generate_surname(nat_data)
 
 func get_full_name(nationality: String, sex: String) -> Dictionary:
-	if not has_nationality(nationality):
-		nationality = "British"
+	nationality = resolve_nationality(nationality)
 	var result_first = ""
 	var result_last = ""
 	var result_full = ""
@@ -45,23 +42,27 @@ func get_full_name(nationality: String, sex: String) -> Dictionary:
 		if not result_full in _used_names:
 			_used_names[result_full] = true
 			return {"first": result_first, "last": result_last, "full": result_full}
-	# Procedural fallback
+	# Fallback: use middle initial to create unique name
 	var nat_data = NameData.data[nationality]
+	var initials = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	for initial in initials:
+		result_first = get_first_name(nationality, sex)
+		result_last  = get_surname(nationality)
+		result_full  = result_first + " " + initial + " " + result_last
+		if not result_full in _used_names:
+			_used_names[result_full] = true
+			return {"first": result_first, "last": initial + " " + result_last, "full": result_full}
+	# Last resort: procedural generation with middle initial
 	result_first = _generate_first_name(nat_data, sex)
-	result_last = _generate_surname(nat_data)
-	result_full = result_first + " " + result_last
-	var suffix = 2
-	var final_name = result_full
-	while final_name in _used_names:
-		final_name = result_full + " " + str(suffix)
-		suffix += 1
-	_used_names[final_name] = true
-	var name_parts = final_name.split(" ")
-	return {
-		"first": name_parts[0],
-		"last": final_name.substr(name_parts[0].length() + 1),
-		"full": final_name
-	}
+	result_last  = _generate_surname(nat_data)
+	for initial in initials:
+		result_full = result_first + " " + initial + " " + result_last
+		if not result_full in _used_names:
+			_used_names[result_full] = true
+			return {"first": result_first, "last": initial + " " + result_last, "full": result_full}
+	# Absolute last resort
+	_used_names[result_first + " " + result_last] = true
+	return {"first": result_first, "last": result_last, "full": result_first + " " + result_last}
 
 func _generate_first_name(nat_data: Dictionary, sex: String) -> String:
 	var syl_key = "male_syl" if sex == "Male" else "female_syl"
@@ -82,7 +83,56 @@ func _generate_surname(nat_data: Dictionary) -> String:
 func release_name(full_name: String) -> void:
 	_used_names.erase(full_name)
 
+## Maps ISO 3-letter country codes to NameData nationality keys.
+## Used when team data provides a country code (e.g. "GBR") instead of
+## a full nationality string (e.g. "British").
+const CODE_TO_NATIONALITY: Dictionary = {
+	# Europe
+	"GBR": "British",     "ITA": "Italian",     "GER": "German",
+	"FRA": "French",      "ESP": "Spanish",     "NLD": "Dutch",
+	"BEL": "Belgian",     "PRT": "Portuguese",  "GRC": "Greek",
+	"SWE": "Swedish",     "DNK": "Danish",      "FIN": "Finnish",
+	"NOR": "Norwegian",   "CHE": "Swiss",       "AUT": "Austrian",
+	"POL": "Polish",      "CZE": "Czech",       "HUN": "Hungarian",
+	"ROU": "Romanian",    "HRV": "Croatian",    "SRB": "Serbian",
+	"TUR": "Turkish",     "UKR": "Ukrainian",   "IRL": "Irish",
+	"SCO": "Scottish",    "WAL": "Welsh",       "LUX": "Luxembourgish",
+	"CAT": "Catalan",     "BAS": "Basque",      "MCO": "Monegasque",
+	"FLE": "Flemish",
+
+	# Americas
+	"USA": "American",    "CAN": "Canadian",    "MEX": "Mexican",
+	"BRA": "Brazilian",   "ARG": "Argentinian", "COL": "Colombian",
+	"CHL": "Chilean",     "VEN": "Venezuelan",  "URY": "Uruguayan",
+	"PER": "Peruvian",
+
+	# Asia & Middle East
+	"JPN": "Japanese",    "KOR": "South Korean", "CHN": "Chinese",
+	"IND": "Indian",      "THA": "Thai",         "MYS": "Malaysian",
+	"IDN": "Indonesian",  "UAE": "Emirati",      "KSA": "Saudi",
+	"QAT": "Qatari",      "KWT": "Kuwaiti",      "LBN": "Lebanese",
+	"MAR": "Moroccan",    "EGY": "Egyptian",
+
+	# Oceania & Africa
+	"AUS": "Australian",  "NZL": "New Zealander","ZAF": "South African",
+	"KEN": "Kenyan",
+
+	# Russia & others
+	"RUS": "Russian",
+}
+
+func resolve_nationality(nat: String) -> String:
+	## Accepts both full names ("British") and country codes ("GBR").
+	## Falls back to "British" if not found.
+	if has_nationality(nat):
+		return nat
+	var resolved = CODE_TO_NATIONALITY.get(nat, "")
+	if resolved != "" and has_nationality(resolved):
+		return resolved
+	return "British"
+
 func get_nationality_for_team(team_nationality: String) -> String:
+	var resolved = resolve_nationality(team_nationality)
 	if randf() < 0.7:
-		return team_nationality
+		return resolved
 	return get_random_nationality()

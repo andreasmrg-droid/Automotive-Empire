@@ -1,0 +1,41 @@
+[gd_scene format=3 uid="uid://ddwiyd1i1le57"]
+
+[ext_resource type="Script" uid="uid://bq2mbd1tliqnc" path="res://scenes/RaceResults.gd" id="1_4p4ru"]
+
+[node name="RaceResults" type="Control" unique_id=1733276688]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_4p4ru")
+
+[node name="Layout" type="VBoxContainer" parent="." unique_id=1704090245]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="HeaderLabel" type="Label" parent="Layout" unique_id=1083015202]
+layout_mode = 2
+
+[node name="TrackLabel" type="Label" parent="Layout" unique_id=552460110]
+layout_mode = 2
+
+[node name="WeatherLabel" type="Label" parent="Layout" unique_id=1612007465]
+layout_mode = 2
+
+[node name="HSeparator" type="HSeparator" parent="Layout" unique_id=526928484]
+layout_mode = 2
+
+[node name="ResultsContainer" type="ScrollContainer" parent="Layout" unique_id=1650830199]
+layout_mode = 2
+
+[node name="ResultsBox" type="VBoxContainer" parent="Layout/ResultsContainer" unique_id=1456717156]
+layout_mode = 2
+
+[node name="HSeparator2" type="HSeparator" parent="Layout" unique_id=120783354]
+layout_mode = 2
+
+[node name="ContinueButton" type="Button" parent="Layout" unique_id=1408382749]
+layout_mode = 2
