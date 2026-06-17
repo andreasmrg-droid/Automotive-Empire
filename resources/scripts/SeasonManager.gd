@@ -1,5 +1,11 @@
 class_name SeasonManager
-## Version: S28.0 — Driver/Staff lifecycle rewrite (Bug 2 fix).
+## Version: S28.1 — NextSeasonLedger activation (GDD §16.3 Steps 13-14, §23.1).
+##   start_new_season() now ACTIVATES gs.next_season_registrations into
+##   gs.player_registered_championships at the TOP of the transition, then clears the
+##   ledger. Removed the end-of-function .clear() that wiped registrations (the Season-2
+##   car/registration collapse — Logistics only showed GK, BeginOfSeason saw 0 champs).
+##   Stale TP proposals reset + regenerated for the new season (shot 14 fix).
+## --- S28.0: Driver/Staff lifecycle rewrite (Bug 2 fix).
 ##   REMOVED the is_eligible_for_gk_regional() delete-and-respawn loop that was
 ##   wiping every adult AI driver each off-season and backfilling age-8 D-GEN
 ##   fillers into Rally/GP/etc. (a GK-only age check misused as a global retire test).
@@ -88,6 +94,22 @@ func start_new_season() -> void:
 	gs.weekly_log.clear()
 	gs.pending_season_screen = "begin_of_season"
 
+	# ── GDD §16.3 Step 13: Next Season → Current Season ──────────────────
+	## S28.1: ACTIVATE the NextSeasonLedger. The championships the player
+	## registered+paid for last season become THIS season's race set.
+	## This must happen FIRST so every downstream check (car-needed, delivery,
+	## Logistics list, TDL) sees the correct registrations. Never blind-wiped.
+	gs.player_registered_championships = gs.next_season_registrations.duplicate()
+	# ── GDD §16.3 Step 14: clear the ledger, ready for new planning ──────
+	gs.next_season_registrations.clear()
+	if gs.player_registered_championships.is_empty():
+		gs.add_log("⚠ No championships were registered for Season %d." % gs.current_season)
+	else:
+		var names: Array = []
+		for cid in gs.player_registered_championships:
+			names.append(gs.CHAMPIONSHIP_REGISTRY.get(cid, {}).get("name", cid))
+		gs.add_log("🏁 Season %d race set activated: %s" % [gs.current_season, ", ".join(names)])
+
 	# ── Step 7: Contract decrements — age drivers/staff ──────────────────
 	# ── Step 8: Expired contracts — free agent pool ──────────────────────
 	# ── Step 9: Academy — drivers turning 18 ─────────────────────────────
@@ -115,10 +137,8 @@ func start_new_season() -> void:
 		gs.current_season,
 		gs.player_team_cars)
 
-	## Generate TP assignment proposals for the new season
-	if not gs.player_team_cars.is_empty():
-		var tp_proposals = gs.generate_tp_assignment_proposals()
-		gs._last_tp_proposals = tp_proposals
+	## (TP proposals are reset and regenerated at the end of the transition,
+	##  after cars are wiped — see S28.1 block below.)
 
 	# ── Step 5: CNC — jobs in progress destroyed, inventory cleared ──────
 	# ── Wipe ALL player cars ─────────────────────────────────────────────
@@ -190,15 +210,24 @@ func start_new_season() -> void:
 	gs._rebuild_seasonal_rnd_tasks()
 	gs.add_log("🔬 R&D catalog updated for Season %d." % gs.current_season)
 
-	# ── Clear registrations AFTER everything — player re-registers ───────
-	var prev_champ_names_s = []
-	for champ in gs.active_championships:
-		prev_champ_names_s.append(champ.championship_name)
-	gs.player_registered_championships.clear()
-	if not prev_champ_names_s.is_empty():
+	# ── S28.1: registrations already activated at the top from the ledger. ──
+	## Do NOT clear player_registered_championships here — that was the Season-2
+	## collapse bug. Instead, flush stale planning state from last season.
+	## Clear stale TDL items (shots 5/12 fix): per-season "unmet requirements before
+	## Season N" / "no car for X" custom + dismissed items must not survive into the
+	## new season. They are regenerated fresh for the current season as needed.
+	gs.custom_todo_items.clear()
+	gs.dismissed_todo_items.clear()
+	## Clear stale TP proposals (shot 14 fix) — they referenced last season's cars.
+	gs._last_tp_proposals = []
+	## Regenerate TP proposals for the new season's actual cars (if any exist yet).
+	if not gs.player_team_cars.is_empty():
+		gs._last_tp_proposals = gs.generate_tp_assignment_proposals()
+
+	if gs.player_registered_championships.is_empty():
 		gs.add_notification("Normal",
-			"Season %d active: %s. Re-register during off-season for Season %d." % [
-			gs.current_season, ", ".join(prev_champ_names_s), gs.current_season + 1])
+			"Season %d started with no championships. Register during this season for Season %d." % [
+			gs.current_season, gs.current_season + 1])
 	gs.emit_signal("week_advanced", gs.current_week)
 	gs.emit_signal("log_updated")
 

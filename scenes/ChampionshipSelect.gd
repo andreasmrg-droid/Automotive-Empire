@@ -1,5 +1,8 @@
 extends Control
-## Version: S15.2 — _reg_count_label kept as ref so _refresh_list updates count live.
+## Version: S28.1 — NextSeasonLedger aware. "Registered S{n+1}" reads next_season_registrations;
+##   "RUNNING S{n}" reads player_registered_championships (current race set). Count labels and
+##   bulk re-register now operate on the ledger.
+## --- S15.2 — _reg_count_label kept as ref so _refresh_list updates count live.
 
 ## Championship registration screen.
 ## Shown during off-season (weeks 40-52) via MainHub "Register for Championships" button.
@@ -81,7 +84,7 @@ func _build_ui() -> void:
 		Color(0.4, 0.9, 0.4) if GameState.player_team.balance >= 0 else Color(1.0, 0.3, 0.3))
 	info_row.add_child(lbl_bal)
 
-	var reg_count = GameState.player_registered_championships.size()
+	var reg_count = GameState.next_season_registrations.size()
 	var lbl_reg = Label.new()
 	lbl_reg.text = "%d championship%s registered for Season %d" % [
 		reg_count, "s" if reg_count != 1 else "", GameState.current_season + 1]
@@ -127,7 +130,7 @@ func _build_ui() -> void:
 func _refresh_list() -> void:
 	## Update live count label without full rebuild
 	if _reg_count_label != null and is_instance_valid(_reg_count_label):
-		var rc = GameState.player_registered_championships.size()
+		var rc = GameState.next_season_registrations.size()
 		_reg_count_label.text = "%d championship%s registered for Season %d" % [
 			rc, "s" if rc != 1 else "", GameState.current_season + 1]
 
@@ -159,9 +162,10 @@ func _refresh_list() -> void:
 
 func _build_champ_row(champ_id: String) -> PanelContainer:
 	var reg = GameState.CHAMPIONSHIP_REGISTRY[champ_id]
-	var is_registered = champ_id in GameState.player_registered_championships
-	## is_running = player has a car actively competing in this championship
-	var is_running = false
+	## S28.1: "registered" = registered for NEXT season (the ledger).
+	var is_registered = champ_id in GameState.next_season_registrations
+	## is_running = player races this championship THIS season (current race set, or has a car).
+	var is_running = champ_id in GameState.player_registered_championships
 	for car in GameState.player_team_cars:
 		if car.championship_id == champ_id:
 			is_running = true
@@ -300,9 +304,10 @@ func _build_champ_row(champ_id: String) -> PanelContainer:
 		btn.text = "Need CR %s" % _fmt(fee_short)
 		btn.disabled = true
 	else:
+		## S28.1: "Register" for everything not yet in the next-season ledger.
+		## (The misleading "Re-register" label implied a current-season champ was
+		##  already locked in for next season — it is not until the player clicks.)
 		btn.text = "Register S%d →" % (GameState.current_season + 1)
-		if is_running:
-			btn.text = "Re-register S%d →" % (GameState.current_season + 1)
 		btn.pressed.connect(func():
 			if GameState.register_for_championship(champ_id):
 				_refresh_list()
@@ -331,16 +336,20 @@ func _tag(text: String, color: Color) -> PanelContainer:
 	return chip
 
 func _on_reregister_all() -> void:
-	## Re-register only championships where player currently has a car
+	## S28.1: re-register the championships the player is RACING this season
+	## (current race set) into NEXT season's ledger. Also include any owned-car champs.
 	var registered_count = 0
 	var failed = []
-	var car_champ_ids: Array = []
+	var champ_ids_to_reregister: Array = []
+	for cid in GameState.player_registered_championships:
+		if not cid in champ_ids_to_reregister:
+			champ_ids_to_reregister.append(cid)
 	for car in GameState.player_team_cars:
-		if not car.championship_id in car_champ_ids:
-			car_champ_ids.append(car.championship_id)
-	for cid in car_champ_ids:
-		if cid in GameState.player_registered_championships:
-			continue  # already registered
+		if not car.championship_id in champ_ids_to_reregister:
+			champ_ids_to_reregister.append(car.championship_id)
+	for cid in champ_ids_to_reregister:
+		if cid in GameState.next_season_registrations:
+			continue  # already in next-season ledger
 		if GameState.can_register_for_championship(cid):
 			if GameState.register_for_championship(cid):
 				registered_count += 1

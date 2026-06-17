@@ -1,5 +1,9 @@
 extends Control
-## Version: S22.8 — #6 Chart title overlap fixed; #7 Take Loan at top; #9 DNS requirements checklist in WRA.
+## Version: S28.2 — WRA registration panel split into THIS SEASON (current race set, full
+##   requirement checklist) + NEXT SEASON (planned, compact rows from the ledger). Reads
+##   next_season_registrations for plans; current set for obligations. TDL message now says
+##   "for Season N" (current) instead of "before Season N+1". Lighter render (compact next-season rows).
+## --- S22.8 — #6 Chart title overlap fixed; #7 Take Loan at top; #9 DNS requirements checklist in WRA.
 ##                    Active loan cards, Take Loan popup (amount slider, duration, live rate/payment).
 ##                    Weekly expense panel now shows real loan repayments sum.
 ##                    Economy chart updated: now shows continuous index 0-100 (not categorical 0/1/2).
@@ -2020,114 +2024,152 @@ func _build_supply_contracts() -> VBoxContainer:
 	return vbox
 
 
+## S28.2 — builds the full requirement-checklist card for a CURRENT-season championship.
+func _build_reg_requirement_card(cid: String) -> PanelContainer:
+	var reg = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
+	var disc = reg.get("discipline","")
+
+	var card = PanelContainer.new()
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var cstyle = StyleBoxFlat.new()
+	cstyle.bg_color = Color(0.09, 0.11, 0.13)
+	cstyle.border_width_left = 3
+	cstyle.content_margin_left = 10; cstyle.content_margin_right = 10
+	cstyle.content_margin_top = 8;  cstyle.content_margin_bottom = 8
+	card.add_theme_stylebox_override("panel", cstyle)
+
+	var cvb = VBoxContainer.new()
+	cvb.add_theme_constant_override("separation", 4)
+	card.add_child(cvb)
+
+	var lbl_name = Label.new()
+	lbl_name.text = "✅ %s" % reg.get("name", cid)
+	lbl_name.add_theme_font_size_override("font_size", 12)
+	lbl_name.add_theme_color_override("font_color", Color(0.4, 0.85, 0.4))
+	cvb.add_child(lbl_name)
+
+	var reqs: Array = []
+
+	var has_car = false
+	for car in GameState.player_team_cars:
+		if car.championship_id == cid: has_car = true; break
+	reqs.append({"ok": has_car, "text": "Car registered to this championship"})
+
+	var cars_for_champ = GameState.player_team_cars.filter(
+		func(c): return c.championship_id == cid)
+	for car in cars_for_champ:
+		var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
+		reqs.append({"ok": car.driver_id != "",
+			"text": "Driver assigned to %s" % car_label})
+		reqs.append({"ok": car.mechanic_id != "",
+			"text": "Mechanic assigned to %s" % car_label})
+		if GameState.get_pit_crew_required(cid):
+			reqs.append({"ok": car.pit_crew_id not in ["","N/A"],
+				"text": "Pit crew assigned to %s" % car_label})
+
+	var tp_ok = false
+	if disc == "GK":
+		if GameState._get_tp_for_championship("C-001") != null:
+			tp_ok = true
+	else:
+		tp_ok = GameState._get_tp_for_championship(cid) != null
+	reqs.append({"ok": tp_ok, "text": "Team Principal assigned"})
+
+	if disc not in ["GK","Rally"]:
+		var strat_ok = GameState._get_strategist_for_championship(cid) != null
+		reqs.append({"ok": strat_ok, "text": "Race Strategist assigned"})
+
+	var min_age = reg.get("min_age", 0)
+	var max_age = reg.get("max_age", 99)
+	if min_age > 0 or max_age < 99:
+		reqs.append({"ok": true, "text": "Driver age: %d–%d" % [min_age, max_age]})
+
+	var all_ok = true
+	for req in reqs:
+		if not req["ok"]: all_ok = false
+		var row = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		cvb.add_child(row)
+		var icon = Label.new()
+		icon.text = "✅" if req["ok"] else "⚠"
+		icon.add_theme_font_size_override("font_size", 11)
+		row.add_child(icon)
+		var lbl_req = Label.new()
+		lbl_req.text = req["text"]
+		lbl_req.add_theme_font_size_override("font_size", 11)
+		lbl_req.add_theme_color_override("font_color",
+			Color(0.6, 0.9, 0.6) if req["ok"] else Color(1.0, 0.55, 0.2))
+		row.add_child(lbl_req)
+
+	cstyle.border_color = Color(0.3, 0.75, 0.35) if all_ok else Color(1.0, 0.55, 0.2)
+
+	## TDL item — these are CURRENT-season obligations (S28.2 fix: was "before Season N+1").
+	if not all_ok:
+		var msg = "⚠ %s: unmet race requirements for Season %d." % [
+			reg.get("name", cid), GameState.current_season]
+		GameState.add_todo_item(msg)
+
+	return card
+
 func _build_registration_panel() -> VBoxContainer:
 	var vbox = VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 8)
 
-	var reg_count = GameState.player_registered_championships.size()
-	var lbl_info = Label.new()
-	lbl_info.text = "Registered for Season %d:  %d championship%s" % [
-		GameState.current_season + 1, reg_count, "s" if reg_count != 1 else ""]
-	lbl_info.add_theme_font_size_override("font_size", 13)
-	lbl_info.add_theme_color_override("font_color",
-		Color(0.4, 0.9, 0.4) if reg_count > 0 else Color(1.0, 0.6, 0.2))
-	vbox.add_child(lbl_info)
+	# ── SECTION 1: THIS SEASON (current race set, full requirement checklist) ──
+	var this_count = GameState.player_registered_championships.size()
+	var lbl_this = Label.new()
+	lbl_this.text = "🏁 Racing this Season %d:  %d championship%s" % [
+		GameState.current_season, this_count, "s" if this_count != 1 else ""]
+	lbl_this.add_theme_font_size_override("font_size", 13)
+	lbl_this.add_theme_color_override("font_color",
+		Color(0.4, 0.9, 0.4) if this_count > 0 else Color(0.7, 0.7, 0.7))
+	vbox.add_child(lbl_this)
 
-	## Per-championship requirements checklist
+	if this_count == 0:
+		var none_lbl = Label.new()
+		none_lbl.text = "Not racing any championship this season."
+		none_lbl.add_theme_font_size_override("font_size", 11)
+		none_lbl.modulate = Color(0.6, 0.6, 0.6)
+		vbox.add_child(none_lbl)
+
 	for cid in GameState.player_registered_championships:
-		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
-		var disc = reg.get("discipline","")
+		vbox.add_child(_build_reg_requirement_card(cid))
 
-		var card = PanelContainer.new()
-		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		var cstyle = StyleBoxFlat.new()
-		cstyle.bg_color = Color(0.09, 0.11, 0.13)
-		cstyle.border_width_left = 3
-		cstyle.content_margin_left = 10; cstyle.content_margin_right = 10
-		cstyle.content_margin_top = 8;  cstyle.content_margin_bottom = 8
-		card.add_theme_stylebox_override("panel", cstyle)
-		vbox.add_child(card)
+	# ── SECTION 2: NEXT SEASON (planned — the ledger, compact rows) ──────────
+	vbox.add_child(HSeparator.new())
+	var next_count = GameState.next_season_registrations.size()
+	var lbl_next = Label.new()
+	lbl_next.text = "📋 Planned for Season %d:  %d championship%s" % [
+		GameState.current_season + 1, next_count, "s" if next_count != 1 else ""]
+	lbl_next.add_theme_font_size_override("font_size", 13)
+	lbl_next.add_theme_color_override("font_color",
+		Color(0.5, 0.7, 1.0) if next_count > 0 else Color(1.0, 0.6, 0.2))
+	vbox.add_child(lbl_next)
 
-		var cvb = VBoxContainer.new()
-		cvb.add_theme_constant_override("separation", 4)
-		card.add_child(cvb)
-
-		## Header
-		var lbl_name = Label.new()
-		lbl_name.text = "✅ %s" % reg.get("name", cid)
-		lbl_name.add_theme_font_size_override("font_size", 12)
-		lbl_name.add_theme_color_override("font_color", Color(0.4, 0.85, 0.4))
-		cvb.add_child(lbl_name)
-
-		## Build requirements list
-		var reqs: Array = []
-
-		## Car requirement
-		var has_car = false
-		for car in GameState.player_team_cars:
-			if car.championship_id == cid: has_car = true; break
-		reqs.append({"ok": has_car, "text": "Car registered to this championship"})
-
-		## Driver per car
-		var cars_for_champ = GameState.player_team_cars.filter(
-			func(c): return c.championship_id == cid)
-		for car in cars_for_champ:
-			var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
-			reqs.append({"ok": car.driver_id != "",
-				"text": "Driver assigned to %s" % car_label})
-			reqs.append({"ok": car.mechanic_id != "",
-				"text": "Mechanic assigned to %s" % car_label})
-			if GameState.get_pit_crew_required(cid):
-				reqs.append({"ok": car.pit_crew_id not in ["","N/A"],
-					"text": "Pit crew assigned to %s" % car_label})
-
-		## TP requirement
-		var tp_ok = false
-		if disc == "GK":
-			if GameState._get_tp_for_championship("C-001") != null:
-				tp_ok = true
-		else:
-			tp_ok = GameState._get_tp_for_championship(cid) != null
-		reqs.append({"ok": tp_ok, "text": "Team Principal assigned"})
-
-		## Strategist (not GK or Rally)
-		if disc not in ["GK","Rally"]:
-			var strat_ok = GameState._get_strategist_for_championship(cid) != null
-			reqs.append({"ok": strat_ok, "text": "Race Strategist assigned"})
-
-		## Driver age eligibility
-		var min_age = reg.get("min_age", 0)
-		var max_age = reg.get("max_age", 99)
-		if min_age > 0 or max_age < 99:
-			reqs.append({"ok": true,  ## informational
-				"text": "Driver age: %d–%d" % [min_age, max_age]})
-
-		## Render requirements
-		var all_ok = true
-		for req in reqs:
-			if not req["ok"]: all_ok = false
+	if next_count == 0:
+		var none2 = Label.new()
+		none2.text = "Nothing registered for next season yet — use Championship Registration before the deadline."
+		none2.add_theme_font_size_override("font_size", 11)
+		none2.modulate = Color(1.0, 0.6, 0.3)
+		none2.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		vbox.add_child(none2)
+	else:
+		## Compact one-line rows — these are plans, not yet actionable.
+		for cid in GameState.next_season_registrations:
+			var reg = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
 			var row = HBoxContainer.new()
 			row.add_theme_constant_override("separation", 6)
-			cvb.add_child(row)
+			vbox.add_child(row)
 			var icon = Label.new()
-			icon.text = "✅" if req["ok"] else "⚠"
+			icon.text = "📋"
 			icon.add_theme_font_size_override("font_size", 11)
 			row.add_child(icon)
-			var lbl_req = Label.new()
-			lbl_req.text = req["text"]
-			lbl_req.add_theme_font_size_override("font_size", 11)
-			lbl_req.add_theme_color_override("font_color",
-				Color(0.6, 0.9, 0.6) if req["ok"] else Color(1.0, 0.55, 0.2))
-			row.add_child(lbl_req)
-
-		## Border color: green if all met, orange if not
-		cstyle.border_color = Color(0.3, 0.75, 0.35) if all_ok else Color(1.0, 0.55, 0.2)
-
-		## Add TDL item if requirements not met
-		if not all_ok:
-			var msg = "⚠ %s: unmet race requirements before Season %d." % [
-				reg.get("name", cid), GameState.current_season + 1]
-			GameState.add_todo_item(msg)
+			var lbl = Label.new()
+			lbl.text = "%s  ·  Deadline Wk %d" % [
+				reg.get("name", cid), GameState.get_entry_deadline_week(cid)]
+			lbl.add_theme_font_size_override("font_size", 11)
+			lbl.add_theme_color_override("font_color", Color(0.7, 0.8, 1.0))
+			row.add_child(lbl)
 
 	var btn = Button.new()
 	btn.text = "🏁  Championship Registration →"

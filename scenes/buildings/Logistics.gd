@@ -1,5 +1,7 @@
 extends Control
-## Version: S15.2 — Car indicator uses championship max_cars not garage limit fallback.
+## Version: S28.1 — Removed hardcoded ["C-001"] GK fallback in BUY RACING CAR tab.
+##   The buy-car list now reflects the player's real registered set; empty → clear message.
+## --- S15.2 — Car indicator uses championship max_cars not garage limit fallback.
 ## Logistics Center — Tab redesign
 ## Tabs: STOCKS & CONSUMABLES | PARTS WAREHOUSE | BUY RACING CAR
 
@@ -446,10 +448,19 @@ func _build_tab_buy_car(parent: VBoxContainer) -> void:
 	parent.add_child(slots_panel)
 
 	# ── Championship car cards ─────────────────────────────────────────────────
-	## Car cards: only player's championships
+	## Car cards: only the player's registered championships (current season) +
+	## any championships they already own a car for. S28.1: removed the hardcoded
+	## ["C-001"] GK fallback that masked the registration bug — if the player has
+	## no registrations, show a clear empty-state message instead of a phantom GK car.
 	var champ_ids: Array = player_cids.duplicate()
 	if champ_ids.is_empty():
-		champ_ids = ["C-001"]
+		var empty_lbl = Label.new()
+		empty_lbl.text = "No championships registered for this season. Register during the season for next season at Championship Registration."
+		empty_lbl.add_theme_font_size_override("font_size", 13)
+		empty_lbl.modulate = Color(0.8, 0.6, 0.3)
+		empty_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		parent.add_child(empty_lbl)
+		return
 
 	var flow = HFlowContainer.new()
 	flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL

@@ -1,5 +1,8 @@
 extends Control
-## Version: S22.1 — TDL pinned above log scroll (never buried by log messages).
+## Version: S28.1 — TDL panel wrapped in a height-capped ScrollContainer (220px) so a long
+##   to-do list scrolls internally and can never push Advance Week / Next Race / End of Season
+##   off-screen (shot 5 fix).
+## --- S22.1 — TDL pinned above log scroll (never buried by log messages).
 ##                    Racing World button in top bar.
 ##                    TDL routing: GK TP and TP assignment items → Racing Department.
 
@@ -209,9 +212,20 @@ func _ready() -> void:
 	tdl_style.content_margin_left = 8; tdl_style.content_margin_right = 8
 	tdl_style.content_margin_top = 6; tdl_style.content_margin_bottom = 6
 	tdl_panel.add_theme_stylebox_override("panel", tdl_style)
+	## S28.1 (shot 5 fix): cap the TDL height and make it scroll internally.
+	## A long list (e.g. many "no car" / "unmet requirements" items) must never grow
+	## the panel enough to push Advance Week / Next Race / End of Season off-screen.
+	var tdl_scroll = ScrollContainer.new()
+	tdl_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tdl_scroll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	## Hard ceiling on TDL height; vertical scrollbar appears past this.
+	tdl_scroll.custom_minimum_size = Vector2(0, 220)
+	tdl_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	tdl_box = VBoxContainer.new()
+	tdl_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tdl_box.add_theme_constant_override("separation", 4)
-	tdl_panel.add_child(tdl_box)
+	tdl_scroll.add_child(tdl_box)
+	tdl_panel.add_child(tdl_scroll)
 	log_area.add_child(tdl_panel)
 
 	## Scrollable log below

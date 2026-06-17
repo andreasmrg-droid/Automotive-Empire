@@ -1,4 +1,7 @@
-## Version: S22.6 — Free agents show timing popup (not hardcoded immediate).
+## Version: S28.2 — Search box + pagination (25/page) on All Drivers tab. Renders only the
+##   current page of rows instead of every driver in the game (perf fix for large rosters).
+##   Search filters by name/nationality; sort/tab/filter changes reset to page 1.
+## --- S22.6 — Free agents show timing popup (not hardcoded immediate).
 ## Version: S22.8 — #4 expired contract release; #8 walk-away hides row; #14 TP gate removed.
 extends Control
 
@@ -9,6 +12,13 @@ var sort_ascending: bool = false
 var role_filter: String = "All"
 var free_agents_only: bool = false
 var interested_only: bool = false  ## P33: show only drivers likely interested in joining
+
+## S28.2 — search + pagination state (perf fix for large rosters)
+var search_text: String = ""
+var current_page: int = 0
+const PAGE_SIZE: int = 25
+var search_field_node: LineEdit = null
+var page_nav_row: HBoxContainer = null
 
 # ── Node references (built in code) ──────────────────────────────────────────
 var tab_my_btn: Button
@@ -109,6 +119,7 @@ func _build_ui() -> void:
 			else:
 				sort_field = f
 				sort_ascending = false
+			current_page = 0
 			_refresh_list()
 		)
 		sort_bar.add_child(btn)
@@ -127,8 +138,27 @@ func _build_ui() -> void:
 	btn_interested.tooltip_text = "Show only drivers likely to be interested in joining your team."
 	btn_interested.toggled.connect(func(on: bool):
 		interested_only = on
+		current_page = 0
 		_refresh_list())
 	sort_bar.add_child(btn_interested)
+
+	# ── Search bar (S28.2) ────────────────────────────────────
+	var search_row = HBoxContainer.new()
+	search_row.add_theme_constant_override("separation", 6)
+	layout.add_child(search_row)
+	var search_lbl = Label.new()
+	search_lbl.text = "🔍 Search:"
+	search_lbl.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+	search_row.add_child(search_lbl)
+	search_field_node = LineEdit.new()
+	search_field_node.placeholder_text = "Filter by name or nationality…"
+	search_field_node.custom_minimum_size = Vector2(280, 26)
+	search_field_node.text = search_text
+	search_field_node.text_changed.connect(func(t: String):
+		search_text = t.strip_edges()
+		current_page = 0  ## reset to first page on new search
+		_refresh_list())
+	search_row.add_child(search_field_node)
 
 	# ── Scroll + list ─────────────────────────────────────────
 	scroll = ScrollContainer.new()
@@ -140,12 +170,19 @@ func _build_ui() -> void:
 	list_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(list_container)
 
+	# ── Page navigation row (S28.2) ───────────────────────────
+	page_nav_row = HBoxContainer.new()
+	page_nav_row.add_theme_constant_override("separation", 8)
+	page_nav_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	layout.add_child(page_nav_row)
+
 	_show_tab("my_drivers")
 
 # ── Tab switching ─────────────────────────────────────────────────────────────
 
 func _show_tab(tab: String) -> void:
 	current_tab = tab
+	current_page = 0
 	tab_my_btn.flat = (tab != "my_drivers")
 	tab_all_btn.flat = (tab != "all_drivers")
 	_refresh_list()
@@ -157,10 +194,77 @@ func _refresh_list() -> void:
 	var drivers: Array = []
 	if current_tab == "my_drivers":
 		drivers = GameState.get_player_drivers()
+		drivers = _apply_search(drivers)
 		_build_my_drivers_list(drivers)
+		_clear_page_nav()  ## my-drivers list is small; no pagination needed
 	else:
 		drivers = _get_sorted_all_drivers()
-		_build_all_drivers_list(drivers)
+		drivers = _apply_search(drivers)
+		_build_all_drivers_list_paged(drivers)
+
+## S28.2 — filter a driver array by the search text (name or nationality, case-insensitive).
+func _apply_search(drivers: Array) -> Array:
+	if search_text == "":
+		return drivers
+	var q = search_text.to_lower()
+	return drivers.filter(func(d):
+		return q in d.full_name().to_lower() or q in d.nationality.to_lower())
+
+## S28.2 — render only the current page (PAGE_SIZE rows), plus a nav row.
+func _build_all_drivers_list_paged(drivers: Array) -> void:
+	if drivers.is_empty():
+		var lbl = Label.new()
+		lbl.text = "No drivers match." if search_text != "" else "No drivers available."
+		lbl.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+		list_container.add_child(lbl)
+		_clear_page_nav()
+		return
+
+	var total = drivers.size()
+	var max_page = int(ceil(float(total) / PAGE_SIZE)) - 1
+	current_page = clamp(current_page, 0, max_page)
+	var start = current_page * PAGE_SIZE
+	var end = min(start + PAGE_SIZE, total)
+
+	list_container.add_child(_make_driver_header())
+	for i in range(start, end):
+		list_container.add_child(_make_all_driver_row(drivers[i]))
+
+	_build_page_nav(total, start, end, max_page)
+
+func _clear_page_nav() -> void:
+	if page_nav_row == null: return
+	for c in page_nav_row.get_children():
+		c.queue_free()
+
+func _build_page_nav(total: int, start: int, end: int, max_page: int) -> void:
+	_clear_page_nav()
+	if total <= PAGE_SIZE:
+		return  ## single page — no nav needed
+	var prev_btn = Button.new()
+	prev_btn.text = "◀ Prev"
+	prev_btn.custom_minimum_size = Vector2(80, 28)
+	prev_btn.disabled = current_page <= 0
+	prev_btn.pressed.connect(func():
+		current_page -= 1
+		_refresh_list())
+	page_nav_row.add_child(prev_btn)
+
+	var info = Label.new()
+	info.text = "Showing %d–%d of %d  (page %d/%d)" % [
+		start + 1, end, total, current_page + 1, max_page + 1]
+	info.add_theme_font_size_override("font_size", 12)
+	info.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	page_nav_row.add_child(info)
+
+	var next_btn = Button.new()
+	next_btn.text = "Next ▶"
+	next_btn.custom_minimum_size = Vector2(80, 28)
+	next_btn.disabled = current_page >= max_page
+	next_btn.pressed.connect(func():
+		current_page += 1
+		_refresh_list())
+	page_nav_row.add_child(next_btn)
 
 # ── My Drivers ────────────────────────────────────────────────────────────────
 

@@ -1,5 +1,12 @@
 extends Node
-## Version: S28.0 — Added retired_personnel archive (driver/staff age retirements).
+## Version: S28.1 — NextSeasonLedger registration model (GDD §16.3, §23.1) — fixes the
+##   Season-2 car/registration collapse. Registrations now go to next_season_registrations
+##   (the ledger) instead of player_registered_championships (current season). At season
+##   transition the ledger is ACTIVATED into player_registered_championships, then cleared —
+##   never blind-wiped. register_for_championship()/can_register_for_championship() operate
+##   on the ledger. Added next_season_registrations (saved/loaded/reset). Deadline −1 week
+##   for WRA approval (§23.3). Stale TP proposals cleared at transition (§23, shot 14 fix).
+## --- S28.0: Added retired_personnel archive (driver/staff age retirements).
 ##   Reset on new game, persisted in save, defaulted on load for old saves.
 ##   Paired with SeasonManager S28.0 driver/staff lifecycle rewrite (Bug 2 fix).
 ## --- S27.0: P57 Phase 1: Season transition extracted to SeasonManager.gd.
@@ -365,7 +372,11 @@ var active_championship: Championship:
 var _dummy_championship: Championship = null
 
 var active_championships: Array = []           # All Championship objects running this season
-var player_registered_championships: Array = [] # IDs the player has paid entry fees for next season
+var player_registered_championships: Array = [] # IDs the player RACES this season (current). Activated from the ledger at season transition.
+## NextSeasonLedger (S28.1, GDD §23.1): IDs the player has registered + paid for NEXT season.
+## Populated by register_for_championship() during the current season. At start_new_season()
+## this is copied into player_registered_championships, then cleared. NEVER raced from directly.
+var next_season_registrations: Array = []
 
 # Last race data - for results screen
 var last_race_round: int = 0
@@ -1086,9 +1097,11 @@ func get_car_delivery_week(champ_id: String) -> int:
 	var race1  = FIRST_RACE_WEEK.get(champ_id, 6)
 	return max(eng_wk, race1 - 1)
 
-## Entry deadline week in the prior season = 52 - design_weeks.
+## Entry/design deadline week in the prior season.
+## Base = 52 - design_weeks (last week blueprints can still finish in-season).
+## S28.1 (§23.3): shifted 1 week earlier to leave room for WRA approval of next-season regs.
 func get_entry_deadline_week(champ_id: String) -> int:
-	return 52 - CNC_DATA.get(champ_id, {}).get("design_weeks", 2)
+	return 52 - CNC_DATA.get(champ_id, {}).get("design_weeks", 2) - 1
 
 ## Provider car cost scaled by season: base × 1.05^(season-1), rounded to CR 500.
 func get_provider_car_cost(champ_id: String) -> int:
@@ -1972,8 +1985,9 @@ func _auto_repair_cars_post_race() -> void:
 func _can_car_race(driver_id: String) -> bool:
 	return _race_simulator.can_car_race(driver_id)
 func can_register_for_championship(champ_id: String) -> bool:
-	if champ_id in player_registered_championships:
-		return false  # already registered
+	## S28.1: registration targets the NEXT season → checks the ledger, not the active set.
+	if champ_id in next_season_registrations:
+		return false  # already registered for next season
 	var deadline = get_entry_deadline_week(champ_id)
 	if current_week > deadline:
 		return false  # missed deadline
@@ -1985,15 +1999,17 @@ func can_register_for_championship(champ_id: String) -> bool:
 		return false  # can't afford
 	return true
 
-## Register the player for a championship. Deducts one-time entry fee.
+## Register the player for a championship NEXT season. Deducts one-time entry fee.
+## S28.1: writes to next_season_registrations (the ledger), NOT player_registered_championships.
+## The ledger is activated into the current set at start_new_season() (GDD §23.1).
 ## Returns true on success, false with notification on failure.
 func register_for_championship(champ_id: String) -> bool:
 	var reg = CHAMPIONSHIP_REGISTRY.get(champ_id, {})
 	if reg.is_empty():
 		add_notification("High", "Unknown championship ID: %s" % champ_id)
 		return false
-	if champ_id in player_registered_championships:
-		add_notification("Normal", "Already registered for %s." % reg["name"])
+	if champ_id in next_season_registrations:
+		add_notification("Normal", "Already registered for %s (Season %d)." % [reg["name"], current_season + 1])
 		return false
 	var deadline = get_entry_deadline_week(champ_id)
 	if current_week > deadline:
@@ -2005,8 +2021,8 @@ func register_for_championship(champ_id: String) -> bool:
 			reg["name"], _fmt_int(fee)])
 		return false
 	player_team.balance -= fee
-	player_registered_championships.append(champ_id)
-	add_log("✅ Registered for %s — Entry fee: CR %s" % [reg["name"], _fmt_int(fee)])
+	next_season_registrations.append(champ_id)
+	add_log("✅ Registered for %s (Season %d) — Entry fee: CR %s" % [reg["name"], current_season + 1, _fmt_int(fee)])
 
 	# ── Requirements advisory ─────────────────────────────────────────────────
 	# Check if the team can actually field a car. Warn but never block registration.
@@ -2087,19 +2103,10 @@ func unregister_from_championship(_champ_id: String) -> void:
 	add_notification("High",
 		"Championship registrations are binding. Teams cannot withdraw once entered. DNS applies if car/driver requirements are not met.")
 
-## Returns all championship IDs the player is currently registered for next season.
-## Does NOT include already-running championships (those are in active_championships).
+## Returns all championship IDs the player has registered for NEXT season (the ledger).
+## S28.1: this is simply the NextSeasonLedger contents.
 func get_pending_registrations() -> Array:
-	var pending = []
-	for cid in player_registered_championships:
-		var already_running = false
-		for champ in active_championships:
-			if champ.id == cid:
-				already_running = true
-				break
-		if not already_running:
-			pending.append(cid)
-	return pending
+	return next_season_registrations.duplicate()
 func get_weekly_expenses() -> float:
 	return _financial_engine.get_weekly_expenses()
 
@@ -2205,6 +2212,10 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 	_setup_cars()
 	_setup_part_inventory()
 	_generate_available_staff(60)
+	## S28.1: the chosen starting championship is the player's CURRENT-season race set.
+	## (next_season_registrations is the ledger for NEXT season; S1 needs this active now.)
+	if not _starting_champ_id in player_registered_championships:
+		player_registered_championships.append(_starting_champ_id)
 	add_log("Welcome to Automotive Empire!")
 	var start_champ_name = CHAMPIONSHIP_REGISTRY.get(_starting_champ_id, {}).get("name", "Championship")
 	add_log("Season %d — %s" % [current_season, start_champ_name])
@@ -2308,9 +2319,11 @@ func _setup_championship() -> void:
 
 	print("[GameState] %d championships created" % active_championships.size())
 	## Do NOT add to player_registered_championships here.
-	## active_championships is the source of truth for Season 1.
-	## player_registered_championships is for next-season registrations only.
+	## active_championships is the source of truth for the racing world.
+	## player_registered_championships is the player's CURRENT-season race set.
+	## next_season_registrations is the planning ledger for next season (§23.1).
 	player_registered_championships = []
+	next_season_registrations = []
 
 func _setup_player_team() -> void:
 	player_team = Team.new()
@@ -2643,6 +2656,8 @@ func save_game() -> void:
 		"weekly_log": weekly_log,
 		"hall_of_fame": hall_of_fame,
 		"retired_personnel": retired_personnel,
+		"player_registered_championships": player_registered_championships,
+		"next_season_registrations": next_season_registrations,
 		"sponsor_no_points_streak": sponsor_no_points_streak,
 		"active_sponsor": active_sponsor,
 		"player_team": {
@@ -2784,6 +2799,8 @@ func load_game(path: String = "user://save_game.json") -> void:
 		weekly_log.append(str(entry))
 	hall_of_fame = data["hall_of_fame"]
 	retired_personnel = data.get("retired_personnel", [])  ## S28 — default for old saves
+	player_registered_championships = data.get("player_registered_championships", [])  ## S28.1
+	next_season_registrations = data.get("next_season_registrations", [])  ## S28.1 ledger
 	sponsor_no_points_streak = data["sponsor_no_points_streak"]
 	active_sponsor = data["active_sponsor"]
 	campus_buildings = data["campus_buildings"]
