@@ -1,5 +1,8 @@
 extends Control
-## Version: S17.1 — Fix E: navigating to buildings sets pending_season_screen so MainHub redirects back.
+## Version: S28.2 — "Championships This Season" now lists the REGISTERED race set
+##   (player_registered_championships), not just owned-car championships. Fixes the
+##   "No championships registered" false display at season start (cars are wiped then).
+## --- S17.1 — Fix E: navigating to buildings sets pending_season_screen so MainHub redirects back.
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -54,21 +57,19 @@ func _build_ui() -> void:
 
 	left.add_child(_section_lbl("🏆  CHAMPIONSHIPS THIS SEASON"))
 
-	## Only show championships where the player has a car
-	var player_champ_ids: Array = []
-	for car in GameState.player_team_cars:
-		if not car.championship_id in player_champ_ids:
-			player_champ_ids.append(car.championship_id)
-
+	## S28.2: show the championships the player is REGISTERED to race this season
+	## (the activated race set), not just ones they already own a car for. At season
+	## start cars are wiped, so keying off cars wrongly showed "none registered".
 	var player_champs: Array = []
 	for champ in GameState.active_championships:
-		if champ.id in player_champ_ids:
+		if champ.id in GameState.player_registered_championships:
 			player_champs.append(champ)
 
 	if player_champs.is_empty():
 		var lbl_none = Label.new()
-		lbl_none.text = "No championships registered. Use Championship Registration."
+		lbl_none.text = "No championships registered for this season. Register during the season for next season."
 		lbl_none.modulate = Color(0.55, 0.55, 0.55)
+		lbl_none.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		left.add_child(lbl_none)
 		var btn_reg = _action_btn("🏆 Championship Registration →", Color(0.15, 0.40, 0.65))
 		btn_reg.pressed.connect(func(): _go("res://scenes/ChampionshipSelect.tscn"))
