@@ -1382,3 +1382,44 @@ When the player **buys/manufactures a car from the Logistics Center** at the sta
 
 **✅ CONFIRMED v4.1** — Cars are still **wiped each season** (§16.3 Step 5). Each new season the player either manufactures from blueprints prepared last season, or buys a car. Driver/staff are assigned to cars; cars participate in championships.
 
+S28.0 — Driver/Staff Lifecycle (§4.2, §22)
+
+Removed the is_eligible_for_gk_regional() delete-and-respawn loop that wiped every adult AI driver each off-season and spawned age-8 DRV/D-GEN fillers into Rally/GP. (Bug 2 — fixed.)
+Two retirement rules only: age retirement (drivers rare→50, staff hard 65) and free-agent decay (drivers unsigned 2 seasons → erased; no decay for staff).
+Retirement = permanent erase + archived to retired_personnel (for History/News), name released.
+Staff now age each off-season (they were frozen before).
+seasons_without_contract only accrues while uncontracted; resets when signed.
+Files: SeasonManager.gd, GameState.gd.
+
+S28.1 — NextSeasonLedger Registration Model (§16.3, §23.1) — the big one
+
+Root cause of the Season-2 car/registration collapse: start_new_season() was clearing registrations instead of carrying them.
+Added next_season_registrations (the ledger). Registration now writes here (tagged for next season), not into the current race set.
+At season transition: activate ledger → player_registered_championships, then clear ledger (GDD §16.3 steps 13-14). Never blind-wiped.
+Discovered & fixed: registrations were never being saved/loaded — now both arrays persist.
+Starting championship explicitly registered for S1.
+Registration deadline shifted −1 week for WRA approval (§23.3).
+Stale TP proposals + stale TDL items cleared at transition (shots 12, 14).
+Removed Logistics' hardcoded ["C-001"] GK fallback (the literal line that showed only GK).
+Files: GameState.gd, SeasonManager.gd, Logistics.gd, MainHub.gd (+ ChampionshipSelect.gd ledger-aware).
+
+S28.2 — UI/Performance & Display Fixes
+
+Drivers.gd & StaffHub.gd: search box + pagination (25/page) — renders one page instead of hundreds of rows. Fixes the lag.
+HQ-WRA panel: split into "Racing this Season" (full requirement checklist) + "Planned for Season N+1" (compact ledger rows). Fixes the current-vs-next mislabel and the lag.
+MainHub TDL: wrapped in a 220px scrollable container so it can't push action buttons off-screen (shot 5).
+ChampionshipSelect: removed misleading "Re-register" label (GK was never actually pre-registered for S2).
+BeginOfSeason: "Championships This Season" now reads the registered race set, not owned cars (was falsely showing "none registered" at season start since cars are wiped then).
+
+§21 bug-table updates to make:
+
+✅ DRV-XXXX fillers (Bug 2) — FIXED S28.0
+✅ Season-2 registration/car collapse — FIXED S28.1
+✅ Drivers/Staff/WRA lag — FIXED S28.2
+✅ TDL pushing buttons off-screen — FIXED S28.2
+
+Still open / deferred (add to known-gaps):
+
+GK champion not displayed on EndOfSeason (standings rollup bug) — not yet touched.
+Staff free-agent pool top-up — pool drains over many seasons with no replenish.
+Full Locale.t() localization of the S28-touched files (they mostly use raw strings; codebase mid-localization).
