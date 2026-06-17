@@ -1,5 +1,8 @@
 extends Node
-## Version: S27.0 — P57 Phase 1: Season transition extracted to SeasonManager.gd.
+## Version: S28.0 — Added retired_personnel archive (driver/staff age retirements).
+##   Reset on new game, persisted in save, defaulted on load for old saves.
+##   Paired with SeasonManager S28.0 driver/staff lifecycle rewrite (Bug 2 fix).
+## --- S27.0: P57 Phase 1: Season transition extracted to SeasonManager.gd.
 ##   _end_season(), start_new_season(), _process_off_season() now delegate to SeasonManager.
 ##   SeasonManager follows the 15-step order from GDD §16.3.
 ## --- S23.0 base: TP Auto-Assignment Proposals (P31 complete):
@@ -386,6 +389,9 @@ var previous_season_championship: Dictionary = {}
 
 # Hall of fame
 var hall_of_fame: Array = []
+## Retirement archive (S28) — drivers/staff who retired by age. Used by
+## History (§19) and News (§13). Entries: {season,name,kind,role,age,was_player}.
+var retired_personnel: Array = []
 
 # Campus buildings state
 var campus_buildings: Dictionary = {}
@@ -2154,6 +2160,7 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 	weekly_log = []
 	last_race_results = []
 	hall_of_fame = []
+	retired_personnel = []
 	dismissed_todo_items = []
 	custom_todo_items    = []
 	active_rnd_tasks = []
@@ -2635,6 +2642,7 @@ func save_game() -> void:
 		"current_season": current_season,
 		"weekly_log": weekly_log,
 		"hall_of_fame": hall_of_fame,
+		"retired_personnel": retired_personnel,
 		"sponsor_no_points_streak": sponsor_no_points_streak,
 		"active_sponsor": active_sponsor,
 		"player_team": {
@@ -2775,6 +2783,7 @@ func load_game(path: String = "user://save_game.json") -> void:
 	for entry in data["weekly_log"]:
 		weekly_log.append(str(entry))
 	hall_of_fame = data["hall_of_fame"]
+	retired_personnel = data.get("retired_personnel", [])  ## S28 — default for old saves
 	sponsor_no_points_streak = data["sponsor_no_points_streak"]
 	active_sponsor = data["active_sponsor"]
 	campus_buildings = data["campus_buildings"]

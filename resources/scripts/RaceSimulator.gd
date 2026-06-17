@@ -385,9 +385,11 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 	# ── Car degradation ──────────────────────────────────────────────────
 	degrade_car_conditions(race_data["laps"], dns_driver_ids)
 
-	# Consume fuel and earn RP
-	consume_race_resources()
-	earn_race_rp(race_data["laps"])
+	# Consume fuel and earn RP — only for player's own championships
+	## Bug 13 fix: designers were earning RP from all 24 championships
+	if c.id in gs.player_registered_championships:
+		consume_race_resources()
+		earn_race_rp(race_data["laps"])
 
 	# Season ends at week 52 regardless
 	if gs.current_week >= gs.max_weeks:

@@ -872,7 +872,7 @@ func submit_to_wra(blueprint_id: String) -> bool:
 	var bp = gs.known_blueprints[blueprint_id]
 	var cid = bp.get("championship_id", "")
 	var tier = _get_championship_tier(cid)
-	var weeks = {1:2,2:3,3:5,4:6}.get(tier, 2)
+	var weeks = {1:1,2:2,3:4,4:5}.get(tier, 1)
 	gs.active_wra_submissions.append({
 		"blueprint_id":    blueprint_id,
 		"championship_id": cid,

@@ -1,9 +1,29 @@
 class_name SeasonManager
-## Version: S27.0 — Extracted from GameState.gd (P57 Phase 1)
+## Version: S28.0 — Driver/Staff lifecycle rewrite (Bug 2 fix).
+##   REMOVED the is_eligible_for_gk_regional() delete-and-respawn loop that was
+##   wiping every adult AI driver each off-season and backfilling age-8 D-GEN
+##   fillers into Rally/GP/etc. (a GK-only age check misused as a global retire test).
+##   Replaced with two real rules (GDD §4.2, §22):
+##     • Driver age retirement: rising chance from 38, forced at 50 (rare past 38 —
+##       covers veteran TC drivers). Retirement = permanent removal + History archive.
+##     • Driver free-agent decay: uncontracted 2 full seasons → erased.
+##     • Staff: now age each off-season; hard retire at 65. No free-agent decay.
+##   New drivers are NEVER respawned here. Grid gaps are filled elsewhere via
+##   the existing NameGenerator path. Retirements archived to gs.retired_personnel.
+## --- S27.0 base: Extracted from GameState.gd (P57 Phase 1).
 ##   Owns the full season lifecycle: end_season(), start_new_season(), _process_off_season().
 ##   Called by GameState._end_season() and GameState.start_new_season().
 ##   Follows the 15-step season transition order from GDD §16.3.
 extends RefCounted
+
+## Driver age-retirement: per-season chance once a driver is at or past this age.
+## Below RETIRE_AGE_MIN nobody retires by age. At/after RETIRE_AGE_MAX it is forced.
+const RETIRE_AGE_MIN: int = 38
+const RETIRE_AGE_MAX: int = 50  ## hard cap — covers rare long-career TC veterans
+## Staff retire hard at this age (no free-agent decay for staff).
+const STAFF_RETIRE_AGE: int = 65
+## A driver/staff member uncontracted for this many seasons is erased entirely.
+const FREE_AGENT_MAX_SEASONS: int = 2
 
 ## Reference to the main GameState node — all data lives there.
 var gs  # GameState reference (untyped to avoid circular dependency)
@@ -194,7 +214,13 @@ func _process_off_season() -> void:
 		driver.age += 1
 		driver.fitness = 100.0
 		driver.experience = min(100.0, driver.experience + 1.0)
-		driver.seasons_without_contract += 1
+		## Free-agent counter (S28): only accrues while uncontracted; resets when
+		## the driver holds a contract. Prevents a later-signed driver from being
+		## wrongly erased by the 2-season free-agent decay rule.
+		if driver.contract_team == "":
+			driver.seasons_without_contract += 1
+		else:
+			driver.seasons_without_contract = 0
 		## Decrement contract — academy drivers use age-based bond
 		if driver.contract_type == "academy":
 			## Academy bond ends at age 18 — notify player
@@ -217,17 +243,19 @@ func _process_off_season() -> void:
 					gs.add_notification("High",
 						"⚠ %s's contract has expired! Re-sign them or they will leave." % driver.full_name())
 
-	# ── Decrement staff contracts ────────────────────────────────────────
+	# ── Age staff + decrement staff contracts ─────────────────────────────
+	## Staff are aged here (this is the only place staff age advances) so the
+	## hard retirement at STAFF_RETIRE_AGE can fire. Actual retirement is
+	## processed later in the lifecycle pass below.
 	for staff_id in gs.all_staff:
 		var staff = gs.all_staff[staff_id]
+		staff.age += 1
 		if staff.contract_seasons_remaining > 0:
 			staff.contract_seasons_remaining -= 1
 			if staff.contract_seasons_remaining == 0 and staff.contract_team == gs.player_team.id:
 				gs.add_notification("High",
 					"⚠ %s (%s) contract expired! Re-sign or they will leave." % [
 					staff.full_name(), staff.role])
-
-	var driver_counter = gs.all_drivers.size()
 
 	# ── Process player team expired contracts ────────────────────────────
 	var player_drivers_to_release: Array = []
@@ -259,43 +287,125 @@ func _process_off_season() -> void:
 		s.contract_team = ""
 		s.assigned_championship = ""
 
-	# ── AI team driver aging / replacement ───────────────────────────────
+	# ── DRIVER & STAFF LIFECYCLE (GDD §4.2, §22) ─────────────────────────
+	## No driver/staff is ever deleted "just like this". Exactly two rules:
+	##   1. Age retirement — drivers: rising chance from 38, forced at 50.
+	##                       staff:   hard retire at 65.
+	##      Retirement is permanent (game over for that person) and archived.
+	##   2. Free-agent decay — drivers uncontracted for 2 full seasons are erased.
+	## New drivers are NOT respawned here — grid gaps are filled elsewhere via
+	## the normal NameGenerator path, so no D-GEN / DRV-XX fillers leak in.
+	_process_driver_lifecycle()
+	_process_staff_lifecycle()
+
+
+## Rule 1 (drivers) + Rule 2 (drivers): age retirement and free-agent decay.
+func _process_driver_lifecycle() -> void:
+	var to_retire: Array = []   ## age retirement — permanent
+	var to_erase: Array = []    ## free-agent 2 seasons — permanent
+
+	for driver_id in gs.all_drivers:
+		var driver = gs.all_drivers[driver_id]
+
+		## Rule 1 — age retirement. Cadets/academy kids never qualify.
+		if driver.contract_type != "academy" and _driver_retires_by_age(driver.age):
+			to_retire.append(driver_id)
+			continue  ## retirement takes precedence over free-agent decay
+
+		## Rule 2 — free-agent decay. Only for genuinely uncontracted people.
+		if driver.contract_team == "" and driver.seasons_without_contract >= FREE_AGENT_MAX_SEASONS:
+			to_erase.append(driver_id)
+
+	for driver_id in to_retire:
+		_retire_person(driver_id, gs.all_drivers, "driver")
+	for driver_id in to_erase:
+		_erase_free_agent(driver_id, gs.all_drivers, "driver")
+
+
+## Rule 1 (staff): hard retirement at STAFF_RETIRE_AGE. No free-agent decay.
+func _process_staff_lifecycle() -> void:
+	var to_retire: Array = []
+	for staff_id in gs.all_staff:
+		var staff = gs.all_staff[staff_id]
+		if staff.age >= STAFF_RETIRE_AGE:
+			to_retire.append(staff_id)
+	for staff_id in to_retire:
+		_retire_person(staff_id, gs.all_staff, "staff")
+
+
+## Rising retirement chance: 0 below MIN, climbing each year, forced at MAX.
+## Deliberately rare in the late 30s/40s so veteran TC careers can run to ~50.
+func _driver_retires_by_age(age: int) -> bool:
+	if age < RETIRE_AGE_MIN:
+		return false
+	if age >= RETIRE_AGE_MAX:
+		return true
+	## Probability ramps from ~5% at 38 toward ~100% at 50.
+	var span: float = float(RETIRE_AGE_MAX - RETIRE_AGE_MIN)
+	var t: float = float(age - RETIRE_AGE_MIN) / span   ## 0.0 → 1.0
+	var chance: float = 0.05 + (t * t) * 0.85           ## quadratic ramp, low early
+	return randf() < chance
+
+
+## Permanent removal (age retirement). Archives to History, frees the name,
+## strips from team rosters, car assignments, and championship standings.
+func _retire_person(person_id: String, pool: Dictionary, kind: String) -> void:
+	if not (person_id in pool):
+		return
+	var person = pool[person_id]
+	var is_player := false
+
+	if kind == "driver":
+		is_player = (person.contract_team == gs.player_team.id)
+		## Remove from any team roster
+		for team in gs.all_teams:
+			team.drivers.erase(person_id)
+		## Remove from all championship standings
+		for champ in gs.active_championships:
+			champ.standings.erase(person_id)
+		gs.add_log("🏁 %s has retired from racing at age %d." % [person.full_name(), person.age])
+		if is_player:
+			gs.add_notification("Critical",
+				"🏁 Your driver %s has retired (age %d). Sign a replacement before Race 1." % [
+				person.full_name(), person.age])
+	else:  ## staff
+		is_player = (person.contract_team == gs.player_team.id)
+		person.contract_team = ""
+		if "assigned_championship" in person:
+			person.assigned_championship = ""
+		if "assigned_car_id" in person:
+			person.assigned_car_id = ""
+		gs.add_log("🏁 %s (%s) has retired at age %d." % [person.full_name(), person.role, person.age])
+		if is_player:
+			gs.add_notification("Critical",
+				"🏁 Your %s %s has retired (age %d). Hire a replacement." % [
+				person.role, person.full_name(), person.age])
+
+	## Archive for History / News (GDD §13, §19)
+	gs.retired_personnel.append({
+		"season": gs.current_season,
+		"name": person.full_name(),
+		"kind": kind,
+		"role": (person.role if kind == "staff" else "Driver"),
+		"age": person.age,
+		"was_player": is_player,
+	})
+
+	NameGenerator.release_name(person.full_name())
+	pool.erase(person_id)
+
+
+## Permanent removal for a free agent unsigned 2+ seasons (drivers only).
+func _erase_free_agent(person_id: String, pool: Dictionary, kind: String) -> void:
+	if not (person_id in pool):
+		return
+	var person = pool[person_id]
+	## Defensive: never erase anyone still on a team roster.
 	for team in gs.all_teams:
-		## Never auto-remove player team drivers
-		if team.id == gs.player_team.id:
-			continue
-
-		var drivers_to_remove = []
-		var drivers_to_add = []
-
-		for driver_id in team.drivers:
-			if driver_id in gs.all_drivers:
-				var driver = gs.all_drivers[driver_id]
-				if not driver.is_eligible_for_gk_regional():
-					drivers_to_remove.append(driver_id)
-					var new_id = "D-GEN-%04d" % driver_counter
-					driver_counter += 1
-					var nat = NameGenerator.get_nationality_for_team(team.nationality)
-					var sex = "Male" if randf() > 0.3 else "Female"
-					var name_data = NameGenerator.get_full_name(nat, sex)
-					var new_driver = gs._create_driver(
-						new_id,
-						name_data["first"],
-						name_data["last"],
-						nat,
-						8,
-						sex,
-						team.id
-					)
-					drivers_to_add.append(new_driver)
-					NameGenerator.release_name(driver.full_name())
-					gs.add_log("%s aged out of %s — replaced by %s" % [
-						driver.full_name(), team.team_name, new_driver.full_name()])
-
-		for driver_id in drivers_to_remove:
-			team.drivers.erase(driver_id)
-			gs.all_drivers.erase(driver_id)
-
-		for new_driver in drivers_to_add:
-			gs.all_drivers[new_driver.id] = new_driver
-			team.drivers.append(new_driver.id)
+		if person_id in team.drivers:
+			return
+	for champ in gs.active_championships:
+		champ.standings.erase(person_id)
+	gs.add_log("📁 %s left the sport after 2 seasons without a contract." % person.full_name())
+	NameGenerator.release_name(person.full_name())
+	pool.erase(person_id)

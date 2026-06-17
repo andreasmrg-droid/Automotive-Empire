@@ -509,8 +509,10 @@ func _find_best_unassigned_staff(role: String, champ_id: String):
 
 
 func _check_tp_proposal_notifications() -> void:
-	## Check if any car is missing driver/mechanic within 2 weeks of a race (unconditional)
+	## Check if any car is missing driver/mechanic within 2 weeks of a race
+	## Bug 21 fix: only check player's registered championships
 	for champ in gs.active_championships:
+		if not champ.id in gs.player_registered_championships: continue
 		var race = champ.get_next_race()
 		if not race: continue
 		var weeks_until = int(race["week"]) - gs.current_week
@@ -531,12 +533,13 @@ func _check_tp_proposal_notifications() -> void:
 				gs.add_notification("Critical", msg, "garage")
 				gs.add_todo_item(msg)
 
-	## Regenerate TP proposals 3 weeks before first race of season, and before each race week
+	## Regenerate TP proposals only when player race is approaching
 	var should_generate = false
 	if gs.current_week == 1 and not gs.player_team_cars.is_empty():
 		should_generate = true
 	else:
 		for champ in gs.active_championships:
+			if not champ.id in gs.player_registered_championships: continue
 			var race = champ.get_next_race()
 			if race and (race["week"] - gs.current_week) <= 3:
 				should_generate = true; break
