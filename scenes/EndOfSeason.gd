@@ -1,5 +1,7 @@
 extends Control
-## Version: S16.5 — "Our Driver" replaces "YOU"; team standings added; weekly profit in finances.
+## Version: S28.3 — GK Championship standings on EOS now read GKDiscipline (champion +
+##   final-round group standings) instead of the empty champ.standings (Bug 1).
+## --- S16.5 — "Our Driver" replaces "YOU"; team standings added; weekly profit in finances.
 ## Triggered by MainHub when _end_season() fires season_ended signal.
 ## Shows: standings, driver/staff improvement, R&D progress, financial status.
 ## "Continue to Season N" → MainHub (which shows Start Season button).
@@ -120,6 +122,59 @@ func _build_standings() -> VBoxContainer:
 		lbl_drv_hdr.modulate = Color(0.45, 0.45, 0.45)
 		cv.add_child(lbl_drv_hdr)
 
+		## S28.3 (Bug 1): GK Championship standings live in GKDiscipline, not champ.standings.
+		## Show the season champion + the final-round group standings.
+		if champ.id == "C-001" and GameState.gk_discipline != null:
+			var gk = GameState.gk_discipline
+			var champ_entry = gk.get_champion()
+			if not champ_entry.is_empty():
+				var cd = GameState.all_drivers.get(champ_entry.get("driver_id",""), null)
+				var crow = HBoxContainer.new()
+				crow.add_theme_constant_override("separation", 10)
+				var clbl = Label.new()
+				clbl.text = "🏆 Champion: %s — %d pts" % [
+					cd.full_name() if cd else "Unknown", champ_entry.get("points", 0)]
+				clbl.add_theme_font_size_override("font_size", 13)
+				clbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.1))
+				crow.add_child(clbl)
+				cv.add_child(crow)
+			## Final-round group standings (top 5 across final groups)
+			var gk_all = gk.get_all_standings("C-001")
+			var gk_flat: Array = []
+			for group in gk_all:
+				for e in group:
+					gk_flat.append(e)
+			gk_flat.sort_custom(func(a, b): return a["points"] > b["points"])
+			var gk_shown = 0
+			for i in range(gk_flat.size()):
+				if gk_shown >= 5: break
+				var e = gk_flat[i]
+				var gd = GameState.all_drivers.get(e.get("driver_id",""), null)
+				if gd == null: continue
+				var is_p = gd.id in GameState.player_team.drivers
+				var grow = HBoxContainer.new()
+				grow.add_theme_constant_override("separation", 10)
+				var gpos = Label.new(); gpos.text = "P%d" % (i + 1)
+				gpos.custom_minimum_size = Vector2(32, 0)
+				gpos.add_theme_font_size_override("font_size", 13)
+				grow.add_child(gpos)
+				var gname = Label.new()
+				gname.text = gd.full_name() + ("  ← Our Driver" if is_p else "")
+				gname.add_theme_font_size_override("font_size", 13)
+				gname.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				if is_p: gname.add_theme_color_override("font_color", Color(0.4, 1.0, 0.4))
+				grow.add_child(gname)
+				var gpts = Label.new(); gpts.text = "%d pts" % e.get("points", 0)
+				gpts.add_theme_font_size_override("font_size", 13)
+				gpts.modulate = Color(0.65, 0.65, 0.65)
+				grow.add_child(gpts)
+				cv.add_child(grow)
+				gk_shown += 1
+			if gk_shown == 0:
+				cv.add_child(_lbl_gray("GK season standings unavailable."))
+			vbox.add_child(card)
+			continue  ## GK handled — skip the generic standings block below
+
 		var sorted = champ.get_standings_sorted()
 		var shown = 0
 		for i in range(sorted.size()):
@@ -227,7 +282,7 @@ func _build_people() -> VBoxContainer:
 		lbl.custom_minimum_size = Vector2(220, 0)
 		lbl.add_theme_font_size_override("font_size", 13)
 		row.add_child(lbl)
-		for s in [["Pace", drv.pace],["Wet", drv.wet],["Focus", drv.focus],["Exp", drv.experience]]:
+		for s in [["Pace", drv.pace],["Ctrl", drv.car_control],["Focus", drv.focus],["Exp", drv.experience]]:
 			var sl = Label.new()
 			sl.text = "%s %.0f" % [s[0], s[1]]
 			sl.add_theme_font_size_override("font_size", 12)
@@ -319,12 +374,13 @@ func _build_finance() -> VBoxContainer:
 	var vbox = VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 6)
 	var team = GameState.player_team
-	var weekly_profit = team.balance - GameState._prev_week_balance
+	## S28.3 (Bug 4): "Weekly Profit" here was team.balance − _prev_week_balance, which spans
+	## the season transition (prizes, fees) and produced garbage like −40,500. A single-week
+	## delta is meaningless on a season summary, so it's removed. Weekly Expenses (accurate,
+	## recurring) is kept. TODO: add a real Season Net P&L (needs a season-start balance tracker).
 	for data in [
 		["Balance",          "CR %s" % _fmt(int(team.balance)),
 			Color(0.4,0.9,0.4) if team.balance >= 0 else Color(1.0,0.4,0.4)],
-		["Weekly Profit",    ("+" if weekly_profit >= 0 else "") + "CR %s" % _fmt(int(weekly_profit)),
-			Color(0.4,0.9,0.4) if weekly_profit >= 0 else Color(1.0,0.4,0.4)],
 		["Weekly Expenses",  "CR %s" % _fmt(int(GameState.get_weekly_expenses())), Color(1.0,0.6,0.4)],
 		["Runway",           "%d wks" % GameState.get_runway_weeks()
 			if GameState.get_runway_weeks() < 999 else "Stable", Color(0.7,0.7,0.7)],

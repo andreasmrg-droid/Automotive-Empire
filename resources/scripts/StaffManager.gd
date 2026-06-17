@@ -1,5 +1,7 @@
 class_name StaffManager
-## Version: S27.0 — Extracted from GameState.gd (P57)
+## Version: S28.3 — Added replenish_free_agent_pool(): tops up uncontracted staff per role
+##   each season so retirements/hirings don't drain the market (Bug 7).
+## --- S27.0 — Extracted from GameState.gd (P57)
 ##   Staff/driver generation, hiring, releasing, attribute generation, queries.
 extends RefCounted
 
@@ -29,6 +31,42 @@ func _generate_available_staff(count: int) -> void:
 		for i in range(role_count):
 			var staff = _create_staff(role, nationalities[randi() % nationalities.size()])
 			gs.all_staff[staff.id] = staff
+
+
+## S28.3 (Bug 7) — top up the free-agent pool each season so retirements/hirings don't
+## drain it over many seasons. Counts current UNCONTRACTED staff per role and generates
+## new free agents for any role below its target minimum.
+func replenish_free_agent_pool() -> void:
+	## Target minimum free agents available per role.
+	var target_per_role = {
+		"Race Mechanic":   8,
+		"Pit Crew":        8,
+		"Team Principal":  4,
+		"CFO":             4,
+		"Designer":        6,
+		"Race Strategist": 5,
+	}
+	var nationalities = ["British", "Italian", "German", "French", "Spanish",
+		"Finnish", "Brazilian", "Japanese", "American", "Australian",
+		"Dutch", "Belgian", "Swiss", "Austrian", "Swedish"]
+
+	## Count current free agents (uncontracted) per role.
+	var free_counts: Dictionary = {}
+	for sid in gs.all_staff:
+		var s = gs.all_staff[sid]
+		if s.contract_team == "":
+			free_counts[s.role] = free_counts.get(s.role, 0) + 1
+
+	var added = 0
+	for role in target_per_role:
+		var have = free_counts.get(role, 0)
+		var need = target_per_role[role] - have
+		for i in range(max(0, need)):
+			var staff = _create_staff(role, nationalities[randi() % nationalities.size()])
+			gs.all_staff[staff.id] = staff
+			added += 1
+	if added > 0:
+		gs.add_log("👔 Staff market replenished: %d new free agents available." % added)
 
 
 func _create_staff(role: String, nationality: String) -> Staff:

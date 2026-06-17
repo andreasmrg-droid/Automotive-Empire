@@ -1,5 +1,7 @@
 class_name CarManager
-## Version: S27.0 — Extracted from GameState.gd (P57)
+## Version: S28.3 — add_car(silent) suppresses premature "assign driver/mechanic" notifications
+##   during new-game setup (issue 1); install_part_on_car robust to non-canonical inventory keys (CNC install fix).
+## --- S27.0 — Extracted from GameState.gd (P57)
 ##   Car lifecycle: add/remove/rename, driver/staff assignment, repairs, parts.
 extends RefCounted
 
@@ -36,7 +38,7 @@ func generate_car_name(for_champ_id: String = "") -> String:
 	return "%s-%s-%s" % [code, season, letter]
 
 
-func add_car(for_champ_id: String = "") -> bool:
+func add_car(for_champ_id: String = "", silent: bool = false) -> bool:
 	var max_c = gs.get_max_cars()
 	if gs.player_team_cars.size() >= max_c:
 		gs.add_notification("High",
@@ -91,11 +93,15 @@ func add_car(for_champ_id: String = "") -> bool:
 	gs.player_team_cars.append(car)
 	gs.add_log("🏎 %s added to garage for %s — assign a driver and mechanic before racing." % [
 		car.car_name, reg.get("name", champ_id)])
-	if gs.get_pit_crew_required(champ_id):
-		gs.add_notification("High",
-			"🔧 %s needs a Pit Crew assigned before Race 1 or it will DNS. Hire at Pit Crew Arena." % car.car_name)
-	gs.add_notification("Normal", "%s ready. Assign a driver via the Garage." % car.car_name)
-	gs._fire_assignment_proposals()
+	## S28.3 (issue 1): during initial new-game setup, the driver/mechanic/pit crew are
+	## assigned immediately AFTER this call, so firing "assign a driver" notifications and
+	## TP proposals here produces stale warnings. `silent` suppresses them in that case.
+	if not silent:
+		if gs.get_pit_crew_required(champ_id):
+			gs.add_notification("High",
+				"🔧 %s needs a Pit Crew assigned before Race 1 or it will DNS. Hire at Pit Crew Arena." % car.car_name)
+		gs.add_notification("Normal", "%s ready. Assign a driver via the Garage." % car.car_name)
+		gs._fire_assignment_proposals()
 	gs.emit_signal("log_updated")
 	return true
 
@@ -293,12 +299,20 @@ func repair_car_full(driver_id: String) -> bool:
 
 
 func install_part_on_car(car_id: String, champ_id: String, pcode: String) -> bool:
+	## S28.3 (CNC install fix): find the inventory entry the SAME way the Garage popup does
+	## (get_cnc_stock_for_slot) rather than assuming the canonical "CHAMP|PCODE" key. Older
+	## jobs stored parts under a bare part-name key, so rebuilding the key missed them and the
+	## install silently returned false ("clicked, nothing happened").
 	var inv_key = gs._cnc_inv_key(champ_id, pcode)
 	if not inv_key in gs.cnc_parts_inventory:
-		gs.add_notification("High", "No %s in CNC inventory." % pcode)
-		return false
+		## Fall back to the matching-scan used for display.
+		var matches = gs.get_cnc_stock_for_slot(champ_id, pcode)
+		if matches.is_empty():
+			gs.add_notification("High", "No %s in CNC inventory." % pcode)
+			return false
+		inv_key = matches[0]
 	var item = gs.cnc_parts_inventory[inv_key]
-	if item.get("quantity", 0) <= 0:
+	if not item is Dictionary or item.get("quantity", 0) <= 0:
 		gs.add_notification("High", "No %s in CNC inventory." % pcode)
 		return false
 	var car = null

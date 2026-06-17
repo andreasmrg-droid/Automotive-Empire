@@ -1423,3 +1423,233 @@ Still open / deferred (add to known-gaps):
 GK champion not displayed on EndOfSeason (standings rollup bug) — not yet touched.
 Staff free-agent pool top-up — pool drains over many seasons with no replenish.
 Full Locale.t() localization of the S28-touched files (they mostly use raw strings; codebase mid-localization).
+# Automotive Empire — GDD Update Block (Session S28.3)
+
+**Paste this into your manual-additions section of `Automotive_Empire_GDD_v4_2.md`, then bump the doc to v4.3.**
+Author: Andreas Maragkos · Session S28.3 · 2026-06-18
+
+---
+
+## 1. Changelog — what was done in S28.3
+
+S28.3 was a bug-fix and systems pass covering the 8-bug list plus several issues found live via screenshots. Grouped by batch:
+
+### Batch A — GK cluster + round notification
+- **GK champion now derivable & displayed.** `GKDiscipline.gd` gained `get_champion()` (top driver of the final round) and `is_complete()`. EndOfSeason now reads GK standings from `GKDiscipline` (champion + final-round group standings) instead of the empty `champ.standings`.
+- **No more "advancing to Round 5".** Round 4 is the final; on completion the game announces the champion instead of a non-existent Round 5.
+- **GK team standings reset between rounds.** `_sync_gk_group0_to_standings()` now clears `team_standings` each round (was accumulating).
+- **RacingWorld "Your Group"** reads the player's group from `GKDiscipline.get_standings()` (was using `champ.standings`, which could show all teams); other-groups grid skips the player's own group index.
+
+### Batch B — quick wins
+- **"Wet" → "Car Control".** All driver-stat UI labels relabeled "Car Control" / "Ctrl" (data field was already `car_control`; `wet` remains a save-compat alias). Touched: Drivers, HQ, RacingDept, MainHub, Garage, EndOfSeason. (Weather "WET" in race results intentionally left alone.)
+- **EndOfSeason weekly profit removed.** The "Weekly Profit" line was `balance − _prev_week_balance`, which spanned the season transition and produced garbage (e.g. −40,500). Removed; Weekly Expenses (accurate) kept. *TODO: real Season-Net P&L once a season-start-balance tracker exists.*
+- **Team colors.** Added a team-coloured badge to the HQ header, AND fixed team colors never being saved/loaded (stored as hex via `to_html()`, loaded with `Color()`).
+
+### Bug 7 — staff free-agent pool top-up
+- `StaffManager.replenish_free_agent_pool()` runs each season after retirements, topping up uncontracted staff to per-role minimums (Mechanic/PitCrew 8, TP/CFO 4, Designer 6, Strategist 5). Wired into `SeasonManager` off-season processing.
+
+### CNC system fixes (found live)
+- **CNC "Install" did nothing — fixed.** Root cause: a key mismatch. Parts whose blueprint lacked a `part_code` were stored under a bare-name key (`"Suspension"`) instead of the canonical `"C-001|SUS"`; the popup found them but `install_part_on_car` rebuilt the strict key and silently failed. `install_part_on_car` now falls back to the same matching-scan the popup uses. Verified headlessly.
+- **Garage install buttons** now check the return value: only close the popup on success, and show a failure notice otherwise (so a silent no-op can never look like a dead button again).
+- **Logistics warehouse** now shows CNC-manufactured parts (read-only section "Available Parts (CNC)" with name, qty, reliability, quality).
+
+### Issues found via screenshots (S28.3 late)
+- **WRA approval shortened by 1 week (§23.3).** `WRA_APPROVAL_WEEKS` `{1:2,2:3,3:5,4:6}` → `{1:1,2:2,3:4,4:5}`. GK (tier 1) now approves in 1 week as the "Submit" panel expects.
+- **TDL "submit blueprint" routes to the WRA tab.** Was setting `pending_hq_tab = "wra_office"`, but HQ's tab key is `"wra"` → it fell through to Overview. Fixed.
+- **CNC production slots implemented.** Production was decrementing every queued job in parallel (no slot limit). Now `get_cnc_slots()` derives the parallel-slot count from the CNC Plant level (uses the existing `CNC_SLOTS_PER_LEVEL` table: L1=1, L2=2, …). Jobs beyond the slot count **queue** and only start when a slot frees — so a 3rd part takes longer, not just costs more. Verified headlessly (2 slots, three 2-week jobs → 3rd finishes week 4, not week 2). CNCPlant UI shows slot count, marks "QUEUED" jobs, and gives slot-aware ETAs.
+- **TP proposals refresh to 0 after accepting.** `apply_tp_proposals()` now regenerates the cached `_last_tp_proposals`, so the Racing Department count drops correctly (was showing stale cached proposals).
+- **Crash fixed: `teamwork` stat.** Pit Crew `teamwork` was removed in the S28 staff overhaul (replaced by `fatigue_resistance`) but `PitCrewArena.gd` and `StaffHub.gd` still referenced it — a hard crash on the Pit Crew Arena and a latent crash on the StaffHub Pit Crew detail. All references migrated to `fatigue_resistance`.
+- **False "assign driver/mechanic" notifications at new game — fixed.** `_give_starting_assets()` called `add_car()` (which fired "assign driver/mechanic/pit crew" notifications + TP proposals) BEFORE assigning the staff in the following steps, so the warnings were stale. `add_car()` gained a `silent` flag; new-game setup creates the car silently then assigns everyone. SC/GP/Rally starts auto-assign a pit crew too, so a fresh game starts clean.
+
+---
+
+## 2. Files changed in S28.3 (18 total — deploy all at these paths)
+
+**autoloads/**
+- GameState.gd
+
+**resources/scripts/**
+- GKDiscipline.gd, SeasonManager.gd, StaffManager.gd, CarManager.gd, RnDEngine.gd, TPProposalEngine.gd
+
+**scenes/**
+- Drivers.gd, EndOfSeason.gd, MainHub.gd, RacingWorld.gd, StaffHub.gd
+
+**scenes/buildings/**
+- HQ.gd, Garage.gd, Logistics.gd, CNCPlant.gd, PitCrewArena.gd, RacingDept.gd
+
+> Note: GameState, MainHub, StaffHub, RacingDept appeared in multiple batches this session — the delivered copies are the cumulative latest. Use these, not any earlier copies.
+
+---
+
+## 3. §21 bug-table updates (mark these resolved)
+
+Move to DONE / strike through:
+- GK champion not visible on end of season screen — **DONE S28.3**
+- GK group standings show ALL teams not just player group — **DONE S28.3**
+- GK team standings not reset between rounds — **DONE S28.3**
+- Incorrect "advancing to 5th round" notification — **DONE S28.3**
+- "Wet" attribute needs professional rename — **DONE S28.3** (UI labels → "Car Control")
+- End of season financial screen showing wrong weekly profit (−40,500) — **DONE S28.3** (line removed; Season-Net P&L still TODO)
+- Team colors not displayed in HQ badge — **DONE S28.3**
+- Staff free-agent pool drains over time — **DONE S28.3**
+- CNC part install button broken — **DONE S28.3**
+- WRA blueprint approval taking longer than 1 week — **DONE S28.3** (§23.3 −1 week shift applied)
+- TP proposals triggering / not refreshing — **DONE S28.3** (refresh-to-0 fixed; note: the "fire 1 week before race" timing is separate, still open)
+
+Still partially open / reworded:
+- "No automatic car repairs from mechanic on assigned car" — **still open** (part of Bug 6 below)
+- "No way to assign hired pit crew to a car (in Garage)" — **still open** (Bug 6 below)
+- "Contract negotiations not triggering automatically" — **still open** (Bug 8 below)
+
+---
+
+## 4. §23 confirmation needed (CNC slots rule)
+
+The CNC production-slot rule now uses `CNC_SLOTS_PER_LEVEL = {1:1, 2:2, 3:3, … 9:9}` (slots = plant level). **Please confirm or revise this mapping in the GDD** — it was implemented from your verbal spec ("L2 = 2 slots"), not from an existing written rule. If the intended curve is different (e.g. slots cap at some level, or scale non-linearly), update the constant in `GameState.gd` and note it in §23.
+
+---
+
+## 5. NEXT SESSION — what's queued
+
+### Immediately pending (the last 2 of the original 8-bug list)
+- **Bug 6 — Pit Crew assignment in the Garage + auto-repairs.**
+  - Garage currently only has DRIVER and MECHANIC slots; the car has a `pit_crew_id` field but no UI to set it (only the Pit Crew Arena assigns crews). Add a pit-crew slot + popup mode in `Garage.gd`, plus `assign_pit_crew` / `unassign_pit_crew` in `CarManager`/`GameState` (mirror the mechanic functions).
+  - Auto-repairs: the assigned mechanic should repair the car post-race automatically.
+  - Files: Garage.gd, CarManager.gd, GameState.gd.
+- **Bug 8 — Contract negotiations not triggering automatically.**
+  - Investigate `ContractEngine.gd` / `ContractNegotiation.gd` — negotiations aren't auto-firing when they should.
+
+### Still-open issue from this session
+- **Issue 1 follow-up:** the false-notification fix is in, but if any "assign driver/mechanic" warning still shows on a fully-staffed car after a fresh game, capture the exact text + when (bell vs TDL) so the remaining trigger can be pinned.
+- **TP proposal *timing*:** proposals should fire ~1 week before a race, not every racing week (separate from the refresh-to-0 fix already done).
+
+### The agreed economy roadmap (after bugs 6 & 8)
+Build all economic systems first, derive balance numbers as outputs, race sim last:
+- **Phase 2 — §23 car system:** delivery delay, P2/P3 gating until car delivered, DNS-until-car-ready, GP1 engine lead time, design/registration deadlines. (Classified as ECONOMY, not race.) Only the −1 week WRA shift is in so far.
+- **Phase 3 — Commercial factory + R&D Pillar 5.** Adds the second weekly income engine (commercial car sales) so the game is playable without the race.
+- **Phase 4 — Stock market.**
+- **Phase 5 — Multi-season balance pass:** once all income sources exist, derive AI-team budgets and team-character spending as system outputs; stress-test with headless sims (Python ports of the economy engines) + real Godot playtests. Targets to chase here: the "active fans exploding to 918k" curve, prize-money floors, salary scaling.
+- **Then:** drop the race sim into the stable, balanced economy.
+
+### Design constraint carried forward
+Keep economic logic in pure `RefCounted` engine classes (testable headless), not in UI scripts — so each new engine (commercial, stock market) can be Python-stress-tested for multi-season drift before it ships.
+
+---
+
+## 6. Reminder
+After pushing, bump the GDD header to **v4.3** and commit the doc alongside the 18 code files.
+# Automotive Empire — GDD Update Block (Session S28.3)
+
+**Paste this into your manual-additions section of `Automotive_Empire_GDD_v4_2.md`, then bump the doc to v4.3.**
+Author: Andreas Maragkos · Session S28.3 · 2026-06-18
+
+---
+
+## 1. Changelog — what was done in S28.3
+
+S28.3 was a bug-fix and systems pass covering the 8-bug list plus several issues found live via screenshots. Grouped by batch:
+
+### Batch A — GK cluster + round notification
+- **GK champion now derivable & displayed.** `GKDiscipline.gd` gained `get_champion()` (top driver of the final round) and `is_complete()`. EndOfSeason now reads GK standings from `GKDiscipline` (champion + final-round group standings) instead of the empty `champ.standings`.
+- **No more "advancing to Round 5".** Round 4 is the final; on completion the game announces the champion instead of a non-existent Round 5.
+- **GK team standings reset between rounds.** `_sync_gk_group0_to_standings()` now clears `team_standings` each round (was accumulating).
+- **RacingWorld "Your Group"** reads the player's group from `GKDiscipline.get_standings()` (was using `champ.standings`, which could show all teams); other-groups grid skips the player's own group index.
+
+### Batch B — quick wins
+- **"Wet" → "Car Control".** All driver-stat UI labels relabeled "Car Control" / "Ctrl" (data field was already `car_control`; `wet` remains a save-compat alias). Touched: Drivers, HQ, RacingDept, MainHub, Garage, EndOfSeason. (Weather "WET" in race results intentionally left alone.)
+- **EndOfSeason weekly profit removed.** The "Weekly Profit" line was `balance − _prev_week_balance`, which spanned the season transition and produced garbage (e.g. −40,500). Removed; Weekly Expenses (accurate) kept. *TODO: real Season-Net P&L once a season-start-balance tracker exists.*
+- **Team colors.** Added a team-coloured badge to the HQ header, AND fixed team colors never being saved/loaded (stored as hex via `to_html()`, loaded with `Color()`).
+
+### Bug 7 — staff free-agent pool top-up
+- `StaffManager.replenish_free_agent_pool()` runs each season after retirements, topping up uncontracted staff to per-role minimums (Mechanic/PitCrew 8, TP/CFO 4, Designer 6, Strategist 5). Wired into `SeasonManager` off-season processing.
+
+### CNC system fixes (found live)
+- **CNC "Install" did nothing — fixed.** Root cause: a key mismatch. Parts whose blueprint lacked a `part_code` were stored under a bare-name key (`"Suspension"`) instead of the canonical `"C-001|SUS"`; the popup found them but `install_part_on_car` rebuilt the strict key and silently failed. `install_part_on_car` now falls back to the same matching-scan the popup uses. Verified headlessly.
+- **Garage install buttons** now check the return value: only close the popup on success, and show a failure notice otherwise (so a silent no-op can never look like a dead button again).
+- **Logistics warehouse** now shows CNC-manufactured parts (read-only section "Available Parts (CNC)" with name, qty, reliability, quality).
+
+### Issues found via screenshots (S28.3 late)
+- **WRA approval shortened by 1 week (§23.3).** `WRA_APPROVAL_WEEKS` `{1:2,2:3,3:5,4:6}` → `{1:1,2:2,3:4,4:5}`. GK (tier 1) now approves in 1 week as the "Submit" panel expects.
+- **TDL "submit blueprint" routes to the WRA tab.** Was setting `pending_hq_tab = "wra_office"`, but HQ's tab key is `"wra"` → it fell through to Overview. Fixed.
+- **CNC production slots implemented.** Production was decrementing every queued job in parallel (no slot limit). Now `get_cnc_slots()` derives the parallel-slot count from the CNC Plant level (uses the existing `CNC_SLOTS_PER_LEVEL` table: L1=1, L2=2, …). Jobs beyond the slot count **queue** and only start when a slot frees — so a 3rd part takes longer, not just costs more. Verified headlessly (2 slots, three 2-week jobs → 3rd finishes week 4, not week 2). CNCPlant UI shows slot count, marks "QUEUED" jobs, and gives slot-aware ETAs.
+- **TP proposals refresh to 0 after accepting.** `apply_tp_proposals()` now regenerates the cached `_last_tp_proposals`, so the Racing Department count drops correctly (was showing stale cached proposals).
+- **Crash fixed: `teamwork` stat.** Pit Crew `teamwork` was removed in the S28 staff overhaul (replaced by `fatigue_resistance`) but `PitCrewArena.gd` and `StaffHub.gd` still referenced it — a hard crash on the Pit Crew Arena and a latent crash on the StaffHub Pit Crew detail. All references migrated to `fatigue_resistance`.
+- **False "assign driver/mechanic" notifications at new game — fixed.** `_give_starting_assets()` called `add_car()` (which fired "assign driver/mechanic/pit crew" notifications + TP proposals) BEFORE assigning the staff in the following steps, so the warnings were stale. `add_car()` gained a `silent` flag; new-game setup creates the car silently then assigns everyone. SC/GP/Rally starts auto-assign a pit crew too, so a fresh game starts clean.
+
+---
+
+## 2. Files changed in S28.3 (18 total — deploy all at these paths)
+
+**autoloads/**
+- GameState.gd
+
+**resources/scripts/**
+- GKDiscipline.gd, SeasonManager.gd, StaffManager.gd, CarManager.gd, RnDEngine.gd, TPProposalEngine.gd
+
+**scenes/**
+- Drivers.gd, EndOfSeason.gd, MainHub.gd, RacingWorld.gd, StaffHub.gd
+
+**scenes/buildings/**
+- HQ.gd, Garage.gd, Logistics.gd, CNCPlant.gd, PitCrewArena.gd, RacingDept.gd
+
+> Note: GameState, MainHub, StaffHub, RacingDept appeared in multiple batches this session — the delivered copies are the cumulative latest. Use these, not any earlier copies.
+
+---
+
+## 3. §21 bug-table updates (mark these resolved)
+
+Move to DONE / strike through:
+- GK champion not visible on end of season screen — **DONE S28.3**
+- GK group standings show ALL teams not just player group — **DONE S28.3**
+- GK team standings not reset between rounds — **DONE S28.3**
+- Incorrect "advancing to 5th round" notification — **DONE S28.3**
+- "Wet" attribute needs professional rename — **DONE S28.3** (UI labels → "Car Control")
+- End of season financial screen showing wrong weekly profit (−40,500) — **DONE S28.3** (line removed; Season-Net P&L still TODO)
+- Team colors not displayed in HQ badge — **DONE S28.3**
+- Staff free-agent pool drains over time — **DONE S28.3**
+- CNC part install button broken — **DONE S28.3**
+- WRA blueprint approval taking longer than 1 week — **DONE S28.3** (§23.3 −1 week shift applied)
+- TP proposals triggering / not refreshing — **DONE S28.3** (refresh-to-0 fixed; note: the "fire 1 week before race" timing is separate, still open)
+
+Still partially open / reworded:
+- "No automatic car repairs from mechanic on assigned car" — **still open** (part of Bug 6 below)
+- "No way to assign hired pit crew to a car (in Garage)" — **still open** (Bug 6 below)
+- "Contract negotiations not triggering automatically" — **still open** (Bug 8 below)
+
+---
+
+## 4. §23 confirmation needed (CNC slots rule)
+
+The CNC production-slot rule now uses `CNC_SLOTS_PER_LEVEL = {1:1, 2:2, 3:3, … 9:9}` (slots = plant level). **Please confirm or revise this mapping in the GDD** — it was implemented from your verbal spec ("L2 = 2 slots"), not from an existing written rule. If the intended curve is different (e.g. slots cap at some level, or scale non-linearly), update the constant in `GameState.gd` and note it in §23.
+
+---
+
+## 5. NEXT SESSION — what's queued
+
+### Immediately pending (the last 2 of the original 8-bug list)
+- **Bug 6 — Pit Crew assignment in the Garage + auto-repairs.**
+  - Garage currently only has DRIVER and MECHANIC slots; the car has a `pit_crew_id` field but no UI to set it (only the Pit Crew Arena assigns crews). Add a pit-crew slot + popup mode in `Garage.gd`, plus `assign_pit_crew` / `unassign_pit_crew` in `CarManager`/`GameState` (mirror the mechanic functions).
+  - Auto-repairs: the assigned mechanic should repair the car post-race automatically.
+  - Files: Garage.gd, CarManager.gd, GameState.gd.
+- **Bug 8 — Contract negotiations not triggering automatically.**
+  - Investigate `ContractEngine.gd` / `ContractNegotiation.gd` — negotiations aren't auto-firing when they should.
+
+### Still-open issue from this session
+- **Issue 1 follow-up:** the false-notification fix is in, but if any "assign driver/mechanic" warning still shows on a fully-staffed car after a fresh game, capture the exact text + when (bell vs TDL) so the remaining trigger can be pinned.
+- **TP proposal *timing*:** proposals should fire ~1 week before a race, not every racing week (separate from the refresh-to-0 fix already done).
+
+### The agreed economy roadmap (after bugs 6 & 8)
+Build all economic systems first, derive balance numbers as outputs, race sim last:
+- **Phase 2 — §23 car system:** delivery delay, P2/P3 gating until car delivered, DNS-until-car-ready, GP1 engine lead time, design/registration deadlines. (Classified as ECONOMY, not race.) Only the −1 week WRA shift is in so far.
+- **Phase 3 — Commercial factory + R&D Pillar 5.** Adds the second weekly income engine (commercial car sales) so the game is playable without the race.
+- **Phase 4 — Stock market.**
+- **Phase 5 — Multi-season balance pass:** once all income sources exist, derive AI-team budgets and team-character spending as system outputs; stress-test with headless sims (Python ports of the economy engines) + real Godot playtests. Targets to chase here: the "active fans exploding to 918k" curve, prize-money floors, salary scaling.
+- **Then:** drop the race sim into the stable, balanced economy.
+
+### Design constraint carried forward
+Keep economic logic in pure `RefCounted` engine classes (testable headless), not in UI scripts — so each new engine (commercial, stock market) can be Python-stress-tested for multi-season drift before it ships.
+
+---
+
+## 6. Reminder
+After pushing, bump the GDD header to **v4.3** and commit the doc alongside the 18 code files.

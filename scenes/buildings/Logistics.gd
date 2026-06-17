@@ -1,5 +1,6 @@
 extends Control
-## Version: S28.1 — Removed hardcoded ["C-001"] GK fallback in BUY RACING CAR tab.
+## Version: S28.3 — Warehouse shows available CNC parts; section renamed "Available Parts (CNC)".
+## --- S28.1 — Removed hardcoded ["C-001"] GK fallback in BUY RACING CAR tab.
 ##   The buy-car list now reflects the player's real registered set; empty → clear message.
 ## --- S15.2 — Car indicator uses championship max_cars not garage limit fallback.
 ## Logistics Center — Tab redesign
@@ -349,6 +350,51 @@ func _make_warehouse_champ_card(champ_id: String) -> PanelContainer:
 		row.add_child(buy_btn)
 
 	vbox.add_child(HSeparator.new())
+
+	## S28.3 — CNC-manufactured parts in the warehouse for this championship (read-only).
+	## Provider parts (above) are bought here; CNC parts come from the CNC Plant and are
+	## installed at the Garage. Showing them here gives a single warehouse view.
+	var cnc_rows: Array = []
+	for inv_key in GameState.cnc_parts_inventory:
+		var item = GameState.cnc_parts_inventory[inv_key]
+		if not item is Dictionary: continue
+		if item.get("championship_id", "") != champ_id: continue
+		if item.get("quantity", 0) <= 0: continue
+		cnc_rows.append(item)
+	if not cnc_rows.is_empty():
+		var cnc_hdr = Label.new()
+		cnc_hdr.text = "⚙ Available Parts (CNC)"
+		cnc_hdr.add_theme_font_size_override("font_size", 12)
+		cnc_hdr.add_theme_color_override("font_color", Color(0.4, 0.9, 0.5))
+		vbox.add_child(cnc_hdr)
+		for item in cnc_rows:
+			var crow = HBoxContainer.new(); crow.add_theme_constant_override("separation", 8)
+			vbox.add_child(crow)
+			var bp_name = item.get("part", "Part")
+			var bp_id = item.get("blueprint_id", "")
+			var lvl = 0
+			if bp_id != "" and bp_id in GameState.known_blueprints:
+				var bp = GameState.known_blueprints[bp_id]
+				lvl = bp.get("level", 0)
+				bp_name = bp.get("name", bp_name)
+			var clbl = Label.new()
+			clbl.text = "%s  L%d" % [bp_name, lvl]
+			clbl.custom_minimum_size = Vector2(260, 0)
+			clbl.add_theme_font_size_override("font_size", 12)
+			clbl.add_theme_color_override("font_color", Color(0.8, 0.9, 0.8))
+			crow.add_child(clbl)
+			var cqty = Label.new()
+			cqty.text = "×%d" % item.get("quantity", 0)
+			cqty.add_theme_font_size_override("font_size", 12)
+			cqty.modulate = Color(0.6, 0.6, 0.6)
+			crow.add_child(cqty)
+			var crel = Label.new()
+			crel.text = "Rel %.0f%%  ·  Qual %.2f×" % [
+				item.get("reliability", 0.0), item.get("quality", 1.0)]
+			crel.add_theme_font_size_override("font_size", 11)
+			crel.modulate = Color(0.55, 0.6, 0.7)
+			crow.add_child(crel)
+		vbox.add_child(HSeparator.new())
 
 	# Bulk buy row
 	var bulk_lbl = Label.new(); bulk_lbl.text = "Buy all parts at once:"

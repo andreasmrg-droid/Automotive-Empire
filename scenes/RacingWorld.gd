@@ -1,5 +1,7 @@
 extends Control
-## Version: S22.8 — #2 Team standings; #2 correct tab order; #2 Season 1 GK groups.
+## Version: S28.3 — GK "Your Group" reads GKDiscipline.get_standings() (player group only)
+##   instead of champ.standings which could show all teams. Other-groups skip player index.
+## --- S22.8 — #2 Team standings; #2 correct tab order; #2 Season 1 GK groups.
 ##                    each discipline tab (GP1/World/Premier Rally at top, entry level bottom).
 ##   Active (player in it): expanded card with standings, next race, group detail for GK.
 ##   Inactive (player not in): compact read-only card showing world state.
@@ -304,23 +306,26 @@ func _build_gk_active_card(cid: String, champ: Championship,
 
 	vb.add_child(HSeparator.new())
 
-	## Group 1 standings — ALL drivers in the real championship standings, sorted by points.
-	## This matches MainHub exactly. Shadow groups show everyone else.
+	## Group 1 standings — the PLAYER's group only, from GKDiscipline (authoritative).
+	## S28.3 (Bug: GK group standings showed ALL teams): champ.standings can drift to hold
+	## more than the player group, so read the shadow player-group standings directly.
 	if gkd != null:
-		var lbl_g1 = _section_label("GROUP 1 — YOUR GROUP")
+		var lbl_g1 = _section_label("YOUR GROUP")
 		vb.add_child(lbl_g1)
-		var group1_entries: Array = []
-		for did in champ.standings:
-			group1_entries.append({
-				"driver_id": did,
-				"points": champ.standings.get(did, 0),
-				"races": champ.current_round,
-			})
+		var group1_entries: Array = gkd.get_standings(cid)
+		## Fallback to champ.standings only if the shadow group is somehow empty.
+		if group1_entries.is_empty():
+			for did in champ.standings:
+				group1_entries.append({
+					"driver_id": did,
+					"points": champ.standings.get(did, 0),
+					"races": champ.current_round,
+				})
 		group1_entries.sort_custom(func(a, b): return a["points"] > b["points"])
 		vb.add_child(_build_gk_group_table(group1_entries))
 
-		## Other groups — shadow standings, filtered to exclude Group 1 driver IDs
-		var group1_ids: Array = champ.standings.keys()
+		## Other groups — shadow standings, excluding the player's group index.
+		var player_grp_idx = gkd.player_group
 		var all_standings = gkd.get_all_standings(cid)
 		if all_standings.size() > 1:
 			vb.add_child(_section_label("OTHER GROUPS"))
@@ -329,12 +334,11 @@ func _build_gk_active_card(cid: String, champ: Championship,
 			grid.add_theme_constant_override("h_separation", 8)
 			grid.add_theme_constant_override("v_separation", 4)
 			vb.add_child(grid)
-			for g_idx in range(1, all_standings.size()):
-				## Filter out any drivers that are in Group 1 (real standings)
-				var filtered: Array = all_standings[g_idx].filter(func(e):
-					return not e["driver_id"] in group1_ids)
-				if filtered.size() > 0:
-					grid.add_child(_build_group_chip(filtered, g_idx))
+			for g_idx in range(all_standings.size()):
+				if g_idx == player_grp_idx:
+					continue  ## skip the player's own group (already shown above)
+				if all_standings[g_idx].size() > 0:
+					grid.add_child(_build_group_chip(all_standings[g_idx], g_idx))
 
 	## Team standings from real championship
 	vb.add_child(HSeparator.new())

@@ -1,5 +1,7 @@
 extends Control
-## Version: S22.8 — #5 Assign popup shows all with current assignment status and reassign.
+## Version: S28.3 — CNC/provider install buttons check success before closing popup;
+##   show failure notice. "Wet"→"Ctrl" stat label.
+## --- S22.8 — #5 Assign popup shows all with current assignment status and reassign.
 ##                    so the player can make an informed choice.
 ## Version: S17.2 — Full redesign: championship tabs; car cards with 6 part slots;
 ##                    provider (L0) and CNC parts unified; Change popup (any level from stock);
@@ -541,9 +543,12 @@ func _open_part_popup(car_id: String, pcode: String, champ_id: String) -> void:
 			btn.custom_minimum_size = Vector2(64, 26)
 			var cap_car = car_id; var cap_cid = champ_id; var cap_pc = pcode
 			btn.pressed.connect(func():
-				GameState.swap_part_on_car(cap_car, cap_cid, cap_pc)
-				_popup.visible = false
-				_show_tab(_selected_tab))
+				var ok = GameState.swap_part_on_car(cap_car, cap_cid, cap_pc)
+				if ok:
+					_popup.visible = false
+					_show_tab(_selected_tab)
+				else:
+					GameState.add_notification("High", "Could not install that part — see log."))
 			row.add_child(btn)
 
 	## ── Provider (L0) options ─────────────────────────────────────────────────
@@ -573,9 +578,12 @@ func _open_part_popup(car_id: String, pcode: String, champ_id: String) -> void:
 		btn.custom_minimum_size = Vector2(64, 26)
 		var cap_car = car_id; var cap_cid = champ_id; var cap_pc = pcode
 		btn.pressed.connect(func():
-			GameState.install_provider_part(cap_car, cap_cid, cap_pc)
-			_popup.visible = false
-			_show_tab(_selected_tab))
+			var ok = GameState.install_provider_part(cap_car, cap_cid, cap_pc)
+			if ok:
+				_popup.visible = false
+				_show_tab(_selected_tab)
+			else:
+				GameState.add_notification("High", "Could not install that part — see log."))
 		row.add_child(btn)
 
 	if cnc_keys.is_empty() and prov_stock <= 0:

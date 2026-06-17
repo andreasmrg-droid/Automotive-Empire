@@ -1,5 +1,6 @@
 extends Control
-## Version: S15.2 — Build/upgrade costs reduced to Garage standards (build 10wks/30K, upgrade 4wks/15K).
+## Version: S28.3 — Fixed crash: Pit Crew "teamwork" stat (removed) → "fatigue_resistance".
+## --- S15.2 — Build/upgrade costs reduced to Garage standards (build 10wks/30K, upgrade 4wks/15K).
 
 var _crew_container: VBoxContainer
 
@@ -170,7 +171,7 @@ func _build_crew_card(crew) -> PanelContainer:
 	# Stat chips
 	var stats_row = HBoxContainer.new()
 	stats_row.add_theme_constant_override("separation", 6)
-	for stat in [["Pit Stop", crew.pit_stop_speed], ["Repair", crew.repair_skill], ["Teamwork", crew.teamwork]]:
+	for stat in [["Pit Stop", crew.pit_stop_speed], ["Repair", crew.repair_skill], ["Fatigue Res", crew.fatigue_resistance]]:
 		stats_row.add_child(_stat_chip(stat[0], stat[1]))
 	vbox.add_child(stats_row)
 

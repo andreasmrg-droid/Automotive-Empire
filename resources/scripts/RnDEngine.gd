@@ -1,5 +1,7 @@
 class_name RnDEngine
-## Version: S27.0 — Extracted from GameState.gd (P57)
+## Version: S28.3 — CNC production now slot-limited (get_cnc_slots from plant level): jobs
+##   beyond the slot count queue and only start when a slot frees (issue 4).
+## --- S27.0 — Extracted from GameState.gd (P57)
 ##   R&D tasks, WRA submissions, CNC production, blueprint management.
 extends RefCounted
 
@@ -338,8 +340,17 @@ func start_cnc_production(part: String, champ_id: String, quantity: int = 1) -> 
 
 
 func _advance_cnc_production() -> void:
+	## S28.3 (issue 4): CNC plant has a limited number of PARALLEL production slots.
+	## Only the first N jobs in the queue (N = slots) are "active" and tick down each week;
+	## jobs beyond that wait until an active slot frees up. This makes a 3rd part take
+	## longer (it only starts after one of the first two finishes), not just cost more.
+	var slots = get_cnc_slots()
 	var finished = []
+	var active = 0
 	for job in gs.cnc_production_queue:
+		if active >= slots:
+			break  ## remaining jobs are queued, not yet in production
+		active += 1
 		job["weeks_remaining"] -= 1
 		if job["weeks_remaining"] <= 0:
 			finished.append(job)
@@ -442,6 +453,16 @@ func get_cnc_part_bonus(car_id: String) -> float:
 
 func _cnc_inv_key(champ_id: String, pcode: String) -> String:
 	return "%s|%s" % [champ_id, pcode]
+
+## S28.3 (issue 4): number of parallel CNC production slots, derived from plant level.
+## Uses the existing CNC_SLOTS_PER_LEVEL table (L1=1, L2=2, ...). Jobs beyond the slot
+## count queue and start when a slot frees.
+func get_cnc_slots() -> int:
+	var building = gs.campus_buildings.get("CNC Parts Plant", {})
+	if not building.get("built", false):
+		return 1
+	var lvl = int(building.get("level", 1))
+	return max(1, int(gs.CNC_SLOTS_PER_LEVEL.get(lvl, lvl)))
 
 ## Compute manufacturing weeks from a blueprint (Formula doc §3).
 

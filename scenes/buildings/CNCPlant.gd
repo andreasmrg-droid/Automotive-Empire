@@ -1,5 +1,7 @@
 extends Control
-## Version: S17.2 — Blueprint ownership panel added (col D); INSTALLED ON CARS uses get_installed_parts_for_car.
+## Version: S28.3 — Production queue is slot-aware: shows slot count, marks QUEUED jobs, and
+##   computes slot-aware ETAs (issue 4).
+## --- S17.2 — Blueprint ownership panel added (col D); INSTALLED ON CARS uses get_installed_parts_for_car.
 ## CNC Parts Plant
 ## Layout: Header | 3-column body
 ##   Left   — Production queue + Start new job
@@ -117,9 +119,11 @@ func _build_ui() -> void:
 	_build_blueprint_ownership_column(col_d)
 
 
-func _build_queue_card(job: Dictionary) -> PanelContainer:
+func _build_queue_card(job: Dictionary, idx: int = 0, slots: int = 1) -> PanelContainer:
 	var pct = 1.0 - float(job["weeks_remaining"]) / float(job["weeks_total"])
 	var part = job["part"]
+	## S28.3 (issue 4): jobs at index >= slots are QUEUED (waiting for a free slot).
+	var is_queued = idx >= slots
 	var panel = _make_panel(Color(0.09, 0.14, 0.10))
 	var style = panel.get_theme_stylebox("panel")
 	style.border_color = PART_COLORS.get(part, Color.WHITE).darkened(0.4)
@@ -141,21 +145,35 @@ func _build_queue_card(job: Dictionary) -> PanelContainer:
 	row1.add_child(lbl_p)
 
 	var lbl_wks = Label.new()
-	lbl_wks.text = "%d wks left" % job["weeks_remaining"]
+	if is_queued:
+		lbl_wks.text = "QUEUED"
+		lbl_wks.modulate = Color(1.0, 0.7, 0.3)
+	else:
+		lbl_wks.text = "%d wks left" % job["weeks_remaining"]
+		lbl_wks.modulate = Color(0.6, 0.6, 0.6)
 	lbl_wks.add_theme_font_size_override("font_size", 11)
-	lbl_wks.modulate = Color(0.6, 0.6, 0.6)
 	row1.add_child(lbl_wks)
 
 	var bar = ProgressBar.new()
 	bar.min_value = 0; bar.max_value = 100
-	bar.value = pct * 100.0
+	bar.value = 0.0 if is_queued else pct * 100.0
 	bar.show_percentage = false
 	bar.custom_minimum_size = Vector2(0, 13)
 	vbox.add_child(bar)
 
 	var lbl_eta = Label.new()
-	var eta_week = GameState.current_week + job["weeks_remaining"]
-	lbl_eta.text = "Est. ready: Season %d, Week %d" % [GameState.current_season, eta_week]
+	## ETA: active jobs finish in weeks_remaining. Queued jobs must wait for the job
+	## currently occupying their future slot — approximate as this job's own duration
+	## plus the remaining time of the active job `slots` positions ahead.
+	var wait = job["weeks_remaining"]
+	if is_queued:
+		var ahead_idx = idx - slots
+		var ahead = GameState.cnc_production_queue[ahead_idx] if ahead_idx < GameState.cnc_production_queue.size() else null
+		var ahead_wait = ahead["weeks_remaining"] if ahead else 0
+		wait = ahead_wait + job["weeks_total"]
+	var eta_week = GameState.current_week + wait
+	lbl_eta.text = ("Starts after slot frees · ~Wk %d" % eta_week) if is_queued else \
+		("Est. ready: Season %d, Week %d" % [GameState.current_season, eta_week])
 	lbl_eta.add_theme_font_size_override("font_size", 10)
 	lbl_eta.modulate = Color(0.5, 0.5, 0.5)
 	vbox.add_child(lbl_eta)
@@ -674,13 +692,16 @@ func _build_wra_blueprints_column(parent: VBoxContainer) -> void:
 
 	## Production queue summary
 	if not GameState.cnc_production_queue.is_empty():
+		var slots = GameState.get_cnc_slots()
 		var q_lbl = Label.new()
-		q_lbl.text = "IN PRODUCTION:"
+		q_lbl.text = "IN PRODUCTION:   (%d slot%s)" % [slots, "s" if slots != 1 else ""]
 		q_lbl.add_theme_font_size_override("font_size", 11)
 		q_lbl.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
 		parent.add_child(q_lbl)
+		var qi = 0
 		for job in GameState.cnc_production_queue:
-			parent.add_child(_build_queue_card(job))
+			parent.add_child(_build_queue_card(job, qi, slots))
+			qi += 1
 		parent.add_child(_hsep())
 
 	parent.add_child(_section_header("WRA APPROVED — READY TO MANUFACTURE", Color(0.4, 0.9, 0.4)))

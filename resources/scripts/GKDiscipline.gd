@@ -1,6 +1,8 @@
 extends Resource
 class_name GKDiscipline
-## Version: S24.1 — Rewritten for single GK Championship (C-001).
+## Version: S28.3 — Added get_champion()/is_complete() (Bug 1: GK champion now derivable for
+##   the EndOfSeason screen). get_champion() returns the top driver of the final round.
+## --- S24.1 — Rewritten for single GK Championship (C-001).
 ## 4 progressive rounds: R1=32 groups, R2=16 groups×20, R3=4 groups×32, Final=2 groups×30.
 ## Player auto-assigned to a Round 1 group. Eliminated drivers sit out the rest of season.
 ## Non-player groups: lightweight simulation (standings only, no lap-by-lap).
@@ -285,6 +287,30 @@ func get_group_count(_champ_id: String) -> int:
 
 func get_current_round() -> int:
 	return current_round + 1  ## 1-indexed for display
+
+
+## S28.3 (Bug 1): true once the final round has been completed (current_round past last).
+func is_complete() -> bool:
+	return current_round >= ROUNDS.size()
+
+
+## S28.3 (Bug 1): returns the GK champion {driver_id, points} after the final round,
+## or {} if the season hasn't reached a champion yet.
+## The champion is the highest-points driver across the FINAL round's groups.
+func get_champion() -> Dictionary:
+	## Final round standings live at the last populated index.
+	var final_idx = shadow_standings.size() - 1
+	if final_idx < 0:
+		return {}
+	## Only declare a champion once we've actually run the final round (index 3 / round 4).
+	if final_idx < ROUNDS.size() - 1:
+		return {}
+	var best := {}
+	for group in shadow_standings[final_idx]:
+		for entry in group:
+			if best.is_empty() or entry["points"] > best.get("points", -1):
+				best = entry
+	return best.duplicate() if not best.is_empty() else {}
 
 
 func is_eliminated(driver_id: String) -> bool:

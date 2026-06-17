@@ -628,7 +628,7 @@ func _refresh_notifications() -> void:
 				btn_goto.pressed.connect(func():
 					notifs[capture_idx2]["read"] = true
 					if capture_dest == "wra_office":
-						GameState.pending_hq_tab = "wra_office"
+						GameState.pending_hq_tab = "wra"
 					get_tree().change_scene_to_file(
 						GameState.NOTIFICATION_DESTINATIONS[capture_dest]))
 				snooze_row.add_child(btn_goto)
@@ -755,7 +755,7 @@ func _refresh_driver_stats() -> void:
 		lines.append("RACING ATTRIBUTES")
 		lines.append("━━━━━━━━━━━━━━━━━━━")
 		lines.append("🚀 Pace:             %.1f  (eff: %.1f)" % [driver.pace, driver.get_effective_pace()])
-		lines.append("🌧 Wet / Traction:   %.1f  (eff: %.1f)" % [driver.wet, driver.get_effective_wet()])
+		lines.append("🌧 Car Control / Traction:   %.1f  (eff: %.1f)" % [driver.car_control, driver.get_effective_wet()])
 		lines.append("🎯 Focus:            %.1f  (eff: %.1f)" % [driver.focus, driver.get_effective_focus()])
 		lines.append("⚔ Race Craft:       %.1f  (eff: %.1f)" % [driver.race_craft, driver.get_effective_race_craft()])
 		lines.append("🔄 Consistency:      %.1f  (eff: %.1f)" % [driver.consistency, driver.get_effective_consistency()])

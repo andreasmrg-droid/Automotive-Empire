@@ -1,5 +1,6 @@
 extends Control
-## Version: S28.2 — WRA registration panel split into THIS SEASON (current race set, full
+## Version: S28.3 — Team-colour badge in HQ header (Bug 5); "Wet"→"Ctrl" stat label.
+## --- S28.2 — WRA registration panel split into THIS SEASON (current race set, full
 ##   requirement checklist) + NEXT SEASON (planned, compact rows from the ledger). Reads
 ##   next_season_registrations for plans; current set for obligations. TDL message now says
 ##   "for Season N" (current) instead of "before Season N+1". Lighter render (compact next-season rows).
@@ -47,6 +48,26 @@ func _build_ui() -> void:
 	var header = HBoxContainer.new()
 	header.add_theme_constant_override("separation", 12)
 	root.add_child(header)
+
+	## S28.3 (Bug 5): team badge using the team's primary/secondary colors.
+	var badge = PanelContainer.new()
+	var badge_style = StyleBoxFlat.new()
+	badge_style.bg_color = GameState.team_color_primary
+	badge_style.border_color = GameState.team_color_secondary
+	badge_style.border_width_left = 2; badge_style.border_width_right = 2
+	badge_style.border_width_top = 2; badge_style.border_width_bottom = 2
+	badge_style.corner_radius_top_left = 5; badge_style.corner_radius_top_right = 5
+	badge_style.corner_radius_bottom_left = 5; badge_style.corner_radius_bottom_right = 5
+	badge_style.content_margin_left = 12; badge_style.content_margin_right = 12
+	badge_style.content_margin_top = 6; badge_style.content_margin_bottom = 6
+	badge.add_theme_stylebox_override("panel", badge_style)
+	var badge_lbl = Label.new()
+	badge_lbl.text = GameState.player_team_name
+	badge_lbl.add_theme_font_size_override("font_size", 16)
+	## Pick readable text color: secondary unless it's too close to primary, then white/black by luminance.
+	badge_lbl.add_theme_color_override("font_color", GameState.team_color_secondary)
+	badge.add_child(badge_lbl)
+	header.add_child(badge)
 
 	var lbl_title = Label.new()
 	lbl_title.text = "🏛  HEADQUARTERS"
@@ -369,7 +390,7 @@ func _build_drivers_strip() -> VBoxContainer:
 		lbl_name.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
 		row.add_child(lbl_name)
 
-		for stat in [["Pace", d.pace],["Wet", d.wet],["Focus", d.focus],["Craft", d.race_craft]]:
+		for stat in [["Pace", d.pace],["Ctrl", d.car_control],["Focus", d.focus],["Craft", d.race_craft]]:
 			var sl = Label.new()
 			sl.text = "%s %.0f" % [stat[0], stat[1]]
 			sl.add_theme_font_size_override("font_size", 11)

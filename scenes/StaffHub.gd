@@ -1,5 +1,7 @@
 extends Control
-## Version: S28.2 — Search box + pagination (25/page) on Available Staff tab. Renders only the
+## Version: S28.3 — Fixed crash risk: Pit Crew "teamwork" (removed) → "fatigue_resistance"
+##   across stat display + sort. Re-applied "Wet"→"Car Control".
+## --- S28.2 — Search box + pagination (25/page) on Available Staff tab. Renders only the
 ##   current page instead of the whole staff pool (perf fix). Search filters by name/nationality.
 ## --- S22.8 — #8 walk-away hides row; #14 TP gate for free agents only for bond approach.
 ##                    Free agents signable for next season when slots full (or is_free_agent).
@@ -184,7 +186,7 @@ func _rebuild_sort_bar() -> void:
 			fields = [["Car Setup","setup"],["Pit Stops","pit_stops"],["Car Know","car_know"],
 				["Track Know","track_know"],["Age","age"],["Salary","salary"]]
 		"Pit Crew":
-			fields = [["Pit Speed","pit_stop"],["Repair","repair"],["Teamwork","teamwork"],
+			fields = [["Pit Speed","pit_stop"],["Repair","repair"],["Fatigue Res","fatigue_resistance"],
 				["Fitness","fitness"],["Age","age"],["Salary","salary"]]
 		"CFO":
 			fields = [["Fin Mgmt","finmgmt"],["Negotiation","negotiation"],["Sales","sales"],
@@ -351,7 +353,7 @@ func _get_role_stats(staff) -> Array:
 			return [
 				["Pit Speed", staff.pit_stop_speed if "pit_stop_speed" in staff else 0.0],
 				["Repair", staff.repair_skill if "repair_skill" in staff else 0.0],
-				["Teamwork", staff.teamwork if "teamwork" in staff else 0.0],
+				["Fatigue Res", staff.fatigue_resistance],
 				["Fitness", staff.fitness if "fitness" in staff else 0.0],
 			]
 		"CFO":
@@ -1287,7 +1289,7 @@ func _sort_val(staff) -> float:
 		## Pit Crew
 		"pit_stop":    return staff.pit_stop_speed if "pit_stop_speed" in staff else 0.0
 		"repair":      return staff.repair_skill if "repair_skill" in staff else 0.0
-		"teamwork":    return staff.teamwork if "teamwork" in staff else 0.0
+		"fatigue_resistance": return staff.fatigue_resistance
 		"fitness":     return staff.fitness if "fitness" in staff else 0.0
 		## CFO
 		"finmgmt":     return staff.financial_management if "financial_management" in staff else 0.0
@@ -1312,7 +1314,7 @@ func _get_staff_attrs(staff) -> Array:
 				["Car Knowledge", staff.car_knowledge], ["Track Knowledge", staff.track_knowledge]]
 		"Pit Crew":
 			return [["Pit Stop Speed", staff.pit_stop_speed], ["Repair Skill", staff.repair_skill],
-				["Teamwork", staff.teamwork], ["Fitness", staff.fitness]]
+				["Fatigue Res", staff.fatigue_resistance], ["Fitness", staff.fitness]]
 		"Team Principal":
 			return [["Race Strategy", staff.race_strategy],
 				["Practice Management", staff.practice_management],

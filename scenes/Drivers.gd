@@ -1,4 +1,5 @@
-## Version: S28.2 — Search box + pagination (25/page) on All Drivers tab. Renders only the
+## Version: S28.3 — "Wet" stat relabeled "Car Control"/"Ctrl" in UI (data field already car_control).
+## --- S28.2 — Search box + pagination (25/page) on All Drivers tab. Renders only the
 ##   current page of rows instead of every driver in the game (perf fix for large rosters).
 ##   Search filters by name/nationality; sort/tab/filter changes reset to page 1.
 ## --- S22.6 — Free agents show timing popup (not hardcoded immediate).
@@ -104,7 +105,7 @@ func _build_ui() -> void:
 	sort_bar.add_child(sort_lbl)
 
 	for field in [
-		["Ovr", "overall"], ["Pace", "pace"], ["Wet", "wet"],
+		["Ovr", "overall"], ["Pace", "pace"], ["Ctrl", "wet"],
 		["Focus", "focus"], ["Craft", "craft"], ["Cons", "consistency"],
 		["Fit", "fitness"], ["Age", "age"], ["Salary", "salary"]
 	]:
@@ -333,7 +334,7 @@ func _make_my_driver_row(driver) -> PanelContainer:
 	row2.add_theme_constant_override("separation", 6)
 	vbox.add_child(row2)
 
-	for stat in [["Pace", driver.pace], ["Wet", driver.wet], ["Focus", driver.focus],
+	for stat in [["Pace", driver.pace], ["Car Control", driver.car_control], ["Focus", driver.focus],
 			["Craft", driver.race_craft], ["Cons", driver.consistency],
 			["Fit", driver.fitness]]:
 		_add_stat_chip(row2, stat[0], stat[1])
@@ -421,7 +422,7 @@ func _get_sorted_all_drivers() -> Array:
 func _sort_value(driver) -> float:
 	match sort_field:
 		"pace":        return driver.pace
-		"wet":         return driver.wet
+		"wet":         return driver.car_control
 		"focus":       return driver.focus
 		"craft":       return driver.race_craft
 		"consistency": return driver.consistency
@@ -499,7 +500,7 @@ func _make_all_driver_row(driver) -> PanelContainer:
 	var row2 = HBoxContainer.new()
 	row2.add_theme_constant_override("separation", 6)
 	vbox.add_child(row2)
-	for stat in [["Pace", driver.pace], ["Wet", driver.wet], ["Focus", driver.focus],
+	for stat in [["Pace", driver.pace], ["Car Control", driver.car_control], ["Focus", driver.focus],
 			["Craft", driver.race_craft], ["Cons", driver.consistency],
 			["Fit", driver.fitness]]:
 		_add_stat_chip(row2, stat[0], stat[1])
@@ -622,7 +623,7 @@ func _show_driver_card(driver_id: String) -> void:
 
 	var stats = [
 		["🚀 Pace", driver.pace, driver.get_effective_pace()],
-		["🌧 Wet / Traction", driver.wet, driver.get_effective_wet()],
+		["🌧 Car Control / Traction", driver.car_control, driver.get_effective_wet()],
 		["🎯 Focus", driver.focus, driver.get_effective_focus()],
 		["⚔ Race Craft", driver.race_craft, driver.get_effective_race_craft()],
 		["🔄 Consistency", driver.consistency, driver.get_effective_consistency()],

@@ -1,5 +1,7 @@
 class_name TPProposalEngine
-## Version: S27.0 — Extracted from GameState.gd (P57)
+## Version: S28.3 — apply_tp_proposals() regenerates the proposal cache so the Racing Dept
+##   count refreshes to 0 after accepting (issue 5: was showing stale proposals).
+## --- S27.0 — Extracted from GameState.gd (P57)
 ##   TP auto-assignment proposals: driver/mechanic matching, DNS warnings,
 ##   cross-discipline adaptation, proposal notification and application.
 extends RefCounted
@@ -321,6 +323,9 @@ func apply_tp_proposals(proposals: Array) -> void:
 	for item in gs.custom_todo_items.duplicate():
 		if "TP proposals ready" in item or "TP proposals:" in item:
 			gs.dismiss_todo_item(item)
+	## S28.3 (issue 5): regenerate the cached proposals so accepted assignments drop out
+	## and the Racing Department count refreshes to 0 (was showing stale cached proposals).
+	gs._last_tp_proposals = generate_tp_assignment_proposals()
 	gs.emit_signal("log_updated")
 
 ## Returns all TP/Strategist assignment proposals for all active championships.

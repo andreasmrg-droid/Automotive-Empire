@@ -1,5 +1,7 @@
 extends Node
-## Version: S28.1 — NextSeasonLedger registration model (GDD §16.3, §23.1) — fixes the
+## Version: S28.3 — GK fixes: champion announced at final round (no "Round 5" — Bug 2);
+##   GK team_standings now reset between rounds (Bug: was accumulating).
+## --- S28.1: NextSeasonLedger registration model (GDD §16.3, §23.1) — fixes the
 ##   Season-2 car/registration collapse. Registrations now go to next_season_registrations
 ##   (the ledger) instead of player_registered_championships (current season). At season
 ##   transition the ledger is ACTIVATED into player_registered_championships, then cleared —
@@ -430,7 +432,9 @@ var completed_upg_tasks: Array = []   # P2 upgrades — cleared each season star
 var known_blueprints: Dictionary = {} # blueprint_id → full blueprint record, delivered to CNC
 var wra_cycle_start_season: int = 1
 const WRA_CYCLE_LENGTH: int = 4
-const WRA_APPROVAL_WEEKS: Dictionary = { 1:2, 2:3, 3:5, 4:6 }
+## S28.3 (issue 2 / GDD §23.3): WRA approval shortened by 1 week across tiers.
+## Was {1:2,2:3,3:5,4:6}. Tier 1 (GK) now approves in 1 week as expected.
+const WRA_APPROVAL_WEEKS: Dictionary = { 1:1, 2:2, 3:4, 4:5 }
 const WRA_SUBMISSION_FEE:  Dictionary = { 1:500, 2:1500, 3:4000, 4:10000 }
 const CNC_BASE_WEEKS: Dictionary = {
 	"Aero":3,"Engine":5,"Gearbox":4,"Suspension":3,"Brakes":2,"Chassis":6 }
@@ -1223,6 +1227,10 @@ func _get_wra_group_season(cid: String) -> int:
 func get_cnc_stock_for_slot(champ_id: String, pcode: String) -> Array:
 	return _rnd_engine.get_cnc_stock_for_slot(champ_id, pcode)
 
+## S28.3 (issue 4): number of parallel CNC production slots (from plant level).
+func get_cnc_slots() -> int:
+	return _rnd_engine.get_cnc_slots()
+
 func get_cnc_part_label(inv_key: String) -> String:
 	return _rnd_engine.get_cnc_part_label(inv_key)
 
@@ -1527,7 +1535,7 @@ func _give_starting_assets(champ_id: String) -> void:
 	var car_cost  = get_provider_car_cost(champ_id)
 	var entry_fee = reg.get("entry_fee", 0)
 	player_team.balance -= float(car_cost + entry_fee)
-	add_car(champ_id)
+	add_car(champ_id, true)  ## S28.3 (issue 1): silent — driver/mechanic assigned right after
 
 	## ── 2. Campus buildings per discipline ──────────────────────────────────
 	if discipline in ["Rally", "SC", "GP"]:
@@ -1586,6 +1594,10 @@ func _give_starting_assets(champ_id: String) -> void:
 func _generate_available_staff(count: int) -> void:
 	_staff_manager._generate_available_staff(count)
 
+## S28.3 (Bug 7) — season-end free-agent pool top-up.
+func replenish_free_agent_pool() -> void:
+	_staff_manager.replenish_free_agent_pool()
+
 func _create_staff(role: String, nationality: String) -> Staff:
 	return _staff_manager._create_staff(role, nationality)
 
@@ -1634,8 +1646,8 @@ func get_cfo() -> Staff:
 func generate_car_name(for_champ_id: String = "") -> String:
 	return _car_manager.generate_car_name(for_champ_id)
 
-func add_car(for_champ_id: String = "") -> bool:
-	return _car_manager.add_car(for_champ_id)
+func add_car(for_champ_id: String = "", silent: bool = false) -> bool:
+	return _car_manager.add_car(for_champ_id, silent)
 
 func remove_car(car_id: String) -> bool:
 	return _car_manager.remove_car(car_id)
@@ -2237,6 +2249,7 @@ func _sync_gk_group0_to_standings() -> void:
 	for champ in active_championships:
 		if champ.id != "C-001": continue
 		champ.standings.clear()  ## Clear old standings — fresh for this round
+		champ.team_standings.clear()  ## S28.3 (Bug): team standings must also reset each round
 		var group0 = gk_discipline.get_player_group("C-001")
 		for did in group0:
 			champ.standings[did] = 0
@@ -2473,7 +2486,17 @@ func advance_week() -> void:
 			if player_eliminated and this_gk_round < 4:
 				add_notification("High",
 					"🏁 Your driver was eliminated at the end of GK Round %d. Season over for GK." % this_gk_round)
-			elif not player_eliminated:
+			elif this_gk_round >= 4 or gk_discipline.is_complete():
+				## S28.3 (Bug 2): Round 4 is the final — no "Round 5". Announce the champion.
+				var champ = gk_discipline.get_champion()
+				if not champ.is_empty():
+					var cd = all_drivers.get(champ.get("driver_id", ""), null)
+					var cname = cd.full_name() if cd else "Unknown"
+					add_notification("Normal",
+						"🏆 GK Championship complete — Champion: %s (%d pts)." % [cname, champ.get("points", 0)])
+				else:
+					add_notification("Normal", "🏁 GK Championship complete for the season.")
+			elif not player_eliminated and new_round <= 4:
 				add_notification("Normal",
 					"✅ GK Round %d complete — advancing to Round %d!" % [this_gk_round, new_round])
 
@@ -2667,6 +2690,8 @@ func save_game() -> void:
 			"reputation": player_team.reputation,
 			"drivers": player_team.drivers,
 		},
+		"team_color_primary": team_color_primary.to_html(),
+		"team_color_secondary": team_color_secondary.to_html(),
 		"all_teams": [],
 		"all_drivers": {},
 		"championship": {
@@ -2801,6 +2826,11 @@ func load_game(path: String = "user://save_game.json") -> void:
 	retired_personnel = data.get("retired_personnel", [])  ## S28 — default for old saves
 	player_registered_championships = data.get("player_registered_championships", [])  ## S28.1
 	next_season_registrations = data.get("next_season_registrations", [])  ## S28.1 ledger
+	## S28.3 (Bug 5): persist team colors. Default to current values for old saves.
+	if data.has("team_color_primary"):
+		team_color_primary = Color(data["team_color_primary"])
+	if data.has("team_color_secondary"):
+		team_color_secondary = Color(data["team_color_secondary"])
 	sponsor_no_points_streak = data["sponsor_no_points_streak"]
 	active_sponsor = data["active_sponsor"]
 	campus_buildings = data["campus_buildings"]

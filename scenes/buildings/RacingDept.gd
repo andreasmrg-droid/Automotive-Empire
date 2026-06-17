@@ -1,5 +1,6 @@
 extends Control
-## Version: S23.0 — TP proposals panel: new structured proposals with Accept All, per-item Accept/Skip, priority coloring.
+## Version: S28.3 — Re-applied "Wet"→"Car Control" label (Batch B).
+## --- S23.0 — TP proposals panel: new structured proposals with Accept All, per-item Accept/Skip, priority coloring.
 ##                    Accept button navigates to Garage for driver/mechanic needed proposals,
 ##                    Logistics for car_needed. TDL dismissal separate from proposal visibility.
 
@@ -312,7 +313,7 @@ func _build_driver_card(driver) -> PanelContainer:
 	stats_row.add_theme_constant_override("separation", 6)
 	vbox.add_child(stats_row)
 	for stat in [
-		["Pace", driver.pace], ["Wet", driver.wet], ["Focus", driver.focus],
+		["Pace", driver.pace], ["Car Control", driver.car_control], ["Focus", driver.focus],
 		["Craft", driver.race_craft], ["Cons", driver.consistency],
 		["Fit", driver.fitness], ["Mktg", driver.marketability]
 	]:
@@ -703,7 +704,7 @@ func _show_driver_card(driver_id: String) -> void:
 
 	for stat in [
 		["🚀 Pace", driver.pace, driver.get_effective_pace()],
-		["🌧 Wet", driver.wet, driver.get_effective_wet()],
+		["🌧 Car Control", driver.car_control, driver.get_effective_wet()],
 		["🎯 Focus", driver.focus, driver.get_effective_focus()],
 		["⚔ Race Craft", driver.race_craft, driver.get_effective_race_craft()],
 		["🔄 Consistency", driver.consistency, driver.get_effective_consistency()],

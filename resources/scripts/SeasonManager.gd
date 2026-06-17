@@ -1,5 +1,6 @@
 class_name SeasonManager
-## Version: S28.1 — NextSeasonLedger activation (GDD §16.3 Steps 13-14, §23.1).
+## Version: S28.3 — Free-agent pool replenished each season after retirements (Bug 7).
+## --- S28.1 — NextSeasonLedger activation (GDD §16.3 Steps 13-14, §23.1).
 ##   start_new_season() now ACTIVATES gs.next_season_registrations into
 ##   gs.player_registered_championships at the TOP of the transition, then clears the
 ##   ledger. Removed the end-of-function .clear() that wiped registrations (the Season-2
@@ -326,6 +327,8 @@ func _process_off_season() -> void:
 	## the normal NameGenerator path, so no D-GEN / DRV-XX fillers leak in.
 	_process_driver_lifecycle()
 	_process_staff_lifecycle()
+	## S28.3 (Bug 7): top up the free-agent pool after retirements so it doesn't drain.
+	gs.replenish_free_agent_pool()
 
 
 ## Rule 1 (drivers) + Rule 2 (drivers): age retirement and free-agent decay.
