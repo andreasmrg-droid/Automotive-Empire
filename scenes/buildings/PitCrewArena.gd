@@ -248,7 +248,7 @@ func _build_effects_panel() -> PanelContainer:
 	return panel
 
 func _on_back() -> void:
-	get_tree().change_scene_to_file("res://scenes/campus.tscn")
+	get_tree().change_scene_to_file("res://scenes/Campus.tscn")
 
 func _fit_color(v: float) -> Color:
 	if v >= 70: return Color(0.3, 0.9, 0.4)

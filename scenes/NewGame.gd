@@ -27,10 +27,10 @@ var _difficulty: String = "Realistic"
 ## Budget (set by difficulty)
 ## Base budget per starting championship (before difficulty multiplier)
 const CHAMP_BASE_BUDGETS: Dictionary = {
-	"C-001":   100000,   ## GK Regional
-	"C-005":   300000,   ## RALLY4
-	"C-014":  2000000,   ## SC Dev Series
-	"C-021":   500000,   ## GP4
+	"C-001":   150000,   ## GK Regional
+	"C-005":   350000,   ## RALLY4
+	"C-014":  2200000,   ## SC Dev Series
+	"C-021":   600000,   ## GP4
 }
 
 ## Difficulty economy multipliers (applied to championship base budget)

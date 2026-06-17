@@ -1153,7 +1153,13 @@ func _on_new_season_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/BeginOfSeason.tscn")
 
 func _on_campus_pressed() -> void:
-	get_tree().change_scene_to_file("res://scenes/Campus.tscn")
+	var campus_scene = load("res://scenes/Campus.tscn")
+	if campus_scene == null:
+		push_error("❌ Failed to load Campus.tscn! Scene might be missing from export.")
+		return
+	var error = get_tree().change_scene_to_packed(campus_scene)
+	if error != OK:
+			push_error("❌ Failed to switch to Campus scene. Error code: %s" % error)
 
 func _on_drivers_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/Drivers.tscn")

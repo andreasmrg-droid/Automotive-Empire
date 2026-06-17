@@ -138,7 +138,7 @@ func _build_extra_panel() -> PanelContainer:
 	return panel
 
 func _on_back() -> void:
-	get_tree().change_scene_to_file("res://scenes/campus.tscn")
+	get_tree().change_scene_to_file("res://scenes/Campus.tscn")
 
 func _section_label(text: String) -> Label:
 	var lbl = Label.new()

@@ -61,7 +61,7 @@ func _build_ui() -> void:
 	var btn_back = Button.new()
 	btn_back.text = "← Back"
 	btn_back.custom_minimum_size = Vector2(90, 34)
-	btn_back.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/campus.tscn"))
+	btn_back.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/Campus.tscn"))
 	header.add_child(btn_back)
 
 	root.add_child(HSeparator.new())

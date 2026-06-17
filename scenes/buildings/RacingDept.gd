@@ -567,7 +567,7 @@ func _confirm_release(driver_id: String) -> void:
 
 # ── Navigation ────────────────────────────────────────────────────────────────
 func _on_back() -> void:
-	get_tree().change_scene_to_file("res://scenes/campus.tscn")
+	get_tree().change_scene_to_file("res://scenes/Campus.tscn")
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 func _section_label(text: String) -> Label:

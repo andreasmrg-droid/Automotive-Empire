@@ -1,7 +1,17 @@
-Project Structure - 2026-06-13T08:43:53
+Project Structure - 2026-06-17T00:15:17
 =====================================
 
 📁 data/
+    📄 teams.json
+    📄 staff_tp.json
+    📄 staff_mechanic.json
+    📄 staff_pitcrew.json
+    📄 staff_cfo.json
+    📄 staff_designer.json
+    📄 staff_strategist.json
+    📄 drivers_professional.json
+    📄 drivers_cadets.json
+    📄 car_assignments.json
 📁 Automotive-Empire-main/
     📄 FileStructureExporter.gd
     📄 FileStructureExporter.gd.uid
@@ -208,7 +218,7 @@ Project Structure - 2026-06-13T08:43:53
     📄 TPProposalsPopup.gd
     📄 TPProposalsPopup.gd.uid
     📄 TPProposalsPopup.tscn
-    📄 campus.tscn
+    📄 Campus.tscn
     📁 buildings/
         📄 Academy.gd
         📄 Academy.gd.uid
@@ -276,8 +286,11 @@ Project Structure - 2026-06-13T08:43:53
         📄 DevProfileSelector.gd
         📄 DevProfileSelector.gd.uid
         📄 DevProfileSelector.tscn
+    📄 Championships.tscn
+    📄 Championships.gd
+    📄 Championships.gd.uid
 📄 export_presets.cfg
 📄 FileStructureExporter.gd
 📄 FileStructureExporter.gd.uid
 📄 project.godot
-📄 project_structure.txt33109156.tmp
+📄 project_structure.txt1595384856.tmp
