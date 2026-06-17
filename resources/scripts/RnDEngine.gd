@@ -1,0 +1,945 @@
+class_name RnDEngine
+## Version: S27.0 — Extracted from GameState.gd (P57)
+##   R&D tasks, WRA submissions, CNC production, blueprint management.
+extends RefCounted
+
+var gs
+
+func _init(game_state) -> void:
+	gs = game_state
+
+func _build_rnd_tasks() -> Dictionary:
+	return _build_rnd_tasks_for_season(gs.current_season)
+
+## Regenerates season-specific tasks. Called on start_new_season() and after load().
+
+
+func _rebuild_seasonal_rnd_tasks() -> void:
+	var p4_tasks: Dictionary = {}
+	for k in gs.RND_TASKS:
+		if gs.RND_TASKS[k].get("pillar", 0) == 4:
+			p4_tasks[k] = gs.RND_TASKS[k]
+	gs.RND_TASKS = _build_rnd_tasks_for_season(gs.current_season)
+	for k in p4_tasks:
+		if not k in gs.RND_TASKS:
+			gs.RND_TASKS[k] = p4_tasks[k]
+
+## Generates P1/P2/P3/P4 tasks for a given season.
+## IDs: BP-{CHAMP}-{PART}-S{n}-L{lv} | UPG-... | RE-...-L1
+## Part codes: AER ENG GRB SUS BRK CHS
+
+
+func _build_rnd_tasks_for_season(season: int) -> Dictionary:
+	var tasks: Dictionary = {}
+	var s = str(season)
+
+	const CHAMP_TIER = {
+		"C-001":1,
+		"C-005":1,"C-006":1,"C-007":2,"C-008":4,
+		"C-009":2,"C-010":3,
+		"C-011":1,"C-012":2,"C-013":4,
+		"C-014":1,"C-015":2,"C-016":3,"C-017":4,
+		"C-018":2,"C-019":3,"C-020":4,
+		"C-021":1,"C-022":2,"C-023":3,"C-024":4,
+	}
+	const PART_CODES = {
+		"Aero":"AER","Engine":"ENG","Gearbox":"GRB",
+		"Suspension":"SUS","Brakes":"BRK","Chassis":"CHS"
+	}
+	const PART_BASE_P1 = {
+		"Aero":       [4,  120, 15000,  "aero_perf",    0.02],
+		"Engine":     [6,  180, 25000,  "engine_perf",  0.02],
+		"Chassis":    [8,  200, 30000,  "chassis_perf", 0.02],
+		"Gearbox":    [4,  100, 12000,  "gearbox_perf", 0.02],
+		"Brakes":     [3,  80,  10000,  "brakes_perf",  0.02],
+		"Suspension": [4,  100, 12000,  "susp_perf",    0.02],
+	}
+	const PART_BASE_P2 = {
+		"Aero":       [3,  80,  8000,   "aero_perf",    0.015],
+		"Engine":     [4,  120, 15000,  "engine_perf",  0.015],
+		"Chassis":    [5,  140, 18000,  "chassis_perf", 0.015],
+		"Gearbox":    [3,  80,  8000,   "gearbox_perf", 0.015],
+		"Brakes":     [2,  60,  6000,   "brakes_perf",  0.015],
+		"Suspension": [3,  80,  8000,   "susp_perf",    0.015],
+	}
+	const PART_BASE_P3 = {
+		"Aero":       [6,  160, 20000,  "unlock_aero_cnc",    1.0],
+		"Engine":     [10, 280, 40000,  "unlock_engine_cnc",  1.0],
+		"Chassis":    [12, 320, 50000,  "unlock_chassis_cnc", 1.0],
+		"Gearbox":    [5,  120, 15000,  "unlock_gear_cnc",    1.0],
+		"Brakes":     [4,  100, 12000,  "unlock_brakes_cnc",  1.0],
+		"Suspension": [5,  120, 15000,  "unlock_susp_cnc",    1.0],
+	}
+	const PART_SPEC_MAP = {
+		"C-001":[true,true,true,false,false,true],
+		"C-005":[true,true,true,false,false,true],  "C-006":[false,true,true,false,false,false],
+		"C-007":[false,false,false,false,false,false],"C-008":[false,false,false,false,false,false],
+		"C-009":[true,true,true,true,true,true],    "C-010":[true,true,true,true,true,true],
+		"C-011":[true,true,true,true,true,true],    "C-012":[true,true,true,true,true,true],
+		"C-013":[true,false,true,false,true,true],  "C-014":[true,false,true,false,false,true],
+		"C-015":[true,false,false,false,false,true], "C-016":[true,false,false,false,false,true],
+		"C-017":[true,false,true,true,true,true], "C-018":[true,true,true,true,true,true],
+		"C-019":[true,true,true,false,false,true],  "C-020":[false,false,false,false,false,false],
+		"C-021":[true,true,true,true,true,true],    "C-022":[true,true,true,true,true,true],
+		"C-023":[true,true,true,true,true,true],    "C-024":[false,false,false,false,false,false],
+	}
+	const PART_NAMES_ORDER = ["Aero","Engine","Gearbox","Suspension","Brakes","Chassis"]
+	const UPG_LEVEL_MULTS = [1.0, 1.5, 2.2, 3.0, 4.0]
+
+	for cid in gs.CHAMP_CODES.keys():
+		var code = gs.CHAMP_CODES[cid]
+		var tier = CHAMP_TIER.get(cid, 1)
+		var tier_mult = 1.0 + (tier - 1) * 0.5
+		var spec_arr = PART_SPEC_MAP.get(cid, [false,false,false,false,false,false])
+		var reg = gs.CHAMPIONSHIP_REGISTRY.get(cid, {})
+		var champ_name = reg.get("name", cid)
+
+		for i in range(PART_NAMES_ORDER.size()):
+			var part    = PART_NAMES_ORDER[i]
+			var pcode   = PART_CODES[part]
+			var is_spec = spec_arr[i]
+
+			# P1: Blueprint Design
+			var p1b   = PART_BASE_P1[part]
+			var p1_id = "BP-%s-%s-S%s-L1" % [code, pcode, s]
+			var p1_l2 = "BP-%s-%s-S%s-L2" % [code, pcode, s]
+			tasks[p1_id] = {
+				"name": "%s — %s Blueprint" % [champ_name, part],
+				"pillar":1,"part":part,"part_code":pcode,"championship_id":cid,
+				"season":season,"level":1,"blueprint_id":p1_id,
+				"weeks":max(1,int(p1b[0]*tier_mult)),"rp":int(p1b[1]*tier_mult),
+				"cr":int(p1b[2]*tier_mult),"effect":p1b[3],"value":p1b[4],
+			}
+			tasks[p1_l2] = {
+				"name": "%s — %s Blueprint L2" % [champ_name, part],
+				"pillar":1,"part":part,"part_code":pcode,"championship_id":cid,
+				"season":season,"level":2,"blueprint_id":p1_l2,
+				"weeks":max(1,int(p1b[0]*tier_mult*2.0)),"rp":int(p1b[1]*tier_mult*2.5),
+				"cr":int(p1b[2]*tier_mult*2.8),"effect":p1b[3],"value":p1b[4]*2.0,
+				"requires":p1_id,
+			}
+
+			# P2: Upgrade — 5 levels, Open parts only
+			if not is_spec:
+				var p2b = PART_BASE_P2[part]
+				var prev_id = ""
+				for lv in range(1, 6):
+					var lm = UPG_LEVEL_MULTS[lv - 1]
+					var upg_id = "UPG-%s-%s-S%s-L%d" % [code, pcode, s, lv]
+					var entry: Dictionary = {
+						"name": "%s — %s Upgrade L%d" % [champ_name, part, lv],
+						"pillar":2,"part":part,"part_code":pcode,"championship_id":cid,
+						"season":season,"level":lv,"blueprint_id":upg_id,
+						"weeks":max(1,int(p2b[0]*tier_mult*lm)),"rp":int(p2b[1]*tier_mult*lm),
+						"cr":int(p2b[2]*tier_mult*lm),"effect":p2b[3],"value":p2b[4]*lm,
+					}
+					if prev_id != "":
+						entry["requires"] = prev_id
+					tasks[upg_id] = entry
+					prev_id = upg_id
+
+			# P3: Reverse Engineering — Spec parts only, always L1
+			if is_spec:
+				var p3b = PART_BASE_P3[part]
+				var re_id = "RE-%s-%s-S%s-L1" % [code, pcode, s]
+				tasks[re_id] = {
+					"name": "%s — RE %s" % [champ_name, part],
+					"pillar":3,"part":part,"part_code":pcode,"championship_id":cid,
+					"season":season,"level":1,"blueprint_id":re_id,
+					"weeks":max(1,int(p3b[0]*tier_mult)),"rp":int(p3b[1]*tier_mult),
+					"cr":int(p3b[2]*tier_mult),"effect":p3b[3],"value":p3b[4],
+				}
+
+	# P4: Special Projects — not season-specific
+	var p4: Dictionary = {
+		"SP_ACA_1": {"name":"Curriculum-Based Biometric Cadet Coaching","pillar":4,"part":"Academy","weeks":42,"rp":4500,"cr":8000000,"effect":"cadet_starting_attributes","value":0.05,"Required_RnD_Studio_Level":2,"building":"Academy","min_building_level":1,"desc":"+5% starting attributes for new cadets."},
+		"SP_ACA_2": {"name":"Elite Single-Seater Cadet Progression Framework","pillar":4,"part":"Academy","weeks":50,"rp":9000,"cr":15000000,"effect":"cadet_salary_demand_reduction","value":0.15,"Required_RnD_Studio_Level":3,"building":"Academy","min_building_level":2,"desc":"−15% salary demand from academy graduates."},
+		"SP_ACA_3": {"name":"Global Scouting Telemetry Bot Grid","pillar":4,"part":"Academy","weeks":72,"rp":16500,"cr":28000000,"effect":"five_star_cadet_rate","value":0.25,"Required_RnD_Studio_Level":4,"building":"Academy","min_building_level":3,"desc":"+25% chance to spawn 5-star cadets."},
+		"SP_ACA_4": {"name":"Pinnacle Clone Driver Contract Pipeline","pillar":4,"part":"Academy","weeks":104,"rp":40000,"cr":75000000,"effect":"new_cadet_attributes","value":0.30,"Required_RnD_Studio_Level":4,"building":"Academy","min_building_level":4,"desc":"+30% starting attributes for new cadets."},
+		"SP_TUN_1": {"name":"Ground Effect & Venturi Tunnel Science","pillar":4,"part":"Tunnel","weeks":44,"rp":8000,"cr":14000000,"effect":"downforce_efficiency","value":0.12,"Required_RnD_Studio_Level":4,"building":"Aerodynamic Wind Tunnel","min_building_level":3,"desc":"+12% downforce efficiency."},
+		"SP_TUN_2": {"name":"Computational Fluid Dynamics (CFD) Clusters","pillar":4,"part":"Tunnel","weeks":66,"rp":15000,"cr":28000000,"effect":"blueprint_research_time_reduction","value":0.30,"Required_RnD_Studio_Level":6,"building":"Aerodynamic Wind Tunnel","min_building_level":4,"desc":"−30% blueprint research time."},
+		"SP_TUN_3": {"name":"Aerothermal Structural Balancing Grid","pillar":4,"part":"Tunnel","weeks":74,"rp":26000,"cr":45000000,"effect":"cooling_drag_reduction","value":0.10,"Required_RnD_Studio_Level":8,"building":"Aerodynamic Wind Tunnel","min_building_level":6,"desc":"−10% cooling drag."},
+		"SP_TUN_4": {"name":"Boundary Layer Laser Profiling Arrays","pillar":4,"part":"Tunnel","weeks":98,"rp":38000,"cr":65000000,"effect":"drag_reduction","value":0.08,"Required_RnD_Studio_Level":9,"building":"Aerodynamic Wind Tunnel","min_building_level":7,"desc":"−8% aerodynamic drag."},
+		"SP_TUN_5": {"name":"Plasma Flow Actuator Aero Synthesis","pillar":4,"part":"Tunnel","weeks":114,"rp":55000,"cr":95000000,"effect":"clean_downforce","value":0.30,"Required_RnD_Studio_Level":9,"building":"Aerodynamic Wind Tunnel","min_building_level":8,"desc":"+30% clean downforce."},
+		"SP_TUN_6": {"name":"Ultimate Aerodynamic Wake Matrix","pillar":4,"part":"Tunnel","weeks":160,"rp":90000,"cr":160000000,"effect":"drafting_downforce_loss_reduction","value":0.10,"Required_RnD_Studio_Level":9,"building":"Aerodynamic Wind Tunnel","min_building_level":9,"desc":"−10% downforce loss in drafting."},
+		"SP_TUN_7": {"name":"Flow-Visualization Airflow Drag Diagnostics","pillar":4,"part":"Tunnel","weeks":38,"rp":4500,"cr":7500000,"effect":"aero_drag_reduction","value":0.04,"Required_RnD_Studio_Level":5,"building":"Aerodynamic Wind Tunnel","min_building_level":5,"desc":"−4% aero drag."},
+		"SP_CNC_1": {"name":"Computer-Aided Manufacturing (CAM) Scripts","pillar":4,"part":"CNC","weeks":34,"rp":7000,"cr":12000000,"effect":"production_time_reduction","value":0.25,"Required_RnD_Studio_Level":6,"building":"CNC Parts Plant","min_building_level":9,"desc":"−25% production time."},
+		"SP_CNC_2": {"name":"High-Tensile Titanium Machining Feed Loops","pillar":4,"part":"CNC","weeks":50,"rp":11500,"cr":19500000,"effect":"engine_production_cost","value":0.18,"Required_RnD_Studio_Level":9,"building":"CNC Parts Plant","min_building_level":12,"desc":"−18% engine production cost."},
+		"SP_CNC_3": {"name":"Micro-Tolerance Component Optimization","pillar":4,"part":"CNC","weeks":72,"rp":18000,"cr":32000000,"effect":"breakdown_risk_reduction","value":0.22,"Required_RnD_Studio_Level":12,"building":"CNC Parts Plant","min_building_level":18,"desc":"−22% mechanical breakdown risk."},
+		"SP_CNC_4": {"name":"Sub-Atomic Laser Edge Component Shaving","pillar":4,"part":"CNC","weeks":102,"rp":32000,"cr":55000000,"effect":"production_cost_reduction","value":0.40,"Required_RnD_Studio_Level":18,"building":"CNC Parts Plant","min_building_level":21,"desc":"−40% production cost."},
+		"SP_CNC_5": {"name":"Molecular Metal Sintering Cells","pillar":4,"part":"CNC","weeks":116,"rp":50000,"cr":85000000,"effect":"ultra_complex_manufacturing","value":0.20,"Required_RnD_Studio_Level":21,"building":"CNC Parts Plant","min_building_level":22,"desc":"Unlocks ultra-complex manufacturing."},
+		"SP_CNC_6": {"name":"Pinnacle Nano-Tolerance Production Line","pillar":4,"part":"CNC","weeks":148,"rp":75000,"cr":140000000,"effect":"part_sale_value_boost","value":0.25,"Required_RnD_Studio_Level":24,"building":"CNC Parts Plant","min_building_level":24,"desc":"+25% part sale value."},
+		"SP_CNC_7": {"name":"Heavy Sheet-Metal Stock Car Stamping","pillar":4,"part":"CNC","weeks":35,"rp":3000,"cr":5000000,"effect":"inhouse_body_panel_production","value":0.05,"Required_RnD_Studio_Level":4,"building":"CNC Parts Plant","min_building_level":4,"desc":"+5% in-house body panel production."},
+		"SP_CNC_8": {"name":"Multi-Axis CNC Machine Floor Integration","pillar":4,"part":"CNC","weeks":42,"rp":6500,"cr":11000000,"effect":"manufacturing_waste_reduction","value":0.15,"Required_RnD_Studio_Level":7,"building":"CNC Parts Plant","min_building_level":12,"desc":"−15% manufacturing waste."},
+		"SP_FIT_1": {"name":"Sports Science G-Force Fatigue Mitigation","pillar":4,"part":"Clinic","weeks":34,"rp":4000,"cr":7000000,"effect":"driver_fatigue_reduction","value":0.15,"Required_RnD_Studio_Level":3,"building":"Fitness Clinic","min_building_level":25,"desc":"−15% driver fatigue."},
+		"SP_FIT_2": {"name":"Advanced Reflex Cognitive Simulation Units","pillar":4,"part":"Clinic","weeks":46,"rp":8500,"cr":14500000,"effect":"gforce_accuracy","value":0.12,"Required_RnD_Studio_Level":8,"building":"Fitness Clinic","min_building_level":55,"desc":"+12% accuracy under G-force."},
+		"SP_FIT_3": {"name":"Cryogenic Bio-Regenerative Restoration Tanks","pillar":4,"part":"Clinic","weeks":78,"rp":16000,"cr":28000000,"effect":"fatigue_recovery","value":0.20,"Required_RnD_Studio_Level":25,"building":"Fitness Clinic","min_building_level":75,"desc":"+20% fatigue recovery."},
+		"SP_FIT_4": {"name":"Hyperbaric Oxygen Apex Athlete Suites","pillar":4,"part":"Clinic","weeks":108,"rp":38000,"cr":65000000,"effect":"concentration_and_reflex","value":0.10,"Required_RnD_Studio_Level":60,"building":"Fitness Clinic","min_building_level":109,"desc":"Major boost to concentration and reflexes."},
+		"SP_GAR_1": {"name":"Sequential Transmission Cleanroom Workshop","pillar":4,"part":"Garage","weeks":42,"rp":6000,"cr":9000000,"effect":"repair_profit","value":0.25,"Required_RnD_Studio_Level":5,"building":"Garage","min_building_level":30,"desc":"+25% repair profit."},
+		"SP_GAR_2": {"name":"Automated Powertrain Teardown Cells","pillar":4,"part":"Garage","weeks":56,"rp":9500,"cr":16000000,"effect":"repair_time_reduction","value":0.25,"Required_RnD_Studio_Level":12,"building":"Garage","min_building_level":45,"desc":"−25% repair time."},
+		"SP_GAR_3": {"name":"High-Volume Carbon Monocoque Autoclave","pillar":4,"part":"Garage","weeks":82,"rp":22000,"cr":38000000,"effect":"inhouse_major_repairs","value":0.15,"Required_RnD_Studio_Level":25,"building":"Garage","min_building_level":80,"desc":"Unlocks in-house major repairs."},
+		"SP_GAR_4": {"name":"Structural Monocoque Carbon Optimization","pillar":4,"part":"Garage","weeks":118,"rp":45000,"cr":75000000,"effect":"chassis_weight_reduction","value":0.05,"Required_RnD_Studio_Level":35,"building":"Garage","min_building_level":89,"desc":"−5% chassis weight."},
+		"SP_GAR_5": {"name":"Tubular Spaceframe Welding Arrays","pillar":4,"part":"Garage","weeks":34,"rp":2000,"cr":4000000,"effect":"chassis_repair_speed","value":0.20,"Required_RnD_Studio_Level":4,"building":"Garage","min_building_level":25,"desc":"+20% chassis repair speed."},
+		"SP_GAR_6": {"name":"Sequential Transmission Blueprint Overhauls","pillar":4,"part":"Garage","weeks":46,"rp":6500,"cr":11500000,"effect":"transmission_failure_reduction","value":0.15,"Required_RnD_Studio_Level":10,"building":"Garage","min_building_level":47,"desc":"−15% transmission failure risk."},
+		"SP_GAR_7": {"name":"Structural Tube Frame Fabrication Jigs","pillar":4,"part":"Garage","weeks":68,"rp":14000,"cr":24000000,"effect":"stock_car_durability","value":0.12,"Required_RnD_Studio_Level":20,"building":"Garage","min_building_level":64,"desc":"+12% stock car durability."},
+		"SP_GAR_8": {"name":"Advanced Sub-Assembly Stress-Testing Rigs","pillar":4,"part":"Garage","weeks":74,"rp":21000,"cr":35000000,"effect":"mechanical_dnf_reduction","value":0.35,"Required_RnD_Studio_Level":35,"building":"Garage","min_building_level":85,"desc":"−35% pre-event mechanical DNFs."},
+		"SP_GRAVEL_1": {"name":"WRC4 Loose Soil Shakedown Calibration","pillar":4,"part":"Gravel","weeks":35,"rp":3500,"cr":6000000,"effect":"rally_loose_grip","value":0.08,"Required_RnD_Studio_Level":2,"building":"Gravel Track","min_building_level":1,"desc":"+8% grip on loose surfaces."},
+		"SP_GRAVEL_2": {"name":"High-Travel Damper Variable-Surface Shaker Rigs","pillar":4,"part":"Gravel","weeks":46,"rp":7500,"cr":12500000,"effect":"rally_unpaved_handling","value":0.10,"Required_RnD_Studio_Level":3,"building":"Gravel Track","min_building_level":2,"desc":"+10% handling on unpaved."},
+		"SP_GRAVEL_3": {"name":"Sub-Surface Radar Terrain Mapping","pillar":4,"part":"Gravel","weeks":98,"rp":25000,"cr":45000000,"effect":"gravel_suspension_durability","value":0.35,"Required_RnD_Studio_Level":3,"building":"Gravel Track","min_building_level":3,"desc":"−35% suspension damage on gravel."},
+		"SP_HQ_1": {"name":"Enterprise Conglomerate Resource Architecture","pillar":4,"part":"HQ","weeks":48,"rp":8500,"cr":14500000,"effect":"maintenance_reduction","value":0.15,"Required_RnD_Studio_Level":4,"building":"Headquarters","min_building_level":8,"desc":"−15% all campus maintenance costs."},
+		"SP_HQ_2": {"name":"Cross-Border Brand Licensing Syndicate","pillar":4,"part":"HQ","weeks":74,"rp":12000,"cr":22000000,"effect":"marketability_boost","value":0.15,"Required_RnD_Studio_Level":6,"building":"Headquarters","min_building_level":12,"desc":"+15% global marketability."},
+		"SP_HQ_3": {"name":"Sovereign Holding Company Conversion","pillar":4,"part":"HQ","weeks":96,"rp":35000,"cr":65000000,"effect":"tax_reduction","value":0.30,"Required_RnD_Studio_Level":12,"building":"Headquarters","min_building_level":22,"desc":"−30% corporate tax."},
+		"SP_HQ_4": {"name":"Ultimate Championship Control Core","pillar":4,"part":"HQ","weeks":162,"rp":60000,"cr":120000000,"effect":"marketability_boost","value":0.25,"Required_RnD_Studio_Level":18,"building":"Headquarters","min_building_level":26,"desc":"+25% global marketability."},
+		"SP_HQ_5": {"name":"Corporate Public Relations Framework","pillar":4,"part":"HQ","weeks":34,"rp":2500,"cr":4500000,"effect":"marketability_boost","value":0.10,"Required_RnD_Studio_Level":3,"building":"Headquarters","min_building_level":7,"desc":"+10% marketability from PR."},
+		"SP_KART_1": {"name":"Rotax Championship Track Layout Optimization","pillar":4,"part":"KartTrack","weeks":30,"rp":3000,"cr":5500000,"effect":"gokart_agility","value":0.10,"Required_RnD_Studio_Level":2,"building":"Karting Track","min_building_level":2,"desc":"+10% go-kart agility."},
+		"SP_KART_2": {"name":"Micro-Chassis Elasticity Calibration Arrays","pillar":4,"part":"KartTrack","weeks":54,"rp":6500,"cr":11000000,"effect":"gokart_telemetry","value":0.15,"Required_RnD_Studio_Level":3,"building":"Karting Track","min_building_level":3,"desc":"+15% go-kart telemetry."},
+		"SP_LOG_1": {"name":"Predictive Global Freight Shipping Matrix","pillar":4,"part":"Logistics","weeks":50,"rp":5000,"cr":8500000,"effect":"parts_shipping_discount","value":0.15,"Required_RnD_Studio_Level":4,"building":"Logistics Center","min_building_level":8,"desc":"−15% shipping costs."},
+		"SP_LOG_2": {"name":"Just-In-Time (JIT) Supply Chain Integration","pillar":4,"part":"Logistics","weeks":68,"rp":11000,"cr":18500000,"effect":"cnc_build_time_reduction","value":3.0,"Required_RnD_Studio_Level":8,"building":"Logistics Center","min_building_level":19,"desc":"−3 weeks build time on parts."},
+		"SP_LOG_3": {"name":"WorldWIde Distribution Network","pillar":4,"part":"Logistics","weeks":112,"rp":25000,"cr":42000000,"effect":"logistics_cost_reduction","value":0.30,"Required_RnD_Studio_Level":14,"building":"Logistics Center","min_building_level":21,"desc":"−30% logistics cost."},
+		"SP_LOG_4": {"name":"Pinnacle Quantum Logistics Grid","pillar":4,"part":"Logistics","weeks":150,"rp":50000,"cr":95000000,"effect":"shipping_time_reduction","value":0.50,"Required_RnD_Studio_Level":20,"building":"Logistics Center","min_building_level":24,"desc":"−50% shipping time."},
+		"SP_LOG_5": {"name":"Regional Supplier Integration Matrix","pillar":4,"part":"Logistics","weeks":38,"rp":3000,"cr":5000000,"effect":"external_shipping_cost_reduction","value":0.10,"Required_RnD_Studio_Level":4,"building":"Logistics Center","min_building_level":4,"desc":"−10% external shipping cost."},
+		"SP_LOG_6": {"name":"Cross-Border Freight Coordination Node","pillar":4,"part":"Logistics","weeks":44,"rp":5500,"cr":9500000,"effect":"transport_delay_reduction","value":0.15,"Required_RnD_Studio_Level":6,"building":"Logistics Center","min_building_level":10,"desc":"−15% transport delays."},
+		"SP_LOG_7": {"name":"International Freight Network Integration","pillar":4,"part":"Logistics","weeks":50,"rp":8000,"cr":14000000,"effect":"heavy_part_shipping_cost","value":0.18,"Required_RnD_Studio_Level":9,"building":"Logistics Center","min_building_level":17,"desc":"−18% heavy part shipping cost."},
+		"SP_LOG_8": {"name":"Advanced Spares Component Sourcing","pillar":4,"part":"Logistics","weeks":52,"rp":11000,"cr":19000000,"effect":"emergency_part_cost_reduction","value":0.20,"Required_RnD_Studio_Level":11,"building":"Logistics Center","min_building_level":21,"desc":"−20% emergency part cost."},
+		"SP_LOG_9": {"name":"Intercontinental Distribution Loop Architecture","pillar":4,"part":"Logistics","weeks":60,"rp":19000,"cr":32000000,"effect":"part_sale_margin","value":0.15,"Required_RnD_Studio_Level":14,"building":"Logistics Center","min_building_level":23,"desc":"+15% part sale margin."},
+		"SP_STORE_1": {"name":"Global E-Commerce Merchandize Networks","pillar":4,"part":"Store","weeks":35,"rp":3500,"cr":6500000,"effect":"merch_profit_margin","value":0.12,"Required_RnD_Studio_Level":2,"building":"Merchandize Store","min_building_level":7,"desc":"+12% merch profit margin."},
+		"SP_STORE_2": {"name":"Flagship Showroom Luxury Apparel Atriums","pillar":4,"part":"Store","weeks":48,"rp":8000,"cr":14000000,"effect":"apparel_revenue","value":0.15,"Required_RnD_Studio_Level":3,"building":"Merchandize Store","min_building_level":7,"desc":"+15% apparel revenue."},
+		"SP_STORE_3": {"name":"Global Airport Duty-Free Retail Outlets","pillar":4,"part":"Store","weeks":74,"rp":14000,"cr":24000000,"effect":"passive_income_boost","value":0.10,"Required_RnD_Studio_Level":4,"building":"Merchandize Store","min_building_level":7,"desc":"+10% passive income."},
+		"SP_STORE_4": {"name":"Infinite Corporate Licensing Syndicates","pillar":4,"part":"Store","weeks":102,"rp":35000,"cr":65000000,"effect":"merch_profit_boost","value":0.25,"Required_RnD_Studio_Level":5,"building":"Merchandize Store","min_building_level":7,"desc":"+25% merch profit."},
+		"SP_MUS_1": {"name":"Heritage Preservation Showroom Atrium","pillar":4,"part":"Museum","weeks":36,"rp":4500,"cr":8500000,"effect":"passive_income_boost","value":0.15,"Required_RnD_Studio_Level":3,"building":"Museum","min_building_level":2,"desc":"+15% passive income."},
+		"SP_MUS_2": {"name":"Blue-Chip Automotive Heritage Auctions","pillar":4,"part":"Museum","weeks":50,"rp":8000,"cr":15000000,"effect":"asset_conversion_rate","value":0.12,"Required_RnD_Studio_Level":4,"building":"Museum","min_building_level":4,"desc":"+12% asset conversion rate."},
+		"SP_MUS_3": {"name":"Global Legacy Asset Syndicate Nodes","pillar":4,"part":"Museum","weeks":100,"rp":28000,"cr":55000000,"effect":"brand_prestige","value":0.20,"Required_RnD_Studio_Level":5,"building":"Museum","min_building_level":5,"desc":"+20% brand prestige."},
+		"SP_MUS_4": {"name":"Curated Heritage Exhibit Showrooms","pillar":4,"part":"Museum","weeks":40,"rp":2500,"cr":4000000,"effect":"passive_income_boost","value":0.05,"Required_RnD_Studio_Level":3,"building":"Museum","min_building_level":1,"desc":"+5% passive income."},
+		"SP_OST_1": {"name":"Hardware-In-The-Loop (HIL) Powertrain Modeling","pillar":4,"part":"Ops","weeks":40,"rp":6500,"cr":11000000,"effect":"fuel_efficiency","value":0.06,"Required_RnD_Studio_Level":5,"building":"Ops Sim & Telemetry","min_building_level":4,"desc":"+6% fuel efficiency."},
+		"SP_OST_2": {"name":"Infrared Thermal Tire Contact Tracking","pillar":4,"part":"Ops","weeks":52,"rp":9000,"cr":16500000,"effect":"tire_degradation_reduction","value":0.12,"Required_RnD_Studio_Level":8,"building":"Ops Sim & Telemetry","min_building_level":9,"desc":"−12% tire degradation."},
+		"SP_OST_3": {"name":"Predictive Brake & Traction Control Monitors","pillar":4,"part":"Ops","weeks":76,"rp":14000,"cr":24000000,"effect":"wet_lockup_reduction","value":0.15,"Required_RnD_Studio_Level":12,"building":"Ops Sim & Telemetry","min_building_level":13,"desc":"−15% lock-up mistakes in wet."},
+		"SP_OST_4": {"name":"Predictive Neural Timing Grid Networks","pillar":4,"part":"Ops","weeks":80,"rp":25000,"cr":45000000,"effect":"undercut_success","value":0.18,"Required_RnD_Studio_Level":18,"building":"Ops Sim & Telemetry","min_building_level":19,"desc":"+18% undercut success."},
+		"SP_OST_5": {"name":"Quantum Probability Sector Strategy Engine","pillar":4,"part":"Ops","weeks":106,"rp":40000,"cr":75000000,"effect":"track_knowledge_boost","value":0.75,"Required_RnD_Studio_Level":22,"building":"Ops Sim & Telemetry","min_building_level":26,"desc":"+75% track knowledge baseline."},
+		"SP_OST_6": {"name":"Deep-Space Predictive Tracking Matrix","pillar":4,"part":"Ops","weeks":152,"rp":70000,"cr":130000000,"effect":"tactical_error_reduction","value":0.0,"Required_RnD_Studio_Level":27,"building":"Ops Sim & Telemetry","min_building_level":30,"desc":"Greatly reduces tactical errors."},
+		"SP_OST_7": {"name":"Real-Time Telemetry Data Overlay Dashboards","pillar":4,"part":"Ops","weeks":34,"rp":4000,"cr":6500000,"effect":"strategy_data_quality","value":0.05,"Required_RnD_Studio_Level":4,"building":"Ops Sim & Telemetry","min_building_level":5,"desc":"+5% strategy data quality."},
+		"SP_OVAL_1": {"name":"ARCA Short-Track Laser Setup Engineering","pillar":4,"part":"Oval","weeks":38,"rp":4000,"cr":7000000,"effect":"short_oval_turn_in","value":0.10,"Required_RnD_Studio_Level":2,"building":"Oval Track","min_building_level":1,"desc":"+10% turn-in on short ovals."},
+		"SP_OVAL_2": {"name":"Dynamic High-Bank Telemetry Capture Loops","pillar":4,"part":"Oval","weeks":52,"rp":8500,"cr":14500000,"effect":"superspeedway_blowout_reduction","value":0.15,"Required_RnD_Studio_Level":3,"building":"Oval Track","min_building_level":2,"desc":"−15% tire blowout risk on superspeedways."},
+		"SP_OVAL_3": {"name":"Boundary Slipstream Aerodynamic Optimizers","pillar":4,"part":"Oval","weeks":106,"rp":30000,"cr":55000000,"effect":"drafting_drag_reduction","value":0.12,"Required_RnD_Studio_Level":3,"building":"Oval Track","min_building_level":3,"desc":"−12% drag when drafting."},
+		"SP_ARENA_1": {"name":"Mock Pit Lane Servicing Simulation Infrastructure","pillar":4,"part":"Arena","weeks":32,"rp":3500,"cr":6000000,"effect":"pit_stop_time_reduction","value":0.01,"Required_RnD_Studio_Level":3,"building":"Pit Crew Arena","min_building_level":6,"desc":"Small pit stop time reduction."},
+		"SP_ARENA_2": {"name":"High-Pressure Pneumatic Tool Light-Systems","pillar":4,"part":"Arena","weeks":48,"rp":7000,"cr":12500000,"effect":"pit_stop_error_reduction","value":0.05,"Required_RnD_Studio_Level":6,"building":"Pit Crew Arena","min_building_level":9,"desc":"−5% pit stop errors."},
+		"SP_ARENA_3": {"name":"Sub-Two-Second Choreographed Pit Stop Perfection","pillar":4,"part":"Arena","weeks":64,"rp":14500,"cr":24000000,"effect":"pit_stop_time_reduction","value":0.02,"Required_RnD_Studio_Level":10,"building":"Pit Crew Arena","min_building_level":14,"desc":"Further pit stop time reduction."},
+		"SP_ARENA_4": {"name":"Predictive Biomechanical Exoskeleton Support","pillar":4,"part":"Arena","weeks":96,"rp":36000,"cr":65000000,"effect":"pit_stop_time_reduction","value":0.03,"Required_RnD_Studio_Level":18,"building":"Pit Crew Arena","min_building_level":20,"desc":"Final pit stop time reduction."},
+		"SP_CLUB_1": {"name":"VIP Trackside Lounge Arena Facilities","pillar":4,"part":"Club","weeks":38,"rp":5000,"cr":9500000,"effect":"passive_income_multiplier","value":0.20,"Required_RnD_Studio_Level":3,"building":"Public Racing Club","min_building_level":7,"desc":"+20% passive income multiplier."},
+		"SP_CLUB_2": {"name":"Sovereign Wealth Racing Syndicate Tracks","pillar":4,"part":"Club","weeks":94,"rp":24000,"cr":45000000,"effect":"off_season_income","value":0.40,"Required_RnD_Studio_Level":6,"building":"Public Racing Club","min_building_level":7,"desc":"+40% off-season passive income."},
+		"SP_RND_1": {"name":"Volumetric Fluid Dynamics Engine Blueprinting","pillar":4,"part":"R&D","weeks":46,"rp":9000,"cr":15500000,"effect":"engine_power","value":0.05,"Required_RnD_Studio_Level":5,"building":"R&D Design Studio","min_building_level":9,"desc":"+5% engine power."},
+		"SP_RND_2": {"name":"Proprietary Shock Absorber Fluid Research","pillar":4,"part":"R&D","weeks":64,"rp":12500,"cr":21000000,"effect":"tire_wear_reduction","value":0.10,"Required_RnD_Studio_Level":7,"building":"R&D Design Studio","min_building_level":12,"desc":"−10% tire wear."},
+		"SP_RND_3": {"name":"High-Modulus Aerospace Carbon Composites","pillar":4,"part":"R&D","weeks":78,"rp":20000,"cr":34000000,"effect":"part_weight_reduction","value":0.15,"Required_RnD_Studio_Level":11,"building":"R&D Design Studio","min_building_level":18,"desc":"−15% part weight."},
+		"SP_RND_4": {"name":"Exotic Metal Alloys Metallurgy Optimization","pillar":4,"part":"R&D","weeks":92,"rp":28000,"cr":48000000,"effect":"heat_resistance","value":0.20,"Required_RnD_Studio_Level":14,"building":"R&D Design Studio","min_building_level":21,"desc":"+20% heat resistance."},
+		"SP_RND_5": {"name":"Pinnacle Aerothermal Flow Blueprinting","pillar":4,"part":"R&D","weeks":124,"rp":45000,"cr":80000000,"effect":"cooling_drag_reduction","value":0.12,"Required_RnD_Studio_Level":18,"building":"R&D Design Studio","min_building_level":24,"desc":"−12% cooling drag."},
+		"SP_RND_6": {"name":"Generative AI Topology Optimization Core","pillar":4,"part":"R&D","weeks":156,"rp":80000,"cr":150000000,"effect":"reverse_engineering_speed","value":0.40,"Required_RnD_Studio_Level":24,"building":"R&D Design Studio","min_building_level":27,"desc":"+40% reverse engineering speed."},
+		"SP_RND_7": {"name":"Infinite Generative Design Loop Synthesis","pillar":4,"part":"R&D","weeks":210,"rp":150000,"cr":250000000,"effect":"custom_part_efficiency","value":0.20,"Required_RnD_Studio_Level":27,"building":"R&D Design Studio","min_building_level":27,"desc":"+20% custom part efficiency."},
+		"SP_RND_8": {"name":"Internal Combustion Fundamentals Cleanroom","pillar":4,"part":"R&D","weeks":32,"rp":4000,"cr":6500000,"effect":"engine_power","value":0.04,"Required_RnD_Studio_Level":3,"building":"R&D Design Studio","min_building_level":4,"desc":"+4% engine power."},
+		"SP_RND_9": {"name":"Volumetric Fluid Dynamics Intake Porting","pillar":4,"part":"R&D","weeks":48,"rp":7000,"cr":12000000,"effect":"engine_fuel_efficiency","value":0.08,"Required_RnD_Studio_Level":5,"building":"R&D Design Studio","min_building_level":10,"desc":"+8% engine fuel efficiency."},
+		"SP_RACE_1": {"name":"Formula 4 Flat Road Tracking Optimization","pillar":4,"part":"RaceTrack","weeks":36,"rp":4500,"cr":8000000,"effect":"track_awareness","value":0.12,"Required_RnD_Studio_Level":2,"building":"Race Track","min_building_level":1,"desc":"+12% track awareness."},
+		"SP_RACE_2": {"name":"Tire Thermal Physics Contact-Patch Surface Mapping","pillar":4,"part":"RaceTrack","weeks":48,"rp":9500,"cr":16000000,"effect":"tire_degradation_reduction","value":0.10,"Required_RnD_Studio_Level":3,"building":"Race Track","min_building_level":2,"desc":"−10% tire degradation."},
+		"SP_RACE_3": {"name":"High-Output Powertrain Kinetic Energy Capture","pillar":4,"part":"RaceTrack","weeks":66,"rp":18000,"cr":32000000,"effect":"hybrid_deployment_efficiency","value":0.15,"Required_RnD_Studio_Level":3,"building":"Race Track","min_building_level":3,"desc":"+15% hybrid deployment."},
+		"SP_RACE_4": {"name":"Cryogenic Synthetic Compound Contact Strips","pillar":4,"part":"RaceTrack","weeks":110,"rp":50000,"cr":85000000,"effect":"tire_durability_testing","value":0.18,"Required_RnD_Studio_Level":3,"building":"Race Track","min_building_level":4,"desc":"+18% tire durability."},
+		"SP_RAC_1": {"name":"High-Performance Athlete Housing Complex","pillar":4,"part":"Racing","weeks":38,"rp":4000,"cr":7500000,"effect":"driver_fatigue_reduction","value":0.20,"Required_RnD_Studio_Level":8,"building":"Racing Department","min_building_level":30,"desc":"−20% driver fatigue."},
+		"SP_RAC_2": {"name":"Neural Cognitive Driver Synapse Calibration","pillar":4,"part":"Racing","weeks":54,"rp":8000,"cr":14000000,"effect":"driver_mistake_reduction","value":0.15,"Required_RnD_Studio_Level":18,"building":"Racing Department","min_building_level":45,"desc":"−15% driver mistakes."},
+		"SP_RAC_3": {"name":"Biometric Telemetry Hydration Loops","pillar":4,"part":"Racing","weeks":70,"rp":15000,"cr":26000000,"effect":"wet_stamina_boost","value":0.18,"Required_RnD_Studio_Level":30,"building":"Racing Department","min_building_level":70,"desc":"+18% stamina in wet."},
+		"SP_RAC_4": {"name":"Psychometric Reflex Synergy Optimization","pillar":4,"part":"Racing","weeks":104,"rp":30000,"cr":55000000,"effect":"overtaking_success","value":0.15,"Required_RnD_Studio_Level":50,"building":"Racing Department","min_building_level":89,"desc":"+15% overtaking success."},
+		"SP_RAC_5": {"name":"Video Telemetry Driver Analysis Playback","pillar":4,"part":"Racing","weeks":38,"rp":2500,"cr":4500000,"effect":"driver_line_correction","value":0.05,"Required_RnD_Studio_Level":5,"building":"Racing Department","min_building_level":11,"desc":"+5% driver line correction."},
+		"SP_RAC_6": {"name":"Press & Media Communications Training Suite","pillar":4,"part":"Racing","weeks":44,"rp":5000,"cr":8500000,"effect":"sponsor_podium_bonus","value":0.10,"Required_RnD_Studio_Level":9,"building":"Racing Department","min_building_level":28,"desc":"+10% sponsor bonus after podium."},
+		"SP_PARK_1": {"name":"Immersive Destinational Resort Infrastructure","pillar":4,"part":"Park","weeks":40,"rp":7500,"cr":14000000,"effect":"marketability_buffer","value":0.10,"Required_RnD_Studio_Level":3,"building":"Theme Park","min_building_level":3,"desc":"+10% marketability buffer."},
+		"SP_PARK_2": {"name":"High-Capacity Branded Roller Coasters","pillar":4,"part":"Park","weeks":68,"rp":14000,"cr":25000000,"effect":"theme_park_income","value":0.15,"Required_RnD_Studio_Level":4,"building":"Theme Park","min_building_level":4,"desc":"+15% theme park income."},
+		"SP_PARK_3": {"name":"International Franchise Resort Expansion","pillar":4,"part":"Park","weeks":154,"rp":48000,"cr":85000000,"effect":"passive_income_boost","value":0.10,"Required_RnD_Studio_Level":5,"building":"Theme Park","min_building_level":5,"desc":"Strong passive income boost."},
+		"SP_FAC_1": {"name":"Automated Robotic Assembly Line Engineering","pillar":4,"part":"Factory","weeks":45,"rp":10000,"cr":18000000,"effect":"commercial_production_cost_reduction","value":0.10,"Required_RnD_Studio_Level":4,"building":"Vehicle Assembly Factory","min_building_level":4,"desc":"−10% commercial production cost."},
+		"SP_FAC_2": {"name":"Conveyor Mass Production Customization","pillar":4,"part":"Factory","weeks":62,"rp":18500,"cr":32000000,"effect":"msrp_pricing_flexibility","value":0.12,"Required_RnD_Studio_Level":6,"building":"Vehicle Assembly Factory","min_building_level":6,"desc":"+12% MSRP pricing flexibility."},
+		"SP_FAC_3": {"name":"Monocoque Chassis Marriage Rig Arrays","pillar":4,"part":"Factory","weeks":86,"rp":30000,"cr":55000000,"effect":"weekly_commercial_output","value":0.15,"Required_RnD_Studio_Level":9,"building":"Vehicle Assembly Factory","min_building_level":9,"desc":"+15% weekly commercial output."},
+		"SP_FAC_4": {"name":"Cybernetic Smart-Factory Swarm Architecture","pillar":4,"part":"Factory","weeks":144,"rp":65000,"cr":110000000,"effect":"weekly_output_and_pricing","value":0.30,"Required_RnD_Studio_Level":12,"building":"Vehicle Assembly Factory","min_building_level":12,"desc":"+30% output and pricing power."}
+	}
+	for k in p4: tasks[k] = p4[k]
+	return tasks
+
+## Called when WRA announces new technical regulations every WRA_CYCLE_LENGTH seasons.
+## Destroys P1 (Design) and P3 (RE) blueprints. P4 Special Projects unaffected.
+
+
+func _apply_wra_regulation_change() -> void:
+	gs.wra_cycle_start_season = gs.current_season
+	var wiped = gs.completed_bp_tasks.size()
+	gs.completed_bp_tasks.clear()
+	gs.completed_rnd_tasks = gs.completed_rnd_tasks.filter(
+		func(tid): return not (tid.begins_with("BP-") or tid.begins_with("RE-")))
+	var to_wipe: Array = []
+	for bp_id in gs.known_blueprints:
+		if gs.known_blueprints[bp_id].get("pillar", 0) in [1, 3]:
+			to_wipe.append(bp_id)
+	for bp_id in to_wipe:
+		gs.known_blueprints.erase(bp_id)
+	gs.add_notification("Critical",
+		"WRA NEW REGULATIONS — Season %d! All Design and RE blueprints invalidated. %d blueprints lost. Teams must redesign from scratch." % [gs.current_season, wiped])
+	gs.add_log("WRA Regulation Change — Season %d. %d blueprints wiped." % [gs.current_season, wiped])
+
+
+func has_blueprint(part: String) -> bool:
+	for tid in gs.completed_rnd_tasks:
+		var t = gs.RND_TASKS.get(tid, {})
+		if t.get("part","") == part and t.get("pillar",0) in [1, 3]:
+			return true
+	return false
+
+## Returns list of parts the player can currently manufacture.
+
+
+func get_manufacturable_parts() -> Array:
+	var parts = []
+	for part in ["Aero","Engine","Chassis","Gearbox","Brakes","Suspension"]:
+		if has_blueprint(part) and not part in parts:
+			parts.append(part)
+	return parts
+
+## Queue a CNC production run for a part.
+
+
+func start_cnc_production(part: String, champ_id: String, quantity: int = 1) -> bool:
+	if not has_blueprint(part):
+		gs.add_notification("High", "No blueprint for %s. Research it in R&D Studio first." % part)
+		return false
+	var building = gs.campus_buildings.get("CNC Parts Plant", {})
+	if not building.get("built", false):
+		gs.add_notification("High", "CNC Parts Plant not built.")
+		return false
+	var cnc = gs.CNC_DATA.get(champ_id, gs.CNC_DATA.get("C-001", {}))
+	var base_cost = cnc.get("base_total_cost", 10000)
+	# Part cost: fraction of full car cost (Aero 20%, Engine 35%, Chassis 25%, others 10%)
+	const PART_COST_RATIO = {"Aero":0.20,"Engine":0.35,"Chassis":0.25,
+		"Gearbox":0.08,"Brakes":0.06,"Suspension":0.06}
+	var unit_cost = int(base_cost * PART_COST_RATIO.get(part, 0.10) * float(quantity))
+	if gs.player_team.balance < unit_cost:
+		gs.add_notification("High", "Insufficient funds for CNC production. Need CR %s." % gs._fmt_int(unit_cost))
+		return false
+	# Manufacture time: design_weeks scaled by part complexity
+	const PART_TIME_RATIO = {"Aero":0.4,"Engine":0.6,"Chassis":0.5,
+		"Gearbox":0.25,"Brakes":0.2,"Suspension":0.25}
+	var weeks = max(1, int(cnc.get("design_weeks", 4) * PART_TIME_RATIO.get(part, 0.3) * quantity))
+	gs.player_team.balance -= unit_cost
+	gs.cnc_production_queue.append({
+		"id":        "%s_%s_%d" % [part, champ_id, gs.current_week],
+		"part":      part,
+		"championship_id": champ_id,
+		"weeks_total":     weeks,
+		"weeks_remaining": weeks,
+		"cr_cost":         unit_cost,
+		"quantity":        quantity,
+	})
+	gs.add_log("⚙ CNC production started: %dx %s for %s (%d wks)" % [
+		quantity, part, gs.CHAMPIONSHIP_REGISTRY.get(champ_id,{}).get("name", champ_id), weeks])
+	gs.add_notification("Normal", "CNC: %dx %s in production. Ready in %d weeks." % [quantity, part, weeks])
+	gs.emit_signal("log_updated")
+	return true
+
+## Called each advance_week — ticks CNC production queue.
+
+
+func _advance_cnc_production() -> void:
+	var finished = []
+	for job in gs.cnc_production_queue:
+		job["weeks_remaining"] -= 1
+		if job["weeks_remaining"] <= 0:
+			finished.append(job)
+	for job in finished:
+		gs.cnc_production_queue.erase(job)
+		var part   = job.get("part", "")
+		var pcode  = job.get("part_code", "")
+		var cid    = job.get("championship_id", "")
+		var qty    = job.get("quantity", 1)
+		var rel    = job.get("reliability", 60.0)
+		var qual   = job.get("quality", 1.0)
+		var bp_id  = job.get("blueprint_id", "")
+		## Store using canonical key: "CHAMP_ID|PCODE"
+		var inv_key = _cnc_inv_key(cid, pcode) if (cid != "" and pcode != "") else part
+		if inv_key in gs.cnc_parts_inventory:
+			gs.cnc_parts_inventory[inv_key]["quantity"] += qty
+		else:
+			gs.cnc_parts_inventory[inv_key] = {
+				"quantity":       qty,
+				"reliability":    rel,
+				"quality":        qual,
+				"blueprint_id":   bp_id,
+				"part":           part,
+				"part_code":      pcode,
+				"championship_id": cid,
+			}
+		## Remove from wra_approved_blueprints so TDL step 8b clears
+		gs.wra_approved_blueprints = gs.wra_approved_blueprints.filter(
+			func(app): return app.get("blueprint_id","") != bp_id)
+		gs.add_log("✅ CNC complete: %dx %s (%s) — Rel:%.0f%% Qual:%.2f× → warehouse." % [
+			qty, part, pcode, rel, qual])
+		gs.add_notification("High",
+			"CNC complete: %dx %s ready in warehouse. Go to Garage to install it." % [qty, part],
+			"garage")
+	if not finished.is_empty():
+		gs.emit_signal("log_updated")
+
+## Assigns a CNC-manufactured part from inventory to a specific car.
+
+
+func assign_cnc_part_to_car(car_id: String, part: String) -> bool:
+	var car = null
+	for c in gs.player_team_cars:
+		if c.id == car_id: car = c; break
+	if car == null:
+		gs.add_notification("High", "Car not found: %s" % car_id)
+		return false
+	var available = gs.cnc_parts_inventory.get(part, 0)
+	if available <= 0:
+		gs.add_notification("High", "No %s in CNC inventory. Manufacture one first." % part)
+		return false
+	gs.cnc_parts_inventory[part] = available - 1
+	if gs.cnc_parts_inventory[part] <= 0:
+		gs.cnc_parts_inventory.erase(part)
+	if not car_id in gs.car_installed_parts:
+		gs.car_installed_parts[car_id] = {}
+	gs.car_installed_parts[car_id][part] = gs.car_installed_parts[car_id].get(part, 0) + 1
+	var cname = car.car_name if car.car_name != "" else "Car %d" % car.car_number
+	gs.add_log("🔩 %s CNC part installed on %s." % [part, cname])
+	gs.add_notification("Normal", "%s CNC part installed on %s." % [part, cname])
+	gs.emit_signal("log_updated")
+	return true
+
+## Removes a CNC part from a car and returns it to inventory.
+
+
+func remove_cnc_part_from_car(car_id: String, part: String) -> bool:
+	if not car_id in gs.car_installed_parts: return false
+	var installed = gs.car_installed_parts[car_id]
+	if not part in installed or installed[part] <= 0: return false
+	installed[part] -= 1
+	if installed[part] <= 0: installed.erase(part)
+	gs.cnc_parts_inventory[part] = gs.cnc_parts_inventory.get(part, 0) + 1
+	var car = null
+	for c in gs.player_team_cars:
+		if c.id == car_id: car = c; break
+	var cname = car.car_name if car and car.car_name != "" else "Car"
+	gs.add_log("🔩 %s CNC part removed from %s → back to inventory." % [part, cname])
+	gs.emit_signal("log_updated")
+	return true
+
+## Returns a lap-time improvement fraction (0.0–0.08) for a car based on CNC parts installed.
+
+
+func get_cnc_part_bonus(car_id: String) -> float:
+	var installed = gs.car_installed_parts.get(car_id, {})
+	if installed.is_empty(): return 0.0
+	var total = 0.0
+	for part in installed:
+		var qty: int = installed[part]
+		total += 0.005
+		if qty > 1: total += (qty - 1) * 0.002
+	return clamp(total, 0.0, 0.08)
+
+## ── CNC Blueprint-based manufacturing (WRA-gated) ────────────────────────────
+
+## Key format for cnc_parts_inventory: "CHAMP_ID|PCODE"
+## Each value: { quantity, reliability, quality, blueprint_id }
+
+
+func _cnc_inv_key(champ_id: String, pcode: String) -> String:
+	return "%s|%s" % [champ_id, pcode]
+
+## Compute manufacturing weeks from a blueprint (Formula doc §3).
+
+
+func get_cnc_manufacturing_weeks(blueprint_id: String, extra_weeks: int = 0) -> int:
+	var bp = gs.known_blueprints.get(blueprint_id, {})
+	var cid = bp.get("championship_id", "C-001")
+	var part = bp.get("part", "Aero")
+	var cnc = gs.CNC_DATA.get(cid, gs.CNC_DATA.get("C-001", {}))
+	const TIME_RATIO = {"Aero":0.4,"Engine":0.6,"Chassis":0.5,
+		"Gearbox":0.25,"Brakes":0.2,"Suspension":0.25}
+	var base = max(1, int(cnc.get("design_weeks", 4) * TIME_RATIO.get(part, 0.3)))
+	return base + extra_weeks
+
+## Compute manufacturing CR from a blueprint.
+
+
+func get_cnc_manufacturing_cr(blueprint_id: String, quantity: int = 1, extra_cr: int = 0) -> int:
+	var bp = gs.known_blueprints.get(blueprint_id, {})
+	var cid = bp.get("championship_id", "C-001")
+	var part = bp.get("part", "Aero")
+	var cnc = gs.CNC_DATA.get(cid, gs.CNC_DATA.get("C-001", {}))
+	const COST_RATIO = {"Aero":0.20,"Engine":0.35,"Chassis":0.25,
+		"Gearbox":0.08,"Brakes":0.06,"Suspension":0.06}
+	var unit = int(cnc.get("base_total_cost", 10000) * COST_RATIO.get(part, 0.10))
+	return unit * quantity + extra_cr
+
+## Compute final reliability (Formula doc §3).
+## Base_Reliability = 60 + (seasons_since_wra_reset * 10), capped at 100.
+
+
+func calculate_final_reliability(blueprint_id: String, extra_cr: int = 0, extra_weeks: int = 0) -> float:
+	var bp = gs.known_blueprints.get(blueprint_id, {})
+	var cid = bp.get("championship_id", "C-001")
+	var group_season = _get_wra_group_season(cid)
+	var base_rel = clamp(60.0 + (group_season - 1) * 10.0, 60.0, 100.0)
+	var bonus_cr  = float(extra_cr)  / 12000.0
+	var bonus_wk  = float(extra_weeks) * 5.0
+	return clamp(base_rel + bonus_cr + bonus_wk, 0.0, 100.0)
+
+## Returns how many seasons into the current WRA cycle a championship is.
+
+
+func _get_wra_group_season(cid: String) -> int:
+	const GROUP_MAP = {
+		"Formula":["C-021","C-022","C-023","C-024"],
+		"Touring":["C-005","C-006"],
+		"Karting":["C-001"],
+		"Open Wheel":["C-007","C-008","C-009"],
+		"Stock Car":["C-010","C-011","C-012","C-013"],
+		"Rally":["C-014","C-015","C-016","C-017"],
+		"Endurance":["C-018","C-019","C-020"],
+	}
+	const CYCLE_LEN = {"Formula":4,"Touring":5,"Karting":6,"Open Wheel":7,
+		"Stock Car":8,"Rally":9,"Endurance":10}
+	for group in GROUP_MAP:
+		if cid in GROUP_MAP[group]:
+			var cycle = CYCLE_LEN.get(group, 4)
+			return ((gs.current_season - 1) % cycle) + 1
+	return 1
+
+## Start a WRA-approved blueprint CNC job. Called from CNCPlant.
+
+
+func start_cnc_job(blueprint_id: String, quantity: int = 1,
+		extra_cr: int = 0, extra_weeks: int = 0) -> bool:
+	if not is_blueprint_approved(blueprint_id):
+		gs.add_notification("High", "Blueprint not WRA-approved. Submit it at the WRA Office in HQ first.")
+		return false
+	var building = gs.campus_buildings.get("CNC Parts Plant", {})
+	if not building.get("built", false):
+		gs.add_notification("High", "CNC Parts Plant not built.")
+		return false
+	var total_cr = get_cnc_manufacturing_cr(blueprint_id, quantity, extra_cr)
+	if gs.player_team.balance < total_cr:
+		gs.add_notification("High", "Insufficient funds. Need CR %s." % gs._fmt_int(total_cr))
+		return false
+	var weeks = get_cnc_manufacturing_weeks(blueprint_id, extra_weeks)
+	var reliability = calculate_final_reliability(blueprint_id, extra_cr, extra_weeks)
+	var bp = gs.known_blueprints[blueprint_id]
+	var quality = bp.get("quality", 1.0)
+	gs.player_team.balance -= total_cr
+	gs.cnc_production_queue.append({
+		"id":            "%s_q%d" % [blueprint_id, gs.current_week],
+		"blueprint_id":  blueprint_id,
+		"part":          bp.get("part", ""),
+		"part_code":     bp.get("part_code", ""),
+		"championship_id": bp.get("championship_id", ""),
+		"weeks_total":     weeks,
+		"weeks_remaining": weeks,
+		"cr_cost":         total_cr,
+		"quantity":        quantity,
+		"reliability":     reliability,
+		"quality":         quality,
+	})
+	gs.add_log("⚙ CNC job queued: %dx %s — %dwks, CR %s, Rel %.0f%%, Qual %.2f×" % [
+		quantity, bp.get("name", blueprint_id), weeks, gs._fmt_int(total_cr), reliability, quality])
+	gs.add_notification("Normal", "CNC: %dx %s in production. Ready in %d weeks." % [
+		quantity, bp.get("part", blueprint_id), weeks])
+	gs.emit_signal("log_updated")
+	return true
+
+## Returns the installed CNC parts dict for a car.
+## Format: { "AER": {reliability, quality, blueprint_id}, ... }
+
+
+func get_cnc_stock_for_slot(champ_id: String, pcode: String) -> Array:
+	const PCODE_TO_PART = {"AER":"Aero","ENG":"Engine","GRB":"Gearbox",
+		"SUS":"Suspension","BRK":"Brakes","CHS":"Chassis"}
+	var part_name = PCODE_TO_PART.get(pcode, pcode)
+	var result: Array = []
+	for inv_key in gs.cnc_parts_inventory:
+		var item = gs.cnc_parts_inventory[inv_key]
+		if not item is Dictionary: continue
+		if item.get("quantity", 0) <= 0: continue
+		if item.get("championship_id", "") != champ_id: continue
+		var item_pcode = item.get("part_code", "")
+		var item_part  = item.get("part", "")
+		if item_pcode == pcode or item_part == part_name:
+			result.append(inv_key)
+	return result
+
+## Returns the display label for a CNC inventory item: "Blueprint Name  L2"
+
+
+func get_cnc_part_label(inv_key: String) -> String:
+	var item = gs.cnc_parts_inventory.get(inv_key, {})
+	if not item is Dictionary: return inv_key
+	var bp_id = item.get("blueprint_id", "")
+	var lvl = 0
+	var bp_name = item.get("part", inv_key)
+	if bp_id != "" and bp_id in gs.known_blueprints:
+		var bp = gs.known_blueprints[bp_id]
+		lvl = bp.get("level", 0)
+		bp_name = bp.get("name", bp_name)
+	var qty = item.get("quantity", 1)
+	return "%s  L%d  (×%d)" % [bp_name, lvl, qty]
+
+## Returns the blueprint grid status for a championship.
+## { pcode: { "BP": [done_levels], "RE": bool, "in_progress": [task_ids], "wra_pending": [bp_ids], "wra_approved": [bp_ids] } }
+
+
+func get_blueprint_grid(champ_id: String) -> Dictionary:
+	const PCODES = ["AER","ENG","GRB","SUS","BRK","CHS"]
+	const PCODE_TO_PART = {"AER":"Aero","ENG":"Engine","GRB":"Gearbox",
+		"SUS":"Suspension","BRK":"Brakes","CHS":"Chassis"}
+	var result: Dictionary = {}
+	for pcode in PCODES:
+		result[pcode] = {"bp_levels": [], "re": false, "in_progress": [], "wra_pending": [], "wra_approved": []}
+
+	## Scan known_blueprints
+	for bp_id in gs.known_blueprints:
+		var bp = gs.known_blueprints[bp_id]
+		if bp.get("championship_id", "") != champ_id: continue
+		var pcode = _part_name_to_pcode(bp.get("part", ""))
+		if pcode == "": continue
+		var pillar = bp.get("pillar", 1)
+		var lvl = bp.get("level", 1)
+		if pillar == 1:
+			if lvl not in result[pcode]["bp_levels"]:
+				result[pcode]["bp_levels"].append(lvl)
+		elif pillar == 3:
+			result[pcode]["re"] = true
+
+	## Scan active R&D tasks
+	for task in gs.active_rnd_tasks:
+		var tid = task.get("task_id", "")
+		var tdata = gs.RND_TASKS.get(tid, {})
+		if tdata.get("championship_id", task.get("championship_id","")) != champ_id: continue
+		var pcode = _part_name_to_pcode(tdata.get("part", ""))
+		if pcode == "" or pcode not in result: continue
+		result[pcode]["in_progress"].append(tid)
+
+	## Scan WRA submissions
+	for sub in gs.active_wra_submissions:
+		var bp_id = sub.get("blueprint_id", "")
+		if not bp_id in gs.known_blueprints: continue
+		var bp = gs.known_blueprints[bp_id]
+		if bp.get("championship_id", "") != champ_id: continue
+		var pcode = _part_name_to_pcode(bp.get("part", ""))
+		if pcode == "" or pcode not in result: continue
+		result[pcode]["wra_pending"].append(bp_id)
+
+	## Scan WRA approved
+	for app in gs.wra_approved_blueprints:
+		var bp_id = app.get("blueprint_id", "")
+		if not bp_id in gs.known_blueprints: continue
+		var bp = gs.known_blueprints[bp_id]
+		if bp.get("championship_id", "") != champ_id: continue
+		var pcode = _part_name_to_pcode(bp.get("part", ""))
+		if pcode == "" or pcode not in result: continue
+		result[pcode]["wra_approved"].append(bp_id)
+
+	return result
+
+
+func get_rnd_perf_bonus_summary() -> String:
+	var parts = ["aero_perf","engine_perf","chassis_perf","gearbox_perf","brakes_perf","susp_perf"]
+	var total = 0.0
+	for k in parts: total += get_rnd_bonus(k)
+	if total <= 0.0: return "No R&D bonuses"
+	return "+%.1f%% combined part performance" % (total * 100.0)
+
+## ── R&D System ────────────────────────────────────────────────────────────────
+
+## Returns true if a task's prerequisite is completed AND (for Pillar 4) the linked building is at the required level.
+
+
+func rnd_task_unlocked(task_id: String) -> bool:
+	var task = gs.RND_TASKS.get(task_id, {})
+	if task.is_empty(): return false
+	# Prerequisite task check (all pillars)
+	var req = task.get("requires", "")
+	if req != "" and not req in gs.completed_rnd_tasks:
+		return false
+	# Pillar 4: building level gate
+	if task.get("pillar", 0) == 4:
+		var bname  = task.get("building", "")
+		var min_lv = task.get("min_building_level", 1)
+		if bname != "":
+			var bld = gs.campus_buildings.get(bname, {})
+			if not bld.get("built", false) or bld.get("level", 0) < min_lv:
+				return false
+	return true
+
+## Returns true if a task is already running or completed.
+
+
+func rnd_task_active_or_done(task_id: String) -> bool:
+	if task_id in gs.completed_rnd_tasks: return true
+	for t in gs.active_rnd_tasks:
+		if t["id"] == task_id: return true
+	return false
+
+## Starts a new R&D task. Returns false with notification on failure.
+
+
+func start_rnd_task(task_id: String, designer_id: String, championship_id: String = "") -> bool:
+	var task = gs.RND_TASKS.get(task_id, {})
+	if task.is_empty():
+		gs.add_notification("High", "Unknown R&D task: %s" % task_id)
+		return false
+	if rnd_task_active_or_done(task_id):
+		gs.add_notification("Normal", "'%s' is already researched or in progress." % task["name"])
+		return false
+	if not rnd_task_unlocked(task_id):
+		var req = task.get("requires", "")
+		gs.add_notification("High", "Prerequisite not met: complete '%s' first." % gs.RND_TASKS.get(req, {}).get("name", req))
+		return false
+	if gs.research_points < task["rp"]:
+		gs.add_notification("High", "Not enough RP. Need %d, have %.0f." % [task["rp"], gs.research_points])
+		return false
+	if gs.player_team.balance < task["cr"]:
+		gs.add_notification("High", "Not enough CR. Need %s, have %s." % [gs._fmt_int(task["cr"]), gs._fmt_int(int(gs.player_team.balance))])
+		return false
+	if not designer_id in gs.all_staff:
+		gs.add_notification("High", "Invalid designer.")
+		return false
+	for t in gs.active_rnd_tasks:
+		if t["designer_id"] == designer_id:
+			var other = gs.RND_TASKS.get(t["id"], {})
+			gs.add_notification("High", "Designer already working on '%s'." % other.get("name", t["id"]))
+			return false
+
+	gs.research_points -= task["rp"]
+	gs.player_team.balance -= task["cr"]
+
+	gs.active_rnd_tasks.append({
+		"id":              task_id,
+		"name":            task["name"],
+		"pillar":          task["pillar"],
+		"part":            task["part"],
+		"championship_id": championship_id,
+		"weeks_total":     task["weeks"],
+		"weeks_remaining": task["weeks"],
+		"rp_cost":         task["rp"],
+		"cr_cost":         task["cr"],
+		"designer_id":     designer_id,
+		"effect_key":      task.get("effect", ""),
+		"effect_value":    task.get("value", 0.0),
+	})
+
+	var champ_label = ""
+	if championship_id != "":
+		var reg = gs.CHAMPIONSHIP_REGISTRY.get(championship_id, {})
+		champ_label = " [%s]" % reg.get("name", championship_id)
+
+	gs.add_log("🔬 R&D started: %s%s (%d weeks)" % [task["name"], champ_label, task["weeks"]])
+	gs.add_notification("Normal", "R&D started: %s%s. Est. completion: Week %d." % [
+		task["name"], champ_label, gs.current_week + task["weeks"]])
+	gs.emit_signal("log_updated")
+	return true
+
+## Cancel an active R&D task — no refund.
+
+
+func cancel_rnd_task(task_id: String) -> void:
+	for i in range(gs.active_rnd_tasks.size()):
+		if gs.active_rnd_tasks[i]["id"] == task_id:
+			gs.add_log("❌ R&D cancelled: %s" % gs.active_rnd_tasks[i]["name"])
+			gs.active_rnd_tasks.remove_at(i)
+			gs.emit_signal("log_updated")
+			return
+
+## Called each advance_week — ticks all active R&D tasks.
+
+
+func _advance_rnd_tasks() -> void:
+	var finished = []
+	for task in gs.active_rnd_tasks:
+		task["weeks_remaining"] -= 1
+		if task["weeks_remaining"] <= 0:
+			finished.append(task)
+
+	for task in finished:
+		gs.active_rnd_tasks.erase(task)
+		var tid = task["id"]
+		var pillar = task.get("pillar", 0)
+
+		if not tid in gs.completed_rnd_tasks:
+			gs.completed_rnd_tasks.append(tid)
+
+		if pillar == 1 or pillar == 3:
+			if not tid in gs.completed_bp_tasks:
+				gs.completed_bp_tasks.append(tid)
+			var bp_quality = 1.0
+			if pillar == 3:
+				## RE blueprint penalty: 25% quality reduction vs own design (GDD Bugs §1)
+				bp_quality = 0.75
+			gs.known_blueprints[tid] = {
+				"blueprint_id": tid, "name": task["name"],
+				"part": task.get("part",""), "part_code": task.get("part_code",""),
+				"championship_id": task.get("championship_id",""),
+				"season": task.get("season", gs.current_season),
+				"level": task.get("level", 1), "pillar": pillar,
+				"effect": task.get("effect_key",""), "value": task.get("effect_value", 0.0),
+				"quality": bp_quality,
+			}
+			gs.add_log("📋 Blueprint stored: %s → R&D + CNC database.%s" % [
+				tid, " [RE: 75%% quality]" if pillar == 3 else ""])
+		elif pillar == 2:
+			if not tid in gs.completed_upg_tasks:
+				gs.completed_upg_tasks.append(tid)
+			gs.known_blueprints[tid] = {
+				"blueprint_id": tid, "name": task["name"],
+				"part": task.get("part",""), "part_code": task.get("part_code",""),
+				"championship_id": task.get("championship_id",""),
+				"season": task.get("season", gs.current_season),
+				"level": task.get("level", 1), "pillar": pillar, "seasonal": true,
+				"effect": task.get("effect_key",""), "value": task.get("effect_value", 0.0),
+			}
+			gs.add_log("📋 Upgrade blueprint stored (Season %d only): %s → CNC." % [gs.current_season, tid])
+
+		_apply_rnd_effect(task)
+		var champ_label = ""
+		if task.get("championship_id", "") != "":
+			var reg = gs.CHAMPIONSHIP_REGISTRY.get(task["championship_id"], {})
+			champ_label = " [%s]" % reg.get("name", task["championship_id"]).left(14)
+		gs.add_log("✅ R&D complete: %s%s" % [task["name"], champ_label])
+		if pillar == 3:
+			## RE complete — notify that WRA submission is now available AND P1 L2 is unlocked
+			gs.add_notification("High",
+				"RE complete: '%s'%s. Blueprint ready — submit to WRA Office in HQ. Also unlocks P1 Design L2 for this part." % [task["name"], champ_label],
+				"wra_office")
+		else:
+			gs.add_notification("High", "R&D complete: '%s'%s. Submit to WRA Office in HQ to manufacture." % [task["name"], champ_label], "wra_office")
+	gs.emit_signal("log_updated")
+
+## Applies the effect of a completed R&D task.
+## Effects are stored as car_performance_bonuses — applied in race sim.
+
+
+func _apply_rnd_effect(task: Dictionary) -> void:
+	var key = task["effect_key"]
+	var value = task["effect_value"]
+	if key == "": return
+	# Store as cumulative bonus — race sim reads car_performance_bonuses
+	if not "rnd_bonuses" in gs.player_team:
+		gs.player_team.set_meta("rnd_bonuses", {})
+	var bonuses = gs.player_team.get_meta("rnd_bonuses")
+	bonuses[key] = bonuses.get(key, 0.0) + value
+	gs.player_team.set_meta("rnd_bonuses", bonuses)
+	gs.add_log("📈 R&D effect: %s +%.1f%%" % [key, value * 100.0])
+
+## Returns total R&D performance bonus for a given effect key.
+
+
+func get_rnd_bonus(effect_key: String) -> float:
+	if not gs.player_team.has_meta("rnd_bonuses"):
+		return 0.0
+	return gs.player_team.get_meta("rnd_bonuses").get(effect_key, 0.0)
+
+
+func get_rnd_rp_storage_cap() -> int:
+	var rnd = gs.campus_buildings.get("R&D Design Studio", {})
+	if not rnd.get("built", false): return 0
+	return 800 + (rnd.get("level", 1) - 1) * 400
+
+
+func _advance_wra_submissions() -> void:
+	var approved: Array = []
+	for sub in gs.active_wra_submissions:
+		sub.weeks_remaining -= 1
+		if sub.weeks_remaining <= 0:
+			approved.append(sub)
+	for sub in approved:
+		gs.active_wra_submissions.erase(sub)
+		gs.wra_approved_blueprints.append({
+			"blueprint_id":    sub.blueprint_id,
+			"championship_id": sub.championship_id,
+			"pillar":          sub.pillar,
+			"approved_season": gs.current_season,
+			"approved_week":   gs.current_week,
+		})
+		var bp = gs.known_blueprints.get(sub.blueprint_id, {})
+		gs.add_log("✅ WRA approved: %s" % bp.get("name", sub.blueprint_id))
+		gs.add_notification("High",
+			"WRA approved: '%s'. Ready for CNC manufacturing." % bp.get("name", sub.blueprint_id),
+			"wra_office")
+
+
+func submit_to_wra(blueprint_id: String) -> bool:
+	if not blueprint_id in gs.known_blueprints: return false
+	for sub in gs.active_wra_submissions:
+		if sub.blueprint_id == blueprint_id: return false
+	for app in gs.wra_approved_blueprints:
+		if app.blueprint_id == blueprint_id: return false
+	var bp = gs.known_blueprints[blueprint_id]
+	var cid = bp.get("championship_id", "")
+	var tier = _get_championship_tier(cid)
+	var weeks = {1:2,2:3,3:5,4:6}.get(tier, 2)
+	gs.active_wra_submissions.append({
+		"blueprint_id":    blueprint_id,
+		"championship_id": cid,
+		"pillar":          bp.get("pillar", 1),
+		"submitted_season": gs.current_season,
+		"submitted_week":  gs.current_week,
+		"weeks_remaining": weeks,
+		"tier":            tier,
+	})
+	gs.add_log("📋 WRA submission: %s. Decision in %d weeks." % [
+		bp.get("name", blueprint_id), weeks])
+	gs.add_notification("Normal",
+		"Blueprint submitted to WRA: '%s'. Decision in %d weeks." % [
+			bp.get("name", blueprint_id), weeks])
+	gs.emit_signal("log_updated")
+	return true
+
+
+func is_blueprint_approved(blueprint_id: String) -> bool:
+	for app in gs.wra_approved_blueprints:
+		if app.blueprint_id == blueprint_id: return true
+	return false
+
+
+func is_blueprint_submitted(blueprint_id: String) -> bool:
+	for sub in gs.active_wra_submissions:
+		if sub.blueprint_id == blueprint_id: return true
+	return false
+
+
+func _get_championship_tier(cid: String) -> int:
+	return gs.CHAMPIONSHIP_REGISTRY.get(cid, {}).get("tier", 1)
+
+## ═══════════════════════════════════════════════════════════════════════════
+## SUPPLY CONTRACTS (S17)
+## ═══════════════════════════════════════════════════════════════════════════
+
+
+func get_installed_parts_for_car(car_id: String) -> Dictionary:
+	return gs.car_installed_parts.get(car_id, {})
+
+## Install a CNC part from inventory onto a car.
+
+
+func _get_wra_group_for_championship(cid: String) -> String:
+	const CID_TO_GROUP = {
+		"C-001":"Karting",
+		"C-005":"Rally","C-006":"Rally","C-007":"Rally","C-008":"Rally",
+		"C-009":"Touring","C-010":"Touring",
+		"C-011":"Open Wheel","C-012":"Open Wheel","C-013":"Open Wheel",
+		"C-014":"Stock Car","C-015":"Stock Car","C-016":"Stock Car","C-017":"Stock Car",
+		"C-018":"Endurance","C-019":"Endurance","C-020":"Endurance",
+		"C-021":"Formula","C-022":"Formula","C-023":"Formula","C-024":"Formula",
+	}
+	return CID_TO_GROUP.get(cid, "Karting")
+
+## Shared weekly expense total (staff + drivers + building maintenance)
+
+
+func _part_name_to_pcode(part_name: String) -> String:
+	match part_name:
+		"Aero":       return "AER"
+		"Engine":     return "ENG"
+		"Gearbox":    return "GRB"
+		"Suspension": return "SUS"
+		"Brakes":     return "BRK"
+		"Chassis":    return "CHS"
+	return ""
+
+## Returns the combined Pillar 1/2/3 R&D lap bonus for a descriptive key.

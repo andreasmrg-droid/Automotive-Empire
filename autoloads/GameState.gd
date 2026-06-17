@@ -1,5 +1,8 @@
 extends Node
-## Version: S23.0 — TP Auto-Assignment Proposals (P31 complete):
+## Version: S27.0 — P57 Phase 1: Season transition extracted to SeasonManager.gd.
+##   _end_season(), start_new_season(), _process_off_season() now delegate to SeasonManager.
+##   SeasonManager follows the 15-step order from GDD §16.3.
+## --- S23.0 base: TP Auto-Assignment Proposals (P31 complete):
 ##   generate_tp_assignment_proposals(): sorts cars by prestige, assigns best drivers/
 ##   mechanics by effective skill (raw × discipline_adaptation/100). GK multi-tier:
 ##   same driver covers multiple cars if no different-track same-week conflict.
@@ -46,6 +49,20 @@ var game_difficulty:      String = "Realistic"
 
 ## P26 GK Discipline manager — groups, shadow sim, TP proposals
 var gk_discipline: GKDiscipline = null
+## P57 Season Manager — owns season lifecycle (end/start/off-season)
+var _season_manager: SeasonManager = null
+## P57 Financial Engine — owns weekly financial processing + loans
+var _financial_engine: FinancialEngine = null
+## P57 Race Simulator — owns race simulation + post-race processing
+var _race_simulator: RaceSimulator = null
+## P57 Contract Engine — owns negotiation, approach/bond, contracts
+var _contract_engine: ContractEngine = null
+## P57 R&D Engine — owns R&D tasks, WRA, CNC production
+var _rnd_engine: RnDEngine = null
+## P57 Notification Manager — owns notifications, TDL, logging
+var _notification_manager: NotificationManager = null
+## P57 Campus Manager — owns buildings, upgrades, stat bonuses
+var _campus_manager: CampusManager = null
 ## Reputation inertia: team reputation moves toward target_reputation each season
 var target_reputation:    float  = 15.0   ## What the team has earned this season
 var reputation_velocity:  float  = 0.0    ## How fast rep moves toward target
@@ -1074,600 +1091,190 @@ signal log_updated()
 signal bankruptcy_triggered()
 
 func _ready() -> void:
+	## P57: Initialize all engines early — _ready() runs before setup_new_game/load_game
+	_season_manager = SeasonManager.new(self)
+	_financial_engine = FinancialEngine.new(self)
+	_race_simulator = RaceSimulator.new(self)
+	_contract_engine = ContractEngine.new(self)
+	_rnd_engine = RnDEngine.new(self)
+	_notification_manager = NotificationManager.new(self)
+	_campus_manager = CampusManager.new(self)
 	RND_TASKS = _build_rnd_tasks()
 	ai_manager = load("res://autoloads/AIManager.gd").new()
 
-## Builds RND_TASKS — called in _ready() for initial load.
+## ═══ R&D ENGINE — delegated to RnDEngine.gd (S27) ═══
+
 func _build_rnd_tasks() -> Dictionary:
-	return _build_rnd_tasks_for_season(current_season)
+	return _rnd_engine._build_rnd_tasks()
 
-## Regenerates season-specific tasks. Called on start_new_season() and after load().
 func _rebuild_seasonal_rnd_tasks() -> void:
-	var p4_tasks: Dictionary = {}
-	for k in RND_TASKS:
-		if RND_TASKS[k].get("pillar", 0) == 4:
-			p4_tasks[k] = RND_TASKS[k]
-	RND_TASKS = _build_rnd_tasks_for_season(current_season)
-	for k in p4_tasks:
-		if not k in RND_TASKS:
-			RND_TASKS[k] = p4_tasks[k]
+	_rnd_engine._rebuild_seasonal_rnd_tasks()
 
-## Generates P1/P2/P3/P4 tasks for a given season.
-## IDs: BP-{CHAMP}-{PART}-S{n}-L{lv} | UPG-... | RE-...-L1
-## Part codes: AER ENG GRB SUS BRK CHS
 func _build_rnd_tasks_for_season(season: int) -> Dictionary:
-	var tasks: Dictionary = {}
-	var s = str(season)
+	return _rnd_engine._build_rnd_tasks_for_season(season)
 
-	const CHAMP_TIER = {
-		"C-001":1,
-		"C-005":1,"C-006":1,"C-007":2,"C-008":4,
-		"C-009":2,"C-010":3,
-		"C-011":1,"C-012":2,"C-013":4,
-		"C-014":1,"C-015":2,"C-016":3,"C-017":4,
-		"C-018":2,"C-019":3,"C-020":4,
-		"C-021":1,"C-022":2,"C-023":3,"C-024":4,
-	}
-	const PART_CODES = {
-		"Aero":"AER","Engine":"ENG","Gearbox":"GRB",
-		"Suspension":"SUS","Brakes":"BRK","Chassis":"CHS"
-	}
-	const PART_BASE_P1 = {
-		"Aero":       [4,  120, 15000,  "aero_perf",    0.02],
-		"Engine":     [6,  180, 25000,  "engine_perf",  0.02],
-		"Chassis":    [8,  200, 30000,  "chassis_perf", 0.02],
-		"Gearbox":    [4,  100, 12000,  "gearbox_perf", 0.02],
-		"Brakes":     [3,  80,  10000,  "brakes_perf",  0.02],
-		"Suspension": [4,  100, 12000,  "susp_perf",    0.02],
-	}
-	const PART_BASE_P2 = {
-		"Aero":       [3,  80,  8000,   "aero_perf",    0.015],
-		"Engine":     [4,  120, 15000,  "engine_perf",  0.015],
-		"Chassis":    [5,  140, 18000,  "chassis_perf", 0.015],
-		"Gearbox":    [3,  80,  8000,   "gearbox_perf", 0.015],
-		"Brakes":     [2,  60,  6000,   "brakes_perf",  0.015],
-		"Suspension": [3,  80,  8000,   "susp_perf",    0.015],
-	}
-	const PART_BASE_P3 = {
-		"Aero":       [6,  160, 20000,  "unlock_aero_cnc",    1.0],
-		"Engine":     [10, 280, 40000,  "unlock_engine_cnc",  1.0],
-		"Chassis":    [12, 320, 50000,  "unlock_chassis_cnc", 1.0],
-		"Gearbox":    [5,  120, 15000,  "unlock_gear_cnc",    1.0],
-		"Brakes":     [4,  100, 12000,  "unlock_brakes_cnc",  1.0],
-		"Suspension": [5,  120, 15000,  "unlock_susp_cnc",    1.0],
-	}
-	const PART_SPEC_MAP = {
-		"C-001":[true,true,true,false,false,true],
-		"C-005":[true,true,true,false,false,true],  "C-006":[false,true,true,false,false,false],
-		"C-007":[false,false,false,false,false,false],"C-008":[false,false,false,false,false,false],
-		"C-009":[true,true,true,true,true,true],    "C-010":[true,true,true,true,true,true],
-		"C-011":[true,true,true,true,true,true],    "C-012":[true,true,true,true,true,true],
-		"C-013":[true,false,true,false,true,true],  "C-014":[true,false,true,false,false,true],
-		"C-015":[true,false,false,false,false,true], "C-016":[true,false,false,false,false,true],
-		"C-017":[true,false,true,true,true,true], "C-018":[true,true,true,true,true,true],
-		"C-019":[true,true,true,false,false,true],  "C-020":[false,false,false,false,false,false],
-		"C-021":[true,true,true,true,true,true],    "C-022":[true,true,true,true,true,true],
-		"C-023":[true,true,true,true,true,true],    "C-024":[false,false,false,false,false,false],
-	}
-	const PART_NAMES_ORDER = ["Aero","Engine","Gearbox","Suspension","Brakes","Chassis"]
-	const UPG_LEVEL_MULTS = [1.0, 1.5, 2.2, 3.0, 4.0]
-
-	for cid in CHAMP_CODES.keys():
-		var code = CHAMP_CODES[cid]
-		var tier = CHAMP_TIER.get(cid, 1)
-		var tier_mult = 1.0 + (tier - 1) * 0.5
-		var spec_arr = PART_SPEC_MAP.get(cid, [false,false,false,false,false,false])
-		var reg = CHAMPIONSHIP_REGISTRY.get(cid, {})
-		var champ_name = reg.get("name", cid)
-
-		for i in range(PART_NAMES_ORDER.size()):
-			var part    = PART_NAMES_ORDER[i]
-			var pcode   = PART_CODES[part]
-			var is_spec = spec_arr[i]
-
-			# P1: Blueprint Design
-			var p1b   = PART_BASE_P1[part]
-			var p1_id = "BP-%s-%s-S%s-L1" % [code, pcode, s]
-			var p1_l2 = "BP-%s-%s-S%s-L2" % [code, pcode, s]
-			tasks[p1_id] = {
-				"name": "%s — %s Blueprint" % [champ_name, part],
-				"pillar":1,"part":part,"part_code":pcode,"championship_id":cid,
-				"season":season,"level":1,"blueprint_id":p1_id,
-				"weeks":max(1,int(p1b[0]*tier_mult)),"rp":int(p1b[1]*tier_mult),
-				"cr":int(p1b[2]*tier_mult),"effect":p1b[3],"value":p1b[4],
-			}
-			tasks[p1_l2] = {
-				"name": "%s — %s Blueprint L2" % [champ_name, part],
-				"pillar":1,"part":part,"part_code":pcode,"championship_id":cid,
-				"season":season,"level":2,"blueprint_id":p1_l2,
-				"weeks":max(1,int(p1b[0]*tier_mult*2.0)),"rp":int(p1b[1]*tier_mult*2.5),
-				"cr":int(p1b[2]*tier_mult*2.8),"effect":p1b[3],"value":p1b[4]*2.0,
-				"requires":p1_id,
-			}
-
-			# P2: Upgrade — 5 levels, Open parts only
-			if not is_spec:
-				var p2b = PART_BASE_P2[part]
-				var prev_id = ""
-				for lv in range(1, 6):
-					var lm = UPG_LEVEL_MULTS[lv - 1]
-					var upg_id = "UPG-%s-%s-S%s-L%d" % [code, pcode, s, lv]
-					var entry: Dictionary = {
-						"name": "%s — %s Upgrade L%d" % [champ_name, part, lv],
-						"pillar":2,"part":part,"part_code":pcode,"championship_id":cid,
-						"season":season,"level":lv,"blueprint_id":upg_id,
-						"weeks":max(1,int(p2b[0]*tier_mult*lm)),"rp":int(p2b[1]*tier_mult*lm),
-						"cr":int(p2b[2]*tier_mult*lm),"effect":p2b[3],"value":p2b[4]*lm,
-					}
-					if prev_id != "":
-						entry["requires"] = prev_id
-					tasks[upg_id] = entry
-					prev_id = upg_id
-
-			# P3: Reverse Engineering — Spec parts only, always L1
-			if is_spec:
-				var p3b = PART_BASE_P3[part]
-				var re_id = "RE-%s-%s-S%s-L1" % [code, pcode, s]
-				tasks[re_id] = {
-					"name": "%s — RE %s" % [champ_name, part],
-					"pillar":3,"part":part,"part_code":pcode,"championship_id":cid,
-					"season":season,"level":1,"blueprint_id":re_id,
-					"weeks":max(1,int(p3b[0]*tier_mult)),"rp":int(p3b[1]*tier_mult),
-					"cr":int(p3b[2]*tier_mult),"effect":p3b[3],"value":p3b[4],
-				}
-
-	# P4: Special Projects — not season-specific
-	var p4: Dictionary = {
-		"SP_ACA_1": {"name":"Curriculum-Based Biometric Cadet Coaching","pillar":4,"part":"Academy","weeks":42,"rp":4500,"cr":8000000,"effect":"cadet_starting_attributes","value":0.05,"Required_RnD_Studio_Level":2,"building":"Academy","min_building_level":1,"desc":"+5% starting attributes for new cadets."},
-		"SP_ACA_2": {"name":"Elite Single-Seater Cadet Progression Framework","pillar":4,"part":"Academy","weeks":50,"rp":9000,"cr":15000000,"effect":"cadet_salary_demand_reduction","value":0.15,"Required_RnD_Studio_Level":3,"building":"Academy","min_building_level":2,"desc":"−15% salary demand from academy graduates."},
-		"SP_ACA_3": {"name":"Global Scouting Telemetry Bot Grid","pillar":4,"part":"Academy","weeks":72,"rp":16500,"cr":28000000,"effect":"five_star_cadet_rate","value":0.25,"Required_RnD_Studio_Level":4,"building":"Academy","min_building_level":3,"desc":"+25% chance to spawn 5-star cadets."},
-		"SP_ACA_4": {"name":"Pinnacle Clone Driver Contract Pipeline","pillar":4,"part":"Academy","weeks":104,"rp":40000,"cr":75000000,"effect":"new_cadet_attributes","value":0.30,"Required_RnD_Studio_Level":4,"building":"Academy","min_building_level":4,"desc":"+30% starting attributes for new cadets."},
-		"SP_TUN_1": {"name":"Ground Effect & Venturi Tunnel Science","pillar":4,"part":"Tunnel","weeks":44,"rp":8000,"cr":14000000,"effect":"downforce_efficiency","value":0.12,"Required_RnD_Studio_Level":4,"building":"Aerodynamic Wind Tunnel","min_building_level":3,"desc":"+12% downforce efficiency."},
-		"SP_TUN_2": {"name":"Computational Fluid Dynamics (CFD) Clusters","pillar":4,"part":"Tunnel","weeks":66,"rp":15000,"cr":28000000,"effect":"blueprint_research_time_reduction","value":0.30,"Required_RnD_Studio_Level":6,"building":"Aerodynamic Wind Tunnel","min_building_level":4,"desc":"−30% blueprint research time."},
-		"SP_TUN_3": {"name":"Aerothermal Structural Balancing Grid","pillar":4,"part":"Tunnel","weeks":74,"rp":26000,"cr":45000000,"effect":"cooling_drag_reduction","value":0.10,"Required_RnD_Studio_Level":8,"building":"Aerodynamic Wind Tunnel","min_building_level":6,"desc":"−10% cooling drag."},
-		"SP_TUN_4": {"name":"Boundary Layer Laser Profiling Arrays","pillar":4,"part":"Tunnel","weeks":98,"rp":38000,"cr":65000000,"effect":"drag_reduction","value":0.08,"Required_RnD_Studio_Level":9,"building":"Aerodynamic Wind Tunnel","min_building_level":7,"desc":"−8% aerodynamic drag."},
-		"SP_TUN_5": {"name":"Plasma Flow Actuator Aero Synthesis","pillar":4,"part":"Tunnel","weeks":114,"rp":55000,"cr":95000000,"effect":"clean_downforce","value":0.30,"Required_RnD_Studio_Level":9,"building":"Aerodynamic Wind Tunnel","min_building_level":8,"desc":"+30% clean downforce."},
-		"SP_TUN_6": {"name":"Ultimate Aerodynamic Wake Matrix","pillar":4,"part":"Tunnel","weeks":160,"rp":90000,"cr":160000000,"effect":"drafting_downforce_loss_reduction","value":0.10,"Required_RnD_Studio_Level":9,"building":"Aerodynamic Wind Tunnel","min_building_level":9,"desc":"−10% downforce loss in drafting."},
-		"SP_TUN_7": {"name":"Flow-Visualization Airflow Drag Diagnostics","pillar":4,"part":"Tunnel","weeks":38,"rp":4500,"cr":7500000,"effect":"aero_drag_reduction","value":0.04,"Required_RnD_Studio_Level":5,"building":"Aerodynamic Wind Tunnel","min_building_level":5,"desc":"−4% aero drag."},
-		"SP_CNC_1": {"name":"Computer-Aided Manufacturing (CAM) Scripts","pillar":4,"part":"CNC","weeks":34,"rp":7000,"cr":12000000,"effect":"production_time_reduction","value":0.25,"Required_RnD_Studio_Level":6,"building":"CNC Parts Plant","min_building_level":9,"desc":"−25% production time."},
-		"SP_CNC_2": {"name":"High-Tensile Titanium Machining Feed Loops","pillar":4,"part":"CNC","weeks":50,"rp":11500,"cr":19500000,"effect":"engine_production_cost","value":0.18,"Required_RnD_Studio_Level":9,"building":"CNC Parts Plant","min_building_level":12,"desc":"−18% engine production cost."},
-		"SP_CNC_3": {"name":"Micro-Tolerance Component Optimization","pillar":4,"part":"CNC","weeks":72,"rp":18000,"cr":32000000,"effect":"breakdown_risk_reduction","value":0.22,"Required_RnD_Studio_Level":12,"building":"CNC Parts Plant","min_building_level":18,"desc":"−22% mechanical breakdown risk."},
-		"SP_CNC_4": {"name":"Sub-Atomic Laser Edge Component Shaving","pillar":4,"part":"CNC","weeks":102,"rp":32000,"cr":55000000,"effect":"production_cost_reduction","value":0.40,"Required_RnD_Studio_Level":18,"building":"CNC Parts Plant","min_building_level":21,"desc":"−40% production cost."},
-		"SP_CNC_5": {"name":"Molecular Metal Sintering Cells","pillar":4,"part":"CNC","weeks":116,"rp":50000,"cr":85000000,"effect":"ultra_complex_manufacturing","value":0.20,"Required_RnD_Studio_Level":21,"building":"CNC Parts Plant","min_building_level":22,"desc":"Unlocks ultra-complex manufacturing."},
-		"SP_CNC_6": {"name":"Pinnacle Nano-Tolerance Production Line","pillar":4,"part":"CNC","weeks":148,"rp":75000,"cr":140000000,"effect":"part_sale_value_boost","value":0.25,"Required_RnD_Studio_Level":24,"building":"CNC Parts Plant","min_building_level":24,"desc":"+25% part sale value."},
-		"SP_CNC_7": {"name":"Heavy Sheet-Metal Stock Car Stamping","pillar":4,"part":"CNC","weeks":35,"rp":3000,"cr":5000000,"effect":"inhouse_body_panel_production","value":0.05,"Required_RnD_Studio_Level":4,"building":"CNC Parts Plant","min_building_level":4,"desc":"+5% in-house body panel production."},
-		"SP_CNC_8": {"name":"Multi-Axis CNC Machine Floor Integration","pillar":4,"part":"CNC","weeks":42,"rp":6500,"cr":11000000,"effect":"manufacturing_waste_reduction","value":0.15,"Required_RnD_Studio_Level":7,"building":"CNC Parts Plant","min_building_level":12,"desc":"−15% manufacturing waste."},
-		"SP_FIT_1": {"name":"Sports Science G-Force Fatigue Mitigation","pillar":4,"part":"Clinic","weeks":34,"rp":4000,"cr":7000000,"effect":"driver_fatigue_reduction","value":0.15,"Required_RnD_Studio_Level":3,"building":"Fitness Clinic","min_building_level":25,"desc":"−15% driver fatigue."},
-		"SP_FIT_2": {"name":"Advanced Reflex Cognitive Simulation Units","pillar":4,"part":"Clinic","weeks":46,"rp":8500,"cr":14500000,"effect":"gforce_accuracy","value":0.12,"Required_RnD_Studio_Level":8,"building":"Fitness Clinic","min_building_level":55,"desc":"+12% accuracy under G-force."},
-		"SP_FIT_3": {"name":"Cryogenic Bio-Regenerative Restoration Tanks","pillar":4,"part":"Clinic","weeks":78,"rp":16000,"cr":28000000,"effect":"fatigue_recovery","value":0.20,"Required_RnD_Studio_Level":25,"building":"Fitness Clinic","min_building_level":75,"desc":"+20% fatigue recovery."},
-		"SP_FIT_4": {"name":"Hyperbaric Oxygen Apex Athlete Suites","pillar":4,"part":"Clinic","weeks":108,"rp":38000,"cr":65000000,"effect":"concentration_and_reflex","value":0.10,"Required_RnD_Studio_Level":60,"building":"Fitness Clinic","min_building_level":109,"desc":"Major boost to concentration and reflexes."},
-		"SP_GAR_1": {"name":"Sequential Transmission Cleanroom Workshop","pillar":4,"part":"Garage","weeks":42,"rp":6000,"cr":9000000,"effect":"repair_profit","value":0.25,"Required_RnD_Studio_Level":5,"building":"Garage","min_building_level":30,"desc":"+25% repair profit."},
-		"SP_GAR_2": {"name":"Automated Powertrain Teardown Cells","pillar":4,"part":"Garage","weeks":56,"rp":9500,"cr":16000000,"effect":"repair_time_reduction","value":0.25,"Required_RnD_Studio_Level":12,"building":"Garage","min_building_level":45,"desc":"−25% repair time."},
-		"SP_GAR_3": {"name":"High-Volume Carbon Monocoque Autoclave","pillar":4,"part":"Garage","weeks":82,"rp":22000,"cr":38000000,"effect":"inhouse_major_repairs","value":0.15,"Required_RnD_Studio_Level":25,"building":"Garage","min_building_level":80,"desc":"Unlocks in-house major repairs."},
-		"SP_GAR_4": {"name":"Structural Monocoque Carbon Optimization","pillar":4,"part":"Garage","weeks":118,"rp":45000,"cr":75000000,"effect":"chassis_weight_reduction","value":0.05,"Required_RnD_Studio_Level":35,"building":"Garage","min_building_level":89,"desc":"−5% chassis weight."},
-		"SP_GAR_5": {"name":"Tubular Spaceframe Welding Arrays","pillar":4,"part":"Garage","weeks":34,"rp":2000,"cr":4000000,"effect":"chassis_repair_speed","value":0.20,"Required_RnD_Studio_Level":4,"building":"Garage","min_building_level":25,"desc":"+20% chassis repair speed."},
-		"SP_GAR_6": {"name":"Sequential Transmission Blueprint Overhauls","pillar":4,"part":"Garage","weeks":46,"rp":6500,"cr":11500000,"effect":"transmission_failure_reduction","value":0.15,"Required_RnD_Studio_Level":10,"building":"Garage","min_building_level":47,"desc":"−15% transmission failure risk."},
-		"SP_GAR_7": {"name":"Structural Tube Frame Fabrication Jigs","pillar":4,"part":"Garage","weeks":68,"rp":14000,"cr":24000000,"effect":"stock_car_durability","value":0.12,"Required_RnD_Studio_Level":20,"building":"Garage","min_building_level":64,"desc":"+12% stock car durability."},
-		"SP_GAR_8": {"name":"Advanced Sub-Assembly Stress-Testing Rigs","pillar":4,"part":"Garage","weeks":74,"rp":21000,"cr":35000000,"effect":"mechanical_dnf_reduction","value":0.35,"Required_RnD_Studio_Level":35,"building":"Garage","min_building_level":85,"desc":"−35% pre-event mechanical DNFs."},
-		"SP_GRAVEL_1": {"name":"WRC4 Loose Soil Shakedown Calibration","pillar":4,"part":"Gravel","weeks":35,"rp":3500,"cr":6000000,"effect":"rally_loose_grip","value":0.08,"Required_RnD_Studio_Level":2,"building":"Gravel Track","min_building_level":1,"desc":"+8% grip on loose surfaces."},
-		"SP_GRAVEL_2": {"name":"High-Travel Damper Variable-Surface Shaker Rigs","pillar":4,"part":"Gravel","weeks":46,"rp":7500,"cr":12500000,"effect":"rally_unpaved_handling","value":0.10,"Required_RnD_Studio_Level":3,"building":"Gravel Track","min_building_level":2,"desc":"+10% handling on unpaved."},
-		"SP_GRAVEL_3": {"name":"Sub-Surface Radar Terrain Mapping","pillar":4,"part":"Gravel","weeks":98,"rp":25000,"cr":45000000,"effect":"gravel_suspension_durability","value":0.35,"Required_RnD_Studio_Level":3,"building":"Gravel Track","min_building_level":3,"desc":"−35% suspension damage on gravel."},
-		"SP_HQ_1": {"name":"Enterprise Conglomerate Resource Architecture","pillar":4,"part":"HQ","weeks":48,"rp":8500,"cr":14500000,"effect":"maintenance_reduction","value":0.15,"Required_RnD_Studio_Level":4,"building":"Headquarters","min_building_level":8,"desc":"−15% all campus maintenance costs."},
-		"SP_HQ_2": {"name":"Cross-Border Brand Licensing Syndicate","pillar":4,"part":"HQ","weeks":74,"rp":12000,"cr":22000000,"effect":"marketability_boost","value":0.15,"Required_RnD_Studio_Level":6,"building":"Headquarters","min_building_level":12,"desc":"+15% global marketability."},
-		"SP_HQ_3": {"name":"Sovereign Holding Company Conversion","pillar":4,"part":"HQ","weeks":96,"rp":35000,"cr":65000000,"effect":"tax_reduction","value":0.30,"Required_RnD_Studio_Level":12,"building":"Headquarters","min_building_level":22,"desc":"−30% corporate tax."},
-		"SP_HQ_4": {"name":"Ultimate Championship Control Core","pillar":4,"part":"HQ","weeks":162,"rp":60000,"cr":120000000,"effect":"marketability_boost","value":0.25,"Required_RnD_Studio_Level":18,"building":"Headquarters","min_building_level":26,"desc":"+25% global marketability."},
-		"SP_HQ_5": {"name":"Corporate Public Relations Framework","pillar":4,"part":"HQ","weeks":34,"rp":2500,"cr":4500000,"effect":"marketability_boost","value":0.10,"Required_RnD_Studio_Level":3,"building":"Headquarters","min_building_level":7,"desc":"+10% marketability from PR."},
-		"SP_KART_1": {"name":"Rotax Championship Track Layout Optimization","pillar":4,"part":"KartTrack","weeks":30,"rp":3000,"cr":5500000,"effect":"gokart_agility","value":0.10,"Required_RnD_Studio_Level":2,"building":"Karting Track","min_building_level":2,"desc":"+10% go-kart agility."},
-		"SP_KART_2": {"name":"Micro-Chassis Elasticity Calibration Arrays","pillar":4,"part":"KartTrack","weeks":54,"rp":6500,"cr":11000000,"effect":"gokart_telemetry","value":0.15,"Required_RnD_Studio_Level":3,"building":"Karting Track","min_building_level":3,"desc":"+15% go-kart telemetry."},
-		"SP_LOG_1": {"name":"Predictive Global Freight Shipping Matrix","pillar":4,"part":"Logistics","weeks":50,"rp":5000,"cr":8500000,"effect":"parts_shipping_discount","value":0.15,"Required_RnD_Studio_Level":4,"building":"Logistics Center","min_building_level":8,"desc":"−15% shipping costs."},
-		"SP_LOG_2": {"name":"Just-In-Time (JIT) Supply Chain Integration","pillar":4,"part":"Logistics","weeks":68,"rp":11000,"cr":18500000,"effect":"cnc_build_time_reduction","value":3.0,"Required_RnD_Studio_Level":8,"building":"Logistics Center","min_building_level":19,"desc":"−3 weeks build time on parts."},
-		"SP_LOG_3": {"name":"WorldWIde Distribution Network","pillar":4,"part":"Logistics","weeks":112,"rp":25000,"cr":42000000,"effect":"logistics_cost_reduction","value":0.30,"Required_RnD_Studio_Level":14,"building":"Logistics Center","min_building_level":21,"desc":"−30% logistics cost."},
-		"SP_LOG_4": {"name":"Pinnacle Quantum Logistics Grid","pillar":4,"part":"Logistics","weeks":150,"rp":50000,"cr":95000000,"effect":"shipping_time_reduction","value":0.50,"Required_RnD_Studio_Level":20,"building":"Logistics Center","min_building_level":24,"desc":"−50% shipping time."},
-		"SP_LOG_5": {"name":"Regional Supplier Integration Matrix","pillar":4,"part":"Logistics","weeks":38,"rp":3000,"cr":5000000,"effect":"external_shipping_cost_reduction","value":0.10,"Required_RnD_Studio_Level":4,"building":"Logistics Center","min_building_level":4,"desc":"−10% external shipping cost."},
-		"SP_LOG_6": {"name":"Cross-Border Freight Coordination Node","pillar":4,"part":"Logistics","weeks":44,"rp":5500,"cr":9500000,"effect":"transport_delay_reduction","value":0.15,"Required_RnD_Studio_Level":6,"building":"Logistics Center","min_building_level":10,"desc":"−15% transport delays."},
-		"SP_LOG_7": {"name":"International Freight Network Integration","pillar":4,"part":"Logistics","weeks":50,"rp":8000,"cr":14000000,"effect":"heavy_part_shipping_cost","value":0.18,"Required_RnD_Studio_Level":9,"building":"Logistics Center","min_building_level":17,"desc":"−18% heavy part shipping cost."},
-		"SP_LOG_8": {"name":"Advanced Spares Component Sourcing","pillar":4,"part":"Logistics","weeks":52,"rp":11000,"cr":19000000,"effect":"emergency_part_cost_reduction","value":0.20,"Required_RnD_Studio_Level":11,"building":"Logistics Center","min_building_level":21,"desc":"−20% emergency part cost."},
-		"SP_LOG_9": {"name":"Intercontinental Distribution Loop Architecture","pillar":4,"part":"Logistics","weeks":60,"rp":19000,"cr":32000000,"effect":"part_sale_margin","value":0.15,"Required_RnD_Studio_Level":14,"building":"Logistics Center","min_building_level":23,"desc":"+15% part sale margin."},
-		"SP_STORE_1": {"name":"Global E-Commerce Merchandize Networks","pillar":4,"part":"Store","weeks":35,"rp":3500,"cr":6500000,"effect":"merch_profit_margin","value":0.12,"Required_RnD_Studio_Level":2,"building":"Merchandize Store","min_building_level":7,"desc":"+12% merch profit margin."},
-		"SP_STORE_2": {"name":"Flagship Showroom Luxury Apparel Atriums","pillar":4,"part":"Store","weeks":48,"rp":8000,"cr":14000000,"effect":"apparel_revenue","value":0.15,"Required_RnD_Studio_Level":3,"building":"Merchandize Store","min_building_level":7,"desc":"+15% apparel revenue."},
-		"SP_STORE_3": {"name":"Global Airport Duty-Free Retail Outlets","pillar":4,"part":"Store","weeks":74,"rp":14000,"cr":24000000,"effect":"passive_income_boost","value":0.10,"Required_RnD_Studio_Level":4,"building":"Merchandize Store","min_building_level":7,"desc":"+10% passive income."},
-		"SP_STORE_4": {"name":"Infinite Corporate Licensing Syndicates","pillar":4,"part":"Store","weeks":102,"rp":35000,"cr":65000000,"effect":"merch_profit_boost","value":0.25,"Required_RnD_Studio_Level":5,"building":"Merchandize Store","min_building_level":7,"desc":"+25% merch profit."},
-		"SP_MUS_1": {"name":"Heritage Preservation Showroom Atrium","pillar":4,"part":"Museum","weeks":36,"rp":4500,"cr":8500000,"effect":"passive_income_boost","value":0.15,"Required_RnD_Studio_Level":3,"building":"Museum","min_building_level":2,"desc":"+15% passive income."},
-		"SP_MUS_2": {"name":"Blue-Chip Automotive Heritage Auctions","pillar":4,"part":"Museum","weeks":50,"rp":8000,"cr":15000000,"effect":"asset_conversion_rate","value":0.12,"Required_RnD_Studio_Level":4,"building":"Museum","min_building_level":4,"desc":"+12% asset conversion rate."},
-		"SP_MUS_3": {"name":"Global Legacy Asset Syndicate Nodes","pillar":4,"part":"Museum","weeks":100,"rp":28000,"cr":55000000,"effect":"brand_prestige","value":0.20,"Required_RnD_Studio_Level":5,"building":"Museum","min_building_level":5,"desc":"+20% brand prestige."},
-		"SP_MUS_4": {"name":"Curated Heritage Exhibit Showrooms","pillar":4,"part":"Museum","weeks":40,"rp":2500,"cr":4000000,"effect":"passive_income_boost","value":0.05,"Required_RnD_Studio_Level":3,"building":"Museum","min_building_level":1,"desc":"+5% passive income."},
-		"SP_OST_1": {"name":"Hardware-In-The-Loop (HIL) Powertrain Modeling","pillar":4,"part":"Ops","weeks":40,"rp":6500,"cr":11000000,"effect":"fuel_efficiency","value":0.06,"Required_RnD_Studio_Level":5,"building":"Ops Sim & Telemetry","min_building_level":4,"desc":"+6% fuel efficiency."},
-		"SP_OST_2": {"name":"Infrared Thermal Tire Contact Tracking","pillar":4,"part":"Ops","weeks":52,"rp":9000,"cr":16500000,"effect":"tire_degradation_reduction","value":0.12,"Required_RnD_Studio_Level":8,"building":"Ops Sim & Telemetry","min_building_level":9,"desc":"−12% tire degradation."},
-		"SP_OST_3": {"name":"Predictive Brake & Traction Control Monitors","pillar":4,"part":"Ops","weeks":76,"rp":14000,"cr":24000000,"effect":"wet_lockup_reduction","value":0.15,"Required_RnD_Studio_Level":12,"building":"Ops Sim & Telemetry","min_building_level":13,"desc":"−15% lock-up mistakes in wet."},
-		"SP_OST_4": {"name":"Predictive Neural Timing Grid Networks","pillar":4,"part":"Ops","weeks":80,"rp":25000,"cr":45000000,"effect":"undercut_success","value":0.18,"Required_RnD_Studio_Level":18,"building":"Ops Sim & Telemetry","min_building_level":19,"desc":"+18% undercut success."},
-		"SP_OST_5": {"name":"Quantum Probability Sector Strategy Engine","pillar":4,"part":"Ops","weeks":106,"rp":40000,"cr":75000000,"effect":"track_knowledge_boost","value":0.75,"Required_RnD_Studio_Level":22,"building":"Ops Sim & Telemetry","min_building_level":26,"desc":"+75% track knowledge baseline."},
-		"SP_OST_6": {"name":"Deep-Space Predictive Tracking Matrix","pillar":4,"part":"Ops","weeks":152,"rp":70000,"cr":130000000,"effect":"tactical_error_reduction","value":0.0,"Required_RnD_Studio_Level":27,"building":"Ops Sim & Telemetry","min_building_level":30,"desc":"Greatly reduces tactical errors."},
-		"SP_OST_7": {"name":"Real-Time Telemetry Data Overlay Dashboards","pillar":4,"part":"Ops","weeks":34,"rp":4000,"cr":6500000,"effect":"strategy_data_quality","value":0.05,"Required_RnD_Studio_Level":4,"building":"Ops Sim & Telemetry","min_building_level":5,"desc":"+5% strategy data quality."},
-		"SP_OVAL_1": {"name":"ARCA Short-Track Laser Setup Engineering","pillar":4,"part":"Oval","weeks":38,"rp":4000,"cr":7000000,"effect":"short_oval_turn_in","value":0.10,"Required_RnD_Studio_Level":2,"building":"Oval Track","min_building_level":1,"desc":"+10% turn-in on short ovals."},
-		"SP_OVAL_2": {"name":"Dynamic High-Bank Telemetry Capture Loops","pillar":4,"part":"Oval","weeks":52,"rp":8500,"cr":14500000,"effect":"superspeedway_blowout_reduction","value":0.15,"Required_RnD_Studio_Level":3,"building":"Oval Track","min_building_level":2,"desc":"−15% tire blowout risk on superspeedways."},
-		"SP_OVAL_3": {"name":"Boundary Slipstream Aerodynamic Optimizers","pillar":4,"part":"Oval","weeks":106,"rp":30000,"cr":55000000,"effect":"drafting_drag_reduction","value":0.12,"Required_RnD_Studio_Level":3,"building":"Oval Track","min_building_level":3,"desc":"−12% drag when drafting."},
-		"SP_ARENA_1": {"name":"Mock Pit Lane Servicing Simulation Infrastructure","pillar":4,"part":"Arena","weeks":32,"rp":3500,"cr":6000000,"effect":"pit_stop_time_reduction","value":0.01,"Required_RnD_Studio_Level":3,"building":"Pit Crew Arena","min_building_level":6,"desc":"Small pit stop time reduction."},
-		"SP_ARENA_2": {"name":"High-Pressure Pneumatic Tool Light-Systems","pillar":4,"part":"Arena","weeks":48,"rp":7000,"cr":12500000,"effect":"pit_stop_error_reduction","value":0.05,"Required_RnD_Studio_Level":6,"building":"Pit Crew Arena","min_building_level":9,"desc":"−5% pit stop errors."},
-		"SP_ARENA_3": {"name":"Sub-Two-Second Choreographed Pit Stop Perfection","pillar":4,"part":"Arena","weeks":64,"rp":14500,"cr":24000000,"effect":"pit_stop_time_reduction","value":0.02,"Required_RnD_Studio_Level":10,"building":"Pit Crew Arena","min_building_level":14,"desc":"Further pit stop time reduction."},
-		"SP_ARENA_4": {"name":"Predictive Biomechanical Exoskeleton Support","pillar":4,"part":"Arena","weeks":96,"rp":36000,"cr":65000000,"effect":"pit_stop_time_reduction","value":0.03,"Required_RnD_Studio_Level":18,"building":"Pit Crew Arena","min_building_level":20,"desc":"Final pit stop time reduction."},
-		"SP_CLUB_1": {"name":"VIP Trackside Lounge Arena Facilities","pillar":4,"part":"Club","weeks":38,"rp":5000,"cr":9500000,"effect":"passive_income_multiplier","value":0.20,"Required_RnD_Studio_Level":3,"building":"Public Racing Club","min_building_level":7,"desc":"+20% passive income multiplier."},
-		"SP_CLUB_2": {"name":"Sovereign Wealth Racing Syndicate Tracks","pillar":4,"part":"Club","weeks":94,"rp":24000,"cr":45000000,"effect":"off_season_income","value":0.40,"Required_RnD_Studio_Level":6,"building":"Public Racing Club","min_building_level":7,"desc":"+40% off-season passive income."},
-		"SP_RND_1": {"name":"Volumetric Fluid Dynamics Engine Blueprinting","pillar":4,"part":"R&D","weeks":46,"rp":9000,"cr":15500000,"effect":"engine_power","value":0.05,"Required_RnD_Studio_Level":5,"building":"R&D Design Studio","min_building_level":9,"desc":"+5% engine power."},
-		"SP_RND_2": {"name":"Proprietary Shock Absorber Fluid Research","pillar":4,"part":"R&D","weeks":64,"rp":12500,"cr":21000000,"effect":"tire_wear_reduction","value":0.10,"Required_RnD_Studio_Level":7,"building":"R&D Design Studio","min_building_level":12,"desc":"−10% tire wear."},
-		"SP_RND_3": {"name":"High-Modulus Aerospace Carbon Composites","pillar":4,"part":"R&D","weeks":78,"rp":20000,"cr":34000000,"effect":"part_weight_reduction","value":0.15,"Required_RnD_Studio_Level":11,"building":"R&D Design Studio","min_building_level":18,"desc":"−15% part weight."},
-		"SP_RND_4": {"name":"Exotic Metal Alloys Metallurgy Optimization","pillar":4,"part":"R&D","weeks":92,"rp":28000,"cr":48000000,"effect":"heat_resistance","value":0.20,"Required_RnD_Studio_Level":14,"building":"R&D Design Studio","min_building_level":21,"desc":"+20% heat resistance."},
-		"SP_RND_5": {"name":"Pinnacle Aerothermal Flow Blueprinting","pillar":4,"part":"R&D","weeks":124,"rp":45000,"cr":80000000,"effect":"cooling_drag_reduction","value":0.12,"Required_RnD_Studio_Level":18,"building":"R&D Design Studio","min_building_level":24,"desc":"−12% cooling drag."},
-		"SP_RND_6": {"name":"Generative AI Topology Optimization Core","pillar":4,"part":"R&D","weeks":156,"rp":80000,"cr":150000000,"effect":"reverse_engineering_speed","value":0.40,"Required_RnD_Studio_Level":24,"building":"R&D Design Studio","min_building_level":27,"desc":"+40% reverse engineering speed."},
-		"SP_RND_7": {"name":"Infinite Generative Design Loop Synthesis","pillar":4,"part":"R&D","weeks":210,"rp":150000,"cr":250000000,"effect":"custom_part_efficiency","value":0.20,"Required_RnD_Studio_Level":27,"building":"R&D Design Studio","min_building_level":27,"desc":"+20% custom part efficiency."},
-		"SP_RND_8": {"name":"Internal Combustion Fundamentals Cleanroom","pillar":4,"part":"R&D","weeks":32,"rp":4000,"cr":6500000,"effect":"engine_power","value":0.04,"Required_RnD_Studio_Level":3,"building":"R&D Design Studio","min_building_level":4,"desc":"+4% engine power."},
-		"SP_RND_9": {"name":"Volumetric Fluid Dynamics Intake Porting","pillar":4,"part":"R&D","weeks":48,"rp":7000,"cr":12000000,"effect":"engine_fuel_efficiency","value":0.08,"Required_RnD_Studio_Level":5,"building":"R&D Design Studio","min_building_level":10,"desc":"+8% engine fuel efficiency."},
-		"SP_RACE_1": {"name":"Formula 4 Flat Road Tracking Optimization","pillar":4,"part":"RaceTrack","weeks":36,"rp":4500,"cr":8000000,"effect":"track_awareness","value":0.12,"Required_RnD_Studio_Level":2,"building":"Race Track","min_building_level":1,"desc":"+12% track awareness."},
-		"SP_RACE_2": {"name":"Tire Thermal Physics Contact-Patch Surface Mapping","pillar":4,"part":"RaceTrack","weeks":48,"rp":9500,"cr":16000000,"effect":"tire_degradation_reduction","value":0.10,"Required_RnD_Studio_Level":3,"building":"Race Track","min_building_level":2,"desc":"−10% tire degradation."},
-		"SP_RACE_3": {"name":"High-Output Powertrain Kinetic Energy Capture","pillar":4,"part":"RaceTrack","weeks":66,"rp":18000,"cr":32000000,"effect":"hybrid_deployment_efficiency","value":0.15,"Required_RnD_Studio_Level":3,"building":"Race Track","min_building_level":3,"desc":"+15% hybrid deployment."},
-		"SP_RACE_4": {"name":"Cryogenic Synthetic Compound Contact Strips","pillar":4,"part":"RaceTrack","weeks":110,"rp":50000,"cr":85000000,"effect":"tire_durability_testing","value":0.18,"Required_RnD_Studio_Level":3,"building":"Race Track","min_building_level":4,"desc":"+18% tire durability."},
-		"SP_RAC_1": {"name":"High-Performance Athlete Housing Complex","pillar":4,"part":"Racing","weeks":38,"rp":4000,"cr":7500000,"effect":"driver_fatigue_reduction","value":0.20,"Required_RnD_Studio_Level":8,"building":"Racing Department","min_building_level":30,"desc":"−20% driver fatigue."},
-		"SP_RAC_2": {"name":"Neural Cognitive Driver Synapse Calibration","pillar":4,"part":"Racing","weeks":54,"rp":8000,"cr":14000000,"effect":"driver_mistake_reduction","value":0.15,"Required_RnD_Studio_Level":18,"building":"Racing Department","min_building_level":45,"desc":"−15% driver mistakes."},
-		"SP_RAC_3": {"name":"Biometric Telemetry Hydration Loops","pillar":4,"part":"Racing","weeks":70,"rp":15000,"cr":26000000,"effect":"wet_stamina_boost","value":0.18,"Required_RnD_Studio_Level":30,"building":"Racing Department","min_building_level":70,"desc":"+18% stamina in wet."},
-		"SP_RAC_4": {"name":"Psychometric Reflex Synergy Optimization","pillar":4,"part":"Racing","weeks":104,"rp":30000,"cr":55000000,"effect":"overtaking_success","value":0.15,"Required_RnD_Studio_Level":50,"building":"Racing Department","min_building_level":89,"desc":"+15% overtaking success."},
-		"SP_RAC_5": {"name":"Video Telemetry Driver Analysis Playback","pillar":4,"part":"Racing","weeks":38,"rp":2500,"cr":4500000,"effect":"driver_line_correction","value":0.05,"Required_RnD_Studio_Level":5,"building":"Racing Department","min_building_level":11,"desc":"+5% driver line correction."},
-		"SP_RAC_6": {"name":"Press & Media Communications Training Suite","pillar":4,"part":"Racing","weeks":44,"rp":5000,"cr":8500000,"effect":"sponsor_podium_bonus","value":0.10,"Required_RnD_Studio_Level":9,"building":"Racing Department","min_building_level":28,"desc":"+10% sponsor bonus after podium."},
-		"SP_PARK_1": {"name":"Immersive Destinational Resort Infrastructure","pillar":4,"part":"Park","weeks":40,"rp":7500,"cr":14000000,"effect":"marketability_buffer","value":0.10,"Required_RnD_Studio_Level":3,"building":"Theme Park","min_building_level":3,"desc":"+10% marketability buffer."},
-		"SP_PARK_2": {"name":"High-Capacity Branded Roller Coasters","pillar":4,"part":"Park","weeks":68,"rp":14000,"cr":25000000,"effect":"theme_park_income","value":0.15,"Required_RnD_Studio_Level":4,"building":"Theme Park","min_building_level":4,"desc":"+15% theme park income."},
-		"SP_PARK_3": {"name":"International Franchise Resort Expansion","pillar":4,"part":"Park","weeks":154,"rp":48000,"cr":85000000,"effect":"passive_income_boost","value":0.10,"Required_RnD_Studio_Level":5,"building":"Theme Park","min_building_level":5,"desc":"Strong passive income boost."},
-		"SP_FAC_1": {"name":"Automated Robotic Assembly Line Engineering","pillar":4,"part":"Factory","weeks":45,"rp":10000,"cr":18000000,"effect":"commercial_production_cost_reduction","value":0.10,"Required_RnD_Studio_Level":4,"building":"Vehicle Assembly Factory","min_building_level":4,"desc":"−10% commercial production cost."},
-		"SP_FAC_2": {"name":"Conveyor Mass Production Customization","pillar":4,"part":"Factory","weeks":62,"rp":18500,"cr":32000000,"effect":"msrp_pricing_flexibility","value":0.12,"Required_RnD_Studio_Level":6,"building":"Vehicle Assembly Factory","min_building_level":6,"desc":"+12% MSRP pricing flexibility."},
-		"SP_FAC_3": {"name":"Monocoque Chassis Marriage Rig Arrays","pillar":4,"part":"Factory","weeks":86,"rp":30000,"cr":55000000,"effect":"weekly_commercial_output","value":0.15,"Required_RnD_Studio_Level":9,"building":"Vehicle Assembly Factory","min_building_level":9,"desc":"+15% weekly commercial output."},
-		"SP_FAC_4": {"name":"Cybernetic Smart-Factory Swarm Architecture","pillar":4,"part":"Factory","weeks":144,"rp":65000,"cr":110000000,"effect":"weekly_output_and_pricing","value":0.30,"Required_RnD_Studio_Level":12,"building":"Vehicle Assembly Factory","min_building_level":12,"desc":"+30% output and pricing power."}
-	}
-	for k in p4: tasks[k] = p4[k]
-	return tasks
-
-## Called when WRA announces new technical regulations every WRA_CYCLE_LENGTH seasons.
-## Destroys P1 (Design) and P3 (RE) blueprints. P4 Special Projects unaffected.
 func _apply_wra_regulation_change() -> void:
-	wra_cycle_start_season = current_season
-	var wiped = completed_bp_tasks.size()
-	completed_bp_tasks.clear()
-	completed_rnd_tasks = completed_rnd_tasks.filter(
-		func(tid): return not (tid.begins_with("BP-") or tid.begins_with("RE-")))
-	var to_wipe: Array = []
-	for bp_id in known_blueprints:
-		if known_blueprints[bp_id].get("pillar", 0) in [1, 3]:
-			to_wipe.append(bp_id)
-	for bp_id in to_wipe:
-		known_blueprints.erase(bp_id)
-	add_notification("Critical",
-		"WRA NEW REGULATIONS — Season %d! All Design and RE blueprints invalidated. %d blueprints lost. Teams must redesign from scratch." % [current_season, wiped])
-	add_log("WRA Regulation Change — Season %d. %d blueprints wiped." % [current_season, wiped])
+	_rnd_engine._apply_wra_regulation_change()
+
+func has_blueprint(part: String) -> bool:
+	return _rnd_engine.has_blueprint(part)
+
+func get_manufacturable_parts() -> Array:
+	return _rnd_engine.get_manufacturable_parts()
+
+func start_cnc_production(part: String, champ_id: String, quantity: int = 1) -> bool:
+	return _rnd_engine.start_cnc_production(part, champ_id, quantity)
+
+func _advance_cnc_production() -> void:
+	_rnd_engine._advance_cnc_production()
+
+func assign_cnc_part_to_car(car_id: String, part: String) -> bool:
+	return _rnd_engine.assign_cnc_part_to_car(car_id, part)
+
+func remove_cnc_part_from_car(car_id: String, part: String) -> bool:
+	return _rnd_engine.remove_cnc_part_from_car(car_id, part)
+
+func get_cnc_part_bonus(car_id: String) -> float:
+	return _rnd_engine.get_cnc_part_bonus(car_id)
+
+func _cnc_inv_key(champ_id: String, pcode: String) -> String:
+	return _rnd_engine._cnc_inv_key(champ_id, pcode)
+
+func get_cnc_manufacturing_weeks(blueprint_id: String, extra_weeks: int = 0) -> int:
+	return _rnd_engine.get_cnc_manufacturing_weeks(blueprint_id, extra_weeks)
+
+func get_cnc_manufacturing_cr(blueprint_id: String, quantity: int = 1, extra_cr: int = 0) -> int:
+	return _rnd_engine.get_cnc_manufacturing_cr(blueprint_id, quantity, extra_cr)
+
+func calculate_final_reliability(blueprint_id: String, extra_cr: int = 0, extra_weeks: int = 0) -> float:
+	return _rnd_engine.calculate_final_reliability(blueprint_id, extra_cr, extra_weeks)
+
+func _get_wra_group_season(cid: String) -> int:
+	return _rnd_engine._get_wra_group_season(cid)
+
+func get_cnc_stock_for_slot(champ_id: String, pcode: String) -> Array:
+	return _rnd_engine.get_cnc_stock_for_slot(champ_id, pcode)
+
+func get_cnc_part_label(inv_key: String) -> String:
+	return _rnd_engine.get_cnc_part_label(inv_key)
+
+func start_cnc_job(blueprint_id: String, quantity: int = 1, extra_cr: int = 0, extra_weeks: int = 0) -> bool:
+	return _rnd_engine.start_cnc_job(blueprint_id, quantity, extra_cr, extra_weeks)
+
+func get_blueprint_grid(champ_id: String) -> Dictionary:
+	return _rnd_engine.get_blueprint_grid(champ_id)
+
+func get_rnd_perf_bonus_summary() -> String:
+	return _rnd_engine.get_rnd_perf_bonus_summary()
+
+func rnd_task_unlocked(task_id: String) -> bool:
+	return _rnd_engine.rnd_task_unlocked(task_id)
+
+func rnd_task_active_or_done(task_id: String) -> bool:
+	return _rnd_engine.rnd_task_active_or_done(task_id)
+
+func start_rnd_task(task_id: String, designer_id: String, championship_id: String = "") -> bool:
+	return _rnd_engine.start_rnd_task(task_id, designer_id, championship_id)
+
+func cancel_rnd_task(task_id: String) -> void:
+	_rnd_engine.cancel_rnd_task(task_id)
+
+func _advance_rnd_tasks() -> void:
+	_rnd_engine._advance_rnd_tasks()
+
+func _apply_rnd_effect(task: Dictionary) -> void:
+	_rnd_engine._apply_rnd_effect(task)
+
+func get_rnd_bonus(effect_key: String) -> float:
+	return _rnd_engine.get_rnd_bonus(effect_key)
+
+func get_rnd_rp_storage_cap() -> int:
+	return _rnd_engine.get_rnd_rp_storage_cap()
+
+func _advance_wra_submissions() -> void:
+	_rnd_engine._advance_wra_submissions()
+
+func submit_to_wra(blueprint_id: String) -> bool:
+	return _rnd_engine.submit_to_wra(blueprint_id)
+
+func is_blueprint_approved(blueprint_id: String) -> bool:
+	return _rnd_engine.is_blueprint_approved(blueprint_id)
+
+func is_blueprint_submitted(blueprint_id: String) -> bool:
+	return _rnd_engine.is_blueprint_submitted(blueprint_id)
+
+func _get_championship_tier(cid: String) -> int:
+	return _rnd_engine._get_championship_tier(cid)
+
+func get_installed_parts_for_car(car_id: String) -> Dictionary:
+	return _rnd_engine.get_installed_parts_for_car(car_id)
+
+func _get_wra_group_for_championship(cid: String) -> String:
+	return _rnd_engine._get_wra_group_for_championship(cid)
+
+func _part_name_to_pcode(part_name: String) -> String:
+	return _rnd_engine._part_name_to_pcode(part_name)
+
+
+## ═══ CAMPUS MANAGER — delegated to CampusManager.gd (S27) ═══
 
 func _setup_campus() -> void:
-	campus_buildings = {
-		# ── COMMAND ZONE ─────────────────────────────────────────────────────
-		# HQ: pre-built, Level 1. Upgrade cost reflects expanding admin infrastructure.
-		# Real small motorsport HQ renovation: CR 40K-CR 150K per phase.
-		"Headquarters": {
-			"name": "Headquarters",
-			"built": true,
-			"level": 1,
-			"max_level": 26,
-			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 1200,
-			"weekly_income": 0,
-			"build_cost": 0,
-			"build_time": 0,
-			"upgrade_cost": 18000,
-			"upgrade_time": 6,
-			"effects": "+1% Marketability per level\n+1 Sponsor Slot every 2 levels"
-		},
-		# Logistics Center: pre-built. Upgrade = better warehouse/inventory systems.
-		# Real small logistics depot fit-out: CR 15K-CR 60K.
-		"Logistics Center": {
-			"name": "Logistics Center",
-			"built": true,
-			"level": 1,
-			"max_level": 24,
-			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 950,
-			"weekly_income": 0,
-			"build_cost": 0,
-			"build_time": 0,
-			"upgrade_cost": 12000,
-			"upgrade_time": 4,
-			"effects": "+1% reduced price of spare parts per level"
-		},
-		# Garage: pre-built, earns repair income. Upgrade = more bays, better tools.
-		# Real motorsport garage bay fit-out: CR 20K-CR 80K per expansion.
-		"Garage": {
-			"name": "Garage",
-			"built": true,
-			"level": 1,
-			"max_level": 89,
-			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 1100,
-			"weekly_income": 3000,
-			"build_cost": 0,
-			"build_time": 0,
-			"upgrade_cost": 15000,
-			"upgrade_time": 4,
-			"effects": "+CR 1800 weekly repair profit\n+CR 450 per level"
-		},
-		# Racing Dept: pre-built. Upgrade = strategy tools, data systems, staff desks.
-		# Real motorsport operations room setup: CR 15K-CR 50K.
-		"Racing Department": {
-			"name": "Racing Department",
-			"built": true,
-			"level": 1,
-			"max_level": 89,
-			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 850,
-			"weekly_income": 0,
-			"build_cost": 0,
-			"build_time": 0,
-			"upgrade_cost": 12000,
-			"upgrade_time": 4,
-			"effects": "+10% Driver Morale & Focus\n+5% per level"
-		},
-		# ── ENGINEERING ZONE ─────────────────────────────────────────────────
-		# R&D Studio: first major investment. Custom CAD/simulation room build-out.
-		# Real small engineering design studio: CR 80K-CR 200K. Mid-game goal.
-		"R&D Design Studio": {
-			"name": "R&D Design Studio",
-			"built": false,
-			"level": 0,
-			"max_level": 27,
-			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 1600,
-			"weekly_income": 0,
-			"build_cost": 85000,
-			"build_time": 20,
-			"upgrade_cost": 28000,
-			"upgrade_time": 8,
-			"effects": "Unlocks R&D (800 RP storage)\n+400 RP & +1% R&D speed per level"
-		},
-		# CNC Plant: serious manufacturing investment. Real small CNC shop: CR 150K-CR 400K.
-		# Late mid-game. Requires significant financial commitment.
-		"CNC Parts Plant": {
-			"name": "CNC Parts Plant",
-			"built": false,
-			"level": 0,
-			"max_level": 24,
-			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 2200,
-			"weekly_income": 0,
-			"build_cost": 220000,
-			"build_time": 34,
-			"upgrade_cost": 55000,
-			"upgrade_time": 12,
-			"effects": "Unlocks CNC production\n+4% speed & -1% material cost per level"
-		},
-		# ── SIMULATION ZONE ──────────────────────────────────────────────────
-		# Ops Sim: simulator rigs + telemetry servers. Real setup: CR 60K-CR 180K.
-		# Early mid-game, reachable after a good first season.
-		"Ops Sim & Telemetry": {
-			"name": "Ops Sim & Telemetry",
-			"built": false,
-			"level": 0,
-			"max_level": 30,
-			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 1350,
-			"weekly_income": 0,
-			"build_cost": 65000,
-			"build_time": 16,
-			"upgrade_cost": 22000,
-			"upgrade_time": 7,
-			"effects": "+25% baseline Track Knowledge\n+1% Track Knowledge gain per level"
-		},
-		# Wind Tunnel: endgame prestige facility. Real F1-grade: CR 20M-CR 80M.
-		# Scaled down but still a major late-game milestone. CR 800K feels right
-		# for a small-scale tunnel — think GP2/GP3 team level.
-		"Aerodynamic Wind Tunnel": {
-			"name": "Aerodynamic Wind Tunnel",
-			"built": false,
-			"level": 0,
-			"max_level": 9,
-			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 8500,
-			"weekly_income": 0,
-			"build_cost": 800000,
-			"build_time": 78,
-			"upgrade_cost": 180000,
-			"upgrade_time": 26,
-			"effects": "+10% Aero efficiency\n+5% per level"
-		},
-		# ── COMMERCIAL ZONE ──────────────────────────────────────────────────
-		# Vehicle Assembly Factory: major commercial venture. Real small auto factory:
-		# CR 2M-CR 10M. This is a true endgame building — long save goal.
-		"Vehicle Assembly Factory": {
-			"name": "Vehicle Assembly Factory",
-			"built": false,
-			"level": 0,
-			"max_level": 12,
-			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 6500,
-			"weekly_income": 0,
-			"build_cost": 1200000,
-			"build_time": 78,
-			"upgrade_cost": 250000,
-			"upgrade_time": 26,
-			"effects": "Unlocks commercial car production\n+250 units/wk & +3% margin per level"
-		},
-		# Museum: motorsport heritage display. Real small museum fit-out: CR 80K-CR 250K.
-		# Good early income investment once you have some history.
-		"Museum": {
-			"name": "Museum",
-			"built": false,
-			"level": 0,
-			"max_level": 5,
-			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 900,
-			"weekly_income": 2400,
-			"build_cost": 90000,
-			"build_time": 16,
-			"upgrade_cost": 35000,
-			"upgrade_time": 6,
-			"effects": "+CR 2400 weekly passive income\n+CR 380 per level"
-		},
-		# Theme Park: major entertainment complex. Real small motorsport theme park:
-		# CR 2M-CR 15M. Scaled to be a late-game passive income machine.
-		"Theme Park": {
-			"name": "Theme Park",
-			"built": false,
-			"level": 0,
-			"max_level": 5,
-			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 4500,
-			"weekly_income": 12000,
-			"build_cost": 950000,
-			"build_time": 104,
-			"upgrade_cost": 200000,
-			"upgrade_time": 26,
-			"effects": "+CR 12000 weekly passive income\n+CR 1500 per level"
-		},
-		# Public Racing Club: track day/member club. Enables income from all track buildings.
-		# No direct income — its value is unlocking Karting/Gravel/Oval/Race Track income.
-		"Public Racing Club": {
-			"name": "Public Racing Club",
-			"built": false,
-			"level": 0,
-			"max_level": 7,
-			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 850,
-			"weekly_income": 0,  ## Calculated dynamically: upkeep × 1.02 (see get_building_income)
-			"build_cost": 55000,
-			"build_time": 12,
-			"upgrade_cost": 18000,
-			"upgrade_time": 6,
-			"effects": "Enables income from Karting, Gravel, Oval and Race Track buildings.\n+10% track income per PRC level.\nProvides Passive income "
-		},
-		# Merchandise Store: team shop. Real small branded retail fit-out: CR 20K-CR 60K.
-		# Cheapest income building — first thing a player should consider building.
-		"Merchandise Store": {
-			"name": "Merchandise Store",
-			"built": false,
-			"level": 0,
-			"max_level": 5,
-			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 650,
-			"weekly_income": 1800,
-			"build_cost": 22000,
-			"build_time": 6,
-			"upgrade_cost": 10000,
-			"upgrade_time": 3,
-			"effects": "+CR 1800 weekly passive income\n+CR 280 per level"
-		},
-		# ── HUMAN PERFORMANCE ZONE ───────────────────────────────────────────
-		# Fitness Clinic: driver/crew gym and physio suite. Real sports clinic: CR 80K-CR 200K.
-		"Fitness Clinic": {
-			"name": "Fitness Clinic",
-			"built": false,
-			"level": 0,
-			"max_level": 109,
-			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 980,
-			"weekly_income": 0,
-			"build_cost": 75000,
-			"build_time": 14,
-			"upgrade_cost": 18000,
-			"upgrade_time": 6,
-			"effects": "-10% Driver & Crew fatigue\n-0.5% per level"
-		},
-		# Pit Crew Arena: dedicated pit stop practice rig. Real setup: CR 30K-CR 150K.
-		# Tangible race performance investment — mid-game priority.
-		"Pit Crew Arena": {
-			"name": "Pit Crew Arena",
-			"built": false,
-			"level": 0,
-			"max_level": 20,
-			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 1150,
-			"weekly_income": 0,
-			"build_cost": 30000,
-			"build_time": 10,
-			"upgrade_cost": 15000,
-			"upgrade_time": 4,
-			"effects": "-0.1s pit stop time\n-1% pit stop time per level"
-		},
-		# Academy: driver development program facility. Real junior academy setup:
-		# CR 100K-CR 300K including simulators, coaching infrastructure.
-		"Academy": {
-			"name": "Academy",
-			"built": false,
-			"level": 0,
-			"max_level": 4,
-			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 1800,
-			"weekly_income": 0,
-			"build_cost": 120000,
-			"build_time": 20,
-			"upgrade_cost": 45000,
-			"upgrade_time": 10,
-			"effects": "Unlocks 5 cadet slots\n+1 cadet slot & +3% rookie quality per level"
-		},
-		# ── TEST TRACKS ZONE ─────────────────────────────────────────────────
-		# Karting Track: real outdoor kart circuit construction: CR 150K-CR 600K.
-		# Includes safety barriers, pit lane, timing, surface. Early-mid game.
-		"Karting Track": {
-			"name": "Karting Track",
-			"built": false,
-			"level": 0,
-			"max_level": 3,
-			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 1200,
-			"weekly_income": 2500,
-			"build_cost": 160000,
-			"build_time": 20,
-			"upgrade_cost": 55000,
-			"upgrade_time": 8,
-			"effects": "+5% Go-Kart performance\n+CR 2500 weekly income"
-		},
-		# Gravel Track: rally stage with gravel surface, spectator areas, safety zones.
-		# Real rally stage construction: CR 200K-CR 800K.
-		"Gravel Track": {
-			"name": "Gravel Track",
-			"built": false,
-			"level": 0,
-			"max_level": 3,
-			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 1400,
-			"weekly_income": 2200,
-			"build_cost": 200000,
-			"build_time": 22,
-			"upgrade_cost": 65000,
-			"upgrade_time": 10,
-			"effects": "+5% Rally performance\n+CR 2200 weekly income"
-		},
-		# Oval Track: banked oval with concrete surface. Real small oval: CR 400K-CR 1.5M.
-		"Oval Track": {
-			"name": "Oval Track",
-			"built": false,
-			"level": 0,
-			"max_level": 3,
-			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 1800,
-			"weekly_income": 3000,
-			"build_cost": 380000,
-			"build_time": 30,
-			"upgrade_cost": 95000,
-			"upgrade_time": 12,
-			"effects": "+5% Oval performance\n+CR 3000 weekly income"
-		},
-		# Race Track: full tarmac road course with pit lane, marshal posts, timing.
-		# Real small circuit (2-3km): CR 1.5M-CR 8M. Major endgame investment.
-		"Race Track": {
-			"name": "Race Track",
-			"built": false,
-			"level": 0,
-			"max_level": 4,
-			"construction_weeks_remaining": 0,
-			"weekly_maintenance": 4500,
-			"weekly_income": 8500,
-			"build_cost": 1500000,
-			"build_time": 78,
-			"upgrade_cost": 320000,
-			"upgrade_time": 20,
-			"effects": "+3% Road course performance\n+CR 8500 weekly income"
-		},
-	}
+	_campus_manager._setup_campus()
+
+func get_building(building_id: String) -> Dictionary:
+	return _campus_manager.get_building(building_id)
+
+func start_building(building_id: String) -> void:
+	_campus_manager.start_building(building_id)
+
+func sell_building(building_id: String) -> void:
+	_campus_manager.sell_building(building_id)
+
+func start_upgrade(building_id: String) -> void:
+	_campus_manager.start_upgrade(building_id)
+
+func _update_campus_construction() -> void:
+	_campus_manager._update_campus_construction()
+
+func get_upgrade_cost(building: Dictionary) -> int:
+	return _campus_manager.get_upgrade_cost(building)
+
+func get_upgrade_time(building: Dictionary) -> int:
+	return _campus_manager.get_upgrade_time(building)
+
+func get_building_income(building: Dictionary) -> int:
+	return _campus_manager.get_building_income(building)
+
+func get_building_maintenance(building: Dictionary) -> int:
+	return _campus_manager.get_building_maintenance(building)
+
+func get_logistics_parts_discount() -> float:
+	return _campus_manager.get_logistics_parts_discount()
+
+func get_fitness_fatigue_reduction() -> float:
+	return _campus_manager.get_fitness_fatigue_reduction()
+
+func get_pit_crew_time_bonus() -> float:
+	return _campus_manager.get_pit_crew_time_bonus()
+
+func get_wind_tunnel_aero_bonus() -> float:
+	return _campus_manager.get_wind_tunnel_aero_bonus()
+
+func get_ops_sim_track_knowledge_base() -> float:
+	return _campus_manager.get_ops_sim_track_knowledge_base()
+
+func get_racing_dept_driver_bonus() -> float:
+	return _campus_manager.get_racing_dept_driver_bonus()
+
+func get_hq_marketability_bonus() -> float:
+	return _campus_manager.get_hq_marketability_bonus()
+
+func get_hq_tp_slots() -> int:
+	return _campus_manager.get_hq_tp_slots()
+
+func get_hq_sponsor_slots() -> int:
+	return _campus_manager.get_hq_sponsor_slots()
+
 
 func _setup_sponsor() -> void:
 	var national_sponsors = [
@@ -1699,77 +1306,70 @@ func _setup_sponsor() -> void:
 	}
 	add_log("📋 Sponsor signed: %s — CR 1,000/week" % picked["name"])
 
+## ═══════════════════════════════════════════════════════════════════════════
+## STAFF SYSTEM CONSTANTS (data stays on GameState, logic in ContractEngine)
+## ═══════════════════════════════════════════════════════════════════════════
+
+const STAFF_ROLES = ["Race Mechanic", "Pit Crew", "Team Principal", "CFO", "Designer", "Race Strategist"]
+
+const STAFF_BASE_SALARIES = {
+	"Race Mechanic":   {"min": 180.0,  "max": 450.0},
+	"Pit Crew":        {"min": 150.0,  "max": 380.0},
+	"Team Principal":  {"min": 280.0,  "max": 650.0},
+	"CFO":             {"min": 250.0,  "max": 580.0},
+	"Designer":        {"min": 350.0,  "max": 750.0},
+	"Race Strategist": {"min": 220.0,  "max": 520.0},
+}
+
+var _staff_id_counter: int = 0
+
+## ═══ NOTIFICATION MANAGER — delegated to NotificationManager.gd (S27) ═══
+
 func add_notification(priority: String, message: String, destination: String = "") -> void:
-	# Deduplicate — skip only if identical priority+message already added this exact week
-	# Exception: Critical notifications always show (bankruptcy risk needs to fire every week)
-	if priority != "Critical":
-		for n in notifications:
-			if n["message"] == message and n["week"] == current_week and n["season"] == current_season:
-				return
-	# priority: "Critical", "High", "Normal"
-	notifications.append({
-		"priority":    priority,
-		"message":     message,
-		"destination": destination,
-		"week":        current_week,
-		"season":      current_season,
-		"read":        false,
-	})
-	unread_notification_count += 1
-	emit_signal("notifications_updated")
-	# Also log critical ones
-	if priority == "Critical":
-		add_log("🔴 CRITICAL: %s" % message)
-	elif priority == "High":
-		add_log("🟠 %s" % message)
+	_notification_manager.add_notification(priority, message, destination)
 
 func mark_all_notifications_read() -> void:
-	for n in notifications:
-		n["read"] = true
-	unread_notification_count = 0
-	emit_signal("notifications_updated")
+	_notification_manager.mark_all_notifications_read()
 
-## Dismiss a single notification by index — removes it entirely.
 func dismiss_notification(index: int) -> void:
-	if index >= 0 and index < notifications.size():
-		notifications.remove_at(index)
-		unread_notification_count = 0
-		for n in notifications:
-			if not n["read"]:
-				unread_notification_count += 1
-		emit_signal("notifications_updated")
+	_notification_manager.dismiss_notification(index)
 
-## Snooze a notification — pushes its week forward so it won't show until then.
 func snooze_notification(index: int, weeks: int) -> void:
-	if index >= 0 and index < notifications.size():
-		notifications[index]["week"] = current_week + weeks
-		notifications[index]["read"] = true
-		unread_notification_count = 0
-		for n in notifications:
-			if not n["read"]:
-				unread_notification_count += 1
-		emit_signal("notifications_updated")
+	_notification_manager.snooze_notification(index, weeks)
 
-## Returns count of unread Critical notifications specifically.
-func get_critical_count() -> int:
-	var count = 0
-	for n in notifications:
-		if not n["read"] and n["priority"] == "Critical":
-			count += 1
-	return count
-
-## Removes notifications that have been read AND are older than keep_weeks.
-## Called each week to prevent pile-up.
 func _purge_old_notifications(keep_weeks: int = 2) -> void:
-	var cutoff_week = current_week - keep_weeks
-	notifications = notifications.filter(func(n):
-		return not n["read"] or n["week"] >= cutoff_week
-	)
-	unread_notification_count = 0
-	for n in notifications:
-		if not n["read"]:
-			unread_notification_count += 1
-	emit_signal("notifications_updated")
+	_notification_manager._purge_old_notifications(keep_weeks)
+
+func get_critical_count() -> int:
+	return _notification_manager.get_critical_count()
+
+func add_log(message: String) -> void:
+	_notification_manager.add_log(message)
+
+func _check_resource_notifications() -> void:
+	_notification_manager._check_resource_notifications()
+
+func _check_part_inventory_notifications() -> void:
+	_notification_manager._check_part_inventory_notifications()
+
+func get_pending_tasks() -> Array[String]:
+	return _notification_manager.get_pending_tasks()
+
+func _is_todo_item_resolved(item: String) -> bool:
+	return _notification_manager._is_todo_item_resolved(item)
+
+func add_todo_item(item_text: String) -> void:
+	_notification_manager.add_todo_item(item_text)
+
+func dismiss_todo_item(item_text: String) -> void:
+	_notification_manager.dismiss_todo_item(item_text)
+
+func clear_dismissed_todo_items() -> void:
+	_notification_manager.clear_dismissed_todo_items()
+
+func _clear_notifications_containing(substring: String) -> void:
+	_notification_manager._clear_notifications_containing(substring)
+
 
 func _apply_sponsor_income() -> void:
 	if active_sponsor.is_empty():
@@ -1808,153 +1408,16 @@ func _update_sponsor_performance(race_results: Array) -> void:
 			add_log("⚠ %s unhappy — reduced to CR 500/week (no points in 3 races)" % active_sponsor["name"])
 
 func _apply_weekly_expenses() -> void:
-	var player_expenses = 0.0
-
-	# Driver salaries — use per-driver negotiated salary, fall back to championship rate
-	for driver_id in player_team.drivers:
-		var driver = all_drivers.get(driver_id)
-		if driver == null: continue
-		var sal = driver.weekly_salary if driver.weekly_salary > 0 \
-				else _get_championship_driver_salary()
-		player_expenses += sal
-
-	# Staff salaries — sum all hired staff
-	for staff_id in all_staff:
-		var staff = all_staff[staff_id]
-		if staff.contract_team == player_team.id:
-			player_expenses += staff.weekly_salary
-
-	player_team.balance -= player_expenses
-	## P&L summary logged in advance_week() after all income/expense functions run
-
-	# Bankruptcy — escalating warnings, screen after 8 consecutive weeks negative
-	if player_team.balance < 0:
-		weeks_in_negative += 1
-		if weeks_in_negative >= 6:
-			add_notification("Critical",
-				"🚨 CRITICAL: %d weeks insolvent (CR %s). Team collapse imminent!" % [
-					weeks_in_negative, _fmt_int(int(player_team.balance))])
-		elif weeks_in_negative >= 3:
-			add_notification("Critical",
-				"🚨 BANKRUPTCY RISK: %d weeks negative (CR %s). Sell assets or find sponsors now." % [
-					weeks_in_negative, _fmt_int(int(player_team.balance))])
-		else:
-			add_notification("High",
-				"⚠ Balance negative (CR %s). Address this urgently." % _fmt_int(int(player_team.balance)))
-		if weeks_in_negative >= 8 and not bankruptcy_screen_shown:
-			bankruptcy_screen_shown = true
-			emit_signal("bankruptcy_triggered")
-	else:
-		weeks_in_negative = 0
-		bankruptcy_screen_shown = false
-		if player_expenses > 0 and player_team.balance < player_expenses * 4:
-			add_notification("High",
-				"⚠ Low funds: CR %s covers ~%d weeks. Consider selling assets or finding sponsors." % [
-					_fmt_int(int(player_team.balance)),
-					int(player_team.balance / player_expenses)])
-
-	# AI teams — simple salary model (unchanged)
-	for team in all_teams:
-		if team.is_player_team:
-			continue
-		var driver_count = team.drivers.size()
-		var ai_expenses = (team.weekly_driver_salary * driver_count) + team.weekly_mechanic_salary
-		team.balance -= ai_expenses
+	_financial_engine.apply_weekly_expenses()
 
 func _get_championship_driver_salary() -> float:
-	if active_championship == null:
-		return 50.0
-	match active_championship.id:
-		"C-001": return 20.0
-		"C-021": return 420.0
-		"C-024": return 2850.0
-	return 50.0
+	return _financial_engine.get_championship_driver_salary()
 
 func _consume_race_resources() -> void:
-	if active_championship == null:
-		return
-	# Only consume fuel for player cars that actually started this race
-	# (have a driver assigned AND are not DNS).
-	# Cars with no driver, no car for this championship, or DNS = no fuel used.
-	var cars_raced = 0
-	for car in player_team_cars:
-		if car.championship_id != active_championship.id:
-			continue
-		if car.driver_id == "":
-			continue
-		# Check if this driver was DNS — if so no fuel consumed
-		var was_dns = false
-		for entry in last_race_results:
-			if entry["driver"].id == car.driver_id and entry.get("dns", false):
-				was_dns = true
-				break
-		if not was_dns:
-			cars_raced += 1
-	var fuel_used = active_championship.fuel_per_car_per_race * cars_raced
-	if fuel_used > 0.0:
-		fuel_kg -= fuel_used
-		fuel_kg = max(fuel_kg, 0.0)
-		add_log("⛽ Fuel used: %.1f kg × %d car%s (stock: %.1f kg)" % [
-			active_championship.fuel_per_car_per_race, cars_raced,
-			"s" if cars_raced != 1 else "", fuel_kg])
-	else:
-		add_log("⛽ Fuel used: 0.0 kg (no cars started)")
-
-	# SP is NOT auto-deducted per race.
-	# SP is spent only on repairs — see _auto_repair_cars_post_race() below.
+	_race_simulator.consume_race_resources()
 
 func _earn_race_rp(laps: int) -> void:
-	# RP only accumulates if the team has an R&D Design Studio AND at least one Designer.
-	var rnd_studio = campus_buildings.get("R&D Design Studio", {})
-	if not rnd_studio.get("built", false):
-		return
-	var designers = get_player_staff_by_role("Designer")
-	if designers.is_empty():
-		return
-	# Each Designer contributes proportionally to their average design skill
-	var design_power = 0.0
-	for d in designers:
-		var avg = (d.engine + d.aero + d.chassis + d.gearbox + d.brakes + d.suspension) / 6.0
-		design_power += avg / 100.0
-	var rp_gained = laps * 1 * design_power
-	## Apply difficulty R&D multiplier — higher difficulty = more RP needed (slower research)
-	rp_gained *= get_difficulty_mult()["player_rnd"]
-	var rp_cap = get_rnd_rp_storage_cap()
-	research_points = min(research_points + rp_gained, float(rp_cap))
-	add_log("🔬 RP gained: %.0f (total: %.0f / %d)" % [rp_gained, research_points, rp_cap])
-
-func _check_resource_notifications() -> void:
-	# SP warnings
-	if spare_parts <= 0:
-		add_notification("Critical", "No spare parts remaining! Buy more at the Logistics Center to repair your car.")
-	elif active_championship != null and spare_parts < active_championship.sp_per_10_pct_damage:
-		add_notification("High", "Spare parts low (%d units). Not enough to repair 10%% damage." % spare_parts)
-
-	# Fuel warnings
-	if active_championship != null:
-		var fuel_needed = active_championship.fuel_per_car_per_race
-		if fuel_kg <= 0.0:
-			add_notification("Critical", "No fuel remaining! Buy more at the Logistics Center before next race.")
-		elif fuel_kg < fuel_needed:
-			add_notification("High", "Fuel running low (%.1f kg). Less than 1 race worth remaining." % fuel_kg)
-
-	# No car for running championship warning — only player's registered championships
-	for champ_id in player_registered_championships:
-		var reg = CHAMPIONSHIP_REGISTRY.get(champ_id, {})
-		var champ_name = reg.get("name", champ_id)
-		var cars_for_champ = player_team_cars.filter(func(c): return c.championship_id == champ_id)
-		if cars_for_champ.is_empty():
-			var race1_week = FIRST_RACE_WEEK.get(champ_id, 6)
-			if current_week >= race1_week - 4:
-				add_notification("Critical",
-					"🚨 No car entered for %s! Race 1 is Week %d — buy a car at the Logistics Center or you will DNS all races." % [champ_name, race1_week])
-
-	# Bankruptcy warning
-	var weekly_expenses = 1250
-	if player_team.balance < 0:
-		add_notification("Critical", "BANKRUPTCY RISK: Balance is negative (CR %.0f)!" % player_team.balance)
-	elif player_team.balance < weekly_expenses * 2:
-		add_notification("High", "Low funds warning: Less than 2 weeks of expenses remaining.")
+	_race_simulator.earn_race_rp(laps)
 
 func buy_spare_parts(units: int) -> bool:
 	var cost_per_unit = 1  # CR 1 per unit for GK Regional (120 units = CR 120/race)
@@ -2196,39 +1659,6 @@ func buy_part(part_name: String, quantity: int, champ_id: String = "") -> bool:
 		quantity, part_name, total_cost, discount_str, part_inventory[champ_id][part_name]])
 	return true
 
-func _check_part_inventory_notifications() -> void:
-	## CFO reminds player if any part stock is at or below warning threshold.
-	## Only fires if player has a CFO hired.
-	var has_cfo = get_player_staff_by_role("CFO").size() > 0
-	if not has_cfo:
-		return
-	var champ_id = active_championship.id
-	if not champ_id in part_inventory:
-		return
-	for part in PARTS_LIST:
-		var stock = part_inventory[champ_id].get(part, 0)
-		if stock <= CFO_PART_WARNING_THRESHOLD:
-			add_notification("High",
-				"💼 CFO: %s parts stock critically low (%d remaining). A part failure means DNF — buy replacements at Logistics Center." % [part, stock])
-
-## ═══════════════════════════════════════════════════════════════════════════
-## STAFF SYSTEM
-## ═══════════════════════════════════════════════════════════════════════════
-
-const STAFF_ROLES = ["Race Mechanic", "Pit Crew", "Team Principal", "CFO", "Designer", "Race Strategist"]
-
-## Salary ranges per role (weekly, in CR) — GK Regional tier
-const STAFF_BASE_SALARIES = {
-	"Race Mechanic":   {"min": 180.0,  "max": 450.0},
-	"Pit Crew":        {"min": 150.0,  "max": 380.0},
-	"Team Principal":  {"min": 280.0,  "max": 650.0},
-	"CFO":             {"min": 250.0,  "max": 580.0},
-	"Designer":        {"min": 350.0,  "max": 750.0},
-	"Race Strategist": {"min": 220.0,  "max": 520.0},
-}
-
-var _staff_id_counter: int = 0
-
 func _generate_available_staff(count: int) -> void:
 	## Generates `count` staff spread across all roles and nationalities.
 	## All start as available (contract_team = "").
@@ -2368,1234 +1798,127 @@ func _generate_staff_attributes(staff: Staff, base_quality: float) -> void:
 var active_negotiation: Dictionary = {}
 
 ## ── Approach / Bond / Weekly Negotiation System (S18) ────────────────────────
-## Each entry is a Dictionary — see _make_approach() for structure.
+## Each entry is a Dictionary — see ContractEngine._make_approach() for structure.
 var active_approaches: Array = []
+
+## Subjects who walked away from negotiation — unavailable for N seasons
+## Format: { subject_id: season_available_again }
+var walked_away_subjects: Dictionary = {}
 
 ## Signals for the UI
 signal negotiation_updated()
 signal negotiation_concluded(accepted: bool, subject_id: String, subject_type: String)
 signal approach_updated()   ## fired whenever active_approaches changes
 
-## ── Opening offer generation ─────────────────────────────────────────────────
+## ═══════════════════════════════════════════════════════════════════════════
+## CONTRACT ENGINE — delegated to ContractEngine.gd (S27 P57 Phase 4)
+## ═══════════════════════════════════════════════════════════════════════════
 
-## Generate the opening offer for a Driver contract negotiation.
-## Returns a Dictionary with all contract terms at the driver's "ask" level.
 func generate_driver_opening_offer(driver_id: String) -> Dictionary:
-	var driver = all_drivers.get(driver_id)
-	if driver == null: return {}
-	var skill = driver.get_overall_skill()
-	var tier = _get_active_championship_tier()
-	## Base weekly salary: skill-scaled, tier-adjusted
-	var base_sal = _calc_driver_ask_salary(skill, tier)
-	## Bonus asks: scale with skill
-	var win_ask       = int(base_sal * 52 * clamp(skill / 100.0, 0.1, 1.0) * 0.6)
-	var podium_ask    = int(win_ask * 0.35)
-	var champ_ask     = int(win_ask * 1.5)
-	var release_ask   = int(base_sal * 52 * 0.8)
-	## Duration: better drivers want shorter contracts (more options)
-	var duration_ask  = 3 if skill >= 70 else (2 if skill >= 50 else 1)
-	## CFO improves our opening position
-	var cfo = get_cfo()
-	var cfo_bonus = (cfo.sponsor_negotiation / 100.0) * 0.15 if cfo else 0.0
-	return {
-		"subject_id":    driver_id,
-		"subject_type":  "driver",
-		"round":         1,
-		"max_rounds":    randi_range(3, 5),
-		"their_ask": {
-			"weekly_salary":        base_sal,
-			"win_bonus":            win_ask,
-			"podium_bonus":         podium_ask,
-			"championship_bonus":   champ_ask,
-			"release_clause":       release_ask,
-			"duration_seasons":     duration_ask,
-		},
-		"player_offer": {
-			"weekly_salary":        round(base_sal * (0.75 - cfo_bonus)),
-			"win_bonus":            round(win_ask * 0.5),
-			"podium_bonus":         round(podium_ask * 0.5),
-			"championship_bonus":   round(champ_ask * 0.5),
-			"release_clause":       round(release_ask * 0.5),
-			"duration_seasons":     duration_ask,
-		},
-		"status":  "active",  ## active | accepted | rejected
-		"history": [],
-		"cfo_bonus": cfo_bonus,
-	}
+	return _contract_engine.generate_driver_opening_offer(driver_id)
 
-## Generate opening offer for a Staff contract.
 func generate_staff_opening_offer(staff_id: String) -> Dictionary:
-	var staff = all_staff.get(staff_id)
-	if staff == null: return {}
-	var skill = staff.get_primary_skill()
-	var salary_range = STAFF_BASE_SALARIES.get(staff.role, {"min": 200.0, "max": 500.0})
-	var ask_sal = salary_range["min"] + (salary_range["max"] - salary_range["min"]) * (skill / 100.0)
-	## If this is a currently hired staff we're renewing, their existing salary is the floor
-	if staff.contract_team == player_team.id:
-		ask_sal = max(ask_sal, staff.weekly_salary * 1.05)
-	var champ_ask   = int(ask_sal * 52 * 0.3)
-	var perf_ask    = int(ask_sal * 52 * 0.2)
-	var release_ask = int(ask_sal * 52 * 0.6)
-	var duration_ask = 3 if skill >= 70 else (2 if skill >= 50 else 1)
-	var cfo = get_cfo()
-	var cfo_bonus = (cfo.sponsor_negotiation / 100.0) * 0.15 if cfo else 0.0
-	return {
-		"subject_id":    staff_id,
-		"subject_type":  "staff",
-		"round":         1,
-		"max_rounds":    randi_range(3, 5),
-		"their_ask": {
-			"weekly_salary":      ask_sal,
-			"championship_bonus": champ_ask,
-			"performance_bonus":  perf_ask,
-			"release_clause":     release_ask,
-			"duration_seasons":   duration_ask,
-		},
-		"player_offer": {
-			"weekly_salary":      round(ask_sal * (0.75 - cfo_bonus)),
-			"championship_bonus": round(champ_ask * 0.5),
-			"performance_bonus":  round(perf_ask * 0.5),
-			"release_clause":     round(release_ask * 0.5),
-			"duration_seasons":   duration_ask,
-		},
-		"status":   "active",
-		"history":  [],
-		"cfo_bonus": cfo_bonus,
-	}
+	return _contract_engine.generate_staff_opening_offer(staff_id)
 
-## Wrap an existing staff/driver contract into an approach-style dict
-## so renegotiation can use open_approach() with lock support.
 func make_renegotiation_approach(subject_id: String, subject_type: String) -> Dictionary:
-	var neg: Dictionary
-	if subject_type == "driver":
-		neg = generate_driver_opening_offer(subject_id)
-	else:
-		neg = generate_staff_opening_offer(subject_id)
-	if neg.is_empty(): return {}
+	return _contract_engine.make_renegotiation_approach(subject_id, subject_type)
 
-	var name_str = _get_subject_display_name(subject_id, subject_type)
-	var ap = {
-		"neg_id":            "reneg_%s_%d_%d" % [subject_id, current_season, current_week],
-		"type":              "renegotiation",
-		"subject_id":        subject_id,
-		"subject_type":      subject_type,
-		"subject_name":      name_str,
-		"current_team_id":   player_team.id,
-		"current_team_name": player_team.team_name,
-		"approaching_team":  player_team.id,
-		"needs_bond":        false,
-		"bond_status":       "agreed",  ## No bond for own staff
-		"start_date":        "immediate",
-		"contract_round":    1,
-		"max_contract_rounds": neg["max_rounds"],
-		"last_action_week":  current_week,
-		"patience_weeks":    3,
-		"locked_fields":     [],
-		"player_turn":       true,
-		"status":            "negotiating",
-		"terms":             {},
-		"their_current_ask": {},
-	}
-	for key in neg["their_ask"]:
-		ap["terms"][key] = {
-			"their_ask":    neg["their_ask"][key],
-			"player_offer": neg["player_offer"][key],
-			"locked":       false,
-			"agreed":       false,
-		}
-	ap["their_current_ask"] = neg["their_ask"].duplicate()
-	active_approaches.append(ap)
-	emit_signal("approach_updated")
-	return ap
-
-## Generate opening offer for a Sponsor (counter-offer negotiation).
 func generate_sponsor_negotiation(sponsor_id: String) -> Dictionary:
-	## Look in active_sponsors (renegotiating an existing deal)
-	var offer = null
-	for sp in active_sponsors:
-		if sp.get("sponsor_id","") == sponsor_id:
-			offer = sp; break
-	## Fall back to pending offers (negotiating a new offer)
-	if offer == null:
-		for o in sponsor_offers:
-			if o.get("sponsor_id","") == sponsor_id:
-				offer = o; break
-	if offer == null: return {}
-	var cfo = get_cfo()
-	var cfo_bonus = (cfo.sponsor_negotiation / 100.0) * 0.2 if cfo else 0.0
-	var base: Dictionary = {}
-	match offer.get("type", 1):
-		1: base = {"weekly_payment": offer.get("weekly_payment", 0), "seasons_remaining": offer.get("seasons_remaining", 1)}
-		2: base = {"win_bonus": offer.get("win_bonus", 0), "podium_bonus": offer.get("podium_bonus", 0),
-				"season_bonus": offer.get("season_bonus", 0), "seasons_remaining": offer.get("seasons_remaining", 1)}
-		3: base = {"commitment_total": offer.get("commitment_total", 0), "seasons_remaining": offer.get("seasons_remaining", 1)}
-	var player_counter = {}
-	for k in base:
-		if k == "seasons_remaining":
-			player_counter[k] = base[k]
-		elif k.ends_with("_total") or k.ends_with("_payment") or k.ends_with("_bonus"):
-			player_counter[k] = int(base[k] * (1.0 + cfo_bonus))
-	return {
-		"subject_id":   sponsor_id,
-		"subject_type": "sponsor",
-		"round":        1,
-		"max_rounds":   randi_range(2, 4),
-		"their_ask":    base,
-		"player_offer": player_counter,
-		"status":       "active",
-		"history":      [],
-		"cfo_bonus":    cfo_bonus,
-		"offer_data":   offer,
-	}
+	return _contract_engine.generate_sponsor_negotiation(sponsor_id)
 
-## Wrap a sponsor negotiation into approach format so HQ can use open_approach() with locks.
 func make_sponsor_approach(sponsor_id: String) -> Dictionary:
-	var neg = generate_sponsor_negotiation(sponsor_id)
-	if neg.is_empty(): return {}
-	var offer = neg["offer_data"]
-	var ap = {
-		"neg_id":            "sponsor_%s_%d_%d" % [sponsor_id, current_season, current_week],
-		"type":              "sponsor_negotiation",
-		"subject_id":        sponsor_id,
-		"subject_type":      "sponsor",
-		"subject_name":      offer.get("name", "Sponsor"),
-		"current_team_id":   "",
-		"current_team_name": "",
-		"approaching_team":  player_team.id,
-		"needs_bond":        false,
-		"bond_status":       "agreed",
-		"start_date":        "immediate",
-		"contract_round":    1,
-		"max_contract_rounds": neg["max_rounds"],
-		"last_action_week":  current_week,
-		"patience_weeks":    3,
-		"locked_fields":     [],
-		"player_turn":       true,
-		"status":            "negotiating",
-		"terms":             {},
-		"their_current_ask": {},
-		"sponsor_type":      offer.get("type", 1),
-		"offer_data":        offer,
-	}
-	for key in neg["their_ask"]:
-		ap["terms"][key] = {
-			"their_ask":    neg["their_ask"][key],
-			"player_offer": neg["player_offer"].get(key, neg["their_ask"][key]),
-			"locked":       false,
-			"agreed":       false,
-		}
-	ap["their_current_ask"] = neg["their_ask"].duplicate()
-	active_approaches.append(ap)
-	emit_signal("approach_updated")
-	return ap
+	return _contract_engine.make_sponsor_approach(sponsor_id)
 
-## ── Negotiation flow ─────────────────────────────────────────────────────────
-
-## Start a negotiation. Stores state in active_negotiation.
 func start_negotiation(neg: Dictionary) -> void:
-	if not "locked_fields" in neg: neg["locked_fields"] = []
-	active_negotiation = neg
-	emit_signal("negotiation_updated")
+	_contract_engine.start_negotiation(neg)
 
-## Player submits their current offer. Returns the outcome.
-## outcome: "accepted" | "counter" | "rejected" | "waiting"
-## "waiting" means offer submitted but counter arrives next week (1 round per week rule).
 func submit_negotiation_offer(player_offer: Dictionary) -> String:
-	if active_negotiation.is_empty(): return "rejected"
-	## Enforce 1-round-per-week: if counter is pending, block resubmission until next week
-	if active_negotiation.get("waiting_week", 0) > current_week:
-		return "waiting"
-	active_negotiation["player_offer"] = player_offer
-	active_negotiation["history"].append({
-		"round": active_negotiation["round"],
-		"player": player_offer.duplicate(),
-		"their": active_negotiation["their_ask"].duplicate(),
-	})
-	var outcome = _evaluate_offer(active_negotiation)
-	active_negotiation["round"] += 1
-	if outcome == "accepted" or active_negotiation["round"] > active_negotiation["max_rounds"]:
-		if outcome != "accepted":
-			outcome = "rejected"
-		else:
-			## Pre-validate slot availability before declaring accepted
-			var start_date = active_negotiation.get("player_offer", {}).get("start_date", "immediate")
-			if start_date == "immediate":
-				var stype = active_negotiation.get("subject_type", "")
-				if stype == "driver":
-					var max_d = get_max_drivers()
-					var d = all_drivers.get(active_negotiation.get("subject_id",""))
-					if d and d.contract_team == "" and player_team.drivers.size() >= max_d:
-						## Slots full — reject with specific outcome
-						active_negotiation["status"] = "rejected"
-						active_negotiation["waiting_week"] = 0
-						emit_signal("negotiation_concluded", false,
-							active_negotiation["subject_id"], active_negotiation["subject_type"])
-						add_notification("High",
-							"Deal fell through — no driver slots available for immediate signing. Sign for next season instead.")
-						active_negotiation = {}
-						emit_signal("log_updated")
-						return "no_slot"
-				elif stype == "staff":
-					var s = all_staff.get(active_negotiation.get("subject_id",""))
-					if s and s.contract_team == "" and s.role == "Team Principal":
-						if get_player_staff_by_role("Team Principal").size() >= get_hq_tp_slots():
-							active_negotiation["status"] = "rejected"
-							active_negotiation["waiting_week"] = 0
-							emit_signal("negotiation_concluded", false,
-								active_negotiation["subject_id"], active_negotiation["subject_type"])
-							add_notification("High", "Deal fell through — TP slots full. Sign for next season.")
-							active_negotiation = {}
-							emit_signal("log_updated")
-							return "no_slot"
-		active_negotiation["status"] = outcome
-		active_negotiation["waiting_week"] = 0
-		_apply_negotiation_result(active_negotiation, outcome == "accepted")
-		emit_signal("negotiation_concluded", outcome == "accepted",
-			active_negotiation["subject_id"], active_negotiation["subject_type"])
-	else:
-		## Counter arrives next week — gate further submission
-		active_negotiation["waiting_week"] = current_week + 1
-		_apply_counter_offer(active_negotiation)
-		emit_signal("negotiation_updated")
-		return "counter"
-	return outcome
-
-## Walk away — player ends negotiation.
-## Subjects who walked away from negotiation — unavailable for N seasons
-## Format: { subject_id: season_available_again }
-var walked_away_subjects: Dictionary = {}
+	return _contract_engine.submit_negotiation_offer(player_offer)
 
 func abandon_negotiation() -> void:
-	if active_negotiation.is_empty(): return
-	var subject_id   = active_negotiation.get("subject_id", "")
-	var subject_type = active_negotiation.get("subject_type", "")
-	## Mark unavailable for 2 seasons — also add to dismissed so TDL clears
-	if subject_id != "":
-		walked_away_subjects[subject_id] = current_season + 2
-		var name_str = _get_subject_display_name(subject_id, subject_type)
-		add_notification("Normal", "%s is no longer interested for 2 seasons." % name_str)
-		## Dismiss any TDL items referencing this subject
-		for item in custom_todo_items.duplicate():
-			if name_str in item:
-				dismiss_todo_item(item)
-	active_negotiation["status"] = "rejected"
-	emit_signal("negotiation_concluded", false, subject_id, subject_type)
-	active_negotiation = {}
-	emit_signal("log_updated")
+	_contract_engine.abandon_negotiation()
 
 func is_subject_available(subject_id: String) -> bool:
-	if subject_id not in walked_away_subjects: return true
-	return current_season >= walked_away_subjects[subject_id]
+	return _contract_engine.is_subject_available(subject_id)
 
-# ══════════════════════════════════════════════════════════════════════════════
-# APPROACH / BOND / WEEKLY NEGOTIATION SYSTEM  (S18)
-# ══════════════════════════════════════════════════════════════════════════════
+func get_bond_estimate(subject_id: String, subject_type: String, start_date: String) -> Dictionary:
+	return _contract_engine.get_bond_estimate(subject_id, subject_type, start_date)
 
-## ── Data structure ────────────────────────────────────────────────────────────
-## Creates a new approach record. subject_type: "driver" | "staff"
-func _make_approach(subject_id: String, subject_type: String,
-		current_team_id: String, start_date: String) -> Dictionary:
-	var name_str = _get_subject_display_name(subject_id, subject_type)
-	var current_team_name = ""
-	for t in all_teams:
-		if t.id == current_team_id: current_team_name = t.team_name; break
-	return {
-		"neg_id":            "%s_%d_%d" % [subject_id, current_season, current_week],
-		"type":              "approach",
-		"subject_id":        subject_id,
-		"subject_type":      subject_type,
-		"subject_name":      name_str,
-		"current_team_id":   current_team_id,
-		"current_team_name": current_team_name,
-		"approaching_team":  player_team.id,
-
-		## Interest check
-		"interest_checked":  false,
-		"subject_interested": false,
-
-		## Bond phase (skipped for free agents or last-season contracts)
-		"needs_bond":         current_team_id != "",
-		"bond_estimate":      0.0,
-		"bond_player_offer":  0.0,
-		"bond_team_ask":      0.0,
-		"bond_round":         0,     ## 0=not started, 1=awaiting reply, 2=counter reply
-		"bond_reply_week":    0,
-		"bond_status":        "pending",  ## pending|offered|countered|agreed|rejected
-
-		## Contract negotiation phase
-		"start_date":         start_date,  ## "immediate" | "next_season"
-		"contract_round":     0,
-		"max_contract_rounds": randi_range(3, 5),
-		"last_action_week":   current_week,
-		"patience_weeks":     3,
-		"terms":              {},   ## populated when contract phase starts
-		"their_current_ask":  {},
-		"locked_fields":      [],   ## fields both sides have agreed on
-
-		"status": "interest_check",
-		## interest_check → approaching → bond_offered → bond_countered
-		## → negotiating → agreed → failed → rejected → expired
-	}
-
-## ── Interest check ────────────────────────────────────────────────────────────
-## Returns true if the subject is willing to be approached.
-## Uses hidden talent + rep gap + TP reputation.
-func _check_subject_interest(subject_id: String, subject_type: String,
-		current_team_id: String) -> bool:
-	var talent = 50.0
-	if subject_type == "driver":
-		var d = all_drivers.get(subject_id)
-		if d: talent = d.potential if d.potential > 0 else 50.0
-	else:
-		var s = all_staff.get(subject_id)
-		if s: talent = s.talent if s.talent > 0 else 50.0
-
-	var base_chance = talent * 0.5 + 50.0
-
-	## Reputation gap: subject wants to move up, not down
-	var their_team_rep = 50.0
-	for t in all_teams:
-		if t.id == current_team_id:
-			their_team_rep = t.reputation if t.has_method("get_reputation") else 50.0
-			break
-	var rep_gap = player_team.reputation - their_team_rep
-	var rep_mod = clamp(rep_gap * 0.5, -25.0, 25.0)
-
-	## TP modifier
-	var tp_mod = 0.0
-	for champ in active_championships:
-		var tp = _get_tp_for_championship(champ.id)
-		if tp:
-			tp_mod = max(tp_mod, tp.reputation * 0.3)
-			break
-
-	var final_chance = clamp(base_chance + rep_mod + tp_mod, 1.0, 100.0)
-	return randf() * 100.0 < final_chance
-
-## ── Bond estimate ─────────────────────────────────────────────────────────────
-## Returns the CFO's estimate of what the bond should cost.
-## No hard limits — this is informational only.
-func get_bond_estimate(subject_id: String, subject_type: String,
-		start_date: String) -> Dictionary:
-	var weekly_sal = 0.0
-	var weeks_remaining = 0
-	var talent = 50.0
-
-	if subject_type == "driver":
-		var d = all_drivers.get(subject_id)
-		if d:
-			weekly_sal = d.weekly_salary if d.weekly_salary > 0 else _calc_driver_ask_salary(
-				d.get_overall_skill(), _get_active_championship_tier())
-			weeks_remaining = d.contract_seasons_remaining * 52
-			talent = d.potential if d.potential > 0 else 50.0
-	else:
-		var s = all_staff.get(subject_id)
-		if s:
-			weekly_sal = s.weekly_salary if s.weekly_salary > 0 else 300.0
-			weeks_remaining = s.contract_seasons_remaining * 52
-			talent = s.talent if s.talent > 0 else 50.0
-
-	## If next season signing, weeks = from season start not from now
-	if start_date == "next_season":
-		weeks_remaining = max(0, weeks_remaining - (max_weeks - current_week))
-
-	## Talent factor
-	var talent_factor = 0.8
-	if talent > 80:   talent_factor = 1.8
-	elif talent > 60: talent_factor = 1.3
-	elif talent > 30: talent_factor = 1.0
-
-	var raw_estimate = weekly_sal * float(weeks_remaining) * talent_factor
-
-	## CFO accuracy
-	var cfo = get_cfo()
-	var accuracy = 0.30 if cfo == null else 0.08
-	var lo = raw_estimate * (1.0 - accuracy)
-	var hi = raw_estimate * (1.0 + accuracy)
-
-	## Immediate mid-contract costs 1.5× + 25% disruption
-	if start_date == "immediate" and weeks_remaining > 52:
-		raw_estimate *= 1.5 * 1.25
-		lo *= 1.5 * 1.25
-		hi *= 1.5 * 1.25
-
-	return {
-		"estimate":  int(raw_estimate),
-		"low":       int(lo),
-		"high":      int(hi),
-		"accuracy":  accuracy,
-		"has_cfo":   cfo != null,
-	}
-
-## ── Slot projection ───────────────────────────────────────────────────────────
-## Returns { "now": int, "next_season": int } available slots for drivers or staff role.
 func get_slot_projection(subject_type: String, role: String = "") -> Dictionary:
-	var now_used = 0
-	var now_max = 0
-	var next_used = 0
-	var next_max = 0
+	return _contract_engine.get_slot_projection(subject_type, role)
 
-	if subject_type == "driver":
-		now_used = player_team.drivers.size()
-		now_max = get_max_drivers()
-		## Next season: subtract expiring contracts
-		var expiring = 0
-		for d_id in player_team.drivers:
-			var d = all_drivers.get(d_id)
-			if d and d.contract_seasons_remaining <= 1: expiring += 1
-		next_used = now_used - expiring
-		next_max = now_max
-	else:
-		var all_hired = get_player_staff_by_role(role)
-		now_used = all_hired.size()
-		now_max = _get_max_slots_for_role(role)
-		var expiring = 0
-		for s in all_hired:
-			if s.contract_seasons_remaining <= 1: expiring += 1
-		next_used = now_used - expiring
-		next_max = now_max
+func initiate_approach(subject_id: String, subject_type: String, start_date: String) -> String:
+	return _contract_engine.initiate_approach(subject_id, subject_type, start_date)
 
-	return {
-		"now_used":    now_used,
-		"now_max":     now_max,
-		"now_free":    now_max - now_used,
-		"next_used":   next_used,
-		"next_max":    next_max,
-		"next_free":   next_max - next_used,
-	}
-
-func _get_max_slots_for_role(role: String) -> int:
-	match role:
-		"Team Principal": return get_hq_tp_slots()
-		"CFO":            return 1
-		"Race Mechanic":  return player_team_cars.size()
-		"Race Strategist":return 1
-		"Designer":
-			var bld = campus_buildings.get("R&D Design Studio", {})
-			return max(1, bld.get("level", 1))
-		"Pit Crew":       return player_team_cars.size()
-	return 1
-
-func _get_tp_for_championship(champ_id: String):
-	for sid in all_staff:
-		var s = all_staff[sid]
-		if s.role == "Team Principal" and s.contract_team == player_team.id \
-				and s.assigned_championship == champ_id:
-			return s
-	return null
-
-func _get_strategist_for_championship(champ_id: String):
-	for sid in all_staff:
-		var s = all_staff[sid]
-		if s.role == "Race Strategist" and s.contract_team == player_team.id \
-				and s.assigned_championship == champ_id:
-			return s
-	return null
-
-## ── Initiate approach ─────────────────────────────────────────────────────────
-## Called when player clicks Approach on a driver or staff member.
-## Requires a TP assigned to an active championship.
-## Returns "" on success, or an error string.
-func initiate_approach(subject_id: String, subject_type: String,
-		start_date: String) -> String:
-	## Already approaching this person?
-	for ap in active_approaches:
-		if ap["subject_id"] == subject_id and ap["status"] not in ["agreed","failed","rejected","expired"]:
-			return "You already have an active approach for this person."
-
-	var current_team_id = ""
-	var is_free_agent = false
-	if subject_type == "driver":
-		var d = all_drivers.get(subject_id)
-		if d == null: return "Driver not found."
-		if d.contract_team == player_team.id: return "Already on your team."
-		current_team_id = d.contract_team
-		is_free_agent = (current_team_id == "")
-	else:
-		var s = all_staff.get(subject_id)
-		if s == null: return "Staff not found."
-		if s.contract_team == player_team.id: return "Already on your team."
-		current_team_id = s.contract_team
-		is_free_agent = (current_team_id == "")
-
-	## TP required ONLY for bond approach (contracted staff/drivers) — not free agents
-	if not is_free_agent:
-		var has_tp = false
-		for champ in active_championships:
-			if _get_tp_for_championship(champ.id) != null:
-				has_tp = true; break
-		if not has_tp:
-			return "Assign a Team Principal before approaching contracted staff or drivers."
-
-	## Interest check — hidden roll
-	var interested = _check_subject_interest(subject_id, subject_type, current_team_id)
-
-	if not interested:
-		var name_str = _get_subject_display_name(subject_id, subject_type)
-		## TP hint
-		var tp_hint = ""
-		for champ in active_championships:
-			var tp = _get_tp_for_championship(champ.id)
-			if tp:
-				tp_hint = " %s's assessment: not the right time." % tp.full_name()
-				break
-		add_notification("Normal",
-			"%s is not interested in joining your team at this time.%s" % [name_str, tp_hint])
-		add_log("📋 Approach to %s: declined (not interested)." % name_str)
-		return "not_interested"
-
-	var ap = _make_approach(subject_id, subject_type, current_team_id, start_date)
-	ap["interest_checked"] = true
-	ap["subject_interested"] = true
-
-	var name_str = _get_subject_display_name(subject_id, subject_type)
-
-	if current_team_id == "":
-		## Free agent — skip bond, go straight to contract negotiation
-		ap["status"] = "negotiating"
-		ap["needs_bond"] = false
-		_start_contract_phase(ap)
-		add_log("📋 Approach to free agent %s — contract negotiation begins." % name_str)
-		add_notification("Normal", "%s is interested! Contract negotiation begins." % name_str)
-	else:
-		## Contracted — send bond approach to their team
-		var bond_info = get_bond_estimate(subject_id, subject_type, start_date)
-		ap["bond_estimate"] = bond_info["estimate"]
-		ap["bond_player_offer"] = bond_info["estimate"]  ## default offer = estimate
-		ap["bond_reply_week"] = current_week + 1
-		ap["status"] = "approaching"
-		add_log("📋 Approach sent to %s's team. Bond estimate: CR %s. Reply next week." % [
-			name_str, _fmt_int(bond_info["estimate"])])
-		add_notification("Normal",
-			"Approach sent for %s. Their team will reply next week." % name_str,
-			"drivers" if subject_type == "driver" else "staff_hub")
-
-	active_approaches.append(ap)
-	emit_signal("approach_updated")
-	return ""
-
-## ── Send bond offer ───────────────────────────────────────────────────────────
-## Player sets their bond offer amount and sends it.
 func send_bond_offer(neg_id: String, offer_amount: float) -> void:
-	var ap = _get_approach(neg_id)
-	if ap == null or ap["status"] != "approaching": return
-	ap["bond_player_offer"] = offer_amount
-	ap["bond_round"] = 1
-	ap["bond_reply_week"] = current_week + 1
-	ap["bond_status"] = "offered"
-	emit_signal("approach_updated")
+	_contract_engine.send_bond_offer(neg_id, offer_amount)
 
-## Player responds to a bond counter from the other team.
 func respond_bond_counter(neg_id: String, accept: bool, counter_amount: float = 0.0) -> void:
-	var ap = _get_approach(neg_id)
-	if ap == null or ap["bond_status"] != "countered": return
-	if accept:
-		ap["bond_status"] = "agreed"
-		ap["bond_amount_final"] = ap["bond_team_ask"]
-		ap["status"] = "negotiating"
-		_start_contract_phase(ap)
-		var name_str = ap["subject_name"]
-		add_notification("Normal",
-			"Bond agreed for %s (CR %s). Contract negotiation begins." % [
-			name_str, _fmt_int(int(ap["bond_team_ask"]))])
-		emit_signal("approach_updated")
-	elif counter_amount > 0:
-		ap["bond_player_offer"] = counter_amount
-		ap["bond_round"] = 2
-		ap["bond_reply_week"] = current_week + 1
-		ap["bond_status"] = "offered"
-		emit_signal("approach_updated")
-	else:
-		ap["bond_status"] = "rejected"
-		ap["status"] = "rejected"
-		add_notification("Normal", "Bond negotiation with %s's team failed." % ap["subject_name"])
-		emit_signal("approach_updated")
+	_contract_engine.respond_bond_counter(neg_id, accept, counter_amount)
 
-## ── Player's own staff approached by AI ──────────────────────────────────────
-## Called when AI approaches one of the player's contracted personnel.
-func handle_incoming_approach(subject_id: String, subject_type: String,
-		ai_team_id: String, ai_team_name: String, proposed_bond: float) -> void:
-	var neg_id = "incoming_%s_%d_%d" % [subject_id, current_season, current_week]
-	var ap = {
-		"neg_id":            neg_id,
-		"type":              "bond_incoming",
-		"subject_id":        subject_id,
-		"subject_type":      subject_type,
-		"subject_name":      _get_subject_display_name(subject_id, subject_type),
-		"current_team_id":   player_team.id,
-		"current_team_name": player_team.team_name,
-		"approaching_team":  ai_team_id,
-		"approaching_team_name": ai_team_name,
-		"bond_team_ask":     proposed_bond,
-		"bond_player_offer": proposed_bond,
-		"bond_status":       "incoming",
-		"status":            "bond_incoming",
-		"reply_due_week":    current_week + 1,
-	}
-	active_approaches.append(ap)
-	emit_signal("approach_updated")
-	add_notification("High",
-		"%s (%s) wants to approach %s. Proposed bond: CR %s — respond in HQ." % [
-		ai_team_name, ai_team_id,
-		_get_subject_display_name(subject_id, subject_type),
-		_fmt_int(int(proposed_bond))], "hq")
+func handle_incoming_approach(subject_id: String, subject_type: String, ai_team_id: String, ai_team_name: String, proposed_bond: float) -> void:
+	_contract_engine.handle_incoming_approach(subject_id, subject_type, ai_team_id, ai_team_name, proposed_bond)
 
-## Player responds to an incoming approach for their own staff.
 func respond_incoming_approach(neg_id: String, accept: bool, counter_amount: float = 0.0) -> void:
-	var ap = _get_approach(neg_id)
-	if ap == null or ap["type"] != "bond_incoming": return
-	if accept:
-		ap["bond_status"] = "agreed"
-		ap["status"] = "agreed"
-		## Bond payment comes to player team
-		var bond = ap["bond_team_ask"]
-		player_team.balance += bond
-		add_log("💰 Bond received: CR %s for %s transfer." % [_fmt_int(int(bond)), ap["subject_name"]])
-		add_notification("Normal",
-			"Bond accepted: CR %s received for %s." % [_fmt_int(int(bond)), ap["subject_name"]])
-		## The subject will leave at the agreed start_date — handled in advance_week
-	elif counter_amount > 0:
-		ap["bond_team_ask"] = counter_amount
-		ap["bond_status"] = "countered"
-		ap["reply_due_week"] = current_week + 1
-		add_notification("Normal", "Counter-bond sent for %s. Awaiting reply." % ap["subject_name"])
-	else:
-		ap["status"] = "rejected"
-		add_notification("Normal", "Approach for %s rejected." % ap["subject_name"])
-	emit_signal("approach_updated")
+	_contract_engine.respond_incoming_approach(neg_id, accept, counter_amount)
 
-## ── Contract phase ────────────────────────────────────────────────────────────
-## Populates terms from the existing generate_X_opening_offer logic.
-func _start_contract_phase(ap: Dictionary) -> void:
-	var neg: Dictionary
-	if ap["subject_type"] == "driver":
-		neg = generate_driver_opening_offer(ap["subject_id"])
-	else:
-		neg = generate_staff_opening_offer(ap["subject_id"])
-	if neg.is_empty(): return
-	## Add start_date and lock support to terms
-	ap["terms"] = {}
-	for key in neg["their_ask"]:
-		ap["terms"][key] = {
-			"their_ask":    neg["their_ask"][key],
-			"player_offer": neg["player_offer"][key],
-			"locked":       false,
-			"agreed":       false,
-		}
-	ap["their_current_ask"] = neg["their_ask"].duplicate()
-	ap["max_contract_rounds"] = neg["max_rounds"]
-	ap["contract_round"] = 1
-	ap["last_action_week"] = current_week
-	ap["locked_fields"] = []
-	ap["player_turn"] = true  ## Round 1: player opens first
-	## Add start_date as a lockable term
-	ap["terms"]["start_date"] = {
-		"their_ask":    ap["start_date"],
-		"player_offer": ap["start_date"],
-		"locked":       false,
-		"agreed":       false,
-	}
+func submit_approach_contract_offer(neg_id: String, field_offers: Dictionary, locked_fields: Array) -> String:
+	return _contract_engine.submit_approach_contract_offer(neg_id, field_offers, locked_fields)
 
-## Player submits a contract offer with per-field values and lock states.
-func submit_approach_contract_offer(neg_id: String,
-		field_offers: Dictionary, locked_fields: Array) -> String:
-	var ap = _get_approach(neg_id)
-	if ap == null or ap["status"] != "negotiating": return "error"
-
-	## Update player offers and locks
-	for key in field_offers:
-		if key in ap["terms"]:
-			ap["terms"][key]["player_offer"] = field_offers[key]
-	ap["locked_fields"] = locked_fields
-	for key in locked_fields:
-		if key in ap["terms"]:
-			ap["terms"][key]["locked"] = true
-
-	ap["last_action_week"] = current_week
-	ap["player_turn"] = false  ## Waiting for their reply — not the player's turn until next week
-
-	## Evaluate BEFORE incrementing round — round shown is the round just played
-	var outcome = _evaluate_approach_offer(ap)
-
-	if outcome == "accepted":
-		ap["status"] = "agreed"
-		_apply_approach_result(ap)
-		emit_signal("approach_updated")
-		return "accepted"
-	elif outcome == "rejected" or ap["contract_round"] >= ap["max_contract_rounds"]:
-		ap["status"] = "failed"
-		var name_str = ap["subject_name"]
-		add_notification("Normal", "Contract negotiations with %s have broken down." % name_str)
-		emit_signal("approach_updated")
-		return "rejected"
-	else:
-		## Counter — do NOT increment round here. Round advances when they reply next week.
-		## _advance_approaches will increment contract_round and set player_turn=true.
-		_apply_approach_counter(ap)
-		emit_signal("approach_updated")
-		return "counter"
-
-## Accept all their current asks outright.
 func accept_approach_terms(neg_id: String) -> void:
-	var ap = _get_approach(neg_id)
-	if ap == null or ap["status"] != "negotiating": return
-	for key in ap["terms"]:
-		ap["terms"][key]["player_offer"] = ap["terms"][key]["their_ask"]
-	ap["status"] = "agreed"
-	_apply_approach_result(ap)
-	emit_signal("approach_updated")
+	_contract_engine.accept_approach_terms(neg_id)
 
 func walk_away_approach(neg_id: String) -> void:
-	var ap = _get_approach(neg_id)
-	if ap == null: return
-	ap["status"] = "rejected"
-	walked_away_subjects[ap["subject_id"]] = current_season + 2
-	add_notification("Normal",
-		"You walked away from negotiations with %s." % ap["subject_name"])
-	emit_signal("approach_updated")
+	_contract_engine.walk_away_approach(neg_id)
 
-## ── Evaluate approach offer ───────────────────────────────────────────────────
-func _evaluate_approach_offer(ap: Dictionary) -> String:
-	var total_ratio = 0.0
-	var count = 0
-	for key in ap["terms"]:
-		if key in ["start_date"]: continue  ## start_date is qualitative, handle separately
-		var term = ap["terms"][key]
-		if term.get("locked", false) or term.get("agreed", false): continue
-		var ask = float(term["their_ask"])
-		if ask <= 0: continue
-		var offer = float(term["player_offer"])
-		## For salary/bonuses: ratio = offer/ask (they want MORE, player offers LESS is bad)
-		## For duration: they want LONGER, player offering less is bad
-		total_ratio += clamp(offer / ask, 0.0, 1.0)
-		count += 1
-	if count == 0: return "accepted"
-	var ratio = total_ratio / float(count)
-	var round_n = ap["contract_round"]
-	var max_r = ap["max_contract_rounds"]
-	## Threshold tightens from 0.85 (round 1) to 0.70 (final round)
-	var threshold = lerp(0.85, 0.70, float(round_n - 1) / float(max(max_r - 1, 1)))
-	if ratio >= threshold: return "accepted"
-	if ratio < 0.35 and round_n >= max_r - 1: return "rejected"
-	return "counter"
-
-func _apply_approach_counter(ap: Dictionary) -> void:
-	var progress = float(ap["contract_round"]) / float(ap["max_contract_rounds"])
-	for key in ap["terms"]:
-		var term = ap["terms"][key]
-		if term["locked"] or term["agreed"] or key in ["duration_seasons","start_date"]: continue
-		var ask = float(term["their_ask"])
-		var offer = float(term["player_offer"])
-		if ask <= 0: continue
-		var gap = ask - offer
-		if gap > 0:
-			var concession = gap * 0.10 * progress
-			ap["terms"][key]["their_ask"] = max(offer, ask - concession)
-
-## ── Apply agreed approach result ──────────────────────────────────────────────
-func _apply_approach_result(ap: Dictionary) -> void:
-	var subject_id = ap["subject_id"]
-	var subject_type = ap["subject_type"]
-	var start_date = ap.get("start_date", "immediate")
-	var name_str = ap["subject_name"]
-
-	## Pay bond if there was one
-	if ap.get("bond_status", "") == "agreed" and ap.get("bond_amount_final", 0) > 0:
-		var bond = ap["bond_amount_final"]
-		player_team.balance -= bond
-		add_log("💰 Bond paid: CR %s to %s for %s." % [
-			_fmt_int(int(bond)), ap["current_team_name"], name_str])
-
-	if start_date == "next_season":
-		## Queue for next season — don't apply yet
-		ap["type"] = "pre_signed"
-		add_log("✅ %s pre-signed — joins Season %d." % [name_str, current_season + 1])
-		add_notification("Normal",
-			"%s pre-signed and will join at the start of Season %d." % [name_str, current_season + 1],
-			"hq")
-		return
-
-	## Sponsor renegotiation — update existing active_sponsor in place
-	if ap.get("type") == "sponsor_negotiation":
-		for sp in active_sponsors:
-			if sp.get("sponsor_id","") == subject_id:
-				for key in ap["terms"]:
-					if key in sp: sp[key] = ap["terms"][key]["player_offer"]
-				break
-		add_log("🤝 Sponsor deal renegotiated: %s." % name_str)
-		add_notification("Normal", "Sponsor deal with %s updated." % name_str, "hq")
-		emit_signal("log_updated")
-		return
-
-	## Immediate — apply contract now using existing _apply_negotiation_result
-	var fake_neg = {
-		"subject_id":   subject_id,
-		"subject_type": subject_type,
-		"player_offer": {},
-	}
-	for key in ap["terms"]:
-		fake_neg["player_offer"][key] = ap["terms"][key]["player_offer"]
-	_apply_negotiation_result(fake_neg, true)
-
-## ── Weekly advance hooks ──────────────────────────────────────────────────────
-## Called from advance_week() to process all active approaches.
-func _advance_approaches() -> void:
-	var changed = false
-	for ap in active_approaches:
-		if ap["status"] in ["agreed","failed","rejected","expired"]: continue
-
-		## ── Bond phase: waiting for team reply ──────────────────────────────
-		if ap["type"] == "approach" and ap["status"] == "approaching" \
-				and ap["bond_status"] == "offered" \
-				and current_week >= ap["bond_reply_week"]:
-			_process_bond_reply(ap)
-			changed = true
-
-		## ── Incoming bond: player hasn't replied ────────────────────────────
-		elif ap["type"] == "bond_incoming" and ap["status"] == "bond_incoming" \
-				and current_week >= ap.get("reply_due_week", 0):
-			## Auto-reject after 2 weeks of silence
-			if current_week >= ap.get("reply_due_week", 0) + 2:
-				ap["status"] = "rejected"
-				add_notification("Normal",
-					"Incoming approach for %s auto-rejected (no response)." % ap["subject_name"])
-				changed = true
-
-		## ── Contract negotiation: patience / round advancement ──────────────
-		elif ap["status"] == "negotiating":
-			var weeks_silent = current_week - ap["last_action_week"]
-
-			if weeks_silent >= ap["patience_weeks"]:
-				## Player ignored too long — expired
-				ap["status"] = "expired"
-				add_notification("High",
-					"Negotiations with %s have expired — no response given." % ap["subject_name"])
-				changed = true
-
-			elif weeks_silent >= 1:
-				if ap.get("player_turn", true):
-					## Player's turn but hasn't responded — remind them, don't advance round
-					## Just update last_action_week so we don't fire every week
-					ap["last_action_week"] = current_week
-					add_notification("High",
-						"Reminder: Contract Round %d/%d with %s — respond from HQ." % [
-						ap["contract_round"], ap["max_contract_rounds"], ap["subject_name"]], "hq")
-					changed = true
-				else:
-					## Player submitted, other side has had time to reply — advance round
-					ap["contract_round"] = min(ap["contract_round"] + 1, ap["max_contract_rounds"])
-					_apply_approach_counter(ap)
-					ap["player_turn"] = true
-					ap["last_action_week"] = current_week
-					if ap["contract_round"] >= ap["max_contract_rounds"]:
-						ap["status"] = "failed"
-						add_notification("Normal",
-							"Contract negotiations with %s have concluded without a deal." % ap["subject_name"])
-					else:
-						add_notification("High",
-							"Contract Round %d/%d with %s — respond from HQ." % [
-							ap["contract_round"], ap["max_contract_rounds"], ap["subject_name"]], "hq")
-					changed = true
-
-		## ── Pre-signed: activate at season start ────────────────────────────
-		elif ap["type"] == "pre_signed" and current_season > ap.get("signed_season", current_season):
-			_apply_approach_result(ap)   ## now apply with immediate
-			ap["start_date"] = "immediate"
-			ap["status"] = "agreed"
-			changed = true
-
-	## Activate pre-signed contracts at season start (called from start_new_season too)
-	_activate_presigned_contracts()
-
-	if changed:
-		emit_signal("approach_updated")
-
-func _activate_presigned_contracts() -> void:
-	for ap in active_approaches:
-		if ap.get("type") == "pre_signed" and ap.get("status") == "agreed":
-			var fake_neg = {
-				"subject_id":   ap["subject_id"],
-				"subject_type": ap["subject_type"],
-				"player_offer": {},
-			}
-			for key in ap["terms"]:
-				fake_neg["player_offer"][key] = ap["terms"][key]["player_offer"]
-			_apply_negotiation_result(fake_neg, true)
-			ap["status"] = "activated"
-
-## ── Bond reply from AI team ───────────────────────────────────────────────────
-func _process_bond_reply(ap: Dictionary) -> void:
-	## AI team decision: accept, counter, or reject
-	## Simple AI: if offer >= 80% of estimate, accept; 50-80% counter; <50% reject
-	var estimate = ap["bond_estimate"]
-	var offer = ap["bond_player_offer"]
-	var ratio = offer / max(estimate, 1.0)
-
-	if ratio >= 0.80:
-		ap["bond_status"] = "agreed"
-		ap["bond_amount_final"] = offer
-		ap["status"] = "negotiating"
-		_start_contract_phase(ap)
-		add_notification("Normal",
-			"%s's team accepted the bond (CR %s). Contract negotiation begins." % [
-			ap["subject_name"], _fmt_int(int(offer))],
-			"drivers" if ap["subject_type"] == "driver" else "staff_hub")
-	elif ratio >= 0.50 and ap["bond_round"] < 2:
-		## Counter: ask for estimate × 1.1
-		ap["bond_team_ask"] = int(estimate * 1.1)
-		ap["bond_status"] = "countered"
-		ap["bond_round"] += 1
-		ap["bond_reply_week"] = current_week + 1
-		add_notification("High",
-			"%s's team countered: CR %s for the bond. Accept, counter or reject in Drivers/Staff Hub." % [
-			ap["subject_name"], _fmt_int(int(ap["bond_team_ask"]))],
-			"drivers" if ap["subject_type"] == "driver" else "staff_hub")
-	else:
-		ap["bond_status"] = "rejected"
-		ap["status"] = "rejected"
-		add_notification("Normal",
-			"%s's team rejected the bond offer." % ap["subject_name"])
-
-## ── Helpers ───────────────────────────────────────────────────────────────────
-func _get_approach(neg_id: String) -> Dictionary:
-	for ap in active_approaches:
-		if ap["neg_id"] == neg_id: return ap
-	return {}
-
-func _get_approach_by_subject(subject_id: String) -> Dictionary:
-	for ap in active_approaches:
-		if ap["subject_id"] == subject_id and \
-				ap["status"] not in ["failed","rejected","expired","activated"]:
-			return ap
-	return {}
-
-## Remove an approach that was opened but never submitted (Round 1, player_turn=true).
-## Called when player closes the popup without making any offer.
 func cancel_approach_before_submit(neg_id: String) -> void:
-	for i in range(active_approaches.size()):
-		var ap = active_approaches[i]
-		if ap["neg_id"] == neg_id:
-			## Only cancel if player never submitted — Round 1 and still their turn
-			if ap.get("contract_round", 1) == 1 and ap.get("player_turn", true):
-				active_approaches.remove_at(i)
-				emit_signal("approach_updated")
-			else:
-				## Already submitted at least once — just reset last_action_week
-				ap["last_action_week"] = current_week
-			return
+	_contract_engine.cancel_approach_before_submit(neg_id)
 
 func get_active_approaches_for_display() -> Array:
-	## Returns all approaches that should show in HQ Pending Activity
-	return active_approaches.filter(func(ap):
-		return ap["status"] not in ["activated", "expired"] or \
-			(ap["status"] == "agreed" and ap.get("type") == "pre_signed"))
+	return _contract_engine.get_active_approaches_for_display()
 
 func get_pending_contract_negotiation() -> Dictionary:
-	## Returns the first approach in "negotiating" status (for popup display)
-	for ap in active_approaches:
-		if ap["status"] == "negotiating": return ap
-	return {}
+	return _contract_engine.get_pending_contract_negotiation()
 
 func _get_subject_display_name(subject_id: String, subject_type: String) -> String:
-	match subject_type:
-		"driver":
-			var d = all_drivers.get(subject_id)
-			return d.full_name() if d else subject_id
-		"staff":
-			var s = all_staff.get(subject_id)
-			return s.full_name() if s else subject_id
-		"sponsor":
-			for o in sponsor_offers:
-				if o.get("sponsor_id","") == subject_id: return o.get("name", subject_id)
-	return subject_id
+	return _contract_engine._get_subject_display_name(subject_id, subject_type)
 
-## ── Internal helpers ─────────────────────────────────────────────────────────
+func _get_approach(neg_id: String) -> Dictionary:
+	return _contract_engine._get_approach(neg_id)
+
+func _get_approach_by_subject(subject_id: String) -> Dictionary:
+	return _contract_engine._get_approach_by_subject(subject_id)
+
+func _get_max_slots_for_role(role: String) -> int:
+	return _contract_engine._get_max_slots_for_role(role)
 
 func _get_active_championship_tier() -> int:
-	if active_championship == null: return 1
-	return active_championship.tier
+	return _contract_engine._get_active_championship_tier()
 
 func _calc_driver_ask_salary(skill: float, tier: int) -> float:
-	## Base weekly: tier 1 starts at ~50, tier 4 at ~2850
-	const TIER_BASES = {1: 50.0, 2: 250.0, 3: 900.0, 4: 2850.0}
-	var base = TIER_BASES.get(tier, 50.0)
-	return round((base + base * (skill / 100.0) * 1.5) / 10.0) * 10.0
+	return _contract_engine._calc_driver_ask_salary(skill, tier)
 
-## Evaluate whether the player's offer is acceptable.
-## Returns "accepted", "counter", or "rejected".
-func _evaluate_offer(neg: Dictionary) -> String:
-	var player = neg["player_offer"]
-	var ask    = neg["their_ask"]
-	var round_n = neg["round"]
-	var max_r   = neg["max_rounds"]
-	var locked  = neg.get("locked_fields", [])
-	var ratio = _calc_offer_ratio(player, ask, locked)
-	## Threshold: starts at 0.95 (Round 1) and gradually drops to 0.82 (final round).
-	## They are reluctant early — only accept if the player is very close to their ask.
-	## By the final round they have softened but still need ~82% of their ask.
-	var threshold = lerp(0.95, 0.82, float(round_n - 1) / float(max(max_r - 1, 1)))
-	if ratio >= threshold: return "accepted"
-	## Walk away if offer is insultingly low in mid-late rounds
-	if ratio < 0.40 and round_n >= 2: return "rejected"
-	if ratio < 0.30: return "rejected"
-	return "counter"
+func _advance_approaches() -> void:
+	_contract_engine._advance_approaches()
 
-func _calc_offer_ratio(player: Dictionary, ask: Dictionary, locked_fields: Array = []) -> float:
-	var total_ratio = 0.0
-	var count = 0
-	for key in ask:
-		if key == "duration_seasons": continue
-		if key in locked_fields: continue
-		if ask[key] <= 0: continue
-		var p_val = float(player.get(key, 0))
-		var a_val = float(ask[key])
-		total_ratio += clamp(p_val / a_val, 0.0, 1.0)
-		count += 1
-	return total_ratio / float(max(count, 1))
+func _activate_presigned_contracts() -> void:
+	_contract_engine._activate_presigned_contracts()
 
-## Move their ask slightly toward player's offer — conservative concessions.
-## They concede max 15% of the gap over the full negotiation (was 25%).
-## Concession rate is slow early and picks up only if player is close.
-func _apply_counter_offer(neg: Dictionary) -> void:
-	var player = neg["player_offer"]
-	var ask    = neg["their_ask"]
-	var progress = float(neg["round"]) / float(neg["max_rounds"])
-	var ratio = _calc_offer_ratio(player, ask, neg.get("locked_fields", []))
-	## Concede more if player is close (ratio > 0.75), less if far away
-	var concede_rate = lerp(0.02, 0.06, clamp((ratio - 0.5) * 4.0, 0.0, 1.0))
-	for key in ask:
-		if key == "duration_seasons": continue
-		if ask[key] <= 0: continue
-		var gap = ask[key] - player.get(key, 0)
-		if gap > 0:
-			var concession = gap * concede_rate * progress
-			neg["their_ask"][key] = max(player.get(key, 0), ask[key] - concession)
+func _get_tp_for_championship(champ_id: String):
+	return _contract_engine._get_tp_for_championship(champ_id)
 
-## Apply the result — actually hire/set contract terms.
+func _get_strategist_for_championship(champ_id: String):
+	return _contract_engine._get_strategist_for_championship(champ_id)
+
 func _apply_negotiation_result(neg: Dictionary, accepted: bool) -> void:
-	if not accepted: return
-	var terms = neg["player_offer"]
-	var start_date = terms.get("start_date", "immediate")
+	_contract_engine._apply_negotiation_result(neg, accepted)
 
-	match neg["subject_type"]:
-		"driver":
-			var driver = all_drivers.get(neg["subject_id"])
-			if driver == null: return
-			## Slot check — only block immediate signing, not next-season
-			var max_d = get_max_drivers()
-			if driver.contract_team == "" and player_team.drivers.size() >= max_d \
-					and start_date == "immediate":
-				add_notification("High", "Racing Dept full — can't sign %s immediately. Sign for next season instead." % driver.full_name())
-				return
-			## Next-season signing — mark as pre_signed, don't apply yet
-			if start_date == "next_season":
-				## Find the approach and mark it pre_signed
-				for ap in active_approaches:
-					if ap["subject_id"] == neg["subject_id"] and ap["status"] == "negotiating":
-						ap["type"] = "pre_signed"
-						ap["status"] = "agreed"
-						ap["signed_season"] = current_season
-						break
-				add_log("✅ %s pre-signed — joins Season %d." % [driver.full_name(), current_season + 1])
-				add_notification("Normal",
-					"%s pre-signed and will join at the start of Season %d." % [
-					driver.full_name(), current_season + 1], "hq")
-				emit_signal("log_updated")
-				return
-			## Immediate signing
-			driver.contract_team = player_team.id
-			driver.contract_seasons_remaining = terms.get("duration_seasons", 1)
-			driver.weekly_salary       = terms.get("weekly_salary", 50.0)
-			driver.win_bonus           = terms.get("win_bonus", 0)
-			driver.podium_bonus        = terms.get("podium_bonus", 0)
-			driver.championship_bonus  = terms.get("championship_bonus", 0)
-			driver.release_clause      = terms.get("release_clause", 0)
-			if not neg["subject_id"] in player_team.drivers:
-				player_team.drivers.append(neg["subject_id"])
-				if active_championship:
-					active_championship.standings[neg["subject_id"]] = 0
-			add_log("✅ %s signed: CR %.0f/wk, %d seasons, Win:CR %s, Podium:CR %s" % [
-				driver.full_name(), driver.weekly_salary, driver.contract_seasons_remaining,
-				_fmt_int(driver.win_bonus), _fmt_int(driver.podium_bonus)])
-			add_notification("Normal", "%s signed. Assign them to a car in the Garage." % driver.full_name())
-			_fire_assignment_proposals()
-		"staff":
-			var staff = all_staff.get(neg["subject_id"])
-			if staff == null: return
-			## Next-season signing for staff
-			if start_date == "next_season":
-				for ap in active_approaches:
-					if ap["subject_id"] == neg["subject_id"] and ap["status"] == "negotiating":
-						ap["type"] = "pre_signed"
-						ap["status"] = "agreed"
-						ap["signed_season"] = current_season
-						break
-				add_log("✅ %s pre-signed — joins Season %d." % [staff.full_name(), current_season + 1])
-				add_notification("Normal",
-					"%s pre-signed and will join at the start of Season %d." % [
-					staff.full_name(), current_season + 1], "hq")
-				emit_signal("log_updated")
-				return
-			## Slot checks for immediate (same as hire_staff)
-			if staff.contract_team == "":
-				if staff.role == "Team Principal":
-					var existing = get_player_staff_by_role("Team Principal")
-					if existing.size() >= get_hq_tp_slots():
-						add_notification("High", "TP slots full. Upgrade HQ."); return
-				elif staff.role == "CFO":
-					if get_player_staff_by_role("CFO").size() >= 1:
-						add_notification("High", "You already have a CFO."); return
-			staff.contract_team = player_team.id
-			staff.contract_seasons_remaining = terms.get("duration_seasons", 1)
-			staff.weekly_salary        = terms.get("weekly_salary", staff.weekly_salary)
-			staff.championship_bonus   = terms.get("championship_bonus", 0)
-			staff.performance_bonus    = terms.get("performance_bonus", 0)
-			staff.release_clause       = terms.get("release_clause", 0)
-			if staff.role == "Pit Crew" and staff.crew_number == 0:
-				staff.crew_number = get_player_staff_by_role("Pit Crew").size()
-			add_log("✅ %s (%s) signed: CR %.0f/wk, %d seasons" % [
-				staff.full_name(), staff.role, staff.weekly_salary, staff.contract_seasons_remaining])
-			add_notification("Normal", "%s (%s) joined your team." % [staff.full_name(), staff.role])
-			if staff.role in ["Race Mechanic", "Team Principal", "Race Strategist"]:
-				_fire_assignment_proposals()
-		"sponsor":
-			## sign_sponsor adds the original offer — then overwrite with negotiated terms
-			if sign_sponsor(neg["subject_id"]):
-				var negotiated = neg["player_offer"]
-				for sp in active_sponsors:
-					if sp.get("sponsor_id","") == neg["subject_id"] or \
-							sp.get("name","") == neg.get("sponsor_name",""):
-						for key in negotiated:
-							if key in sp:
-								sp[key] = negotiated[key]
-						break
-	emit_signal("log_updated")
-
-## ── Weekly salary payment (driver) ──────────────────────────────────────────
-## Called from advance_week. Replaces the old flat weekly_driver_salary approach.
-## If driver has no individual weekly_salary set, falls back to championship rate.
 func _pay_driver_salaries_weekly() -> void:
-	for driver_id in player_team.drivers:
-		var driver = all_drivers.get(driver_id)
-		if driver == null: continue
-		var sal = driver.weekly_salary if driver.weekly_salary > 0 \
-				else _get_championship_driver_salary()
-		player_team.balance -= sal
+	_contract_engine._pay_driver_salaries_weekly()
 
 ## Pay driver race bonuses after a race result.
 func pay_driver_race_bonuses(race_results: Array) -> void:
-	for entry in race_results:
-		var driver = entry.get("driver")
-		if driver == null: continue
-		if driver.contract_team != player_team.id: continue
-		var pos = entry.get("position", 99)
-		var bonus = 0
-		if pos == 1:   bonus = driver.win_bonus
-		elif pos <= 3: bonus = driver.podium_bonus
-		if bonus > 0:
-			player_team.balance -= bonus
-			add_log("🏆 Race bonus paid: %s — CR %s (P%d)" % [
-				driver.full_name(), _fmt_int(bonus), pos])
+	_race_simulator.pay_driver_race_bonuses(race_results)
 
 func hire_staff(staff_id: String) -> bool:
 	if not staff_id in all_staff:
@@ -4116,270 +2439,13 @@ func _get_repair_efficiency() -> float:
 			return mechanic.get_repair_efficiency()
 	return 1.0
 
-## Pre-race check — warns if TP is missing but does NOT block the race.
 func _check_race_requirements() -> void:
-	_check_race_requirements_for(active_championship)
+	_race_simulator.check_race_requirements_for(active_championship)
 
 func _check_race_requirements_for(champ: Championship) -> void:
-	var tp = get_team_principal()
-	if tp == null:
-		add_notification("High",
-			"⚠ No Team Principal for %s! Racing without tactical oversight." % champ.championship_name)
-	var has_cfo = get_cfo() != null
-	if not has_cfo:
-		add_notification("Normal",
-			"💼 No CFO on staff. Financial optimisation unavailable.")
-
-## Returns an array of pending task strings the player should review before advancing.
-## Used by MainHub to prompt the player before advancing the week.
-func get_pending_tasks() -> Array[String]:
-	var tasks: Array[String] = []
-
-	## Step 1 — No car for ACTIVE championships (not next-season registrations)
-	var active_champ_ids: Array = []
-	for champ in active_championships:
-		active_champ_ids.append(champ.id)
-
-	for reg_champ_id in player_registered_championships:
-		if not reg_champ_id in active_champ_ids:
-			continue  ## Next-season registration — BeginOfSeason handles it
-		var has_car = false
-		for car in player_team_cars:
-			if car.championship_id == reg_champ_id:
-				has_car = true
-				break
-		if not has_car:
-			var reg = CHAMPIONSHIP_REGISTRY.get(reg_champ_id, {})
-			tasks.append("🏎 No car for %s — buy one at Logistics Center." % reg.get("name", reg_champ_id))
-
-	## Step 2 — Cars exist: check driver/mechanic/pit crew assignment
-	## Only show these if the car exists (don't pile on when car not bought yet)
-	for car in player_team_cars:
-		## Skip if this car's championship has no car task above (redundant check — car exists)
-		var reg = CHAMPIONSHIP_REGISTRY.get(car.championship_id, {})
-		var champ_name = reg.get("name", car.championship_id)
-		var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
-		if car.driver_id == "":
-			if player_team.drivers.is_empty():
-				tasks.append("👤 No drivers signed — hire one from Drivers screen.")
-			else:
-				tasks.append("🏎 %s [%s] — no driver assigned. Go to Garage." % [car_label, champ_name])
-		if car.mechanic_id == "":
-			var has_mechanic = false
-			for sid in all_staff:
-				var s = all_staff[sid]
-				if s.role == "Race Mechanic" and s.contract_team == player_team.id:
-					has_mechanic = true
-					break
-			if not has_mechanic:
-				tasks.append("🔧 No Race Mechanic hired — hire one from Staff screen.")
-			else:
-				tasks.append("🔧 %s [%s] — no mechanic assigned. Go to Garage." % [car_label, champ_name])
-		if get_pit_crew_required(car.championship_id):
-			if car.pit_crew_id == "" or car.pit_crew_id == "N/A":
-				tasks.append("⏱ %s [%s] — no Pit Crew. Assign in Pit Crew Arena." % [car_label, champ_name])
-
-	## Step 3 — Staff roles missing
-	## GK discipline: one TP for all tiers combined
-	var has_gk_active = false
-	var gk_tp_ok = false
-	for champ in active_championships:
-		if champ.discipline == "GK":
-			has_gk_active = true
-			if _get_tp_for_championship(champ.id) != null:
-				gk_tp_ok = true
-	if has_gk_active and not gk_tp_ok:
-		var has_any_tp = get_player_staff_by_role("Team Principal").size() > 0
-		if not has_any_tp:
-			tasks.append("⚠ No Team Principal — hire one from Staff screen.")
-		else:
-			tasks.append("⚠ GK disciplines have no Team Principal assigned. Go to Racing Department.")
-	elif not has_gk_active:
-		## Non-GK: check each active championship
-		var non_gk_missing_tp: Array = []
-		for champ in active_championships:
-			if champ.discipline == "GK": continue
-			if _get_tp_for_championship(champ.id) == null:
-				non_gk_missing_tp.append(champ.championship_name)
-		if non_gk_missing_tp.size() > 0:
-			tasks.append("⚠ No Team Principal for: %s" % ", ".join(non_gk_missing_tp))
-	if get_cfo() == null:
-		tasks.append("💼 No CFO hired — hire one from Staff screen.")
-
-	## Step 4 — Resources
-	## Low SP — only warn when races are still coming
-	if has_remaining_races_this_season():
-		if spare_parts < 20:
-			tasks.append("🔧 Spare parts low (%d units) — buy at Logistics." % spare_parts)
-		## Low fuel — only warn when race approaching
-		if active_championship != null:
-			var next_race = active_championship.get_next_race()
-			if next_race:
-				var weeks_until = next_race["week"] - current_week
-				if weeks_until <= 2 and fuel_kg < active_championship.fuel_per_car_per_race:
-					tasks.append("⛽ Fuel below race minimum (%.0f kg) — buy at Logistics." % fuel_kg)
-
-	## Step 5 — Financial
-	if player_team.balance < 0:
-		tasks.append("💸 Balance negative (CR %s). Bankruptcy risk." % _fmt_int(int(player_team.balance)))
-
-	## Step 6 — Car condition
-	for car in player_team_cars:
-		if car.condition < 30.0:
-			tasks.append("🔩 %s condition critical (%.0f%%) — repair in Garage." % [
-				car.car_name if car.car_name != "" else "Car %d" % car.car_number, car.condition])
-
-	## Step 7 — Expiring contracts
-	for driver_id in player_team.drivers:
-		var driver = all_drivers.get(driver_id)
-		if driver and driver.contract_seasons_remaining <= 1:
-			tasks.append("📋 %s contract expires soon." % driver.full_name())
-	for staff_id in all_staff:
-		var staff = all_staff[staff_id]
-		if staff.contract_team == player_team.id and staff.contract_seasons_remaining <= 1:
-			tasks.append("📋 %s (%s) contract expires soon." % [staff.full_name(), staff.role])
-
-	## Step 7b — Pending negotiations awaiting player response
-	for ap in active_approaches:
-		if ap["status"] in ["failed","rejected","expired","activated","agreed"]: continue
-		match ap["status"]:
-			"bond_incoming":
-				tasks.append("💰 %s wants %s — respond to their bond offer." % [
-					ap.get("approaching_team_name","AI Team"), ap["subject_name"]])
-			"approaching":
-				tasks.append("📤 Bond approach sent to %s's team — reply expected next week." % ap["subject_name"])
-			"negotiating":
-				var rounds_left = ap.get("max_contract_rounds",4) - ap.get("contract_round",1)
-				if ap.get("player_turn", true):
-					if ap.get("contract_round", 1) == 1:
-						tasks.append("📋 Negotiations open: %s — make your opening offer." % ap["subject_name"])
-					else:
-						tasks.append("📋 Contract Round %d/%d with %s — their reply received, respond now." % [
-							ap.get("contract_round",1), ap.get("max_contract_rounds",4), ap["subject_name"]])
-				else:
-					tasks.append("📋 Offer sent to %s — awaiting their reply (Round %d/%d)." % [
-						ap["subject_name"], ap.get("contract_round",1), ap.get("max_contract_rounds",4)])
-
-	## Step 8 — R&D → WRA → CNC → Garage pipeline
-	## 8a: Blueprints ready but not yet submitted to WRA
-	## - Next-season blueprints (P1/P3): always remind
-	## - Current-season P2 upgrades: also remind (need WRA this season)
-	for bp_id in known_blueprints:
-		if not is_blueprint_submitted(bp_id) and not is_blueprint_approved(bp_id):
-			var bp = known_blueprints[bp_id]
-			var bp_season = bp.get("season", current_season)
-			var bp_pillar = bp.get("pillar", 1)
-			var is_next_season = bp_season > current_season
-			var is_current_p2  = bp_pillar == 2 and bp_season == current_season
-			if is_next_season or is_current_p2:
-				tasks.append("📐 Blueprint ready: '%s' — submit to WRA for approval." % bp.get("name", bp_id))
-				break
-
-	## 8b: WRA-approved blueprints waiting to be manufactured
-	var unqueued_approvals = wra_approved_blueprints.filter(func(app):
-		for job in cnc_production_queue:
-			if job.get("blueprint_id","") == app.blueprint_id: return false
-		return true)
-	if not unqueued_approvals.is_empty():
-		var bp = known_blueprints.get(unqueued_approvals[0].blueprint_id, {})
-		tasks.append("⚙ WRA approved: '%s' — queue manufacturing in CNC Plant." % bp.get("name", unqueued_approvals[0].blueprint_id))
-
-	## 8c: CNC parts in inventory not yet installed on any car
-	for inv_key in cnc_parts_inventory:
-		var item = cnc_parts_inventory[inv_key]
-		var qty = item.get("quantity", 0) if item is Dictionary else int(item)
-		if qty > 0:
-			var part = item.get("part", inv_key) if item is Dictionary else inv_key
-			## Check if already installed on every car
-			var all_installed = true
-			for car in player_team_cars:
-				if car.championship_id == item.get("championship_id",""):
-					var inst = get_installed_parts_for_car(car.id)
-					var pcode = item.get("part_code","") if item is Dictionary else ""
-					if pcode == "" or not pcode in inst:
-						all_installed = false
-						break
-			if not all_installed:
-				tasks.append("🔩 CNC part in warehouse: %s — install it in Garage." % part)
-				break  ## One reminder per week
-
-	## Step 9 — New game: no car bought yet, no championships active
-	if player_team_cars.is_empty() and active_championships.size() <= 1 \
-			and player_registered_championships.is_empty():
-		tasks.append("🏎 Welcome! Buy your first car at the Logistics Center to get started.")
-
-	## Step 10 — No championships registered for next season (mid/late season warning)
-	## Only fire after Week 20 so it doesn't spam at season start
-	if current_week >= 20 and player_registered_championships.is_empty() \
-			and not active_championships.is_empty():
-		tasks.append("📋 No championships registered for next season — register in HQ → WRA.")
-
-	## Auto-clean custom_todo_items that are no longer relevant
-	## (e.g. "Assign a driver to Car X" after driver has been assigned)
-	var to_remove: Array = []
-	for item in custom_todo_items:
-		if _is_todo_item_resolved(item):
-			to_remove.append(item)
-	for item in to_remove:
-		custom_todo_items.erase(item)
-
-	## Custom injected items (TP proposals, etc.)
-	for item in custom_todo_items:
-		tasks.append(item)
-
-	return tasks.filter(func(t): return not t in dismissed_todo_items)
-
-## Returns true if a custom TDL item is no longer relevant and can be auto-removed.
-func _is_todo_item_resolved(item: String) -> bool:
-	## "Assign a driver to Car X [Champ Y]" — resolved if car now has a driver
-	if "Assign a driver to" in item:
-		for car in player_team_cars:
-			var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
-			if car_label in item and car.driver_id != "":
-				return true
-	## "Assign a mechanic to Car X [Champ Y]" — resolved if car now has mechanic
-	if "Assign a mechanic to" in item:
-		for car in player_team_cars:
-			var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
-			if car_label in item and car.mechanic_id != "":
-				return true
-	## "GK TP: assignment update" — resolved if GK TP is now assigned
-	if "GK TP:" in item:
-		for champ in active_championships:
-			if champ.discipline == "GK" and _get_tp_for_championship(champ.id) != null:
-				return true
-	## "Assign X as GK Team Principal" — resolved if any GK TP assigned
-	if "GK Team Principal" in item:
-		for champ in active_championships:
-			if champ.discipline == "GK" and _get_tp_for_championship(champ.id) != null:
-				return true
-	## "Assign X as Team Principal for Y" — resolved if TP now assigned to that champ
-	if "Team Principal for" in item:
-		for champ in active_championships:
-			if champ.championship_name in item and _get_tp_for_championship(champ.id) != null:
-				return true
-	return false
-
-func add_todo_item(item_text: String) -> void:
-	if not item_text in custom_todo_items and not item_text in dismissed_todo_items:
-		custom_todo_items.append(item_text)
-		emit_signal("log_updated")
-
-func dismiss_todo_item(item_text: String) -> void:
-	if not item_text in dismissed_todo_items:
-		dismissed_todo_items.append(item_text)
-	emit_signal("log_updated")
-
-func clear_dismissed_todo_items() -> void:
-	dismissed_todo_items.clear()
-	emit_signal("log_updated")
-
-## Weekly pit crew fitness recovery.
+	_race_simulator.check_race_requirements_for(champ)
 func _recover_pit_crew_fitness() -> void:
-	for staff_id in all_staff:
-		var staff = all_staff[staff_id]
-		if staff.role == "Pit Crew" and staff.contract_team == player_team.id:
-			staff.fitness = min(100.0, staff.fitness + 8.0)
+	_race_simulator.recover_pit_crew_fitness()
 
 ## ═══════════════════════════════════════════════════════════════════════════
 ## CAR CONDITION SYSTEM (now Car-object based)
@@ -4394,97 +2460,16 @@ func _setup_car_conditions() -> void:
 ## Repairs applied on exit so RaceResults shows true post-race damage.
 ## Returns true if any active championship has at least one race remaining this season.
 func has_remaining_races_this_season() -> bool:
-	for champ in active_championships:
-		var next_race = champ.get_next_race()
-		if not next_race.is_empty():
-			return true
-	return false
+	return _race_simulator.has_remaining_races_this_season()
 
 func apply_post_race_repairs() -> void:
-	_auto_repair_cars_post_race()
+	_race_simulator.auto_repair_cars_post_race()
 
 func _degrade_car_conditions(laps: int, dns_driver_ids: Array = []) -> void:
-	var loss = active_championship.condition_loss_per_lap * float(laps)
-	for car in player_team_cars:
-		if car.driver_id == "" or car.driver_id in dns_driver_ids:
-			add_log("🔩 Car %d condition unchanged (DNS)" % car.car_number)
-			continue
-		car.condition = max(0.0, car.condition - loss)
-		## Degrade per-part condition for CNC installed parts
-		if car.id in car_installed_parts:
-			for pcode in car_installed_parts[car.id]:
-				var pd = car_installed_parts[car.id][pcode]
-				pd["condition"] = max(0.0, pd.get("condition", 100.0) - loss)
-				if pd["condition"] <= 0.0:
-					add_notification("Critical",
-						"🔩 %s TERMINAL DAMAGE on %s! Slot empty — car cannot race." % [
-						pcode, car.car_name if car.car_name != "" else "Car %d" % car.car_number])
-					car_installed_parts[car.id].erase(pcode)
-		## Degrade per-part condition for provider parts
-		if car.id in car_provider_parts:
-			for pcode in car_provider_parts[car.id].keys():
-				var pd = car_provider_parts[car.id][pcode]
-				pd["condition"] = max(0.0, pd.get("condition", 100.0) - loss)
-				if pd["condition"] <= 0.0:
-					add_notification("Critical",
-						"🔩 %s TERMINAL DAMAGE on %s! Slot empty — buy provider parts at Logistics." % [
-						pcode, car.car_name if car.car_name != "" else "Car %d" % car.car_number])
-					car_provider_parts[car.id].erase(pcode)
-		add_log("🔩 Car %d condition after race: %.0f%% (−%.1f%% over %d laps)" % [
-			car.car_number, car.condition, loss, laps])
+	_race_simulator.degrade_car_conditions(laps, dns_driver_ids)
 
 func _auto_repair_cars_post_race() -> void:
-	if player_team_cars.is_empty():
-		return
-
-	## Do not auto-repair after the last race of the season (Bugs doc)
-	## Check if there are any more races remaining after this one
-	if not has_remaining_races_this_season():
-		add_log("🔧 Season's last race — no auto-repair. Cars will be serviced in the off-season.")
-		return
-
-	var sp_rate = active_championship.sp_per_10_pct_damage
-	var any_failed = false
-	var failed_car_names: Array = []
-
-	for car in player_team_cars:
-		var damage = 100.0 - car.condition
-		if damage <= 0.0:
-			continue
-
-		# No mechanic = no repair
-		if car.mechanic_id == "":
-			add_notification("High",
-				"Car %d cannot be repaired — no Race Mechanic assigned!" % car.car_number)
-			any_failed = true
-			failed_car_names.append("Car %d (no mechanic)" % car.car_number)
-			continue
-
-		var sp_needed = int(ceil(damage / 10.0) * sp_rate)
-
-		if spare_parts >= sp_needed:
-			spare_parts -= sp_needed
-			car.condition = 100.0
-			add_log("🔧 Car %d auto-repaired to 100%% (-%d SP, %d remaining)" % [
-				car.car_number, sp_needed, spare_parts])
-		elif spare_parts > 0:
-			var repair_pct = float(spare_parts) / float(sp_rate) * 10.0
-			car.condition = min(100.0, car.condition + repair_pct)
-			add_log("🔧 Car %d partial repair: %.0f%% condition (SP exhausted)" % [
-				car.car_number, car.condition])
-			spare_parts = 0
-			any_failed = true
-			failed_car_names.append("Car %d" % car.car_number)
-		else:
-			any_failed = true
-			failed_car_names.append("Car %d" % car.car_number)
-
-	if any_failed:
-		var names = ", ".join(failed_car_names)
-		add_notification("Critical" if spare_parts == 0 else "High",
-			"SP insufficient to fully repair %s. Buy more SP at Logistics Center." % names)
-	# Resource warning notifications are fired by _consume_race_resources()
-	# which always runs after this function — no need to call here.
+	_race_simulator.auto_repair_cars_post_race()
 
 func repair_car(driver_id: String, repair_pct: float) -> bool:
 	var car = get_car_for_driver(driver_id)
@@ -4519,62 +2504,8 @@ func repair_car_full(driver_id: String) -> bool:
 	return repair_car(driver_id, damage)
 
 
-## DNS check — returns true if the car CAN race, false if DNS.
 func _can_car_race(driver_id: String) -> bool:
-	var car = get_car_for_driver(driver_id)
-
-	# DNS: no fuel
-	var fuel_needed = active_championship.fuel_per_car_per_race
-	if fuel_kg < fuel_needed:
-		add_notification("Critical",
-			"DNS: Not enough fuel (%.1f kg). Need %.1f kg. Buy fuel at Logistics Center." % [
-				fuel_kg, fuel_needed])
-		add_log("🚫 DNS — Insufficient fuel for race start.")
-		return false
-
-	if car == null:
-		return false
-
-	# DNS: no race mechanic
-	if car.mechanic_id == "":
-		add_notification("Critical",
-			"DNS: %s has no Race Mechanic! Assign one in the Garage before racing." % (car.car_name if car.car_name != "" else "Car %d" % car.car_number))
-		add_log("🚫 DNS — No Race Mechanic on %s." % (car.car_name if car.car_name != "" else "Car %d" % car.car_number))
-		return false
-
-	# DNS: no pit crew for non-GK championships
-	if get_pit_crew_required(car.championship_id):
-		if car.pit_crew_id == "" or car.pit_crew_id == "N/A":
-			add_notification("Critical",
-				"DNS: %s has no Pit Crew! Assign one in the Pit Crew Arena before racing." % (car.car_name if car.car_name != "" else "Car %d" % car.car_number))
-			add_log("🚫 DNS — No Pit Crew on %s." % (car.car_name if car.car_name != "" else "Car %d" % car.car_number))
-			return false
-
-	return true
-
-func get_building(building_id: String) -> Dictionary:
-	return campus_buildings.get(building_id, {})
-
-func start_building(building_id: String) -> void:
-	if not building_id in campus_buildings:
-		return
-	var building = campus_buildings[building_id]
-	if building["built"]:
-		return
-	if player_team.balance < building["build_cost"]:
-		return
-	player_team.balance -= building["build_cost"]
-	building["built"] = true
-	building["construction_weeks_remaining"] = building["build_time"]
-	building["level"] = 0
-	add_log("🏗 Construction started: %s (%d weeks)" % [building["name"], building["build_time"]])
-	emit_signal("log_updated")
-
-## Returns the scaled upgrade cost for the next level.
-## Formula: base_cost * 1.5^current_level, rounded to nearest CR 500.
-## ── Championship Registration ────────────────────────────────────────────────
-
-## Returns true if the player can still register for a championship this season.
+	return _race_simulator.can_car_race(driver_id)
 func can_register_for_championship(champ_id: String) -> bool:
 	if champ_id in player_registered_championships:
 		return false  # already registered
@@ -4704,56 +2635,12 @@ func get_pending_registrations() -> Array:
 		if not already_running:
 			pending.append(cid)
 	return pending
-
-## Helper: format int with comma thousands separator
-func _get_wra_group_for_championship(cid: String) -> String:
-	const CID_TO_GROUP = {
-		"C-001":"Karting",
-		"C-005":"Rally","C-006":"Rally","C-007":"Rally","C-008":"Rally",
-		"C-009":"Touring","C-010":"Touring",
-		"C-011":"Open Wheel","C-012":"Open Wheel","C-013":"Open Wheel",
-		"C-014":"Stock Car","C-015":"Stock Car","C-016":"Stock Car","C-017":"Stock Car",
-		"C-018":"Endurance","C-019":"Endurance","C-020":"Endurance",
-		"C-021":"Formula","C-022":"Formula","C-023":"Formula","C-024":"Formula",
-	}
-	return CID_TO_GROUP.get(cid, "Karting")
-
-## Shared weekly expense total (staff + drivers + building maintenance)
 func get_weekly_expenses() -> float:
-	var total = 0.0
-	for s_id in all_staff:
-		var s = all_staff[s_id]
-		if s.contract_team == player_team.id:
-			total += s.weekly_salary
-	## Use per-driver negotiated salary; fall back to championship rate
-	for driver_id in player_team.drivers:
-		var driver = all_drivers.get(driver_id)
-		if driver == null: continue
-		total += driver.weekly_salary if driver.weekly_salary > 0 \
-				else _get_championship_driver_salary()
-	for bname in campus_buildings:
-		var b = campus_buildings[bname]
-		if b.get("level", 0) > 0:
-			total += b.get("weekly_maintenance", 0)
-	return total
+	return _financial_engine.get_weekly_expenses()
 
 ## Runway in weeks at current expense rate
 func get_runway_weeks() -> int:
-	var bal = player_team.balance
-	if bal <= 0: return 0
-	var weekly = get_weekly_expenses()
-	if weekly <= 0: return 999
-	return int(bal / weekly)
-
-## Remove notifications containing a substring
-func _clear_notifications_containing(substring: String) -> void:
-	notifications = notifications.filter(func(n): return not substring in n["message"])
-	unread_notification_count = 0
-	for n in notifications:
-		if not n["read"]: unread_notification_count += 1
-	emit_signal("notifications_updated")
-
-## Small chance of sponsor approach after a good race
+	return _financial_engine.get_runway_weeks()
 func _maybe_generate_race_sponsor_offer(player_position: int) -> void:
 	var chance = 0.0
 	if player_position == 1:   chance = 0.30
@@ -4778,273 +2665,6 @@ func _fmt_int(n: int) -> String:
 		result = s[i] + result
 		count += 1
 	return result
-
-## Sells a building — refunds 30% of build cost, resets to unbuilt state.
-## Staff assigned to this building are unassigned but not fired.
-func sell_building(building_id: String) -> void:
-	var building = campus_buildings.get(building_id, {})
-	if building.is_empty() or not building["built"]:
-		return
-	var refund = int(building["build_cost"] * 0.3)
-	player_team.balance += refund
-	building["built"] = false
-	building["level"] = 0
-	building["construction_weeks_remaining"] = 0
-	add_log("🏚 %s sold — CR %s refunded (30%% of build cost)." % [building["name"], _fmt_int(refund)])
-	add_notification("Normal", "%s sold for CR %s." % [building["name"], _fmt_int(refund)])
-	emit_signal("log_updated")
-
-## Returns true if the player has a blueprint (completed R&D) for a part type.
-func has_blueprint(part: String) -> bool:
-	for tid in completed_rnd_tasks:
-		var t = RND_TASKS.get(tid, {})
-		if t.get("part","") == part and t.get("pillar",0) in [1, 3]:
-			return true
-	return false
-
-## Returns list of parts the player can currently manufacture.
-func get_manufacturable_parts() -> Array:
-	var parts = []
-	for part in ["Aero","Engine","Chassis","Gearbox","Brakes","Suspension"]:
-		if has_blueprint(part) and not part in parts:
-			parts.append(part)
-	return parts
-
-## Queue a CNC production run for a part.
-func start_cnc_production(part: String, champ_id: String, quantity: int = 1) -> bool:
-	if not has_blueprint(part):
-		add_notification("High", "No blueprint for %s. Research it in R&D Studio first." % part)
-		return false
-	var building = campus_buildings.get("CNC Parts Plant", {})
-	if not building.get("built", false):
-		add_notification("High", "CNC Parts Plant not built.")
-		return false
-	var cnc = CNC_DATA.get(champ_id, CNC_DATA.get("C-001", {}))
-	var base_cost = cnc.get("base_total_cost", 10000)
-	# Part cost: fraction of full car cost (Aero 20%, Engine 35%, Chassis 25%, others 10%)
-	const PART_COST_RATIO = {"Aero":0.20,"Engine":0.35,"Chassis":0.25,
-		"Gearbox":0.08,"Brakes":0.06,"Suspension":0.06}
-	var unit_cost = int(base_cost * PART_COST_RATIO.get(part, 0.10) * float(quantity))
-	if player_team.balance < unit_cost:
-		add_notification("High", "Insufficient funds for CNC production. Need CR %s." % _fmt_int(unit_cost))
-		return false
-	# Manufacture time: design_weeks scaled by part complexity
-	const PART_TIME_RATIO = {"Aero":0.4,"Engine":0.6,"Chassis":0.5,
-		"Gearbox":0.25,"Brakes":0.2,"Suspension":0.25}
-	var weeks = max(1, int(cnc.get("design_weeks", 4) * PART_TIME_RATIO.get(part, 0.3) * quantity))
-	player_team.balance -= unit_cost
-	cnc_production_queue.append({
-		"id":        "%s_%s_%d" % [part, champ_id, current_week],
-		"part":      part,
-		"championship_id": champ_id,
-		"weeks_total":     weeks,
-		"weeks_remaining": weeks,
-		"cr_cost":         unit_cost,
-		"quantity":        quantity,
-	})
-	add_log("⚙ CNC production started: %dx %s for %s (%d wks)" % [
-		quantity, part, CHAMPIONSHIP_REGISTRY.get(champ_id,{}).get("name", champ_id), weeks])
-	add_notification("Normal", "CNC: %dx %s in production. Ready in %d weeks." % [quantity, part, weeks])
-	emit_signal("log_updated")
-	return true
-
-## Called each advance_week — ticks CNC production queue.
-func _advance_cnc_production() -> void:
-	var finished = []
-	for job in cnc_production_queue:
-		job["weeks_remaining"] -= 1
-		if job["weeks_remaining"] <= 0:
-			finished.append(job)
-	for job in finished:
-		cnc_production_queue.erase(job)
-		var part   = job.get("part", "")
-		var pcode  = job.get("part_code", "")
-		var cid    = job.get("championship_id", "")
-		var qty    = job.get("quantity", 1)
-		var rel    = job.get("reliability", 60.0)
-		var qual   = job.get("quality", 1.0)
-		var bp_id  = job.get("blueprint_id", "")
-		## Store using canonical key: "CHAMP_ID|PCODE"
-		var inv_key = _cnc_inv_key(cid, pcode) if (cid != "" and pcode != "") else part
-		if inv_key in cnc_parts_inventory:
-			cnc_parts_inventory[inv_key]["quantity"] += qty
-		else:
-			cnc_parts_inventory[inv_key] = {
-				"quantity":       qty,
-				"reliability":    rel,
-				"quality":        qual,
-				"blueprint_id":   bp_id,
-				"part":           part,
-				"part_code":      pcode,
-				"championship_id": cid,
-			}
-		## Remove from wra_approved_blueprints so TDL step 8b clears
-		wra_approved_blueprints = wra_approved_blueprints.filter(
-			func(app): return app.get("blueprint_id","") != bp_id)
-		add_log("✅ CNC complete: %dx %s (%s) — Rel:%.0f%% Qual:%.2f× → warehouse." % [
-			qty, part, pcode, rel, qual])
-		add_notification("High",
-			"CNC complete: %dx %s ready in warehouse. Go to Garage to install it." % [qty, part],
-			"garage")
-	if not finished.is_empty():
-		emit_signal("log_updated")
-
-## Assigns a CNC-manufactured part from inventory to a specific car.
-func assign_cnc_part_to_car(car_id: String, part: String) -> bool:
-	var car = null
-	for c in player_team_cars:
-		if c.id == car_id: car = c; break
-	if car == null:
-		add_notification("High", "Car not found: %s" % car_id)
-		return false
-	var available = cnc_parts_inventory.get(part, 0)
-	if available <= 0:
-		add_notification("High", "No %s in CNC inventory. Manufacture one first." % part)
-		return false
-	cnc_parts_inventory[part] = available - 1
-	if cnc_parts_inventory[part] <= 0:
-		cnc_parts_inventory.erase(part)
-	if not car_id in car_installed_parts:
-		car_installed_parts[car_id] = {}
-	car_installed_parts[car_id][part] = car_installed_parts[car_id].get(part, 0) + 1
-	var cname = car.car_name if car.car_name != "" else "Car %d" % car.car_number
-	add_log("🔩 %s CNC part installed on %s." % [part, cname])
-	add_notification("Normal", "%s CNC part installed on %s." % [part, cname])
-	emit_signal("log_updated")
-	return true
-
-## Removes a CNC part from a car and returns it to inventory.
-func remove_cnc_part_from_car(car_id: String, part: String) -> bool:
-	if not car_id in car_installed_parts: return false
-	var installed = car_installed_parts[car_id]
-	if not part in installed or installed[part] <= 0: return false
-	installed[part] -= 1
-	if installed[part] <= 0: installed.erase(part)
-	cnc_parts_inventory[part] = cnc_parts_inventory.get(part, 0) + 1
-	var car = null
-	for c in player_team_cars:
-		if c.id == car_id: car = c; break
-	var cname = car.car_name if car and car.car_name != "" else "Car"
-	add_log("🔩 %s CNC part removed from %s → back to inventory." % [part, cname])
-	emit_signal("log_updated")
-	return true
-
-## Returns a lap-time improvement fraction (0.0–0.08) for a car based on CNC parts installed.
-func get_cnc_part_bonus(car_id: String) -> float:
-	var installed = car_installed_parts.get(car_id, {})
-	if installed.is_empty(): return 0.0
-	var total = 0.0
-	for part in installed:
-		var qty: int = installed[part]
-		total += 0.005
-		if qty > 1: total += (qty - 1) * 0.002
-	return clamp(total, 0.0, 0.08)
-
-## ── CNC Blueprint-based manufacturing (WRA-gated) ────────────────────────────
-
-## Key format for cnc_parts_inventory: "CHAMP_ID|PCODE"
-## Each value: { quantity, reliability, quality, blueprint_id }
-
-func _cnc_inv_key(champ_id: String, pcode: String) -> String:
-	return "%s|%s" % [champ_id, pcode]
-
-## Compute manufacturing weeks from a blueprint (Formula doc §3).
-func get_cnc_manufacturing_weeks(blueprint_id: String, extra_weeks: int = 0) -> int:
-	var bp = known_blueprints.get(blueprint_id, {})
-	var cid = bp.get("championship_id", "C-001")
-	var part = bp.get("part", "Aero")
-	var cnc = CNC_DATA.get(cid, CNC_DATA.get("C-001", {}))
-	const TIME_RATIO = {"Aero":0.4,"Engine":0.6,"Chassis":0.5,
-		"Gearbox":0.25,"Brakes":0.2,"Suspension":0.25}
-	var base = max(1, int(cnc.get("design_weeks", 4) * TIME_RATIO.get(part, 0.3)))
-	return base + extra_weeks
-
-## Compute manufacturing CR from a blueprint.
-func get_cnc_manufacturing_cr(blueprint_id: String, quantity: int = 1, extra_cr: int = 0) -> int:
-	var bp = known_blueprints.get(blueprint_id, {})
-	var cid = bp.get("championship_id", "C-001")
-	var part = bp.get("part", "Aero")
-	var cnc = CNC_DATA.get(cid, CNC_DATA.get("C-001", {}))
-	const COST_RATIO = {"Aero":0.20,"Engine":0.35,"Chassis":0.25,
-		"Gearbox":0.08,"Brakes":0.06,"Suspension":0.06}
-	var unit = int(cnc.get("base_total_cost", 10000) * COST_RATIO.get(part, 0.10))
-	return unit * quantity + extra_cr
-
-## Compute final reliability (Formula doc §3).
-## Base_Reliability = 60 + (seasons_since_wra_reset * 10), capped at 100.
-func calculate_final_reliability(blueprint_id: String, extra_cr: int = 0, extra_weeks: int = 0) -> float:
-	var bp = known_blueprints.get(blueprint_id, {})
-	var cid = bp.get("championship_id", "C-001")
-	var group_season = _get_wra_group_season(cid)
-	var base_rel = clamp(60.0 + (group_season - 1) * 10.0, 60.0, 100.0)
-	var bonus_cr  = float(extra_cr)  / 12000.0
-	var bonus_wk  = float(extra_weeks) * 5.0
-	return clamp(base_rel + bonus_cr + bonus_wk, 0.0, 100.0)
-
-## Returns how many seasons into the current WRA cycle a championship is.
-func _get_wra_group_season(cid: String) -> int:
-	const GROUP_MAP = {
-		"Formula":["C-021","C-022","C-023","C-024"],
-		"Touring":["C-005","C-006"],
-		"Karting":["C-001"],
-		"Open Wheel":["C-007","C-008","C-009"],
-		"Stock Car":["C-010","C-011","C-012","C-013"],
-		"Rally":["C-014","C-015","C-016","C-017"],
-		"Endurance":["C-018","C-019","C-020"],
-	}
-	const CYCLE_LEN = {"Formula":4,"Touring":5,"Karting":6,"Open Wheel":7,
-		"Stock Car":8,"Rally":9,"Endurance":10}
-	for group in GROUP_MAP:
-		if cid in GROUP_MAP[group]:
-			var cycle = CYCLE_LEN.get(group, 4)
-			return ((current_season - 1) % cycle) + 1
-	return 1
-
-## Start a WRA-approved blueprint CNC job. Called from CNCPlant.
-func start_cnc_job(blueprint_id: String, quantity: int = 1,
-		extra_cr: int = 0, extra_weeks: int = 0) -> bool:
-	if not is_blueprint_approved(blueprint_id):
-		add_notification("High", "Blueprint not WRA-approved. Submit it at the WRA Office in HQ first.")
-		return false
-	var building = campus_buildings.get("CNC Parts Plant", {})
-	if not building.get("built", false):
-		add_notification("High", "CNC Parts Plant not built.")
-		return false
-	var total_cr = get_cnc_manufacturing_cr(blueprint_id, quantity, extra_cr)
-	if player_team.balance < total_cr:
-		add_notification("High", "Insufficient funds. Need CR %s." % _fmt_int(total_cr))
-		return false
-	var weeks = get_cnc_manufacturing_weeks(blueprint_id, extra_weeks)
-	var reliability = calculate_final_reliability(blueprint_id, extra_cr, extra_weeks)
-	var bp = known_blueprints[blueprint_id]
-	var quality = bp.get("quality", 1.0)
-	player_team.balance -= total_cr
-	cnc_production_queue.append({
-		"id":            "%s_q%d" % [blueprint_id, current_week],
-		"blueprint_id":  blueprint_id,
-		"part":          bp.get("part", ""),
-		"part_code":     bp.get("part_code", ""),
-		"championship_id": bp.get("championship_id", ""),
-		"weeks_total":     weeks,
-		"weeks_remaining": weeks,
-		"cr_cost":         total_cr,
-		"quantity":        quantity,
-		"reliability":     reliability,
-		"quality":         quality,
-	})
-	add_log("⚙ CNC job queued: %dx %s — %dwks, CR %s, Rel %.0f%%, Qual %.2f×" % [
-		quantity, bp.get("name", blueprint_id), weeks, _fmt_int(total_cr), reliability, quality])
-	add_notification("Normal", "CNC: %dx %s in production. Ready in %d weeks." % [
-		quantity, bp.get("part", blueprint_id), weeks])
-	emit_signal("log_updated")
-	return true
-
-## Returns the installed CNC parts dict for a car.
-## Format: { "AER": {reliability, quality, blueprint_id}, ... }
-func get_installed_parts_for_car(car_id: String) -> Dictionary:
-	return car_installed_parts.get(car_id, {})
-
-## Install a CNC part from inventory onto a car.
 func install_part_on_car(car_id: String, champ_id: String, pcode: String) -> bool:
 	var inv_key = _cnc_inv_key(champ_id, pcode)
 	if not inv_key in cnc_parts_inventory:
@@ -5220,393 +2840,6 @@ func _get_provider_part_base_rel(champ_id: String) -> float:
 func _get_provider_part_base_qual(_champ_id: String) -> float:
 	var season_in_cycle = current_season - wra_cycle_start_season
 	return clamp(0.90 + season_in_cycle * 0.02, 0.90, 1.10)
-
-## Returns available CNC inventory items for a given pcode + championship as array of inv_keys.
-func get_cnc_stock_for_slot(champ_id: String, pcode: String) -> Array:
-	const PCODE_TO_PART = {"AER":"Aero","ENG":"Engine","GRB":"Gearbox",
-		"SUS":"Suspension","BRK":"Brakes","CHS":"Chassis"}
-	var part_name = PCODE_TO_PART.get(pcode, pcode)
-	var result: Array = []
-	for inv_key in cnc_parts_inventory:
-		var item = cnc_parts_inventory[inv_key]
-		if not item is Dictionary: continue
-		if item.get("quantity", 0) <= 0: continue
-		if item.get("championship_id", "") != champ_id: continue
-		var item_pcode = item.get("part_code", "")
-		var item_part  = item.get("part", "")
-		if item_pcode == pcode or item_part == part_name:
-			result.append(inv_key)
-	return result
-
-## Returns the display label for a CNC inventory item: "Blueprint Name  L2"
-func get_cnc_part_label(inv_key: String) -> String:
-	var item = cnc_parts_inventory.get(inv_key, {})
-	if not item is Dictionary: return inv_key
-	var bp_id = item.get("blueprint_id", "")
-	var lvl = 0
-	var bp_name = item.get("part", inv_key)
-	if bp_id != "" and bp_id in known_blueprints:
-		var bp = known_blueprints[bp_id]
-		lvl = bp.get("level", 0)
-		bp_name = bp.get("name", bp_name)
-	var qty = item.get("quantity", 1)
-	return "%s  L%d  (×%d)" % [bp_name, lvl, qty]
-
-## Returns the blueprint grid status for a championship.
-## { pcode: { "BP": [done_levels], "RE": bool, "in_progress": [task_ids], "wra_pending": [bp_ids], "wra_approved": [bp_ids] } }
-func get_blueprint_grid(champ_id: String) -> Dictionary:
-	const PCODES = ["AER","ENG","GRB","SUS","BRK","CHS"]
-	const PCODE_TO_PART = {"AER":"Aero","ENG":"Engine","GRB":"Gearbox",
-		"SUS":"Suspension","BRK":"Brakes","CHS":"Chassis"}
-	var result: Dictionary = {}
-	for pcode in PCODES:
-		result[pcode] = {"bp_levels": [], "re": false, "in_progress": [], "wra_pending": [], "wra_approved": []}
-
-	## Scan known_blueprints
-	for bp_id in known_blueprints:
-		var bp = known_blueprints[bp_id]
-		if bp.get("championship_id", "") != champ_id: continue
-		var pcode = _part_name_to_pcode(bp.get("part", ""))
-		if pcode == "": continue
-		var pillar = bp.get("pillar", 1)
-		var lvl = bp.get("level", 1)
-		if pillar == 1:
-			if lvl not in result[pcode]["bp_levels"]:
-				result[pcode]["bp_levels"].append(lvl)
-		elif pillar == 3:
-			result[pcode]["re"] = true
-
-	## Scan active R&D tasks
-	for task in active_rnd_tasks:
-		var tid = task.get("task_id", "")
-		var tdata = RND_TASKS.get(tid, {})
-		if tdata.get("championship_id", task.get("championship_id","")) != champ_id: continue
-		var pcode = _part_name_to_pcode(tdata.get("part", ""))
-		if pcode == "" or pcode not in result: continue
-		result[pcode]["in_progress"].append(tid)
-
-	## Scan WRA submissions
-	for sub in active_wra_submissions:
-		var bp_id = sub.get("blueprint_id", "")
-		if not bp_id in known_blueprints: continue
-		var bp = known_blueprints[bp_id]
-		if bp.get("championship_id", "") != champ_id: continue
-		var pcode = _part_name_to_pcode(bp.get("part", ""))
-		if pcode == "" or pcode not in result: continue
-		result[pcode]["wra_pending"].append(bp_id)
-
-	## Scan WRA approved
-	for app in wra_approved_blueprints:
-		var bp_id = app.get("blueprint_id", "")
-		if not bp_id in known_blueprints: continue
-		var bp = known_blueprints[bp_id]
-		if bp.get("championship_id", "") != champ_id: continue
-		var pcode = _part_name_to_pcode(bp.get("part", ""))
-		if pcode == "" or pcode not in result: continue
-		result[pcode]["wra_approved"].append(bp_id)
-
-	return result
-
-func _part_name_to_pcode(part_name: String) -> String:
-	match part_name:
-		"Aero":       return "AER"
-		"Engine":     return "ENG"
-		"Gearbox":    return "GRB"
-		"Suspension": return "SUS"
-		"Brakes":     return "BRK"
-		"Chassis":    return "CHS"
-	return ""
-
-## Returns the combined Pillar 1/2/3 R&D lap bonus for a descriptive key.
-func get_rnd_perf_bonus_summary() -> String:
-	var parts = ["aero_perf","engine_perf","chassis_perf","gearbox_perf","brakes_perf","susp_perf"]
-	var total = 0.0
-	for k in parts: total += get_rnd_bonus(k)
-	if total <= 0.0: return "No R&D bonuses"
-	return "+%.1f%% combined part performance" % (total * 100.0)
-
-## ── R&D System ────────────────────────────────────────────────────────────────
-
-## Returns true if a task's prerequisite is completed AND (for Pillar 4) the linked building is at the required level.
-func rnd_task_unlocked(task_id: String) -> bool:
-	var task = RND_TASKS.get(task_id, {})
-	if task.is_empty(): return false
-	# Prerequisite task check (all pillars)
-	var req = task.get("requires", "")
-	if req != "" and not req in completed_rnd_tasks:
-		return false
-	# Pillar 4: building level gate
-	if task.get("pillar", 0) == 4:
-		var bname  = task.get("building", "")
-		var min_lv = task.get("min_building_level", 1)
-		if bname != "":
-			var bld = campus_buildings.get(bname, {})
-			if not bld.get("built", false) or bld.get("level", 0) < min_lv:
-				return false
-	return true
-
-## Returns true if a task is already running or completed.
-func rnd_task_active_or_done(task_id: String) -> bool:
-	if task_id in completed_rnd_tasks: return true
-	for t in active_rnd_tasks:
-		if t["id"] == task_id: return true
-	return false
-
-## Starts a new R&D task. Returns false with notification on failure.
-func start_rnd_task(task_id: String, designer_id: String, championship_id: String = "") -> bool:
-	var task = RND_TASKS.get(task_id, {})
-	if task.is_empty():
-		add_notification("High", "Unknown R&D task: %s" % task_id)
-		return false
-	if rnd_task_active_or_done(task_id):
-		add_notification("Normal", "'%s' is already researched or in progress." % task["name"])
-		return false
-	if not rnd_task_unlocked(task_id):
-		var req = task.get("requires", "")
-		add_notification("High", "Prerequisite not met: complete '%s' first." % RND_TASKS.get(req, {}).get("name", req))
-		return false
-	if research_points < task["rp"]:
-		add_notification("High", "Not enough RP. Need %d, have %.0f." % [task["rp"], research_points])
-		return false
-	if player_team.balance < task["cr"]:
-		add_notification("High", "Not enough CR. Need %s, have %s." % [_fmt_int(task["cr"]), _fmt_int(int(player_team.balance))])
-		return false
-	if not designer_id in all_staff:
-		add_notification("High", "Invalid designer.")
-		return false
-	for t in active_rnd_tasks:
-		if t["designer_id"] == designer_id:
-			var other = RND_TASKS.get(t["id"], {})
-			add_notification("High", "Designer already working on '%s'." % other.get("name", t["id"]))
-			return false
-
-	research_points -= task["rp"]
-	player_team.balance -= task["cr"]
-
-	active_rnd_tasks.append({
-		"id":              task_id,
-		"name":            task["name"],
-		"pillar":          task["pillar"],
-		"part":            task["part"],
-		"championship_id": championship_id,
-		"weeks_total":     task["weeks"],
-		"weeks_remaining": task["weeks"],
-		"rp_cost":         task["rp"],
-		"cr_cost":         task["cr"],
-		"designer_id":     designer_id,
-		"effect_key":      task.get("effect", ""),
-		"effect_value":    task.get("value", 0.0),
-	})
-
-	var champ_label = ""
-	if championship_id != "":
-		var reg = CHAMPIONSHIP_REGISTRY.get(championship_id, {})
-		champ_label = " [%s]" % reg.get("name", championship_id)
-
-	add_log("🔬 R&D started: %s%s (%d weeks)" % [task["name"], champ_label, task["weeks"]])
-	add_notification("Normal", "R&D started: %s%s. Est. completion: Week %d." % [
-		task["name"], champ_label, current_week + task["weeks"]])
-	emit_signal("log_updated")
-	return true
-
-## Cancel an active R&D task — no refund.
-func cancel_rnd_task(task_id: String) -> void:
-	for i in range(active_rnd_tasks.size()):
-		if active_rnd_tasks[i]["id"] == task_id:
-			add_log("❌ R&D cancelled: %s" % active_rnd_tasks[i]["name"])
-			active_rnd_tasks.remove_at(i)
-			emit_signal("log_updated")
-			return
-
-## Called each advance_week — ticks all active R&D tasks.
-func _advance_rnd_tasks() -> void:
-	var finished = []
-	for task in active_rnd_tasks:
-		task["weeks_remaining"] -= 1
-		if task["weeks_remaining"] <= 0:
-			finished.append(task)
-
-	for task in finished:
-		active_rnd_tasks.erase(task)
-		var tid = task["id"]
-		var pillar = task.get("pillar", 0)
-
-		if not tid in completed_rnd_tasks:
-			completed_rnd_tasks.append(tid)
-
-		if pillar == 1 or pillar == 3:
-			if not tid in completed_bp_tasks:
-				completed_bp_tasks.append(tid)
-			var bp_quality = 1.0
-			if pillar == 3:
-				## RE blueprint penalty: 25% quality reduction vs own design (GDD Bugs §1)
-				bp_quality = 0.75
-			known_blueprints[tid] = {
-				"blueprint_id": tid, "name": task["name"],
-				"part": task.get("part",""), "part_code": task.get("part_code",""),
-				"championship_id": task.get("championship_id",""),
-				"season": task.get("season", current_season),
-				"level": task.get("level", 1), "pillar": pillar,
-				"effect": task.get("effect_key",""), "value": task.get("effect_value", 0.0),
-				"quality": bp_quality,
-			}
-			add_log("📋 Blueprint stored: %s → R&D + CNC database.%s" % [
-				tid, " [RE: 75%% quality]" if pillar == 3 else ""])
-		elif pillar == 2:
-			if not tid in completed_upg_tasks:
-				completed_upg_tasks.append(tid)
-			known_blueprints[tid] = {
-				"blueprint_id": tid, "name": task["name"],
-				"part": task.get("part",""), "part_code": task.get("part_code",""),
-				"championship_id": task.get("championship_id",""),
-				"season": task.get("season", current_season),
-				"level": task.get("level", 1), "pillar": pillar, "seasonal": true,
-				"effect": task.get("effect_key",""), "value": task.get("effect_value", 0.0),
-			}
-			add_log("📋 Upgrade blueprint stored (Season %d only): %s → CNC." % [current_season, tid])
-
-		_apply_rnd_effect(task)
-		var champ_label = ""
-		if task.get("championship_id", "") != "":
-			var reg = CHAMPIONSHIP_REGISTRY.get(task["championship_id"], {})
-			champ_label = " [%s]" % reg.get("name", task["championship_id"]).left(14)
-		add_log("✅ R&D complete: %s%s" % [task["name"], champ_label])
-		if pillar == 3:
-			## RE complete — notify that WRA submission is now available AND P1 L2 is unlocked
-			add_notification("High",
-				"RE complete: '%s'%s. Blueprint ready — submit to WRA Office in HQ. Also unlocks P1 Design L2 for this part." % [task["name"], champ_label],
-				"wra_office")
-		else:
-			add_notification("High", "R&D complete: '%s'%s. Submit to WRA Office in HQ to manufacture." % [task["name"], champ_label], "wra_office")
-	emit_signal("log_updated")
-
-## Applies the effect of a completed R&D task.
-## Effects are stored as car_performance_bonuses — applied in race sim.
-func _apply_rnd_effect(task: Dictionary) -> void:
-	var key = task["effect_key"]
-	var value = task["effect_value"]
-	if key == "": return
-	# Store as cumulative bonus — race sim reads car_performance_bonuses
-	if not "rnd_bonuses" in player_team:
-		player_team.set_meta("rnd_bonuses", {})
-	var bonuses = player_team.get_meta("rnd_bonuses")
-	bonuses[key] = bonuses.get(key, 0.0) + value
-	player_team.set_meta("rnd_bonuses", bonuses)
-	add_log("📈 R&D effect: %s +%.1f%%" % [key, value * 100.0])
-
-## Returns total R&D performance bonus for a given effect key.
-func get_rnd_bonus(effect_key: String) -> float:
-	if not player_team.has_meta("rnd_bonuses"):
-		return 0.0
-	return player_team.get_meta("rnd_bonuses").get(effect_key, 0.0)
-
-func get_upgrade_cost(building: Dictionary) -> int:
-	var base  = building["upgrade_cost"]
-	var level = max(0, building["level"] - 1)  ## L1→2 = base, L2→3 = base×1.5, etc.
-	var scaled = base * pow(1.5, level)
-	return int(round(scaled / 500.0) * 500)
-
-## Returns the scaled upgrade time for the next level.
-func get_upgrade_time(building: Dictionary) -> int:
-	var base  = building["upgrade_time"]
-	var level = max(0, building["level"] - 1)  ## L1→2 = base, scales from there
-	return max(base, int(ceil(base * (1.0 + level * 0.3))))
-
-## Weekly income increment per level — from Excel Buildings sheet Effects_Per_Level column.
-const BUILDING_INCOME_PER_LEVEL = {
-	"Garage":              450,   # repair profit per level
-	"Museum":              380,
-	"Theme Park":          650,
-	"Merchandise Store":   420,
-	"Karting Track":       160,
-	"Gravel Track":        140,
-	"Oval Track":          170,
-	"Race Track":          220,
-}
-
-## Track buildings only generate income when Public Racing Club is built.
-## PRC level also multiplies track income by +10% per level.
-const TRACK_BUILDINGS = ["Karting Track", "Gravel Track", "Oval Track", "Race Track"]
-
-## Returns current weekly income: income_level1 + income_per_level × (level - 1).
-## Track buildings return 0 unless Public Racing Club is built.
-## PRC level multiplies track income by (1 + prc_level × 0.10).
-func get_building_income(building: Dictionary) -> int:
-	var bname = building["name"]
-	if not building.get("built", false) or building.get("level", 0) <= 0:
-		return 0
-
-	var active_fans = get_team_active_fans()
-	var mktg = get_team_marketability()
-	## log10 of fans keeps numbers sensible across the massive fan range
-	## (169 fans → 2.2, 28M fans → 7.4)
-	var fan_log = log(active_fans + 10.0) / log(10.0)
-
-	## Public Racing Club: income = upkeep × 1.02, scales with level + fan bonus
-	if bname == "Public Racing Club":
-		var maintenance = get_building_maintenance(building)
-		var base_income = int(maintenance * 1.02)
-		## Small local fan bonus: +1 CR per 5000 active fans, capped at 5× base
-		var fan_bonus = clamp(int(active_fans / 5000.0), 0, base_income * 4)
-		return base_income + fan_bonus
-
-	## Museum: heritage prestige × fans × reputation
-	if bname == "Museum":
-		if not building.get("built", false): return 0
-		var team_wins = 0
-		for entry in hall_of_fame:
-			if entry.get("team_id", "") == player_team.id:
-				team_wins += 1
-		if team_wins == 0: return 0
-		var base = building["weekly_income"]
-		var per_level = BUILDING_INCOME_PER_LEVEL.get("Museum", 380)
-		var level_income = base + per_level * max(0, building["level"] - 1)
-		## Fan multiplier: log10(fans) × reputation/50
-		var fan_mult = fan_log * (player_team.reputation / 50.0)
-		return int(level_income * max(1.0, fan_mult) * (1.0 + team_wins * 0.1))
-
-	## Theme Park: biggest fan-driven income
-	if bname == "Theme Park":
-		var base = building["weekly_income"]
-		var per_level = BUILDING_INCOME_PER_LEVEL.get("Theme Park", 0)
-		var level_income = base + per_level * max(0, building["level"] - 1)
-		## log10^1.5 scales faster with fans; needs marketability
-		var fan_mult = pow(fan_log, 1.5) * (mktg / 60.0)
-		return int(level_income * max(0.5, fan_mult))
-
-	## Merchandise Store: fans × marketability
-	if bname == "Merchandise Store":
-		var base = building["weekly_income"]
-		var per_level = BUILDING_INCOME_PER_LEVEL.get("Merchandise Store", 420)
-		var level_income = base + per_level * max(0, building["level"] - 1)
-		var fan_mult = fan_log * (mktg / 50.0)
-		return int(level_income * max(0.5, fan_mult))
-
-	if bname in TRACK_BUILDINGS:
-		var prc = campus_buildings.get("Public Racing Club", {})
-		if not prc.get("built", false): return 0
-		var level     = building["level"]
-		var base      = building["weekly_income"]
-		var per_level = BUILDING_INCOME_PER_LEVEL.get(bname, 0)
-		var raw_income = base + per_level * max(0, level - 1)
-		var prc_level = prc.get("level", 1)
-		return int(raw_income * (1.0 + prc_level * 0.10))
-
-	var level     = building["level"]
-	var base      = building["weekly_income"]
-	var per_level = BUILDING_INCOME_PER_LEVEL.get(bname, 0)
-	return base + per_level * max(0, level - 1)
-
-## Returns current weekly maintenance: maintenance_level1 × 1.10^(level-1), rounded to CR 50.
-func get_building_maintenance(building: Dictionary) -> int:
-	var level  = building["level"]
-	var base   = building["weekly_maintenance"]
-	var scaled = base * pow(1.10, max(0, level - 1))
-	return int(round(scaled / 50.0) * 50)
-
-## ── Building bonus helpers ────────────────────────────────────────────────────
-
-## Returns how many drivers are required per car for a given championship.
 func get_drivers_per_car(champ_id: String) -> int:
 	var reg = CHAMPIONSHIP_REGISTRY.get(champ_id, {})
 	var disc = reg.get("discipline", "GK")
@@ -5618,106 +2851,8 @@ func get_pit_crew_required(champ_id: String) -> bool:
 	var disc = reg.get("discipline", "GK")
 	return PIT_CREW_REQUIRED.get(disc, true)
 
-func get_hq_marketability_bonus() -> float:
-	var hq = campus_buildings.get("Headquarters", {})
-	if not hq.get("built", false): return 0.0
-	return float(hq.get("level", 1))
-
-## TP slots = 1 per HQ level (level 1 = 1 slot, level 5 = 5 slots)
-func get_hq_tp_slots() -> int:
-	var hq = campus_buildings.get("Headquarters", {})
-	if not hq.get("built", false): return 1
-	return max(1, hq.get("level", 1))
-
-func get_hq_sponsor_slots() -> int:
-	var hq = campus_buildings.get("Headquarters", {})
-	if not hq.get("built", false): return 1
-	return 1 + int(hq.get("level", 1) / 2)
-
-func get_logistics_parts_discount() -> float:
-	var lc = campus_buildings.get("Logistics Center", {})
-	if not lc.get("built", false): return 1.0
-	return max(0.5, 1.0 - lc.get("level", 1) * 0.01)
-
-func get_fitness_fatigue_reduction() -> float:
-	var fc = campus_buildings.get("Fitness Clinic", {})
-	if not fc.get("built", false): return 0.0
-	var level = fc.get("level", 1)
-	return 0.10 + (level - 1) * 0.005
-
-func get_pit_crew_time_bonus() -> float:
-	var pca = campus_buildings.get("Pit Crew Arena", {})
-	if not pca.get("built", false): return 0.0
-	var level = pca.get("level", 1)
-	return 0.1 * pow(1.01, level - 1)
-
-func get_wind_tunnel_aero_bonus() -> float:
-	var wt = campus_buildings.get("Aerodynamic Wind Tunnel", {})
-	if not wt.get("built", false): return 0.0
-	var level = wt.get("level", 1)
-	return 0.10 + (level - 1) * 0.05
-
-func get_ops_sim_track_knowledge_base() -> float:
-	var ops = campus_buildings.get("Ops Sim & Telemetry", {})
-	if not ops.get("built", false): return 0.0
-	return 25.0 + float(ops.get("level", 1) - 1)
-
-func get_racing_dept_driver_bonus() -> float:
-	var rd = campus_buildings.get("Racing Department", {})
-	if not rd.get("built", false): return 0.0
-	return 10.0 + (rd.get("level", 1) - 1) * 5.0
-
-func get_rnd_rp_storage_cap() -> int:
-	var rnd = campus_buildings.get("R&D Design Studio", {})
-	if not rnd.get("built", false): return 0
-	return 800 + (rnd.get("level", 1) - 1) * 400
-
-func start_upgrade(building_id: String) -> void:
-	if not building_id in campus_buildings:
-		return
-	var building = campus_buildings[building_id]
-	if not building["built"]:
-		return
-	if building["construction_weeks_remaining"] > 0:
-		return
-	if building["level"] >= building["max_level"]:
-		return
-	var cost = get_upgrade_cost(building)
-	var weeks = get_upgrade_time(building)
-	if player_team.balance < cost:
-		return
-	player_team.balance -= cost
-	building["construction_weeks_remaining"] = weeks
-	add_log("⬆ Upgrade started: %s to Level %d (CR %d, %d weeks)" % [
-		building["name"],
-		building["level"] + 1,
-		cost,
-		weeks,
-	])
-	emit_signal("log_updated")
-
-func _update_campus_construction() -> void:
-	for building_id in campus_buildings:
-		var building = campus_buildings[building_id]
-		if building["built"] and building["construction_weeks_remaining"] > 0:
-			building["construction_weeks_remaining"] -= 1
-			if building["construction_weeks_remaining"] == 0:
-				building["level"] += 1
-				add_log("✅ %s complete! Now Level %d" % [building["name"], building["level"]])
-
 func _apply_campus_income() -> void:
-	var total_income = 0
-	var total_maintenance = 0
-	for building_id in campus_buildings:
-		var building = campus_buildings[building_id]
-		# Income and maintenance continue during upgrades (level >= 1).
-		if building["built"] and building["level"] >= 1:
-			total_income      += get_building_income(building)
-			total_maintenance += get_building_maintenance(building)
-	if total_income > 0:
-		player_team.balance += total_income
-	player_team.balance -= total_maintenance
-	## Suppressed from log — shown as part of weekly P&L summary instead
+	_financial_engine.apply_campus_income()
 
 func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: String,
 		p_starting_budget: int = 50000,
@@ -5756,6 +2891,14 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 	team_color_secondary     = p_color_secondary
 	game_difficulty          = p_difficulty
 	_starting_champ_id       = p_starting_champ
+	## P57: Initialize managers early — needed by _setup_cars() and other setup functions
+	_season_manager = SeasonManager.new(self)
+	_financial_engine = FinancialEngine.new(self)
+	_race_simulator = RaceSimulator.new(self)
+	_contract_engine = ContractEngine.new(self)
+	_rnd_engine = RnDEngine.new(self)
+	_notification_manager = NotificationManager.new(self)
+	_campus_manager = CampusManager.new(self)
 	_setup_championship()
 	_setup_player_team()
 	player_team.balance = float(p_starting_budget)
@@ -6268,711 +3411,22 @@ func advance_week() -> void:
 	emit_signal("log_updated")
 
 func _apply_weekly_fitness_recovery() -> void:
-	var fatigue_reduction = get_fitness_fatigue_reduction()
-	var base_recovery = 8.0
-	# Fitness Clinic reduces fatigue — means faster recovery each week
-	var actual_recovery = base_recovery * (1.0 + fatigue_reduction)
-	for driver_id in all_drivers:
-		var driver = all_drivers[driver_id]
-		driver.fitness = min(100.0, driver.fitness + actual_recovery)
+	_race_simulator.apply_weekly_fitness_recovery()
 
 func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
-	# Use provided championship or fall back to active_championship (backward compat)
-	var c: Championship = champ if champ != null else active_championship
-	add_log("=== RACE %d: %s [%s] ===" % [c.current_round + 1, race_data["name"], c.championship_name])
-
-	# ── Staff Synergy Factor (simulated races only) ───────────────────────────
-	# From formula doc section 4: lap_time /= Staff_Synergy_Factor
-	# TP attributes multiply the corresponding Mechanic and Strategist attributes.
-	# Effective_staff_attr = staff_attr × (1 + tp_matching_attr / 200)
-	#   → TP skill 100 boosts staff attribute by 50%; TP skill 0 = no boost (×1.0)
-	# Staff_Synergy_Factor = 1.0
-	#   + (mechanic_effective_setup   / 100) × 0.08   → up to +8% at mechanic 100 + TP 100
-	#   + (strategist_effective_pace  / 100) × 0.06   → up to +6% at strategist 100 + TP 100
-	#   + (mechanic_track_knowledge   / 100) × 0.03   → up to +3%
-	#   + (strategist_track_knowledge / 100) × 0.03   → up to +3%
-	# Total possible range: 1.0 (no staff) → ~1.30 (all skills maxed with TP 100)
-	# Applied only to player drivers — AI teams run at their own flat factor.
-	var tp = get_team_principal()
-
-	# Gather player's mechanic and strategist for the active championship
-	# Use first assigned mechanic for now (multi-car will average later)
-	var mechanic: Staff   = null
-	var strategist: Staff = null
-	for car in player_team_cars:
-		if car.mechanic_id != "" and car.mechanic_id in all_staff:
-			mechanic = all_staff[car.mechanic_id]
-			break
-	var strats = get_player_staff_by_role("Race Strategist")
-	if strats.size() > 0:
-		strategist = strats[0]
-
-	# TP multiplier on each staff attribute (0 TP = factor 1.0, no boost)
-	var tp_factor: float = 1.0
-	if tp != null:
-		# TP boosts each staff pool by its matching attribute / 200
-		# Using race_pace_reading as the general TP race-day multiplier
-		tp_factor = 1.0 + tp.race_pace_reading / 200.0
-
-	## Get the track_id for this race — used for per-track knowledge lookups
-	var current_track_id: String = race_data.get("track_id", "")
-
-	# Effective attributes — use per-track knowledge when track_id is known
-	var mech_setup:  float = 0.0
-	var mech_track:  float = 0.0
-	var strat_pace:  float = 0.0
-	var strat_track: float = 0.0
-	if mechanic != null:
-		mech_setup = mechanic.car_setup * tp_factor
-		## Use per-track knowledge if available, fall back to flat track_knowledge
-		var mech_tk = mechanic.get_track_knowledge_for(current_track_id) \
-				if current_track_id != "" else mechanic.track_knowledge
-		mech_track = mech_tk * tp_factor
-	if strategist != null:
-		strat_pace  = strategist.race_strategy * tp_factor
-		var strat_tk = strategist.get_track_knowledge_for(current_track_id) \
-				if current_track_id != "" else strategist.track_knowledge
-		strat_track = strat_tk * tp_factor
-
-	# Final Staff_Synergy_Factor for player cars
-	var staff_synergy: float = 1.0 \
-		+ (mech_setup  / 100.0) * 0.08 \
-		+ (strat_pace  / 100.0) * 0.06 \
-		+ (mech_track  / 100.0) * 0.03 \
-		+ (strat_track / 100.0) * 0.03
-
-	if tp != null or mechanic != null or strategist != null:
-		add_log("👥 Staff synergy: %.3f (mech %.0f, strat %.0f, TP %s)" % [
-			staff_synergy,
-			mech_setup if mechanic else 0.0,
-			strat_pace if strategist else 0.0,
-			tp.full_name() if tp else "none"])
- 
-	# ── DNS check: player needs a car assigned to THIS championship ──────────
-	var dns_driver_ids: Array = []
-	var dns_car_ids: Array = []   ## tracks cars that DNS regardless of driver assignment
-	# Find player cars for this specific championship
-	var cars_for_champ = player_team_cars.filter(func(car): return car.championship_id == c.id)
-	if cars_for_champ.is_empty():
-		# No car for this championship — all player drivers DNS
-		for d_id in player_team.drivers:
-			dns_driver_ids.append(d_id)
-		add_log("🚫 DNS [%s]: No car assigned to this championship." % c.championship_name)
-	else:
-		# Check each car's race eligibility (driver, mechanic, pit crew)
-		for car in cars_for_champ:
-			var car_dns = false
-			var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
-
-			# Driver check — required for all disciplines
-			if car.driver_id == "":
-				add_log("🚫 DNS [%s] %s — no driver assigned." % [c.championship_name, car_label])
-				add_notification("Critical",
-					"DNS: %s has no driver for %s! Assign in Garage." % [
-					car_label, c.championship_name], "garage")
-				car_dns = true
-			elif not _can_car_race(car.driver_id):
-				car_dns = true
-
-			# Mechanic check — required for all disciplines
-			if car.mechanic_id == "":
-				add_log("🚫 DNS [%s] %s — no mechanic assigned." % [c.championship_name, car_label])
-				add_notification("Critical",
-					"DNS: %s has no mechanic for %s! Assign in Garage." % [
-					car_label, c.championship_name], "garage")
-				car_dns = true
-
-			# Pit crew check for non-GK
-			if get_pit_crew_required(c.id):
-				if car.pit_crew_id == "" or car.pit_crew_id == "N/A":
-					add_log("🚫 DNS [%s] %s — no Pit Crew assigned." % [c.championship_name, car_label])
-					add_notification("Critical",
-						"DNS: %s has no Pit Crew for %s! Assign one in Pit Crew Arena." % [
-						car_label, c.championship_name])
-					car_dns = true
-
-			if car_dns:
-				dns_car_ids.append(car.id)
-				if car.driver_id != "":
-					dns_driver_ids.append(car.driver_id)
-				## Log DNS with car condition unchanged
-				add_log("🏎 Car condition unchanged (DNS)")
-
-	# ── Collect all drivers, skipping DNS cars ────────────────
-	var race_drivers = []
-	for driver_id in c.standings:
-		if not driver_id in all_drivers: continue
-		if driver_id in dns_driver_ids: continue
-		## For player drivers: also skip if their car is DNS
-		var is_player_driver = driver_id in player_team.drivers
-		if is_player_driver:
-			var has_valid_car = false
-			for car in cars_for_champ:
-				if car.driver_id == driver_id and not car.id in dns_car_ids:
-					has_valid_car = true
-					break
-			if not has_valid_car: continue
-		race_drivers.append(all_drivers[driver_id])
- 
-	# Determine weather
-	var is_wet = randf() * 100.0 < race_data["rain_probability"]
- 
-	# ── Track discipline bonus ────────────────────────────────────────────────
-	# Track buildings improve pace for matching disciplines (player only, sim only).
-	# GK → Karting Track: +5% base, +3%/level
-	# Rally → Gravel Track: +5% base, +3%/level
-	# SC/OWC → Oval Track: +5% base, +3%/level
-	# GP/EPC/TC → Race Track: +3% base, +3%/level
-	var track_perf_bonus: float = 0.0
-	const TRACK_BONUS_MAP = {
-		"GK": "Karting Track", "Rally": "Gravel Track",
-		"SC": "Oval Track", "OWC": "Oval Track",
-		"GP": "Race Track", "EPC": "Race Track", "TC": "Race Track",
-	}
-	var disc = c.discipline
-	if disc in TRACK_BONUS_MAP:
-		var tname = TRACK_BONUS_MAP[disc]
-		var tbld  = campus_buildings.get(tname, {})
-		if tbld.get("built", false):
-			var tlevel = tbld.get("level", 1)
-			var base_b = 0.03 if disc in ["GP", "EPC", "TC"] else 0.05
-			track_perf_bonus = base_b + (tlevel - 1) * 0.03
-			add_log("🏟 %s bonus: +%.0f%% pace" % [tname, track_perf_bonus * 100.0])
-
-	# Calculate lap times
-	# Formula: base_time × skill_factors + noise
-	# Pace range 20-99 should produce ±1.5% lap time spread (realistic F1: ~1-2%)
-	# Base time is notional seconds/lap — only differences matter for ordering
-	var driver_times = []
-	for driver in race_drivers:
-		var base_time = 60.0  # notional seconds per lap
-		var effective_pace  = driver.get_effective_pace()
-		var effective_wet   = driver.get_effective_wet()
-		var effective_focus = driver.get_effective_focus()
-
-		## Pace factor: wider spread so skill differences matter meaningfully.
-		## GK uses ±5% (karts are sensitive to driver skill).
-		## effective_pace 60 = neutral. 100 → ×0.95, 20 → ×1.05
-		var spread = 0.05 if c.id == "C-001" else 0.03
-		var pace_factor = 1.0 - ((effective_pace - 60.0) / 60.0) * spread
-		pace_factor = clamp(pace_factor, 1.0 - spread * 2.0, 1.0 + spread * 2.0)
-
-		var wet_factor = 1.0
-		if is_wet:
-			# Car control 99 = no penalty, car_control 20 = +3% penalty
-			wet_factor = 1.0 + ((100.0 - effective_wet) / 100.0) * 0.03
-
-		# Focus: small effect ±0.5%
-		var focus_factor = 1.0 - ((effective_focus - 50.0) / 50.0) * 0.005
-		focus_factor = clamp(focus_factor, 0.995, 1.005)
-
-		var fitness_factor = driver.fitness_penalty()
-		# Fitness penalty max +1% for exhausted driver
-		var fitness_penalty = (1.0 - fitness_factor) * 0.01
-
-		var lap_time = base_time * pace_factor * wet_factor * focus_factor * (1.0 + fitness_penalty)
-
-		## Driver track knowledge bonus — up to -1% for a fully known track (100 TK)
-		## A driver who has raced here before is naturally quicker through confidence.
-		if current_track_id != "" and driver.id in player_team.drivers:
-			var driver_tk = driver.get_track_knowledge(current_track_id)
-			var tk_bonus = (driver_tk / 100.0) * 0.01   ## 0→0%, 100→1%
-			lap_time *= (1.0 - tk_bonus)
-
-		# Apply Staff_Synergy_Factor for player drivers — max ±0.8%
-		if driver.id in player_team.drivers:
-			lap_time /= (1.0 + (staff_synergy - 1.0) * 0.5)
-			var aero_bonus = get_wind_tunnel_aero_bonus()
-			if aero_bonus > 0.0:
-				lap_time /= (1.0 + aero_bonus * 0.5)
-			if track_perf_bonus > 0.0:
-				lap_time /= (1.0 + track_perf_bonus * 0.5)
-			# R&D Pillar 1/2/3 part performance bonuses
-			var rnd_combined = (get_rnd_bonus("aero_perf") + get_rnd_bonus("engine_perf") + get_rnd_bonus("chassis_perf")) * 0.33
-			if rnd_combined > 0.0:
-				lap_time /= (1.0 + rnd_combined)
-			# CNC parts bonus (per-car)
-			for pcar in player_team_cars:
-				if pcar.driver_id == driver.id:
-					var cnc_bonus = get_cnc_part_bonus(pcar.id)
-					if cnc_bonus > 0.0:
-						lap_time /= (1.0 + cnc_bonus)
-					break
-		else:
-			## AI driver — difficulty AI performance multiplier
-			## ai_performance > 1.0 = AI faster (harder). < 1.0 = AI slower (easier).
-			lap_time *= get_difficulty_mult()["ai_performance"]
-
-		# Lap noise: based on consistency (high = tight laps)
-		# Noise range ±0.3% to ±1.0% of lap time
-		var noise_pct = 0.01 - (driver.consistency / 100.0) * 0.007
-		var noise = lap_time * noise_pct
-		lap_time += randf_range(-noise, noise)
-
-		driver_times.append({
-			"driver": driver,
-			"lap_time": lap_time,
-			"total_time": lap_time * race_data["laps"],
-			"points": 0
-		})
- 
-	# Snapshot pre-race driver stats for delta display in RaceResults
-	var pre_race_stats: Dictionary = {}
-	for entry in driver_times:
-		var d = entry["driver"]
-		pre_race_stats[d.id] = {
-			"pace": d.pace, "car_control": d.car_control, "focus": d.focus,
-			"experience": d.experience, "fitness": d.fitness
-		}
-
-	# Sort by total time
-	driver_times.sort_custom(func(a, b): return a["total_time"] < b["total_time"])
- 
-	# Award points and prizes
-	var points_system = c.points_system
-	for i in range(driver_times.size()):
-		var entry = driver_times[i]
-		var driver = entry["driver"]
-		var standing_position = i + 1
-		var pts = 0
- 
-		if i < points_system.size():
-			pts = points_system[i]
-			c.add_points(driver.id, pts)
-			driver_times[i]["points"] = pts
- 
-		# Find team and award team points + prize money
-		var entry_prize = 0.0
-		for team in all_teams:
-			if driver.id in team.drivers:
-				c.add_team_points(team.id, pts)
-				if standing_position == 1:
-					entry_prize = c.prize_1st
-				elif standing_position == 2:
-					entry_prize = c.prize_2nd
-				elif standing_position == 3:
-					entry_prize = c.prize_3rd
-				## Apply player economy multiplier to player team prize only
-				if team.id == player_team.id:
-					entry_prize *= get_difficulty_mult()["player_economy"]
-				team.balance += entry_prize
-				break
-		driver_times[i]["prize"] = entry_prize
-		driver_times[i]["is_player"] = driver.id in player_team.drivers
- 
-		# Update driver stats
-		_update_driver_stats_after_race(driver, standing_position, race_data["laps"], is_wet, race_drivers.size(), race_data.get("track_id", ""))
-
-		# Record stat deltas for RaceResults display
-		if driver.id in pre_race_stats:
-			var pre = pre_race_stats[driver.id]
-			driver_times[i]["stat_deltas"] = {
-				"pace": driver.pace - pre["pace"],
-				"car_control": driver.car_control - pre.get("car_control", driver.car_control),
-				"focus": driver.focus - pre["focus"],
-				"experience": driver.experience - pre["experience"],
-				"fitness": driver.fitness - pre["fitness"],
-			}
- 
-	# ── Update mechanic + strategist stats ───────────────────────────────────
-	_update_staff_stats_after_race(race_data["laps"], race_data.get("track_id", ""))
-
-	## Sync GK Group 0 (player's group) standings from real championship standings
-	if gk_discipline != null and c.discipline == "GK":
-		var cid = c.id
-		if shadow_standings_has_group_0(cid):
-			for entry in gk_discipline.get_standings(cid):
-				var did = entry["driver_id"]
-				if did in c.standings:
-					entry["points"] = c.standings[did]
-				## Count wins from race results
-				if driver_times.size() > 0 and driver_times[0].get("driver", null) != null:
-					if driver_times[0]["driver"].id == did:
-						entry["wins"] = entry.get("wins", 0) + 1
-				entry["races"] = entry.get("races", 0) + 1
-
-	# ── DNS entries: add to last_race_results with 0 pts ─────
-	# This ensures they appear in the Results screen (last place, DNS label)
-	for d_id in dns_driver_ids:
-		var driver = all_drivers.get(d_id)
-		if driver:
-			driver_times.append({
-				"driver": driver,
-				"lap_time": 0.0,
-				"total_time": 0.0,
-				"points": 0,
-				"dns": true
-			})
- 
-	# Store last race data
-	last_race_round = c.current_round + 1
-	last_race_laps  = race_data["laps"]
-	last_race_name  = race_data["name"]
-	last_race_wet = is_wet
-	last_race_results = driver_times
-	last_race_championship = c.championship_name
-
-	## Race-triggered sponsor offer
-	for i in range(driver_times.size()):
-		var entry = driver_times[i]
-		if entry.get("dns", false): continue
-		if entry["driver"].id in player_team.drivers:
-			_maybe_generate_race_sponsor_offer(i + 1)
-			break
-	last_race_championship_id = c.id
-	last_race_num_races = c.num_races
-
-	# Snapshot current standings for display in RaceResults
-	last_race_standings = c.get_standings_sorted()
- 
-	# Hall of fame (only if at least one car finished)
-	if driver_times.size() > 0:
-		# Find first non-DNS entry
-		var winner = null
-		for entry in driver_times:
-			if not entry.get("dns", false):
-				winner = entry["driver"]
-				break
-		if winner:
-			var winner_team_id = ""
-			var winner_team_name = "Unknown"
-			for team in all_teams:
-				if winner.id in team.drivers:
-					winner_team_id = team.id
-					winner_team_name = team.team_name
-					break
-			hall_of_fame.append({
-				"season": current_season,
-				"round": last_race_round,
-				"championship": c.championship_name,
-				"track": race_data["name"],
-				"winner": winner.full_name(),
-				"team": winner_team_name,
-				"team_id": winner_team_id
-			})
- 
-	# ── Car condition: degrade only cars that raced, skip DNS ────────────────
-	_degrade_car_conditions(race_data["laps"], dns_driver_ids)
-	# Repairs applied on Continue in RaceResults — NOT here.
-
-	# Consume fuel and earn RP (always happens, DNS or not)
-	_consume_race_resources()
-	_earn_race_rp(race_data["laps"])
-
-	# Season ends at week 52 regardless.
-	if current_week >= max_weeks:
-		_end_season()
-		return
-
-	# Queue results ONLY for championships the player is registered in
-	var player_in_this_champ = false
-	for pid in player_team.drivers:
-		if c.standings.has(pid):
-			player_in_this_champ = true
-			break
-
-	if player_in_this_champ:
-		_pending_race_results.append({
-			"round":           last_race_round,
-			"laps":            last_race_laps,
-			"name":            last_race_name,
-			"is_wet":          last_race_wet,
-			"results":         last_race_results.duplicate(),
-			"championship":    last_race_championship,
-			"championship_id": last_race_championship_id,
-			"num_races":       last_race_num_races,
-			"standings":       last_race_standings.duplicate(),
-			"staff_deltas":    last_race_staff_deltas.duplicate(),
-		})
+	_race_simulator.simulate_race(race_data, champ)
 
 func _update_driver_stats_after_race(driver: Driver, standing_position: int, laps: int, is_wet: bool, grid_size: int, track_id: String = "") -> void:
-	# Fitness drops
-	var fitness_drop = laps * 0.4
-	driver.fitness = max(0.0, driver.fitness - fitness_drop)
-
-	# Experience grows
-	var exp_gain = randf_range(0.5, 1.5)
-	driver.experience = min(100.0, driver.experience + exp_gain)
-
-	# Consistency grows slowly with experience
-	if driver.consistency < driver.potential:
-		driver.consistency = min(driver.potential, driver.consistency + exp_gain * 0.15)
-
-	# Feedback improves slightly with experience
-	if driver.feedback < driver.potential:
-		driver.feedback = min(driver.potential, driver.feedback + exp_gain * 0.08)
-
-	## Per-track knowledge — driver learns this specific track each visit
-	if track_id != "":
-		var tk_gain = 4.0 + randf_range(0.0, 4.0)
-		## Better finishing positions = more learning (focused race)
-		if standing_position == 1:   tk_gain *= 1.3
-		elif standing_position <= 3: tk_gain *= 1.15
-		driver.update_track_knowledge(track_id, tk_gain)
-
-	# Marketability — affected by result
-	driver.update_marketability_after_race(standing_position, grid_size, false)
-
-	# Update discipline adaptation
-	var total_races = active_championship.num_races
-	driver.update_adaptation_after_race(current_season, total_races)
-
-	# Core stats improve
-	var improvement = 0.1 + randf_range(0.0, 0.2)
-	if standing_position <= 3:
-		improvement += 0.1
-
-	if driver.pace < driver.potential:
-		driver.pace = min(driver.potential, driver.pace + improvement * 0.5)
-	if driver.focus < driver.potential:
-		driver.focus = min(driver.potential, driver.focus + improvement * 0.3)
-	if driver.race_craft < driver.potential:
-		driver.race_craft = min(driver.potential, driver.race_craft + improvement * 0.4)
-	if is_wet and driver.car_control < driver.potential:
-		driver.car_control = min(driver.potential, driver.car_control + improvement * 0.6)
-
-	# Morale
-	if standing_position == 1:
-		driver.morale = min(100.0, driver.morale + 10.0)
-	elif standing_position <= 3:
-		driver.morale = min(100.0, driver.morale + 5.0)
-	elif standing_position >= 8:
-		driver.morale = max(0.0, driver.morale - 5.0)
-
+	_race_simulator._update_driver_stats_after_race(driver, standing_position, laps, is_wet, grid_size, track_id)
 
 func _update_staff_stats_after_race(_laps: int, track_id: String = "") -> void:
-	last_race_staff_deltas = []
-	var improvement = 0.08 + randf_range(0.0, 0.12)
-	for car in player_team_cars:
-		if car.mechanic_id != "" and car.mechanic_id in all_staff:
-			var mech = all_staff[car.mechanic_id]
-			var pre_setup = mech.car_setup
-			var pre_track = mech.track_knowledge
-			if mech.car_setup < 100.0:
-				mech.car_setup = min(100.0, mech.car_setup + improvement * 0.6)
-			## Per-track knowledge: grows faster at a known track, slower at new ones
-			if track_id != "":
-				mech.update_track_knowledge(track_id, improvement * 6.0)
-			elif mech.track_knowledge < 100.0:
-				## Fallback: flat growth (legacy path, no track_id)
-				mech.track_knowledge = min(100.0, mech.track_knowledge + improvement * 0.4)
-			var d_setup = mech.car_setup - pre_setup
-			var d_track = mech.track_knowledge - pre_track
-			if d_setup > 0.01 or d_track > 0.01:
-				last_race_staff_deltas.append({
-					"name": mech.full_name(), "role": "Race Mechanic",
-					"deltas": {"car_setup": d_setup, "track_knowledge": d_track, "race_strategy": 0.0}
-				})
-	for strat in get_player_staff_by_role("Race Strategist"):
-		var pre_strat = strat.race_strategy
-		var pre_track = strat.track_knowledge
-		if strat.race_strategy < 100.0:
-			strat.race_strategy = min(100.0, strat.race_strategy + improvement * 0.5)
-		if track_id != "":
-			strat.update_track_knowledge(track_id, improvement * 5.0)
-		elif strat.track_knowledge < 100.0:
-			strat.track_knowledge = min(100.0, strat.track_knowledge + improvement * 0.3)
-		var d_strat = strat.race_strategy - pre_strat
-		var d_track = strat.track_knowledge - pre_track
-		if d_strat > 0.01 or d_track > 0.01:
-			last_race_staff_deltas.append({
-				"name": strat.full_name(), "role": "Race Strategist",
-				"deltas": {"car_setup": 0.0, "track_knowledge": d_track, "race_strategy": d_strat}
-			})
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+	_race_simulator._update_staff_stats_after_race(_laps, track_id)
 
 func _end_season() -> void:
-	add_log("=== SEASON %d COMPLETE ===" % current_season)
-
-	# Log driver standings top 3 and award drivers championship
-	var sorted_drivers = active_championship.get_standings_sorted()
-	add_log("DRIVERS CHAMPIONSHIP:")
-	for i in range(min(3, sorted_drivers.size())):
-		var entry = sorted_drivers[i]
-		var driver = all_drivers.get(entry["driver_id"])
-		if driver:
-			add_log("P%d: %s — %d pts" % [i + 1, driver.full_name(), entry["points"]])
-	## Award drivers championship to winner
-	if sorted_drivers.size() > 0:
-		_award_drivers_championship(sorted_drivers[0]["driver_id"], active_championship)
-
-	# Log team standings top 3 and award constructors championship
-	var sorted_teams = active_championship.get_team_standings_sorted()
-	add_log("TEAMS CHAMPIONSHIP:")
-	for i in range(min(3, sorted_teams.size())):
-		var entry = sorted_teams[i]
-		var team_name = "Unknown"
-		for team in all_teams:
-			if team.id == entry["team_id"]:
-				team_name = team.team_name
-				break
-		add_log("P%d: %s — %d pts" % [i + 1, team_name, entry["points"]])
-	## Award constructors championship to winner
-	if sorted_teams.size() > 0:
-		_award_teams_championship(sorted_teams[0]["team_id"], active_championship)
-
-	## Apply reputation inertia — rep moves toward earned value slowly
-	_apply_reputation_inertia()
-
-	emit_signal("season_ended", current_season)
-	emit_signal("log_updated")
-	_process_sponsors_season_end()
-	_process_supply_contracts_season_end()
-	pending_season_screen = "end_of_season"
+	_season_manager.end_season()
 
 func start_new_season() -> void:
-	current_season += 1
-	current_week = 1
-	weekly_log = []
-	pending_season_screen = "begin_of_season"
-
-	_process_off_season()
-
-	## P26: Populate GK discipline groups for new season
-	if gk_discipline == null:
-		gk_discipline = GKDiscipline.new()
-	## Clear old GK cadet drivers before repopulating to avoid accumulation
-	## GK drivers are identified by active_discipline == "GK" and not having a non-GK car
-	var gk_driver_ids_to_clear: Array = []
-	for did in all_drivers:
-		var d = all_drivers[did]
-		if d.active_discipline == "GK" and d.contract_team != player_team.id:
-			gk_driver_ids_to_clear.append(did)
-	for did in gk_driver_ids_to_clear:
-		all_drivers.erase(did)
-	print("[GameState] Cleared %d GK AI drivers for season reset" % gk_driver_ids_to_clear.size())
-
-	gk_discipline.populate_season(
-		all_drivers,
-		all_staff,
-		player_team.drivers,
-		player_registered_championships,
-		CHAMPIONSHIP_CALENDARS,
-		current_season,
-		player_team_cars)
-	## Generate TP assignment proposals for the new season
-	if not player_team_cars.is_empty():
-		var tp_proposals = generate_tp_assignment_proposals()
-		## Store for Racing Department to display
-		_last_tp_proposals = tp_proposals
-
-	# ── Wipe ALL player cars ─────────────────────────────────────────────────
-	player_team_cars.clear()
-	# Clear car assignments on all staff — cars no longer exist
-	for staff_id in all_staff:
-		var s = all_staff[staff_id]
-		if s.assigned_car_id != "":
-			s.assigned_car_id = ""
-	## Wipe all installed parts (CNC and provider) and warehouse inventory
-	car_installed_parts.clear()
-	car_provider_parts.clear()
-	cnc_parts_inventory.clear()
-	add_log("🏎 All cars retired for Season %d. Buy or build new cars before Race 1." % current_season)
-
-	## AI team cars are rebuilt by ai_manager.load_car_assignments() below
-	## _regenerate_ai_team_cars() is disabled — it hardcoded C-001 for all teams
-
-	# ── Reset all championships for new season ───────────────────────────────
-	## ALL 24 championships reset and stay active — the world keeps running.
-	## Player's registered championships only affect: results screen, DNS checks,
-	## notifications. They do NOT control which championships exist.
-	for champ in active_championships:
-		champ.reset_for_new_season()
-
-	## Sync GK Group 0 to standings after reset
-	_sync_gk_group0_to_standings()
-
-	## Notify player if not registered anywhere
-	if player_registered_championships.is_empty():
-		add_notification("High",
-			"⚠ No championships registered for Season %d! Use the Championships screen to register." % current_season)
-	else:
-		## Check player has a car for each registered championship
-		for champ_id in player_registered_championships:
-			var has_car = false
-			for car in player_team_cars:
-				if car.championship_id == champ_id: has_car = true; break
-			if not has_car:
-				var reg = CHAMPIONSHIP_REGISTRY.get(champ_id, {})
-				add_notification("High",
-					"🏎 No car for %s — buy or manufacture one before Race 1." % reg.get("name", champ_id),
-					"logistics")
-
-	# Delivery deadline notifications
-	for champ in active_championships:
-		var delivery_wk = get_car_delivery_week(champ.id)
-		var race1_wk    = FIRST_RACE_WEEK.get(champ.id, 6)
-		add_notification("High",
-			"Season %d [%s]: New car needed. Delivery: Week %d. Race 1: Week %d." % [
-			current_season, champ.championship_name, delivery_wk, race1_wk])
-
-	## Re-register AI drivers and teams into championship standings for new season
-	ai_manager.load_car_assignments()
-
-	add_log("=== SEASON %d BEGINS ===" % current_season)
-
-	## Activate any pre-signed contracts from last season
-	_activate_presigned_contracts()
-
-	# ── R&D: seasonal maintenance ─────────────────────────────────────────────
-	var expired_upg = completed_upg_tasks.size()
-	completed_upg_tasks.clear()
-	completed_rnd_tasks = completed_rnd_tasks.filter(
-		func(tid): return not tid.begins_with("UPG-"))
-	if expired_upg > 0:
-		add_log("📋 %d upgrade blueprints expired for Season %d. Upgrades reset to L1." % [expired_upg, current_season])
-
-	if current_season > wra_cycle_start_season and \
-	   (current_season - wra_cycle_start_season) % WRA_CYCLE_LENGTH == 0:
-		_apply_wra_regulation_change()
-
-	_rebuild_seasonal_rnd_tasks()
-	add_log("🔬 R&D catalog updated for Season %d." % current_season)
-
-	# Clear registrations AFTER activation — player re-registers for next season
-	var prev_champ_names_s = []
-	for champ in active_championships:
-		prev_champ_names_s.append(champ.championship_name)
-	player_registered_championships.clear()
-	if not prev_champ_names_s.is_empty():
-		add_notification("Normal",
-			"Season %d active: %s. Re-register during off-season for Season %d." % [
-			current_season, ", ".join(prev_champ_names_s), current_season + 1])
-	emit_signal("week_advanced", current_week)
-	emit_signal("log_updated")
+	_season_manager.start_new_season()
 
 func _create_championship(champ_id: String) -> Championship:
 	var reg = CHAMPIONSHIP_REGISTRY.get(champ_id, {})
@@ -7051,116 +3505,7 @@ func _regenerate_ai_team_cars(team) -> void:
 			car.tire_wear_rate = telemetry["tire_wear"]
 			car.baseline_performance_index = telemetry["perf_index"]
 
-func _process_off_season() -> void:
-	# Age all drivers, recover fitness, accumulate experience
-	for driver_id in all_drivers:
-		var driver = all_drivers[driver_id]
-		driver.age += 1
-		driver.fitness = 100.0
-		driver.experience = min(100.0, driver.experience + 1.0)
-		driver.seasons_without_contract += 1
-		# Decrement contract — academy drivers use age-based bond, not season count
-		if driver.contract_type == "academy":
-			## Academy bond ends at age 18 — notify player
-			if driver.contract_team == player_team.id:
-				if driver.age == 17:
-					add_notification("High",
-						"🎓 %s will turn 18 next season — offer a professional contract or release from the academy." % driver.full_name())
-				elif driver.age >= 18:
-					add_notification("Critical",
-						"🎓 %s has turned 18 — academy bond expired. Offer professional contract or they will leave." % driver.full_name())
-			## Academy bond: seasons_remaining tracks seasons until 18
-			driver.contract_seasons_remaining = max(0, 18 - driver.age)
-		elif driver.contract_seasons_remaining > 0:
-			driver.contract_seasons_remaining -= 1
-			if driver.contract_seasons_remaining == 0 and driver.contract_team == player_team.id:
-				if driver.contract_type == "cadet":
-					add_notification("High",
-						"⚠ Cadet %s's contract has expired! Re-sign or they will leave." % driver.full_name())
-				else:
-					add_notification("High",
-						"⚠ %s's contract has expired! Re-sign them or they will leave." % driver.full_name())
-
-	# Decrement staff contracts
-	for staff_id in all_staff:
-		var staff = all_staff[staff_id]
-		if staff.contract_seasons_remaining > 0:
-			staff.contract_seasons_remaining -= 1
-			if staff.contract_seasons_remaining == 0 and staff.contract_team == player_team.id:
-				add_notification("High",
-					"⚠ %s (%s) contract expired! Re-sign or they will leave." % [
-					staff.full_name(), staff.role])
-
-	var driver_counter = all_drivers.size()
-	## Process player team expired contracts — drivers and staff become free agents
-	var player_drivers_to_release: Array = []
-	for driver_id in player_team.drivers:
-		if driver_id in all_drivers:
-			var driver = all_drivers[driver_id]
-			if driver.contract_seasons_remaining == 0:
-				player_drivers_to_release.append(driver_id)
-	for driver_id in player_drivers_to_release:
-		var driver = all_drivers[driver_id]
-		add_log("👋 %s's contract expired — left the team." % driver.full_name())
-		add_notification("High", "%s has left — contract expired." % driver.full_name())
-		driver.contract_team = ""
-		driver.contract_seasons_remaining = 0
-		player_team.drivers.erase(driver_id)
-		## Remove from all active championship standings
-		for champ in active_championships:
-			champ.standings.erase(driver_id)
-
-	var player_staff_to_release: Array = []
-	for sid in all_staff:
-		var s = all_staff[sid]
-		if s.contract_team == player_team.id and s.contract_seasons_remaining == 0:
-			player_staff_to_release.append(sid)
-	for sid in player_staff_to_release:
-		var s = all_staff[sid]
-		add_log("👋 %s (%s) contract expired — left the team." % [s.full_name(), s.role])
-		add_notification("High", "%s (%s) has left — contract expired." % [s.full_name(), s.role])
-		s.contract_team = ""
-		s.assigned_championship = ""
-
-	for team in all_teams:
-		# Never auto-remove player team drivers — player manages their own roster
-		if team.id == player_team.id:
-			continue
-
-		var drivers_to_remove = []
-		var drivers_to_add = []
-
-		for driver_id in team.drivers:
-			if driver_id in all_drivers:
-				var driver = all_drivers[driver_id]
-				if not driver.is_eligible_for_gk_regional():
-					drivers_to_remove.append(driver_id)
-					var new_id = "D-GEN-%04d" % driver_counter
-					driver_counter += 1
-					var nat = NameGenerator.get_nationality_for_team(team.nationality)
-					var sex = "Male" if randf() > 0.3 else "Female"
-					var name_data = NameGenerator.get_full_name(nat, sex)
-					var new_driver = _create_driver(
-						new_id,
-						name_data["first"],
-						name_data["last"],
-						nat,
-						8,
-						sex,
-						team.id
-					)
-					drivers_to_add.append(new_driver)
-					NameGenerator.release_name(driver.full_name())
-					add_log("%s aged out of %s — replaced by %s" % [
-						driver.full_name(), team.team_name, new_driver.full_name()])
-
-		for driver_id in drivers_to_remove:
-			team.drivers.erase(driver_id)
-			all_drivers.erase(driver_id)
-
-		for new_driver in drivers_to_add:
-			all_drivers[new_driver.id] = new_driver
-			team.drivers.append(new_driver.id)
+## _process_off_season() — REMOVED: now lives in SeasonManager.gd (P57)
 
 func _autosave() -> void:
 	## Save to main slot first, then copy to rotating autosave slot
@@ -7457,6 +3802,17 @@ func load_game(path: String = "user://save_game.json") -> void:
 		player_team.set_meta("rnd_bonuses", data["rnd_bonuses"])
 
 	print("[Load] Game loaded successfully — Season %d Week %d" % [current_season, current_week])
+	## P57: Initialize SeasonManager
+	_season_manager = SeasonManager.new(self)
+	## P57: Initialize FinancialEngine
+	_financial_engine = FinancialEngine.new(self)
+	## P57: Initialize RaceSimulator
+	_race_simulator = RaceSimulator.new(self)
+	## P57: Initialize ContractEngine
+	_contract_engine = ContractEngine.new(self)
+	_rnd_engine = RnDEngine.new(self)
+	_notification_manager = NotificationManager.new(self)
+	_campus_manager = CampusManager.new(self)
 	emit_signal("week_advanced", current_week)
 	emit_signal("log_updated")
 
@@ -7606,12 +3962,6 @@ func _deserialize_staff(data_dict: Dictionary) -> void:
 		var num_part = sd["id"].trim_prefix("ST-").to_int()
 		if num_part > _staff_id_counter:
 			_staff_id_counter = num_part
-
-func add_log(message: String) -> void:
-	weekly_log.append(message)
-	print(message)
-
-## ScreenShot Function
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.keycode == KEY_F12:
 		var screenshot = get_viewport().get_texture().get_image()
@@ -8625,270 +4975,45 @@ func _fire_assignment_proposals() -> void:
 ## Returns the max loan tier (1-5) unlocked by current HQ level.
 ## Tier 1: HQ L1+  Tier 2: HQ L3+  Tier 3: HQ L6+  Tier 4: HQ L9+  Tier 5: HQ L12+
 func get_loan_tier() -> int:
-	var hq_level = campus_buildings.get("Headquarters", {}).get("level", 1)
-	if hq_level >= 12: return 5
-	if hq_level >= 9:  return 4
-	if hq_level >= 6:  return 3
-	if hq_level >= 3:  return 2
-	return 1
+	return _financial_engine.get_loan_tier()
 
-## Returns the maximum loan amount available for a given tier.
-## Based on company value × tier percentage. CFO negotiation adds up to +10%.
 func get_max_loan_amount(tier: int = -1) -> float:
-	if tier < 0: tier = get_loan_tier()
-	const TIER_PCT = {1: 0.20, 2: 0.35, 3: 0.50, 4: 0.65, 5: 0.80}
-	var base_pct = TIER_PCT.get(tier, 0.20)
-	var company_val = _calculate_company_value()
-	var max_amount = company_val * base_pct
-	## CFO negotiation bonus — up to +10% of cap at skill 100
-	var cfo = get_cfo()
-	if cfo:
-		var cfo_bonus = (cfo.sponsor_negotiation / 100.0) * 0.10
-		max_amount *= (1.0 + cfo_bonus)
-	## Without CFO: cap at Tier 1 regardless of HQ (applied in take_loan, not here)
-	return max(0.0, max_amount)
+	return _financial_engine.get_max_loan_amount(tier)
 
-## Returns the annual interest rate for a new loan.
-## base = current_loan_rate (from economy).
-## + risk premium for low reputation teams.
-## - CFO financial_management discount (up to -2% at skill 100).
-## + 1.5% penalty if no CFO.
 func get_loan_rate() -> float:
-	var base = current_loan_rate
-	## Risk premium: low rep teams pay more
-	var risk_premium = max(0.0, (50.0 - player_team.reputation) * 0.05)
-	var cfo = get_cfo()
-	var cfo_discount = 0.0
-	if cfo:
-		cfo_discount = (cfo.budget_planning / 100.0) * 2.0   ## up to -2%
-	else:
-		base += 1.5  ## no-CFO penalty
-	return clamp(base + risk_premium - cfo_discount, 0.5, 25.0)
+	return _financial_engine.get_loan_rate()
 
-## Returns the max number of simultaneous loans.
-## Default: 2. CFO unlocks 3rd slot.
 func get_max_loan_slots() -> int:
-	return 3 if get_cfo() != null else 2
+	return _financial_engine.get_max_loan_slots()
 
-## Calculates weekly mortgage payment for a loan.
-## P = principal, annual_rate = %, n_weeks = total duration in weeks.
 func _calc_weekly_payment(principal: float, annual_rate: float, n_weeks: int) -> float:
-	if n_weeks <= 0: return principal
-	var weekly_r = (annual_rate / 100.0) / 52.0
-	if weekly_r < 0.00001:
-		return principal / float(n_weeks)
-	var factor = weekly_r * pow(1.0 + weekly_r, float(n_weeks))
-	var denom   = pow(1.0 + weekly_r, float(n_weeks)) - 1.0
-	return principal * (factor / denom)
+	return _financial_engine._calc_weekly_payment(principal, annual_rate, n_weeks)
 
-## Take a loan. tier is clamped to get_loan_tier(). Returns error string or "".
-## Without CFO: tier is capped at 1 regardless of HQ.
 func take_loan(amount: float, seasons: int) -> String:
-	var cfo = get_cfo()
-	var max_tier = get_loan_tier()
-	if cfo == null: max_tier = 1   ## no-CFO cap
+	return _financial_engine.take_loan(amount, seasons)
 
-	if active_loans.size() >= get_max_loan_slots():
-		return "Maximum active loans reached (%d). Repay one first." % get_max_loan_slots()
-
-	var max_amount = get_max_loan_amount(max_tier)
-	if amount > max_amount:
-		return "Amount exceeds maximum for current tier (CR %s)." % _fmt_int(int(max_amount))
-
-	const MIN_SEASONS = {1:4, 2:4, 3:4, 4:4, 5:4}
-	const MAX_SEASONS = {1:8, 2:12, 3:16, 4:20, 5:25}
-	var tier = get_loan_tier() if cfo else 1
-	var min_s = MIN_SEASONS.get(tier, 4)
-	var max_s = MAX_SEASONS.get(tier, 8)
-	if seasons < min_s or seasons > max_s:
-		return "Duration must be %d–%d seasons for Tier %d." % [min_s, max_s, tier]
-
-	var annual_rate = get_loan_rate()
-	var n_weeks = seasons * 52
-	var weekly_pay = _calc_weekly_payment(amount, annual_rate, n_weeks)
-
-	var loan = {
-		"id":               _loan_next_id,
-		"amount_original":  amount,
-		"balance_remaining": amount,
-		"weekly_payment":   weekly_pay,
-		"annual_rate":      annual_rate,
-		"seasons_duration": seasons,
-		"weeks_remaining":  n_weeks,
-		"taken_season":     current_season,
-		"taken_week":       current_week,
-		"cfo_name":         cfo.full_name() if cfo else "No CFO",
-	}
-	_loan_next_id += 1
-	active_loans.append(loan)
-	player_team.balance += amount
-
-	add_log("🏦 Loan taken: CR %s over %d seasons @ %.1f%% p.a. (CR %s/wk)." % [
-		_fmt_int(int(amount)), seasons, annual_rate, _fmt_int(int(weekly_pay))])
-	add_notification("High",
-		"Loan of CR %s approved. Weekly repayment: CR %s." % [
-			_fmt_int(int(amount)), _fmt_int(int(weekly_pay))], "hq")
-	return ""
-
-## Repay a loan fully. Penalty = 1 season of interest on remaining balance.
 func repay_loan_early(loan_id: int) -> String:
-	for i in range(active_loans.size()):
-		var loan = active_loans[i]
-		if loan["id"] != loan_id: continue
-		var remaining = loan["balance_remaining"]
-		var penalty   = remaining * (loan["annual_rate"] / 100.0)  ## ~1 year interest
-		var total_due = remaining + penalty
-		if player_team.balance < total_due:
-			return "Insufficient balance. Need CR %s (balance + penalty)." % _fmt_int(int(total_due))
-		player_team.balance -= total_due
-		active_loans.remove_at(i)
-		add_log("🏦 Loan #%d repaid early. Penalty: CR %s." % [loan_id, _fmt_int(int(penalty))])
-		add_notification("Normal", "Loan fully repaid. Penalty: CR %s." % _fmt_int(int(penalty)), "hq")
-		return ""
-	return "Loan not found."
+	return _financial_engine.repay_loan_early(loan_id)
 
-## Called every advance_week() — deducts weekly payments from active loans.
 func _process_loans_weekly() -> void:
-	var finished: Array = []
-	for loan in active_loans:
-		if loan["weeks_remaining"] <= 0:
-			finished.append(loan)
-			continue
-		var pay = min(loan["weekly_payment"], loan["balance_remaining"])
-		player_team.balance -= pay
-		loan["balance_remaining"] = max(0.0, loan["balance_remaining"] - pay)
-		loan["weeks_remaining"] -= 1
-		if loan["weeks_remaining"] <= 0 or loan["balance_remaining"] < 1.0:
-			finished.append(loan)
-	for loan in finished:
-		active_loans.erase(loan)
-		add_log("🏦 Loan #%d fully repaid." % loan["id"])
-		add_notification("Normal", "Loan fully repaid! Financial obligations cleared.", "hq")
+	_financial_engine.process_loans_weekly()
 
 ## ═══════════════════════════════════════════════════════════════════════════
-## FINANCIAL HELPERS (S19)
+## FINANCIAL HELPERS — delegated to FinancialEngine (S27)
 ## ═══════════════════════════════════════════════════════════════════════════
 
 func _calculate_company_value() -> float:
-	var value = player_team.balance
-	for bname in campus_buildings:
-		var b = campus_buildings[bname]
-		if b.get("level", 0) > 0:
-			value += b.get("build_cost", 0) * b.get("level", 1)
-	for car in player_team_cars:
-		var car_value = get_provider_car_cost(car.championship_id) * 0.6 \
-			if car.championship_id != "" else 10000
-		value += car_value
-	return value
+	return _financial_engine.calculate_company_value()
 
 ## Legacy helper used by HQ — now delegates to get_max_loan_amount().
 func _calculate_max_loan() -> float:
 	return get_max_loan_amount()
 
 func _update_ceo_salary() -> void:
-	var weekly_profit = player_team.balance - _prev_week_balance
-	if weekly_profit > 0:
-		ceo_accumulated_salary += weekly_profit * 0.01  ## GDD: 1% of weekly net profit
-	_prev_week_balance = player_team.balance
-
-## ═══════════════════════════════════════════════════════════════════════════
-## WRA APPROVAL (S14)
-## ═══════════════════════════════════════════════════════════════════════════
-
-func _advance_wra_submissions() -> void:
-	var approved: Array = []
-	for sub in active_wra_submissions:
-		sub.weeks_remaining -= 1
-		if sub.weeks_remaining <= 0:
-			approved.append(sub)
-	for sub in approved:
-		active_wra_submissions.erase(sub)
-		wra_approved_blueprints.append({
-			"blueprint_id":    sub.blueprint_id,
-			"championship_id": sub.championship_id,
-			"pillar":          sub.pillar,
-			"approved_season": current_season,
-			"approved_week":   current_week,
-		})
-		var bp = known_blueprints.get(sub.blueprint_id, {})
-		add_log("✅ WRA approved: %s" % bp.get("name", sub.blueprint_id))
-		add_notification("High",
-			"WRA approved: '%s'. Ready for CNC manufacturing." % bp.get("name", sub.blueprint_id),
-			"wra_office")
-
-func submit_to_wra(blueprint_id: String) -> bool:
-	if not blueprint_id in known_blueprints: return false
-	for sub in active_wra_submissions:
-		if sub.blueprint_id == blueprint_id: return false
-	for app in wra_approved_blueprints:
-		if app.blueprint_id == blueprint_id: return false
-	var bp = known_blueprints[blueprint_id]
-	var cid = bp.get("championship_id", "")
-	var tier = _get_championship_tier(cid)
-	var weeks = {1:2,2:3,3:5,4:6}.get(tier, 2)
-	active_wra_submissions.append({
-		"blueprint_id":    blueprint_id,
-		"championship_id": cid,
-		"pillar":          bp.get("pillar", 1),
-		"submitted_season": current_season,
-		"submitted_week":  current_week,
-		"weeks_remaining": weeks,
-		"tier":            tier,
-	})
-	add_log("📋 WRA submission: %s. Decision in %d weeks." % [
-		bp.get("name", blueprint_id), weeks])
-	add_notification("Normal",
-		"Blueprint submitted to WRA: '%s'. Decision in %d weeks." % [
-			bp.get("name", blueprint_id), weeks])
-	emit_signal("log_updated")
-	return true
-
-func is_blueprint_approved(blueprint_id: String) -> bool:
-	for app in wra_approved_blueprints:
-		if app.blueprint_id == blueprint_id: return true
-	return false
-
-func is_blueprint_submitted(blueprint_id: String) -> bool:
-	for sub in active_wra_submissions:
-		if sub.blueprint_id == blueprint_id: return true
-	return false
-
-func _get_championship_tier(cid: String) -> int:
-	return CHAMPIONSHIP_REGISTRY.get(cid, {}).get("tier", 1)
-
-## ═══════════════════════════════════════════════════════════════════════════
-## SUPPLY CONTRACTS (S17)
-## ═══════════════════════════════════════════════════════════════════════════
+	_financial_engine.update_ceo_salary()
 
 func _process_supply_contracts_weekly() -> void:
-	for sc in active_supply_contracts:
-		if not sc.active: continue
-		var weekly_parts = max(1, int(sc.parts_per_season / 52.0))
-		var inv_key = "%s_%s" % [sc.championship_id, sc.part_code]
-		if inv_key in cnc_parts_inventory and \
-		   cnc_parts_inventory[inv_key].quantity >= weekly_parts:
-			cnc_parts_inventory[inv_key].quantity -= weekly_parts
-			if cnc_parts_inventory[inv_key].quantity <= 0:
-				cnc_parts_inventory.erase(inv_key)
-			player_team.balance += weekly_parts * sc.cr_per_part
-			sc.parts_delivered += weekly_parts
+	_financial_engine.process_supply_contracts_weekly()
 
 func _process_supply_contracts_season_end() -> void:
-	var to_remove: Array = []
-	for sc in active_supply_contracts:
-		if not sc.active: continue
-		if sc.parts_delivered < sc.parts_per_season:
-			var shortfall = sc.parts_per_season - sc.parts_delivered
-			var penalty = shortfall * sc.penalty_per_dns
-			player_team.balance -= penalty
-			add_notification("High",
-				"Supply penalty: CR %s. Short %d parts to %s." % [
-					_fmt_int(penalty), shortfall, sc.ai_team_name])
-		sc.parts_delivered = 0
-		sc.seasons_remaining -= 1
-		if sc.seasons_remaining <= 0:
-			sc.active = false
-			supply_contract_history.append(sc)
-			to_remove.append(sc)
-	for sc in to_remove:
-		active_supply_contracts.erase(sc)
+	_financial_engine.process_supply_contracts_season_end()
