@@ -1,5 +1,6 @@
 extends Node
-## Version: S28.3 — GK fixes: champion announced at final round (no "Round 5" — Bug 2);
+## Version: S28.4 — Pit crew assign/unassign wrappers (Bug 6).
+## --- S28.3 — GK fixes: champion announced at final round (no "Round 5" — Bug 2);
 ##   GK team_standings now reset between rounds (Bug: was accumulating).
 ## --- S28.1: NextSeasonLedger registration model (GDD §16.3, §23.1) — fixes the
 ##   Season-2 car/registration collapse. Registrations now go to next_season_registrations
@@ -1666,6 +1667,13 @@ func assign_staff_to_car(staff_id: String, car_id: String) -> void:
 
 func unassign_mechanic_from_car(car_id: String) -> void:
 	_car_manager.unassign_mechanic_from_car(car_id)
+
+## S28.3 (Bug 6) — Pit Crew assignment wrappers.
+func assign_pit_crew_to_car(staff_id: String, car_id: String) -> void:
+	_car_manager.assign_pit_crew_to_car(staff_id, car_id)
+
+func unassign_pit_crew_from_car(car_id: String) -> void:
+	_car_manager.unassign_pit_crew_from_car(car_id)
 
 func get_car_for_driver(driver_id: String) -> Car:
 	return _car_manager.get_car_for_driver(driver_id)

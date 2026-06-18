@@ -1,5 +1,6 @@
 extends Control
-## Version: S28.3 — CNC/provider install buttons check success before closing popup;
+## Version: S28.4 — Pit Crew assignment slot + popup in Garage (Bug 6). CNC/provider install
+##   buttons check success before closing popup;
 ##   show failure notice. "Wet"→"Ctrl" stat label.
 ## --- S22.8 — #5 Assign popup shows all with current assignment status and reassign.
 ##                    so the player can make an informed choice.
@@ -281,6 +282,11 @@ func _build_car_card(car) -> PanelContainer:
 	var mech_box = _make_staff_slot(car, "MECHANIC")
 	staff_row.add_child(mech_box)
 
+	## Pit Crew — only for disciplines that require one (Rally, SC, GP). S28.3 (Bug 6).
+	if GameState.get_pit_crew_required(car.championship_id):
+		var crew_box = _make_staff_slot(car, "PIT CREW")
+		staff_row.add_child(crew_box)
+
 	vbox.add_child(HSeparator.new())
 
 	# ── Parts grid (2 rows × 3 cols) ──────────────────────────────────────────
@@ -320,8 +326,18 @@ func _make_staff_slot(car, role: String) -> VBoxContainer:
 	box.add_child(lbl_role)
 
 	var is_driver = role == "DRIVER"
-	var assigned_id = car.driver_id if is_driver else car.mechanic_id
-	var person = GameState.all_drivers.get(assigned_id) if is_driver else GameState.all_staff.get(assigned_id)
+	var is_pit_crew = role == "PIT CREW"
+	var assigned_id = ""
+	var person = null
+	if is_driver:
+		assigned_id = car.driver_id
+		person = GameState.all_drivers.get(assigned_id)
+	elif is_pit_crew:
+		assigned_id = car.pit_crew_id
+		person = GameState.all_staff.get(assigned_id)
+	else:
+		assigned_id = car.mechanic_id
+		person = GameState.all_staff.get(assigned_id)
 
 	var lbl_name = Label.new()
 	lbl_name.add_theme_font_size_override("font_size", 13)
@@ -354,6 +370,7 @@ func _make_staff_slot(car, role: String) -> VBoxContainer:
 		btn_un.modulate = Color(1.0,0.5,0.5)
 		btn_un.pressed.connect(func():
 			if cap_role == "DRIVER": GameState.unassign_driver_from_car(cap_car_id)
+			elif cap_role == "PIT CREW": GameState.unassign_pit_crew_from_car(cap_car_id)
 			else: GameState.unassign_mechanic_from_car(cap_car_id)
 			_show_tab(_selected_tab))
 		btn_row.add_child(btn_un)
@@ -608,28 +625,39 @@ func _open_staff_popup(car_id: String, role: String) -> void:
 	for c in _popup_list.get_children(): c.queue_free()
 
 	var is_driver = role == "DRIVER"
+	var is_pit_crew = role == "PIT CREW"
 	## Show ALL team members of this type, not just unassigned
-	var people = GameState.all_drivers.values() if is_driver else \
-		GameState.get_player_staff_by_role("Race Mechanic")
+	var people: Array = []
+	if is_driver:
+		people = GameState.all_drivers.values()
+	elif is_pit_crew:
+		people = GameState.get_player_staff_by_role("Pit Crew")
+	else:
+		people = GameState.get_player_staff_by_role("Race Mechanic")
 	var eligible = people.filter(func(p):
 		return p.contract_team == GameState.player_team.id)
 
 	if eligible.is_empty():
 		var lbl = Label.new()
-		lbl.text = "No %s on your team." % ("drivers" if is_driver else "mechanics")
+		var noun = "drivers"
+		if is_pit_crew: noun = "pit crews"
+		elif not is_driver: noun = "mechanics"
+		lbl.text = "No %s on your team. Hire at %s." % [
+			noun, "Pit Crew Arena" if is_pit_crew else "the Staff screen"]
 		lbl.modulate = Color(0.5,0.5,0.5)
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_popup_list.add_child(lbl)
 		return
 
 	## Sort: unassigned first, then assigned
 	eligible.sort_custom(func(a, b):
-		var a_assigned = _get_assignment_label(a, is_driver) != ""
-		var b_assigned = _get_assignment_label(b, is_driver) != ""
+		var a_assigned = _get_assignment_label(a, role) != ""
+		var b_assigned = _get_assignment_label(b, role) != ""
 		return int(a_assigned) < int(b_assigned))
 
 	for p in eligible:
-		var assignment_label = _get_assignment_label(p, is_driver)
-		var is_assigned_here = _is_assigned_to_car(p, car_id, is_driver)
+		var assignment_label = _get_assignment_label(p, role)
+		var is_assigned_here = _is_assigned_to_car(p, car_id, role)
 
 		var card = PanelContainer.new()
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -689,6 +717,7 @@ func _open_staff_popup(car_id: String, role: String) -> void:
 			btn.text = "Reassign" if assignment_label != "" else "Assign"
 			btn.pressed.connect(func():
 				if cap_role == "DRIVER": GameState.assign_driver_to_car(cap_pid, cap_car)
+				elif cap_role == "PIT CREW": GameState.assign_pit_crew_to_car(cap_pid, cap_car)
 				else: GameState.assign_staff_to_car(cap_pid, cap_car)
 				_popup.visible = false
 				_show_tab(_selected_tab))
@@ -702,7 +731,13 @@ func _open_staff_popup(car_id: String, role: String) -> void:
 		if is_driver:
 			var ovr = int((p.pace + p.consistency + p.focus + p.race_craft + p.fitness) / 5.0)
 			for pair in [["Ovr", ovr], ["Pace", int(p.pace)],
-					["Cons", int(p.consistency)], ["Wet", int(p.wet)], ["Fit", int(p.fitness)]]:
+					["Cons", int(p.consistency)], ["Ctrl", int(p.car_control)], ["Fit", int(p.fitness)]]:
+				_add_stat_chip(stats_row, pair[0], pair[1])
+		elif is_pit_crew:
+			var pspeed = int(p.pit_stop_speed) if "pit_stop_speed" in p else 50
+			var prep   = int(p.repair_skill)   if "repair_skill"   in p else 50
+			var pfat   = int(p.fatigue_resistance) if "fatigue_resistance" in p else 50
+			for pair in [["Pit Speed", pspeed], ["Repair", prep], ["Fatigue", pfat]]:
 				_add_stat_chip(stats_row, pair[0], pair[1])
 		else:
 			var setup = int(p.car_setup_skill)  if "car_setup_skill" in p else 50
@@ -713,20 +748,24 @@ func _open_staff_popup(car_id: String, role: String) -> void:
 
 	_popup.visible = true
 
-func _get_assignment_label(person, is_driver: bool) -> String:
+func _get_assignment_label(person, role: String) -> String:
 	for car in GameState.player_team_cars:
-		if is_driver:
-			if car.driver_id == person.id:
-				return car.car_name if car.car_name != "" else "Car %d" % car.car_number
-		else:
-			if car.mechanic_id == person.id:
-				return car.car_name if car.car_name != "" else "Car %d" % car.car_number
+		var match_id = ""
+		match role:
+			"DRIVER":   match_id = car.driver_id
+			"PIT CREW": match_id = car.pit_crew_id
+			_:          match_id = car.mechanic_id
+		if match_id == person.id:
+			return car.car_name if car.car_name != "" else "Car %d" % car.car_number
 	return ""
 
-func _is_assigned_to_car(person, car_id: String, is_driver: bool) -> bool:
+func _is_assigned_to_car(person, car_id: String, role: String) -> bool:
 	var car = GameState.get_car_by_id(car_id)
 	if not car: return false
-	return (car.driver_id == person.id) if is_driver else (car.mechanic_id == person.id)
+	match role:
+		"DRIVER":   return car.driver_id == person.id
+		"PIT CREW": return car.pit_crew_id == person.id
+		_:          return car.mechanic_id == person.id
 
 func _add_stat_chip(parent: HBoxContainer, label: String, value: int) -> void:
 	var chip = HBoxContainer.new()

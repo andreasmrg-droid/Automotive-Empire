@@ -1,5 +1,6 @@
 class_name SeasonManager
-## Version: S28.3 — Free-agent pool replenished each season after retirements (Bug 7).
+## Version: S28.4 — AI teams auto-renew expiring contracts each off-season (Bug 8).
+## --- S28.3 — Free-agent pool replenished each season after retirements (Bug 7).
 ## --- S28.1 — NextSeasonLedger activation (GDD §16.3 Steps 13-14, §23.1).
 ##   start_new_season() now ACTIVATES gs.next_season_registrations into
 ##   gs.player_registered_championships at the TOP of the transition, then clears the
@@ -329,6 +330,29 @@ func _process_off_season() -> void:
 	_process_staff_lifecycle()
 	## S28.3 (Bug 7): top up the free-agent pool after retirements so it doesn't drain.
 	gs.replenish_free_agent_pool()
+	## S28.3 (Bug 8): AI teams automatically renew their own expiring contracts so the
+	## negotiation cycle "triggers automatically" for the AI world (GDD §13 / line 605).
+	_ai_auto_renew_contracts()
+
+
+## S28.3 (Bug 8) — AI teams auto-renew expiring contracts for their own drivers & staff.
+## Without this, AI personnel sit at contract_seasons_remaining = 0 forever (no negotiation
+## ever fired for them). Player contracts are untouched — the player renews manually.
+func _ai_auto_renew_contracts() -> void:
+	var renewed = 0
+	var pid = gs.player_team.id
+	for driver_id in gs.all_drivers:
+		var d = gs.all_drivers[driver_id]
+		if d.contract_team != "" and d.contract_team != pid and d.contract_seasons_remaining <= 0:
+			d.contract_seasons_remaining = randi_range(2, 4)
+			renewed += 1
+	for staff_id in gs.all_staff:
+		var s = gs.all_staff[staff_id]
+		if s.contract_team != "" and s.contract_team != pid and s.contract_seasons_remaining <= 0:
+			s.contract_seasons_remaining = randi_range(2, 4)
+			renewed += 1
+	if renewed > 0:
+		gs.add_log("📋 AI teams renewed %d expiring contracts for the new season." % renewed)
 
 
 ## Rule 1 (drivers) + Rule 2 (drivers): age retirement and free-agent decay.

@@ -1,5 +1,6 @@
 extends Control
-## Version: S28.3 — GK Championship standings on EOS now read GKDiscipline (champion +
+## Version: S28.4 — EOS only shows championships the player actually raced (fixes empty GK
+##   card when not registered). GK standings read GKDiscipline (champion +
 ##   final-round group standings) instead of the empty champ.standings (Bug 1).
 ## --- S16.5 — "Our Driver" replaces "YOU"; team standings added; weekly profit in finances.
 ## Triggered by MainHub when _end_season() fires season_ended signal.
@@ -103,7 +104,19 @@ func _build_standings() -> VBoxContainer:
 		vbox.add_child(_lbl_gray("No championships ran this season."))
 		return vbox
 
+	## S28.3 fix: only show championships the player actually RACED this season.
+	## active_championships holds all championships (the world always runs); showing GK
+	## when the player didn't register produced an empty/championless card.
+	var raced: Array = []
 	for champ in GameState.active_championships:
+		if champ.id in GameState.player_registered_championships:
+			raced.append(champ)
+
+	if raced.is_empty():
+		vbox.add_child(_lbl_gray("You didn't race any championship this season."))
+		return vbox
+
+	for champ in raced:
 		var card = _card_panel(Color(0.09, 0.11, 0.15))
 		var cv = VBoxContainer.new()
 		cv.add_theme_constant_override("separation", 6)

@@ -1,5 +1,6 @@
 class_name CarManager
-## Version: S28.3 — add_car(silent) suppresses premature "assign driver/mechanic" notifications
+## Version: S28.4 — assign_pit_crew_to_car / unassign_pit_crew_from_car added (Bug 6).
+## --- S28.3 — add_car(silent) suppresses premature "assign driver/mechanic" notifications
 ##   during new-game setup (issue 1); install_part_on_car robust to non-canonical inventory keys (CNC install fix).
 ## --- S27.0 — Extracted from GameState.gd (P57)
 ##   Car lifecycle: add/remove/rename, driver/staff assignment, repairs, parts.
@@ -238,6 +239,38 @@ func unassign_mechanic_from_car(car_id: String) -> void:
 			mech.full_name(),
 			car.car_name if car.car_name != "" else "Car %d" % car.car_number])
 	car.mechanic_id = ""
+	gs.emit_signal("log_updated")
+
+
+## S28.3 (Bug 6) — Pit Crew assignment, mirrors the mechanic functions.
+func assign_pit_crew_to_car(staff_id: String, car_id: String) -> void:
+	if not staff_id in gs.all_staff:
+		return
+	var staff = gs.all_staff[staff_id]
+	if staff.role != "Pit Crew":
+		return
+	var car = get_car_by_id(car_id)
+	if not car: return
+	staff.assigned_car_id = car_id
+	staff.assigned_championship = car.championship_id
+	gs.previous_season_championship[staff_id] = car.championship_id
+	car.pit_crew_id = staff_id
+	gs.add_log("⏱ %s (Pit Crew) assigned to %s" % [
+		staff.full_name(), car.car_name if car.car_name != "" else "Car %d" % car.car_number])
+	gs.emit_signal("log_updated")
+
+
+func unassign_pit_crew_from_car(car_id: String) -> void:
+	var car = get_car_by_id(car_id)
+	if not car: return
+	if car.pit_crew_id in ["", "N/A"]: return
+	var crew = gs.all_staff.get(car.pit_crew_id)
+	if crew:
+		crew.assigned_car_id = ""
+		gs.add_log("↩ %s (Pit Crew) unassigned from %s" % [
+			crew.full_name(),
+			car.car_name if car.car_name != "" else "Car %d" % car.car_number])
+	car.pit_crew_id = ""
 	gs.emit_signal("log_updated")
 
 
