@@ -1,5 +1,8 @@
 extends Control
-## Version: S22.7 — Sponsor negotiation handles "waiting" and "counter" states.
+## Version: S29.0 — Open/close lag fix (issue 2): removed all four
+##   `await get_tree().process_frame` stalls; replaced with synchronous _clear_content()
+##   so the panel renders in the same frame it opens.
+## --- S22.7 — Sponsor negotiation handles "waiting" and "counter" states.
 ##                    _show_waiting_for_reply() shown after offer submitted.
 ##                    Player must advance week to see counter-offer.
 
@@ -86,9 +89,15 @@ func open_approach(ap: Dictionary) -> void:
 	_is_approach = true
 	_rebuild_approach()
 
+## S29.0 — Clear all content children synchronously (no frame stall).
+## Detaches immediately so new children never coexist with freeing old ones.
+func _clear_content() -> void:
+	for c in _content.get_children():
+		_content.remove_child(c)
+		c.queue_free()
+
 func _rebuild_approach() -> void:
-	for c in _content.get_children(): c.queue_free()
-	await get_tree().process_frame
+	_clear_content()
 	_fields = {}
 	_lock_btns = {}
 
@@ -316,9 +325,8 @@ func _make_four_col(a: String, b: String, c: String, d: String, bold: bool) -> H
 	return row
 
 func _rebuild() -> void:
-	for c in _content.get_children(): c.queue_free()
+	_clear_content()
 	_fields = {}
-	await get_tree().process_frame
 
 	## Header
 	var subject_name = _get_subject_name()
@@ -503,8 +511,7 @@ func _on_walk_away() -> void:
 
 
 func _show_waiting_for_reply() -> void:
-	for c in _content.get_children(): c.queue_free()
-	await get_tree().process_frame
+	_clear_content()
 
 	var lbl = Label.new()
 	lbl.text = "⏳ Offer submitted — waiting for their reply next week."
@@ -535,8 +542,7 @@ func _show_waiting_for_reply() -> void:
 	_content.add_child(row)
 
 func _show_result(title: String, body: String, color: Color) -> void:
-	for c in _content.get_children(): c.queue_free()
-	await get_tree().process_frame
+	_clear_content()
 
 	var lbl_t = Label.new()
 	lbl_t.text = title

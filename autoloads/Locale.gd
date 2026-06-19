@@ -1,5 +1,6 @@
 extends Node
-## Version: S23.0 — TP proposals popup keys added.
+## Version: S29.0 — Added not-interested popup keys (ap_ni_popup_*).
+## --- S23.0 — TP proposals popup keys added.
 ## Usage: Locale.t("key")  →  returns translated string for current language.
 ## Adding a language: add a new dict entry in STRINGS below and a matching entry in LANGUAGES.
 ## Dynamic strings with substitutions: Locale.tf("key", [arg1, arg2])
@@ -299,6 +300,9 @@ const STRINGS: Dictionary = {
 	"ap_no_slot":           { "en": "⚠ No Slot",               },
 	"ap_sign_next_season":  { "en": "📋 Sign for Next Season",  },
 	"ap_not_interested":    { "en": "🚫 Not interested",        },
+	"ap_ni_popup_title":    { "en": "🚫 Not Interested",        },
+	"ap_ni_popup_body":     { "en": "%s is not interested in joining your team at this time.", },
+	"ap_ni_popup_hint":     { "en": "Improving your team's reputation and assigning a strong Team Principal makes targets more receptive.", },
 	"ap_timing_immediate":  { "en": "🚀 Immediate Transfer",    },
 	"ap_timing_next_season":{ "en": "📅 Next Season",           },
 	"ap_bond_estimate":     { "en": "Bond estimate: CR %s – %s", },

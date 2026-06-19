@@ -1,5 +1,9 @@
 extends Node
-## Version: S28.4 — Pit crew assign/unassign wrappers (Bug 6).
+## Version: S29.0 — C-014 SC Dev Series car cap 5 -> 4 (explicit max_cars:4/min_cars:1
+##   added to registry; was falling back to default 2 in Logistics). Per GDD handoff
+##   2026-06-18 §1: SC Dev was the only non-GK championship allowing 5; now ≤4 like the
+##   rest. All OTHER per-championship cap imports remain backlogged (handoff §2).
+## --- S28.4 — Pit crew assign/unassign wrappers (Bug 6).
 ## --- S28.3 — GK fixes: champion announced at final round (no "Round 5" — Bug 2);
 ##   GK team_standings now reset between rounds (Bug: was accumulating).
 ## --- S28.1: NextSeasonLedger registration model (GDD §16.3, §23.1) — fixes the
@@ -765,7 +769,7 @@ const CHAMPIONSHIP_REGISTRY = {
 	"C-011": {"name":"OWC Next Gen",                "discipline":"OWC",   "tier":2, "min_age":15, "max_age":99, "entry_fee":115200,   "num_races":8,  "rep":49},
 	"C-012": {"name":"OWC Development Series",      "discipline":"OWC",   "tier":3, "min_age":16, "max_age":99, "entry_fee":1078000,  "num_races":14, "rep":65},
 	"C-013": {"name":"OWC Pro Series",              "discipline":"OWC",   "tier":4, "min_age":17, "max_age":99, "entry_fee":6800000,  "num_races":17, "rep":91},
-	"C-014": {"name":"SC Dev Series",               "discipline":"SC",    "tier":1, "min_age":15, "max_age":99, "entry_fee":600000,   "num_races":20, "rep":46},
+	"C-014": {"name":"SC Dev Series",               "discipline":"SC",    "tier":1, "min_age":15, "max_age":99, "entry_fee":600000,   "num_races":20, "rep":46, "max_cars":4, "min_cars":1},
 	"C-015": {"name":"SC Truck Series",             "discipline":"SC",    "tier":2, "min_age":16, "max_age":99, "entry_fee":2010200,  "num_races":23, "rep":61},
 	"C-016": {"name":"SC Challenge",                "discipline":"SC",    "tier":3, "min_age":17, "max_age":99, "entry_fee":7095000,  "num_races":33, "rep":68},
 	"C-017": {"name":"SC Cup",                      "discipline":"SC",    "tier":4, "min_age":18, "max_age":99, "entry_fee":32400000, "num_races":36, "rep":89},

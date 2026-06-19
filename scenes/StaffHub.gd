@@ -1,5 +1,7 @@
 extends Control
-## Version: S28.3 — Fixed crash risk: Pit Crew "teamwork" (removed) → "fatigue_resistance"
+## Version: S29.0 — Not-interested popup (issue 1). Page-transition perf: _refresh_list
+##   detaches rows synchronously (issue 4).
+## --- S28.3 — Fixed crash risk: Pit Crew "teamwork" (removed) → "fatigue_resistance"
 ##   across stat display + sort. Re-applied "Wet"→"Car Control".
 ## --- S28.2 — Search box + pagination (25/page) on Available Staff tab. Renders only the
 ##   current page instead of the whole staff pool (perf fix). Search filters by name/nationality.
@@ -248,6 +250,7 @@ func _show_tab(tab: String) -> void:
 
 func _refresh_list() -> void:
 	for child in list_container.get_children():
+		list_container.remove_child(child)
 		child.queue_free()
 
 	if current_tab == "my_staff":
@@ -1090,7 +1093,7 @@ func _has_assigned_tp() -> bool:
 func _initiate_approach(subject_id: String, subject_type: String, start_date: String) -> void:
 	var err = GameState.initiate_approach(subject_id, subject_type, start_date)
 	if err == "not_interested":
-		pass
+		_show_not_interested_popup(subject_id)  ## S29.0 — visible popup, not just notification
 	elif err != "":
 		GameState.add_notification("High", err)
 	else:
@@ -1100,6 +1103,20 @@ func _initiate_approach(subject_id: String, subject_type: String, start_date: St
 			_show_contract_negotiation_popup(subject_id, subject_type)
 			return
 	_refresh_list()
+
+## S29.0 — Visible modal shown when staff declines an approach (was a silent notification).
+func _show_not_interested_popup(subject_id: String) -> void:
+	var subject = GameState.all_staff.get(subject_id)
+	var name_str = subject.full_name() if subject else subject_id
+	var dialog = AcceptDialog.new()
+	dialog.title = Locale.t("ap_ni_popup_title")
+	dialog.dialog_text = "%s\n\n%s" % [
+		Locale.tf("ap_ni_popup_body", [name_str]), Locale.t("ap_ni_popup_hint")]
+	dialog.ok_button_text = Locale.t("btn_close")
+	add_child(dialog)
+	dialog.popup_centered()
+	dialog.confirmed.connect(dialog.queue_free)
+	dialog.canceled.connect(dialog.queue_free)
 
 func _show_timing_popup(subject_id: String, subject_type: String) -> void:
 	var subject_obj = GameState.all_staff.get(subject_id)

@@ -1,4 +1,7 @@
-## Version: S28.3 — "Wet" stat relabeled "Car Control"/"Ctrl" in UI (data field already car_control).
+## Version: S29.0 — Not-interested popup (issue 1: visible AcceptDialog, not just a
+##   notification). Page-transition perf: _refresh_list detaches rows synchronously
+##   (remove_child + queue_free) so freed rows don't render alongside new ones (issue 4).
+## --- S28.3 — "Wet" stat relabeled "Car Control"/"Ctrl" in UI (data field already car_control).
 ## --- S28.2 — Search box + pagination (25/page) on All Drivers tab. Renders only the
 ##   current page of rows instead of every driver in the game (perf fix for large rosters).
 ##   Search filters by name/nationality; sort/tab/filter changes reset to page 1.
@@ -190,6 +193,7 @@ func _show_tab(tab: String) -> void:
 
 func _refresh_list() -> void:
 	for child in list_container.get_children():
+		list_container.remove_child(child)
 		child.queue_free()
 
 	var drivers: Array = []
@@ -879,7 +883,7 @@ func _has_assigned_tp() -> bool:
 func _initiate_approach(subject_id: String, subject_type: String, start_date: String) -> void:
 	var err = GameState.initiate_approach(subject_id, subject_type, start_date)
 	if err == "not_interested":
-		pass  ## notification already fired in GameState
+		_show_not_interested_popup(subject_id, subject_type)  ## S29.0 — visible popup, not just notification
 	elif err != "":
 		GameState.add_notification("High", err)
 	else:
@@ -889,6 +893,22 @@ func _initiate_approach(subject_id: String, subject_type: String, start_date: St
 			_show_contract_negotiation_popup(subject_id, subject_type)
 			return
 	_refresh_list()
+
+## S29.0 — Visible modal shown when a target declines an approach.
+## Previously this only fired a Normal notification (easy to miss); now a popup appears.
+func _show_not_interested_popup(subject_id: String, subject_type: String) -> void:
+	var subject = GameState.all_drivers.get(subject_id) if subject_type == "driver" \
+		else GameState.all_staff.get(subject_id)
+	var name_str = subject.full_name() if subject else subject_id
+	var dialog = AcceptDialog.new()
+	dialog.title = Locale.t("ap_ni_popup_title")
+	dialog.dialog_text = "%s\n\n%s" % [
+		Locale.tf("ap_ni_popup_body", [name_str]), Locale.t("ap_ni_popup_hint")]
+	dialog.ok_button_text = Locale.t("btn_close")
+	add_child(dialog)
+	dialog.popup_centered()
+	dialog.confirmed.connect(dialog.queue_free)
+	dialog.canceled.connect(dialog.queue_free)
 
 func _show_timing_popup(subject_id: String, subject_type: String) -> void:
 	## Popup asking: Immediate or Next Season?

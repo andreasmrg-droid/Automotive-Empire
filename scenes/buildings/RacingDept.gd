@@ -1,5 +1,6 @@
 extends Control
-## Version: S28.3 — Re-applied "Wet"→"Car Control" label (Batch B).
+## Version: S29.0 — Not-interested popup on renewal decline (issue 1: visible AcceptDialog).
+## --- S28.3 — Re-applied "Wet"→"Car Control" label (Batch B).
 ## --- S23.0 — TP proposals panel: new structured proposals with Accept All, per-item Accept/Skip, priority coloring.
 ##                    Accept button navigates to Garage for driver/mechanic needed proposals,
 ##                    Logistics for car_needed. TDL dismissal separate from proposal visibility.
@@ -351,7 +352,9 @@ func _build_driver_card(driver) -> PanelContainer:
 	btn_renew.pressed.connect(func():
 		## Trigger approach/negotiation for renewal
 		var err = GameState.initiate_approach(d_id, "driver", "immediate")
-		if err != "" and err != "not_interested":
+		if err == "not_interested":
+			_show_not_interested_popup(d_id)  ## S29.0 — visible popup, not just notification
+		elif err != "":
 			GameState.add_notification("High", err)
 		elif err == "":
 			var ap = GameState._get_approach_by_subject(d_id)
@@ -547,6 +550,23 @@ func _on_unassign_car(driver_id: String) -> void:
 			driver.full_name() if driver else driver_id,
 			car.car_name if car.car_name != "" else "Car %d" % car.car_number])
 	refresh()
+
+# ── Not-interested popup (S29.0) ───────────────────────────────────────────────
+## Visible modal shown when a driver declines a renewal approach (was silent before).
+func _show_not_interested_popup(subject_id: String) -> void:
+	var subject = GameState.all_drivers.get(subject_id)
+	if subject == null:
+		subject = GameState.all_staff.get(subject_id)
+	var name_str = subject.full_name() if subject else subject_id
+	var dialog = AcceptDialog.new()
+	dialog.title = Locale.t("ap_ni_popup_title")
+	dialog.dialog_text = "%s\n\n%s" % [
+		Locale.tf("ap_ni_popup_body", [name_str]), Locale.t("ap_ni_popup_hint")]
+	dialog.ok_button_text = Locale.t("btn_close")
+	add_child(dialog)
+	dialog.popup_centered()
+	dialog.confirmed.connect(dialog.queue_free)
+	dialog.canceled.connect(dialog.queue_free)
 
 # ── Release confirmation ───────────────────────────────────────────────────────
 func _confirm_release(driver_id: String) -> void:
