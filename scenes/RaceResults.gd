@@ -1,6 +1,19 @@
 extends Control
+## Version: S29.11 — Race Results split into 3 paged screens with Back/Next (issue #2):
+##   (1) Race Results, (2) Driver + Team standings side by side, (3) Season Development
+##   summary (car condition + driver/staff dev). Continue stays in the header throughout.
+## --- S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
 ## Version: S24.0 — wet → car_control in stat deltas display.
 ## Version: S22.8 — #12 multi-race: consume_next_race_result queue in Continue button.
+
+## S29.11 — paged layout state (issue #2)
+var _page: int = 1
+var _page_count: int = 3
+var _player_raced: bool = false
+var _page_area: VBoxContainer
+var _btn_back: Button
+var _btn_next: Button
+var _lbl_page: Label
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -40,133 +53,179 @@ func _build_ui() -> void:
 		group_tag,
 		wet_tag
 	]
-	lbl_title.add_theme_font_size_override("font_size", 20)
+	lbl_title.add_theme_font_size_override("font_size", 40)
 	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(lbl_title)
 
 	var lbl_track = Label.new()
 	lbl_track.text = "📍 %s" % GameState.last_race_name
-	lbl_track.add_theme_font_size_override("font_size", 13)
+	lbl_track.add_theme_font_size_override("font_size", 26)
 	lbl_track.modulate = Color(0.6, 0.6, 0.6)
 	header.add_child(lbl_track)
 
 	var btn_continue = Button.new()
 	btn_continue.text = "Continue  ▶"
 	btn_continue.custom_minimum_size = Vector2(140, 40)
-	btn_continue.add_theme_font_size_override("font_size", 15)
+	btn_continue.add_theme_font_size_override("font_size", 30)
 	btn_continue.pressed.connect(_on_continue)
 	header.add_child(btn_continue)
 
 	root.add_child(HSeparator.new())
 
-	# ── Three-column layout ───────────────────────────────────────────────────
+	# ── Paged body (S29.11, issue #2): three pages navigated with Back/Next ──────
+	## Page 1: Race Results | Page 2: Driver + Team standings (side by side) |
+	## Page 3: Summary (car condition, driver & staff development).
+	_page_area = VBoxContainer.new()
+	_page_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_page_area.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.add_child(_page_area)
+
+	# ── Bottom nav row (pinned below the page area) ─────────────────────────────
+	var nav = HBoxContainer.new()
+	nav.add_theme_constant_override("separation", 12)
+	root.add_child(nav)
+
+	_btn_back = Button.new()
+	_btn_back.text = "◀  Back"
+	_btn_back.custom_minimum_size = Vector2(160, 44)
+	_btn_back.add_theme_font_size_override("font_size", 28)
+	_btn_back.pressed.connect(func(): _show_page(_page - 1))
+	nav.add_child(_btn_back)
+
+	_lbl_page = Label.new()
+	_lbl_page.add_theme_font_size_override("font_size", 26)
+	_lbl_page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_lbl_page.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_lbl_page.modulate = Color(0.6, 0.6, 0.6)
+	nav.add_child(_lbl_page)
+
+	_btn_next = Button.new()
+	_btn_next.text = "Next  ▶"
+	_btn_next.custom_minimum_size = Vector2(160, 44)
+	_btn_next.add_theme_font_size_override("font_size", 28)
+	_btn_next.pressed.connect(func(): _show_page(_page + 1))
+	nav.add_child(_btn_next)
+
+	## Whether the player raced determines if page 3 (summary) exists.
+	_player_raced = GameState.player_team_cars.any(
+		func(c): return c.championship_id == GameState.last_race_championship_id)
+	_page_count = 3 if _player_raced else 2
+
+	_show_page(1)
+
+# ── Page switching ────────────────────────────────────────────────────────────
+const PAGE_TITLES := {1: "Race Results", 2: "Championship Standings", 3: "Season Development"}
+
+func _show_page(p: int) -> void:
+	_page = clampi(p, 1, _page_count)
+
+	## Clear the page area synchronously (no stale frame).
+	for c in _page_area.get_children():
+		_page_area.remove_child(c)
+		c.queue_free()
+
+	match _page:
+		1: _build_page_results()
+		2: _build_page_standings()
+		3: _build_page_summary()
+
+	## Nav state
+	_btn_back.disabled = (_page <= 1)
+	_btn_next.disabled = (_page >= _page_count)
+	_lbl_page.text = "%s   (%d / %d)" % [PAGE_TITLES.get(_page, ""), _page, _page_count]
+
+# ── Page 1: Race Results ──────────────────────────────────────────────────────
+func _build_page_results() -> void:
+	var panel = _section_panel(Color(0.2, 0.35, 0.55))
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_page_area.add_child(panel)
+
+	var scroll = ScrollContainer.new()
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	panel.get_child(0).add_child(scroll)
+
+	var box = VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_theme_constant_override("separation", 4)
+	scroll.add_child(box)
+
+	_build_race_results(box)
+
+# ── Page 2: Driver + Team standings side by side ──────────────────────────────
+func _build_page_standings() -> void:
 	var columns = HBoxContainer.new()
 	columns.add_theme_constant_override("separation", 16)
 	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_child(columns)
+	columns.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_page_area.add_child(columns)
 
-	# Left column: race results — fixed width, blue panel
-	var left_panel = PanelContainer.new()
-	left_panel.custom_minimum_size = Vector2(680, 0)
-	left_panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	left_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var lp_style = StyleBoxFlat.new()
-	lp_style.bg_color = Color(0.09, 0.10, 0.13)
-	lp_style.border_width_left = 1; lp_style.border_width_right = 1
-	lp_style.border_width_top = 1; lp_style.border_width_bottom = 1
-	lp_style.border_color = Color(0.2, 0.35, 0.55)
-	lp_style.corner_radius_top_left = 5; lp_style.corner_radius_top_right = 5
-	lp_style.corner_radius_bottom_left = 5; lp_style.corner_radius_bottom_right = 5
-	lp_style.content_margin_left = 8; lp_style.content_margin_right = 8
-	lp_style.content_margin_top = 8; lp_style.content_margin_bottom = 8
-	left_panel.add_theme_stylebox_override("panel", lp_style)
-	columns.add_child(left_panel)
+	## Left: driver standings (purple)
+	var dpanel = _section_panel(Color(0.4, 0.25, 0.65))
+	dpanel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dpanel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	columns.add_child(dpanel)
+	var dscroll = ScrollContainer.new()
+	dscroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dscroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	dpanel.get_child(0).add_child(dscroll)
+	var dbox = VBoxContainer.new()
+	dbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dbox.add_theme_constant_override("separation", 6)
+	dscroll.add_child(dbox)
+	_build_standings(dbox, false)
 
-	var left_scroll = ScrollContainer.new()
-	left_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left_panel.add_child(left_scroll)
+	## Right: team standings (gold)
+	var tpanel = _section_panel(Color(1.0, 0.8, 0.2))
+	tpanel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tpanel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	columns.add_child(tpanel)
+	var tscroll = ScrollContainer.new()
+	tscroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tscroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tpanel.get_child(0).add_child(tscroll)
+	var tbox = VBoxContainer.new()
+	tbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tbox.add_theme_constant_override("separation", 6)
+	tscroll.add_child(tbox)
+	_build_standings(tbox, true)
 
-	var left = VBoxContainer.new()
-	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left.add_theme_constant_override("separation", 4)
-	left_scroll.add_child(left)
-
-	_build_race_results(left)
-
-	# Middle column: driver standings — purple panel
-	var mid_panel = PanelContainer.new()
-	mid_panel.custom_minimum_size = Vector2(500, 0)
-	mid_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var mp_style = StyleBoxFlat.new()
-	mp_style.bg_color = Color(0.09, 0.10, 0.13)
-	mp_style.border_width_left = 1; mp_style.border_width_right = 1
-	mp_style.border_width_top = 1; mp_style.border_width_bottom = 1
-	mp_style.border_color = Color(0.4, 0.25, 0.65)
-	mp_style.corner_radius_top_left = 5; mp_style.corner_radius_top_right = 5
-	mp_style.corner_radius_bottom_left = 5; mp_style.corner_radius_bottom_right = 5
-	mp_style.content_margin_left = 8; mp_style.content_margin_right = 8
-	mp_style.content_margin_top = 8; mp_style.content_margin_bottom = 8
-	mid_panel.add_theme_stylebox_override("panel", mp_style)
-	columns.add_child(mid_panel)
-
-	var mid_scroll = ScrollContainer.new()
-	mid_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	mid_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	mid_panel.add_child(mid_scroll)
-
-	var mid = VBoxContainer.new()
-	mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	mid.add_theme_constant_override("separation", 6)
-	mid_scroll.add_child(mid)
-
-	_build_standings(mid, false)
-
-	# Right column: expands to fill remaining space
-	var right_scroll = ScrollContainer.new()
-	right_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	columns.add_child(right_scroll)
+# ── Page 3: Season Development summary (only if the player raced) ──────────────
+func _build_page_summary() -> void:
+	var scroll = ScrollContainer.new()
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_page_area.add_child(scroll)
 
 	var right = VBoxContainer.new()
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right.add_theme_constant_override("separation", 10)
-	right_scroll.add_child(right)
+	scroll.add_child(right)
 
-	# Teams standings panel — gold border
-	var teams_panel = _section_panel(Color(1.0, 0.8, 0.2))
-	right.add_child(teams_panel)
-	_build_standings(teams_panel.get_child(0), true)
+	var worst_cond = 100.0
+	for car in GameState.player_team_cars:
+		if car.championship_id == GameState.last_race_championship_id:
+			worst_cond = min(worst_cond, car.condition)
+	var cond_color = Color(0.3, 0.85, 0.3)
+	if worst_cond < 70.0: cond_color = Color(1.0, 0.6, 0.1)
+	if worst_cond < 40.0: cond_color = Color(1.0, 0.25, 0.25)
+	var cond_panel = _section_panel(cond_color)
+	right.add_child(cond_panel)
+	_build_car_condition(cond_panel.get_child(0))
 
-	# Only show car condition + staff development if player had a car in this race
-	var player_raced = GameState.player_team_cars.any(
-		func(c): return c.championship_id == GameState.last_race_championship_id)
+	var driver_dev_panel = _section_panel(Color(0.3, 0.7, 0.5))
+	right.add_child(driver_dev_panel)
+	_build_driver_improvements(driver_dev_panel.get_child(0))
 
-	if player_raced:
-		var worst_cond = 100.0
-		for car in GameState.player_team_cars:
-			if car.championship_id == GameState.last_race_championship_id:
-				worst_cond = min(worst_cond, car.condition)
-		var cond_color = Color(0.3, 0.85, 0.3)
-		if worst_cond < 70.0: cond_color = Color(1.0, 0.6, 0.1)
-		if worst_cond < 40.0: cond_color = Color(1.0, 0.25, 0.25)
-		var cond_panel = _section_panel(cond_color)
-		right.add_child(cond_panel)
-		_build_car_condition(cond_panel.get_child(0))
+	var staff_panel = _section_panel(Color(0.25, 0.75, 0.65))
+	right.add_child(staff_panel)
+	_build_staff_improvements(staff_panel.get_child(0))
 
-		## Driver development — now in right column with staff development
-		var driver_dev_panel = _section_panel(Color(0.3, 0.7, 0.5))
-		right.add_child(driver_dev_panel)
-		_build_driver_improvements(driver_dev_panel.get_child(0))
-
-		var staff_panel = _section_panel(Color(0.25, 0.75, 0.65))
-		right.add_child(staff_panel)
-		_build_staff_improvements(staff_panel.get_child(0))
 
 func _build_race_results(parent: VBoxContainer) -> void:
 	var lbl = Label.new()
 	lbl.text = "RACE RESULTS"
-	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.add_theme_font_size_override("font_size", 26)
 	lbl.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
 	parent.add_child(lbl)
 
@@ -185,7 +244,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 	for pair in [["Pos",36],["Driver",-1],["Laps",46],["Time",110],["Gap",88],["Pts",52],["Prize",80]]:
 		var lh = Label.new()
 		lh.text = pair[0]
-		lh.add_theme_font_size_override("font_size", 10)
+		lh.add_theme_font_size_override("font_size", 20)
 		lh.modulate = Color(0.45, 0.45, 0.45)
 		if pair[1] == -1:
 			lh.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -228,7 +287,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		elif pos == 3: lbl_pos.text = "🥉"
 		else:          lbl_pos.text = "%2d." % pos
 		lbl_pos.custom_minimum_size = Vector2(36, 0)
-		lbl_pos.add_theme_font_size_override("font_size", 13)
+		lbl_pos.add_theme_font_size_override("font_size", 26)
 		if is_dns: lbl_pos.modulate = Color(0.45, 0.45, 0.45)
 		row.add_child(lbl_pos)
 
@@ -236,7 +295,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		var lbl_name = Label.new()
 		lbl_name.text = driver.full_name()
 		lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		lbl_name.add_theme_font_size_override("font_size", 13)
+		lbl_name.add_theme_font_size_override("font_size", 26)
 		lbl_name.clip_contents = true
 		if is_dns:
 			lbl_name.modulate = Color(0.45, 0.45, 0.45)
@@ -250,7 +309,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		var lbl_laps = Label.new()
 		lbl_laps.text = str(total_laps) if not is_dns else "—"
 		lbl_laps.custom_minimum_size = Vector2(46, 0)
-		lbl_laps.add_theme_font_size_override("font_size", 12)
+		lbl_laps.add_theme_font_size_override("font_size", 24)
 		lbl_laps.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		lbl_laps.modulate = Color(0.65, 0.65, 0.65)
 		row.add_child(lbl_laps)
@@ -258,7 +317,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		# Total time H:MM:SS.ms
 		var lbl_time = Label.new()
 		lbl_time.custom_minimum_size = Vector2(110, 0)
-		lbl_time.add_theme_font_size_override("font_size", 12)
+		lbl_time.add_theme_font_size_override("font_size", 24)
 		lbl_time.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		if is_dns:
 			lbl_time.text = "—"
@@ -272,7 +331,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		# Gap to leader
 		var lbl_gap = Label.new()
 		lbl_gap.custom_minimum_size = Vector2(88, 0)
-		lbl_gap.add_theme_font_size_override("font_size", 12)
+		lbl_gap.add_theme_font_size_override("font_size", 24)
 		lbl_gap.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		if is_dns:
 			lbl_gap.text = "DNS"
@@ -289,7 +348,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		var lbl_pts = Label.new()
 		lbl_pts.text = "+%d" % pts if (pts > 0 and not is_dns) else "—"
 		lbl_pts.custom_minimum_size = Vector2(52, 0)
-		lbl_pts.add_theme_font_size_override("font_size", 12)
+		lbl_pts.add_theme_font_size_override("font_size", 24)
 		lbl_pts.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		lbl_pts.add_theme_color_override("font_color",
 			Color(0.45,0.45,0.45) if (pts == 0 or is_dns) else Color(0.6, 1.0, 0.6))
@@ -299,7 +358,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		var lbl_prize = Label.new()
 		lbl_prize.text = "+CR %s" % _fmt(int(prize)) if prize > 0 else ""
 		lbl_prize.custom_minimum_size = Vector2(80, 0)
-		lbl_prize.add_theme_font_size_override("font_size", 11)
+		lbl_prize.add_theme_font_size_override("font_size", 22)
 		lbl_prize.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		lbl_prize.add_theme_color_override("font_color", Color(0.9, 0.7, 0.2))
 		row.add_child(lbl_prize)
@@ -308,7 +367,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 func _build_standings(parent: VBoxContainer, teams_mode: bool) -> void:
 	var lbl = Label.new()
 	lbl.text = "TEAMS STANDINGS" if teams_mode else "DRIVERS STANDINGS"
-	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.add_theme_font_size_override("font_size", 26)
 	lbl.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
 	parent.add_child(lbl)
 
@@ -334,7 +393,7 @@ func _build_standings(parent: VBoxContainer, teams_mode: bool) -> void:
 		for pair in [["#", 28], ["Team", -1], ["Pts", 50]]:
 			var lh = Label.new()
 			lh.text = pair[0]
-			lh.add_theme_font_size_override("font_size", 10)
+			lh.add_theme_font_size_override("font_size", 20)
 			lh.modulate = Color(0.45, 0.45, 0.45)
 			if pair[1] == -1: lh.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			else: lh.custom_minimum_size = Vector2(pair[1], 0)
@@ -360,12 +419,12 @@ func _build_standings(parent: VBoxContainer, teams_mode: bool) -> void:
 			var lbl_pos = Label.new()
 			lbl_pos.text = "%2d." % pos
 			lbl_pos.custom_minimum_size = Vector2(28, 0)
-			lbl_pos.add_theme_font_size_override("font_size", 12)
+			lbl_pos.add_theme_font_size_override("font_size", 24)
 			row.add_child(lbl_pos)
 			var lbl_name = Label.new()
 			lbl_name.text = team_name
 			lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			lbl_name.add_theme_font_size_override("font_size", 12)
+			lbl_name.add_theme_font_size_override("font_size", 24)
 			lbl_name.clip_contents = true
 			if is_player:
 				lbl_name.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
@@ -375,7 +434,7 @@ func _build_standings(parent: VBoxContainer, teams_mode: bool) -> void:
 			var lbl_pts = Label.new()
 			lbl_pts.text = "%d pts" % entry["points"]
 			lbl_pts.custom_minimum_size = Vector2(50, 0)
-			lbl_pts.add_theme_font_size_override("font_size", 12)
+			lbl_pts.add_theme_font_size_override("font_size", 24)
 			lbl_pts.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 			lbl_pts.modulate = Color(0.7, 0.7, 0.7)
 			row.add_child(lbl_pts)
@@ -395,7 +454,7 @@ func _build_standings(parent: VBoxContainer, teams_mode: bool) -> void:
 		for pair in [["#", 28], ["Driver", 130], ["Team", -1], ["Pts", 50]]:
 			var lh = Label.new()
 			lh.text = pair[0]
-			lh.add_theme_font_size_override("font_size", 10)
+			lh.add_theme_font_size_override("font_size", 20)
 			lh.modulate = Color(0.45, 0.45, 0.45)
 			if pair[1] == -1: lh.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			else: lh.custom_minimum_size = Vector2(pair[1], 0)
@@ -422,12 +481,12 @@ func _build_standings(parent: VBoxContainer, teams_mode: bool) -> void:
 			var lbl_pos = Label.new()
 			lbl_pos.text = "%2d." % pos
 			lbl_pos.custom_minimum_size = Vector2(28, 0)
-			lbl_pos.add_theme_font_size_override("font_size", 12)
+			lbl_pos.add_theme_font_size_override("font_size", 24)
 			row.add_child(lbl_pos)
 			var lbl_name = Label.new()
 			lbl_name.text = driver.full_name()
 			lbl_name.custom_minimum_size = Vector2(130, 0)
-			lbl_name.add_theme_font_size_override("font_size", 12)
+			lbl_name.add_theme_font_size_override("font_size", 24)
 			lbl_name.clip_contents = true
 			if is_player:
 				lbl_name.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
@@ -437,7 +496,7 @@ func _build_standings(parent: VBoxContainer, teams_mode: bool) -> void:
 			var lbl_team = Label.new()
 			lbl_team.text = team_name
 			lbl_team.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			lbl_team.add_theme_font_size_override("font_size", 10)
+			lbl_team.add_theme_font_size_override("font_size", 20)
 			lbl_team.clip_contents = true
 			lbl_team.add_theme_color_override("font_color",
 				Color(0.4, 0.8, 1.0) if is_player else Color(0.45, 0.45, 0.45))
@@ -445,7 +504,7 @@ func _build_standings(parent: VBoxContainer, teams_mode: bool) -> void:
 			var lbl_pts = Label.new()
 			lbl_pts.text = "%d pts" % entry["points"]
 			lbl_pts.custom_minimum_size = Vector2(50, 0)
-			lbl_pts.add_theme_font_size_override("font_size", 12)
+			lbl_pts.add_theme_font_size_override("font_size", 24)
 			lbl_pts.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 			lbl_pts.modulate = Color(0.7, 0.7, 0.7)
 			row.add_child(lbl_pts)
@@ -459,7 +518,7 @@ func _build_car_condition(parent: VBoxContainer) -> void:
 
 	var lbl = Label.new()
 	lbl.text = "CAR CONDITION"
-	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.add_theme_font_size_override("font_size", 26)
 	lbl.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
 	parent.add_child(lbl)
 
@@ -488,7 +547,7 @@ func _build_car_condition(parent: VBoxContainer) -> void:
 		var lbl_car = Label.new()
 		lbl_car.text = "%s  —  Overall: %.0f%%" % [
 			car.car_name if car.car_name != "" else "Car %d" % car.car_number, cond]
-		lbl_car.add_theme_font_size_override("font_size", 13)
+		lbl_car.add_theme_font_size_override("font_size", 26)
 		var cc = Color(0.3, 0.9, 0.3)
 		if cond < 70: cc = Color(1.0, 0.6, 0.1)
 		if cond < 40: cc = Color(1.0, 0.3, 0.3)
@@ -505,7 +564,7 @@ func _build_car_condition(parent: VBoxContainer) -> void:
 			if part_cond < 40: pc = Color(1.0, 0.3, 0.3)
 			var chip = Label.new()
 			chip.text = "%s %.0f%%" % [part_name.left(3), part_cond]
-			chip.add_theme_font_size_override("font_size", 10)
+			chip.add_theme_font_size_override("font_size", 20)
 			chip.add_theme_color_override("font_color", pc)
 			parts_row.add_child(chip)
 
@@ -561,7 +620,7 @@ func _fmt_time(seconds: float) -> String:
 func _build_driver_improvements(parent: VBoxContainer) -> void:
 	var lbl = Label.new()
 	lbl.text = "DRIVER DEVELOPMENT"
-	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.add_theme_font_size_override("font_size", 26)
 	lbl.add_theme_color_override("font_color", Color(0.4, 0.9, 0.6))
 	parent.add_child(lbl)
 
@@ -577,7 +636,7 @@ func _build_driver_improvements(parent: VBoxContainer) -> void:
 		any = true
 		var name_lbl = Label.new()
 		name_lbl.text = driver.full_name() if driver.has_method("full_name") else str(driver)
-		name_lbl.add_theme_font_size_override("font_size", 12)
+		name_lbl.add_theme_font_size_override("font_size", 24)
 		name_lbl.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
 		parent.add_child(name_lbl)
 
@@ -591,7 +650,7 @@ func _build_driver_improvements(parent: VBoxContainer) -> void:
 				var dl = Label.new()
 				dl.text = "%s %s%.1f%s" % [sk[0], "+" if dv >= 0 else "", dv,
 					"%" if sk[0] == "Fit" else ""]
-				dl.add_theme_font_size_override("font_size", 11)
+				dl.add_theme_font_size_override("font_size", 22)
 				dl.add_theme_color_override("font_color",
 					Color(0.4, 0.9, 0.4) if dv >= 0 else Color(1.0, 0.4, 0.4))
 				row.add_child(dl)
@@ -600,7 +659,7 @@ func _build_driver_improvements(parent: VBoxContainer) -> void:
 		var empty = Label.new()
 		empty.text = "No development this race."
 		empty.modulate = Color(0.5, 0.5, 0.5)
-		empty.add_theme_font_size_override("font_size", 11)
+		empty.add_theme_font_size_override("font_size", 22)
 		parent.add_child(empty)
 
 func _build_staff_improvements(parent: VBoxContainer) -> void:
@@ -609,7 +668,7 @@ func _build_staff_improvements(parent: VBoxContainer) -> void:
 
 	var lbl_hdr = Label.new()
 	lbl_hdr.text = "STAFF DEVELOPMENT"
-	lbl_hdr.add_theme_font_size_override("font_size", 13)
+	lbl_hdr.add_theme_font_size_override("font_size", 26)
 	lbl_hdr.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
 	parent.add_child(lbl_hdr)
 
@@ -634,14 +693,14 @@ func _make_dev_card(name: String, icon: String, border: Color) -> PanelContainer
 	panel.add_theme_stylebox_override("panel", style)
 	var vbox = VBoxContainer.new(); vbox.add_theme_constant_override("separation", 4); panel.add_child(vbox)
 	var lbl = Label.new(); lbl.text = "%s %s" % [icon, name]
-	lbl.add_theme_font_size_override("font_size", 12)
+	lbl.add_theme_font_size_override("font_size", 24)
 	lbl.add_theme_color_override("font_color", Color(0.55,0.9,0.65) if icon == "🔧" else Color(0.65,0.85,1.0))
 	vbox.add_child(lbl)
 	return panel
 
 func _delta_lbl(text: String, value: float) -> Label:
 	var lbl = Label.new(); lbl.text = text
-	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.add_theme_font_size_override("font_size", 22)
 	lbl.add_theme_color_override("font_color", Color(0.4,0.9,0.4) if value >= 0 else Color(1.0,0.4,0.4))
 	return lbl
 

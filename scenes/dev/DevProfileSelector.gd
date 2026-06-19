@@ -1,4 +1,6 @@
 extends Control
+## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## DEV PROFILE SELECTOR
 ## Shows before new game. Player picks a starting profile.
 ## Also handles the F9 dev console overlay (in-game cheat panel for testing).
@@ -49,13 +51,13 @@ func _build_selector_ui() -> void:
 	# Title
 	var lbl_title = Label.new()
 	lbl_title.text = "🏎  AUTOMOTIVE EMPIRE"
-	lbl_title.add_theme_font_size_override("font_size", 30)
+	lbl_title.add_theme_font_size_override("font_size", 60)
 	lbl_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(lbl_title)
 
 	var lbl_sub = Label.new()
 	lbl_sub.text = "NEW GAME — Choose your starting profile"
-	lbl_sub.add_theme_font_size_override("font_size", 16)
+	lbl_sub.add_theme_font_size_override("font_size", 32)
 	lbl_sub.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 	lbl_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(lbl_sub)
@@ -63,7 +65,7 @@ func _build_selector_ui() -> void:
 	# Dev badge
 	var lbl_dev = Label.new()
 	lbl_dev.text = "⚠ DEV MODE — Remove profile selector before public release"
-	lbl_dev.add_theme_font_size_override("font_size", 11)
+	lbl_dev.add_theme_font_size_override("font_size", 22)
 	lbl_dev.add_theme_color_override("font_color", Color(1.0, 0.5, 0.1))
 	lbl_dev.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(lbl_dev)
@@ -82,12 +84,12 @@ func _build_selector_ui() -> void:
 		inputs_row.add_child(vbox)
 		var lbl = Label.new()
 		lbl.text = pair[0]
-		lbl.add_theme_font_size_override("font_size", 13)
+		lbl.add_theme_font_size_override("font_size", 26)
 		vbox.add_child(lbl)
 		var input = LineEdit.new()
 		input.text = pair[1]
 		input.custom_minimum_size = Vector2(220, 36)
-		input.add_theme_font_size_override("font_size", 14)
+		input.add_theme_font_size_override("font_size", 28)
 		if pair[2]:
 			_team_name_input = input
 		else:
@@ -97,7 +99,7 @@ func _build_selector_ui() -> void:
 	# Profile cards
 	var profiles_label = Label.new()
 	profiles_label.text = "STARTING PROFILE"
-	profiles_label.add_theme_font_size_override("font_size", 14)
+	profiles_label.add_theme_font_size_override("font_size", 28)
 	profiles_label.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
 	root.add_child(profiles_label)
 
@@ -114,7 +116,7 @@ func _build_selector_ui() -> void:
 	var btn_start = Button.new()
 	btn_start.text = "▶  START GAME"
 	btn_start.custom_minimum_size = Vector2(280, 52)
-	btn_start.add_theme_font_size_override("font_size", 18)
+	btn_start.add_theme_font_size_override("font_size", 36)
 	btn_start.alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 	var btn_row = HBoxContainer.new()
@@ -150,14 +152,14 @@ func _build_profile_card(profile_id: String) -> PanelContainer:
 
 	var lbl_name = Label.new()
 	lbl_name.text = profile["label"]
-	lbl_name.add_theme_font_size_override("font_size", 15)
+	lbl_name.add_theme_font_size_override("font_size", 30)
 	if is_selected:
 		lbl_name.add_theme_color_override("font_color", Color(0.4, 0.95, 0.4))
 	vbox.add_child(lbl_name)
 
 	var lbl_desc = Label.new()
 	lbl_desc.text = profile["desc"]
-	lbl_desc.add_theme_font_size_override("font_size", 11)
+	lbl_desc.add_theme_font_size_override("font_size", 22)
 	lbl_desc.modulate = Color(0.6, 0.6, 0.6)
 	lbl_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vbox.add_child(lbl_desc)
@@ -165,7 +167,7 @@ func _build_profile_card(profile_id: String) -> PanelContainer:
 	if is_selected:
 		var lbl_sel = Label.new()
 		lbl_sel.text = "✅ Selected"
-		lbl_sel.add_theme_font_size_override("font_size", 11)
+		lbl_sel.add_theme_font_size_override("font_size", 22)
 		lbl_sel.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
 		vbox.add_child(lbl_sel)
 
@@ -173,7 +175,7 @@ func _build_profile_card(profile_id: String) -> PanelContainer:
 	btn.text = "Select" if not is_selected else "Selected ✓"
 	btn.disabled = is_selected
 	btn.custom_minimum_size = Vector2(0, 26)
-	btn.add_theme_font_size_override("font_size", 11)
+	btn.add_theme_font_size_override("font_size", 22)
 	var pid = profile_id
 	btn.pressed.connect(func():
 		_selected_profile = pid
@@ -224,7 +226,7 @@ func _build_console_ui() -> void:
 
 	var lbl_title = Label.new()
 	lbl_title.text = "🛠  DEV CONSOLE  (F9 to close)"
-	lbl_title.add_theme_font_size_override("font_size", 17)
+	lbl_title.add_theme_font_size_override("font_size", 34)
 	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hdr.add_child(lbl_title)
 
@@ -244,7 +246,7 @@ func _build_console_ui() -> void:
 		GameState.research_points, GameState.get_rnd_rp_storage_cap(),
 		GameState.player_team_cars.size(),
 		GameState.get_all_player_staff().size()]
-	lbl_state.add_theme_font_size_override("font_size", 12)
+	lbl_state.add_theme_font_size_override("font_size", 24)
 	lbl_state.modulate = Color(0.6, 0.85, 0.6)
 	lbl_state.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	root.add_child(lbl_state)
@@ -282,7 +284,7 @@ func _build_console_ui() -> void:
 	# Apply profile button row
 	var lbl_prof = Label.new()
 	lbl_prof.text = "Apply full profile over current state:"
-	lbl_prof.add_theme_font_size_override("font_size", 12)
+	lbl_prof.add_theme_font_size_override("font_size", 24)
 	lbl_prof.modulate = Color(0.6, 0.6, 0.6)
 	root.add_child(lbl_prof)
 
@@ -292,7 +294,7 @@ func _build_console_ui() -> void:
 	for pid in GameState.DEV_PROFILES:
 		var btn = Button.new()
 		btn.text = GameState.DEV_PROFILES[pid]["label"]
-		btn.add_theme_font_size_override("font_size", 11)
+		btn.add_theme_font_size_override("font_size", 22)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var _pid = pid
 		btn.pressed.connect(func():
@@ -306,7 +308,7 @@ func _build_console_ui() -> void:
 	var btn_refresh = Button.new()
 	btn_refresh.text = "🔄 Refresh State Display"
 	btn_refresh.custom_minimum_size = Vector2(0, 32)
-	btn_refresh.add_theme_font_size_override("font_size", 12)
+	btn_refresh.add_theme_font_size_override("font_size", 24)
 	btn_refresh.pressed.connect(func():
 		_build_console_ui()
 	)
@@ -317,7 +319,7 @@ func _console_btn(parent: GridContainer, label: String, action: Callable) -> voi
 	var btn = Button.new()
 	btn.text = label
 	btn.custom_minimum_size = Vector2(0, 34)
-	btn.add_theme_font_size_override("font_size", 12)
+	btn.add_theme_font_size_override("font_size", 24)
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn.pressed.connect(func():
 		action.call()

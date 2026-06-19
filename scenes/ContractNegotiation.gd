@@ -1,4 +1,6 @@
 extends Control
+## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S29.0 — Open/close lag fix (issue 2): removed all four
 ##   `await get_tree().process_frame` stalls; replaced with synchronous _clear_content()
 ##   so the panel renders in the same frame it opens.
@@ -104,13 +106,13 @@ func _rebuild_approach() -> void:
 	## Header
 	var lbl_title = Label.new()
 	lbl_title.text = "📋  CONTRACT NEGOTIATION"
-	lbl_title.add_theme_font_size_override("font_size", 20)
+	lbl_title.add_theme_font_size_override("font_size", 40)
 	lbl_title.add_theme_color_override("font_color", Color.WHITE)
 	_content.add_child(lbl_title)
 
 	var lbl_name = Label.new()
 	lbl_name.text = _ap.get("subject_name", "")
-	lbl_name.add_theme_font_size_override("font_size", 14)
+	lbl_name.add_theme_font_size_override("font_size", 28)
 	lbl_name.add_theme_color_override("font_color", Color(0.55, 0.75, 1.0))
 	_content.add_child(lbl_name)
 
@@ -121,21 +123,21 @@ func _rebuild_approach() -> void:
 
 	var lbl_round = Label.new()
 	lbl_round.text = "Round %d of %d" % [_ap.get("contract_round", 1), _ap.get("max_contract_rounds", 4)]
-	lbl_round.add_theme_font_size_override("font_size", 12)
+	lbl_round.add_theme_font_size_override("font_size", 24)
 	lbl_round.modulate = Color(0.6, 0.6, 0.6)
 	meta_row.add_child(lbl_round)
 
 	if _ap.get("bond_amount_final", 0) > 0:
 		var lbl_bond = Label.new()
 		lbl_bond.text = "💰 Bond paid: CR %s" % _fmt(int(_ap["bond_amount_final"]))
-		lbl_bond.add_theme_font_size_override("font_size", 11)
+		lbl_bond.add_theme_font_size_override("font_size", 22)
 		lbl_bond.add_theme_color_override("font_color", Color(1.0, 0.75, 0.2))
 		meta_row.add_child(lbl_bond)
 
 	if _ap.get("current_team_name", "") != "":
 		var lbl_team = Label.new()
 		lbl_team.text = "From: %s" % _ap["current_team_name"]
-		lbl_team.add_theme_font_size_override("font_size", 11)
+		lbl_team.add_theme_font_size_override("font_size", 22)
 		lbl_team.modulate = Color(0.5, 0.5, 0.5)
 		meta_row.add_child(lbl_team)
 
@@ -217,7 +219,7 @@ func _build_approach_field_row(key: String, term: Dictionary, show_lock: bool = 
 	var lbl = Label.new()
 	lbl.text = FIELD_LABELS.get(key, key)
 	lbl.custom_minimum_size = Vector2(190, 0)
-	lbl.add_theme_font_size_override("font_size", 12)
+	lbl.add_theme_font_size_override("font_size", 24)
 	if is_locked or is_agreed:
 		lbl.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
 	row.add_child(lbl)
@@ -226,7 +228,7 @@ func _build_approach_field_row(key: String, term: Dictionary, show_lock: bool = 
 	var their_ask = term.get("their_ask", 0)
 	var lbl_ask = Label.new()
 	lbl_ask.custom_minimum_size = Vector2(100, 0)
-	lbl_ask.add_theme_font_size_override("font_size", 12)
+	lbl_ask.add_theme_font_size_override("font_size", 24)
 	lbl_ask.add_theme_color_override("font_color",
 		Color(0.4, 0.9, 0.4) if (is_locked or is_agreed) else Color(1.0, 0.6, 0.4))
 	if key == "start_date":
@@ -250,7 +252,7 @@ func _build_approach_field_row(key: String, term: Dictionary, show_lock: bool = 
 	else:
 		var spin = SpinBox.new()
 		spin.custom_minimum_size = Vector2(120, 34)
-		spin.add_theme_font_size_override("font_size", 12)
+		spin.add_theme_font_size_override("font_size", 24)
 		if key in ["duration_seasons","seasons_remaining"]:
 			spin.min_value = 1; spin.max_value = 5; spin.step = 1
 		else:
@@ -264,7 +266,7 @@ func _build_approach_field_row(key: String, term: Dictionary, show_lock: bool = 
 	if show_lock:
 		var lock_btn = Button.new()
 		lock_btn.custom_minimum_size = Vector2(36, 30)
-		lock_btn.add_theme_font_size_override("font_size", 14)
+		lock_btn.add_theme_font_size_override("font_size", 28)
 		if is_agreed:
 			lock_btn.text = "✅"
 			lock_btn.disabled = true
@@ -318,7 +320,7 @@ func _make_four_col(a: String, b: String, c: String, d: String, bold: bool) -> H
 		var lbl = Label.new()
 		lbl.text = item[0]
 		lbl.custom_minimum_size = Vector2(item[1], 0)
-		lbl.add_theme_font_size_override("font_size", 10)
+		lbl.add_theme_font_size_override("font_size", 20)
 		if bold: lbl.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55))
 		else: lbl.modulate = Color(0.45, 0.45, 0.45)
 		row.add_child(lbl)
@@ -331,14 +333,14 @@ func _rebuild() -> void:
 	## Header
 	var subject_name = _get_subject_name()
 	var lbl_title = Label.new()
-	lbl_title.add_theme_font_size_override("font_size", 20)
+	lbl_title.add_theme_font_size_override("font_size", 40)
 	lbl_title.add_theme_color_override("font_color", Color.WHITE)
 	lbl_title.text = "📋  CONTRACT NEGOTIATION"
 	_content.add_child(lbl_title)
 
 	var lbl_name = Label.new()
 	lbl_name.text = subject_name
-	lbl_name.add_theme_font_size_override("font_size", 14)
+	lbl_name.add_theme_font_size_override("font_size", 28)
 	lbl_name.modulate = Color(0.55, 0.75, 1.0)
 	_content.add_child(lbl_name)
 
@@ -348,13 +350,13 @@ func _rebuild() -> void:
 	_content.add_child(round_row)
 	var lbl_round = Label.new()
 	lbl_round.text = "Round %d of %d" % [_neg["round"], _neg["max_rounds"]]
-	lbl_round.add_theme_font_size_override("font_size", 12)
+	lbl_round.add_theme_font_size_override("font_size", 24)
 	lbl_round.modulate = Color(0.6, 0.6, 0.6)
 	round_row.add_child(lbl_round)
 	if _neg.get("cfo_bonus", 0.0) > 0:
 		var lbl_cfo = Label.new()
 		lbl_cfo.text = "💼 CFO +%.0f%% edge" % (_neg["cfo_bonus"] * 100)
-		lbl_cfo.add_theme_font_size_override("font_size", 11)
+		lbl_cfo.add_theme_font_size_override("font_size", 22)
 		lbl_cfo.modulate = Color(0.4, 0.85, 0.55)
 		round_row.add_child(lbl_cfo)
 
@@ -380,7 +382,7 @@ func _rebuild() -> void:
 		var ratio = GameState._calc_offer_ratio(last["player"], last["their"])
 		var lbl_hist = Label.new()
 		lbl_hist.text = "Last round: your offer was %.0f%% of their ask." % (ratio * 100)
-		lbl_hist.add_theme_font_size_override("font_size", 11)
+		lbl_hist.add_theme_font_size_override("font_size", 22)
 		lbl_hist.modulate = Color(
 			0.4 if ratio >= 0.75 else (0.9 if ratio >= 0.50 else 1.0),
 			0.85 if ratio >= 0.75 else (0.65 if ratio >= 0.50 else 0.4),
@@ -418,13 +420,13 @@ func _build_field_row(key: String, ask_val, offer_val) -> HBoxContainer:
 	var lbl = Label.new()
 	lbl.text = FIELD_LABELS.get(key, key)
 	lbl.custom_minimum_size = Vector2(200, 0)
-	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.add_theme_font_size_override("font_size", 26)
 	row.add_child(lbl)
 
 	## Their ask (read-only)
 	var lbl_ask = Label.new()
 	lbl_ask.custom_minimum_size = Vector2(110, 0)
-	lbl_ask.add_theme_font_size_override("font_size", 13)
+	lbl_ask.add_theme_font_size_override("font_size", 26)
 	lbl_ask.add_theme_color_override("font_color", Color(1.0, 0.6, 0.4))
 	if key == "duration_seasons" or key == "seasons_remaining":
 		lbl_ask.text = "%d" % int(ask_val)
@@ -435,7 +437,7 @@ func _build_field_row(key: String, ask_val, offer_val) -> HBoxContainer:
 	## Player input
 	var spin = SpinBox.new()
 	spin.custom_minimum_size = Vector2(130, 36)
-	spin.add_theme_font_size_override("font_size", 13)
+	spin.add_theme_font_size_override("font_size", 26)
 	if key == "duration_seasons":
 		spin.min_value = 1; spin.max_value = 5; spin.step = 1
 	elif key == "seasons_remaining":
@@ -451,7 +453,7 @@ func _build_field_row(key: String, ask_val, offer_val) -> HBoxContainer:
 	var is_locked_old = _neg.get("locked_fields", []).has(key)
 	var lock_btn_old = Button.new()
 	lock_btn_old.custom_minimum_size = Vector2(36, 30)
-	lock_btn_old.add_theme_font_size_override("font_size", 14)
+	lock_btn_old.add_theme_font_size_override("font_size", 28)
 	if is_locked_old:
 		lock_btn_old.text = "🔒"
 		lock_btn_old.tooltip_text = "Locked — click to unlock."
@@ -515,7 +517,7 @@ func _show_waiting_for_reply() -> void:
 
 	var lbl = Label.new()
 	lbl.text = "⏳ Offer submitted — waiting for their reply next week."
-	lbl.add_theme_font_size_override("font_size", 14)
+	lbl.add_theme_font_size_override("font_size", 28)
 	lbl.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -524,7 +526,7 @@ func _show_waiting_for_reply() -> void:
 	var lbl_round = Label.new()
 	lbl_round.text = "Round %d of %d · Advance the week to receive their counter-offer." % [
 		_neg.get("round", 1) - 1, _neg.get("max_rounds", 4)]
-	lbl_round.add_theme_font_size_override("font_size", 12)
+	lbl_round.add_theme_font_size_override("font_size", 24)
 	lbl_round.modulate = Color(0.5, 0.5, 0.5)
 	lbl_round.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_content.add_child(lbl_round)
@@ -532,7 +534,7 @@ func _show_waiting_for_reply() -> void:
 	var btn_close = Button.new()
 	btn_close.text = "Close — Return After Week Advance"
 	btn_close.custom_minimum_size = Vector2(260, 44)
-	btn_close.add_theme_font_size_override("font_size", 14)
+	btn_close.add_theme_font_size_override("font_size", 28)
 	btn_close.pressed.connect(func():
 		queue_free()
 		emit_signal("closed"))
@@ -546,14 +548,14 @@ func _show_result(title: String, body: String, color: Color) -> void:
 
 	var lbl_t = Label.new()
 	lbl_t.text = title
-	lbl_t.add_theme_font_size_override("font_size", 22)
+	lbl_t.add_theme_font_size_override("font_size", 44)
 	lbl_t.add_theme_color_override("font_color", color)
 	lbl_t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_content.add_child(lbl_t)
 
 	var lbl_b = Label.new()
 	lbl_b.text = body
-	lbl_b.add_theme_font_size_override("font_size", 14)
+	lbl_b.add_theme_font_size_override("font_size", 28)
 	lbl_b.modulate = Color(0.7, 0.7, 0.7)
 	lbl_b.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_content.add_child(lbl_b)
@@ -561,7 +563,7 @@ func _show_result(title: String, body: String, color: Color) -> void:
 	var btn = Button.new()
 	btn.text = "Close"
 	btn.custom_minimum_size = Vector2(160, 44)
-	btn.add_theme_font_size_override("font_size", 16)
+	btn.add_theme_font_size_override("font_size", 32)
 	btn.pressed.connect(func():
 		queue_free()
 		emit_signal("closed"))
@@ -604,7 +606,7 @@ func _make_three_col(a: String, b: String, c: String, bold: bool) -> HBoxContain
 		var lbl = Label.new()
 		lbl.text = item[0]
 		lbl.custom_minimum_size = Vector2(item[1], 0)
-		lbl.add_theme_font_size_override("font_size", 10)
+		lbl.add_theme_font_size_override("font_size", 20)
 		lbl.modulate = Color(0.45, 0.45, 0.45)
 		if bold: lbl.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55))
 		row.add_child(lbl)
@@ -614,7 +616,7 @@ func _action_btn(label: String, bg: Color) -> Button:
 	var btn = Button.new()
 	btn.text = label
 	btn.custom_minimum_size = Vector2(0, 38)
-	btn.add_theme_font_size_override("font_size", 13)
+	btn.add_theme_font_size_override("font_size", 26)
 	var style = StyleBoxFlat.new()
 	style.bg_color = bg
 	style.corner_radius_top_left = 4; style.corner_radius_top_right = 4

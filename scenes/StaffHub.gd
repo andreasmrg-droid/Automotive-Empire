@@ -1,4 +1,6 @@
 extends Control
+## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S29.0 — Not-interested popup (issue 1). Page-transition perf: _refresh_list
 ##   detaches rows synchronously (issue 4).
 ## --- S28.3 — Fixed crash risk: Pit Crew "teamwork" (removed) → "fatigue_resistance"
@@ -73,7 +75,7 @@ func _build_ui() -> void:
 	layout.add_child(header)
 	var title = Label.new()
 	title.text = "🧑‍🔧 STAFF"
-	title.add_theme_font_size_override("font_size", 28)
+	title.add_theme_font_size_override("font_size", 56)
 	title.add_theme_color_override("font_color", Color.WHITE)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
@@ -209,7 +211,7 @@ func _rebuild_sort_bar() -> void:
 		var btn = Button.new()
 		btn.text = field[0]
 		btn.custom_minimum_size = Vector2(0, 26)
-		btn.add_theme_font_size_override("font_size", 11)
+		btn.add_theme_font_size_override("font_size", 22)
 		var f = field[1]
 		btn.pressed.connect(func():
 			if sort_field == f:
@@ -229,7 +231,7 @@ func _rebuild_sort_bar() -> void:
 	var btn_interested = Button.new()
 	btn_interested.text = "⭐ Interested Only"
 	btn_interested.custom_minimum_size = Vector2(140, 26)
-	btn_interested.add_theme_font_size_override("font_size", 11)
+	btn_interested.add_theme_font_size_override("font_size", 22)
 	btn_interested.toggle_mode = true
 	btn_interested.button_pressed = interested_only
 	btn_interested.tooltip_text = "Show only staff likely interested in joining your team."
@@ -287,7 +289,7 @@ func _build_page_nav(total: int, start: int, end: int, max_page: int) -> void:
 	var info = Label.new()
 	info.text = "Showing %d–%d of %d  (page %d/%d)" % [
 		start + 1, end, total, current_page + 1, max_page + 1]
-	info.add_theme_font_size_override("font_size", 12)
+	info.add_theme_font_size_override("font_size", 24)
 	info.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 	page_nav_row.add_child(info)
 	var next_btn = Button.new()
@@ -325,7 +327,7 @@ func _build_my_staff_list() -> void:
 		# Role header
 		var role_hdr = Label.new()
 		role_hdr.text = "%s %s" % [ROLE_ICONS.get(role, ""), role.to_upper()]
-		role_hdr.add_theme_font_size_override("font_size", 13)
+		role_hdr.add_theme_font_size_override("font_size", 26)
 		role_hdr.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
 		list_container.add_child(role_hdr)
 
@@ -391,7 +393,7 @@ func _get_role_stats(staff) -> Array:
 func _add_stat_chip(container: HBoxContainer, label: String, value: float) -> void:
 	var lbl = Label.new()
 	lbl.text = "%s %.0f" % [label, value]
-	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.add_theme_font_size_override("font_size", 22)
 	lbl.add_theme_color_override("font_color", _skill_color(value))
 	container.add_child(lbl)
 
@@ -656,7 +658,7 @@ func _show_staff_card(staff_id: String) -> void:
 	vbox.add_child(header)
 	var name_lbl = Label.new()
 	name_lbl.text = "%s %s" % [ROLE_ICONS.get(staff.role, ""), _staff_display_name(staff)]
-	name_lbl.add_theme_font_size_override("font_size", 24)
+	name_lbl.add_theme_font_size_override("font_size", 48)
 	name_lbl.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(name_lbl)
@@ -694,7 +696,7 @@ func _show_staff_card(staff_id: String) -> void:
 	# Role-specific attributes
 	var attrs_title = Label.new()
 	attrs_title.text = "ATTRIBUTES"
-	attrs_title.add_theme_font_size_override("font_size", 15)
+	attrs_title.add_theme_font_size_override("font_size", 30)
 	attrs_title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
 	vbox.add_child(attrs_title)
 
@@ -706,7 +708,7 @@ func _show_staff_card(staff_id: String) -> void:
 		var lbl = Label.new()
 		lbl.text = attr[0]
 		lbl.custom_minimum_size = Vector2(200, 0)
-		lbl.add_theme_font_size_override("font_size", 15)
+		lbl.add_theme_font_size_override("font_size", 30)
 		lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 		row.add_child(lbl)
 		var bar = ProgressBar.new()
@@ -718,7 +720,7 @@ func _show_staff_card(staff_id: String) -> void:
 		row.add_child(bar)
 		var val_lbl = Label.new()
 		val_lbl.text = "%.1f" % attr[1]
-		val_lbl.add_theme_font_size_override("font_size", 15)
+		val_lbl.add_theme_font_size_override("font_size", 30)
 		val_lbl.add_theme_color_override("font_color", _skill_color(attr[1]))
 		row.add_child(val_lbl)
 
@@ -864,7 +866,7 @@ func _show_assign_popup(staff_id: String) -> void:
 	vbox.add_child(header)
 	var title = Label.new()
 	title.text = "Assign %s:" % staff.display_name()
-	title.add_theme_font_size_override("font_size", 15)
+	title.add_theme_font_size_override("font_size", 30)
 	title.add_theme_color_override("font_color", Color.WHITE)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
@@ -996,7 +998,7 @@ func _add_approach_button(btn_row: HBoxContainer, subject_id: String,
 		subject_type: String, subject) -> void:
 	var btn = Button.new()
 	btn.custom_minimum_size = Vector2(180, 28)
-	btn.add_theme_font_size_override("font_size", 11)
+	btn.add_theme_font_size_override("font_size", 22)
 
 	var ap_status = _get_approach_status(subject_id)
 
@@ -1142,7 +1144,7 @@ func _show_timing_popup(subject_id: String, subject_type: String) -> void:
 
 	var lbl = Label.new()
 	lbl.text = "Approach %s" % subject_obj.display_name()
-	lbl.add_theme_font_size_override("font_size", 16)
+	lbl.add_theme_font_size_override("font_size", 32)
 	lbl.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
 	vb.add_child(lbl)
 
@@ -1150,7 +1152,7 @@ func _show_timing_popup(subject_id: String, subject_type: String) -> void:
 	var lbl_est = Label.new()
 	lbl_est.text = "Bond estimate: CR %s – %s" % [
 		_fmt_sal(bond_info["low"]), _fmt_sal(bond_info["high"])]
-	lbl_est.add_theme_font_size_override("font_size", 12)
+	lbl_est.add_theme_font_size_override("font_size", 24)
 	lbl_est.modulate = Color(0.7, 0.7, 0.4)
 	if not bond_info["has_cfo"]: lbl_est.text += "\n⚠ No CFO — estimate ±30%"
 	vb.add_child(lbl_est)
@@ -1205,14 +1207,14 @@ func _show_bond_response_popup(subject_id: String, subject_type: String) -> void
 
 	var lbl_title = Label.new()
 	lbl_title.text = "💰 Bond Counter — %s" % ap["subject_name"]
-	lbl_title.add_theme_font_size_override("font_size", 16)
+	lbl_title.add_theme_font_size_override("font_size", 32)
 	lbl_title.add_theme_color_override("font_color", Color(1.0, 0.75, 0.2))
 	vb.add_child(lbl_title)
 
 	var lbl_ask = Label.new()
 	lbl_ask.text = "%s's team asks: CR %s" % [
 		ap["current_team_name"], _fmt_sal(int(ap["bond_team_ask"]))]
-	lbl_ask.add_theme_font_size_override("font_size", 13)
+	lbl_ask.add_theme_font_size_override("font_size", 26)
 	vb.add_child(lbl_ask)
 
 	var spin = SpinBox.new()
@@ -1391,12 +1393,12 @@ func _card_row(parent: VBoxContainer, label: String, value: String,
 	var lbl = Label.new()
 	lbl.text = label
 	lbl.custom_minimum_size = Vector2(200, 0)
-	lbl.add_theme_font_size_override("font_size", 15)
+	lbl.add_theme_font_size_override("font_size", 30)
 	lbl.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 	row.add_child(lbl)
 	var val = Label.new()
 	val.text = value
-	val.add_theme_font_size_override("font_size", 15)
+	val.add_theme_font_size_override("font_size", 30)
 	val.add_theme_color_override("font_color", value_color)
 	row.add_child(val)
 

@@ -1,4 +1,6 @@
 extends Control
+## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S28.4 — Pit Crew assignment slot + popup in Garage (Bug 6). CNC/provider install
 ##   buttons check success before closing popup;
 ##   show failure notice. "Wet"→"Ctrl" stat label.
@@ -74,17 +76,17 @@ func _build_ui() -> void:
 	root.add_child(hdr)
 
 	_lbl_level = Label.new()
-	_lbl_level.add_theme_font_size_override("font_size", 22)
+	_lbl_level.add_theme_font_size_override("font_size", 44)
 	_lbl_level.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hdr.add_child(_lbl_level)
 
 	_lbl_slots = Label.new()
-	_lbl_slots.add_theme_font_size_override("font_size", 13)
+	_lbl_slots.add_theme_font_size_override("font_size", 26)
 	_lbl_slots.modulate = Color(0.7,0.7,0.7)
 	hdr.add_child(_lbl_slots)
 
 	_lbl_income = Label.new()
-	_lbl_income.add_theme_font_size_override("font_size", 13)
+	_lbl_income.add_theme_font_size_override("font_size", 26)
 	_lbl_income.modulate = Color(0.4,0.9,0.5)
 	hdr.add_child(_lbl_income)
 
@@ -117,7 +119,7 @@ func _build_ui() -> void:
 
 	var lbl_hint = Label.new()
 	lbl_hint.text = "Buy a full car at Logistics (L0 provider parts) or build one at CNC."
-	lbl_hint.add_theme_font_size_override("font_size", 11)
+	lbl_hint.add_theme_font_size_override("font_size", 22)
 	lbl_hint.modulate = Color(0.5,0.5,0.5)
 	lbl_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	abar.add_child(lbl_hint)
@@ -160,7 +162,7 @@ func _build_ui() -> void:
 	var phdr = HBoxContainer.new()
 	pvbox.add_child(phdr)
 	_popup_title = Label.new()
-	_popup_title.add_theme_font_size_override("font_size", 16)
+	_popup_title.add_theme_font_size_override("font_size", 32)
 	_popup_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	phdr.add_child(_popup_title)
 	var pbtn_close = Button.new()
@@ -213,7 +215,7 @@ func _build_tabs() -> void:
 		btn.text = champ.championship_name
 		btn.custom_minimum_size = Vector2(0,32)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.add_theme_font_size_override("font_size", 12)
+		btn.add_theme_font_size_override("font_size", 24)
 		if champ.id == _selected_tab:
 			btn.modulate = Color(0.4,0.85,1.0)
 		var cid = champ.id
@@ -236,7 +238,7 @@ func _show_tab(champ_id: String) -> void:
 		lbl.text = "No cars for this championship.\nBuy a car at Logistics or manufacture one at the CNC Plant."
 		lbl.modulate = Color(0.5,0.5,0.5)
 		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lbl.add_theme_font_size_override("font_size", 13)
+		lbl.add_theme_font_size_override("font_size", 26)
 		_content.add_child(lbl)
 	else:
 		for car in cars:
@@ -256,7 +258,7 @@ func _build_car_card(car) -> PanelContainer:
 
 	var lbl_name = Label.new()
 	lbl_name.text = "🏎 %s" % _car_name(car)
-	lbl_name.add_theme_font_size_override("font_size", 15)
+	lbl_name.add_theme_font_size_override("font_size", 30)
 	lbl_name.add_theme_color_override("font_color", Color(0.7,0.9,1.0))
 	lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hdr.add_child(lbl_name)
@@ -264,7 +266,7 @@ func _build_car_card(car) -> PanelContainer:
 	## Overall condition bar
 	var cond_lbl = Label.new()
 	cond_lbl.text = "Condition: %.0f%%" % car.condition
-	cond_lbl.add_theme_font_size_override("font_size", 12)
+	cond_lbl.add_theme_font_size_override("font_size", 24)
 	var cc = Color(0.3,0.9,0.3) if car.condition > 60 else (Color(1.0,0.75,0.1) if car.condition > 30 else Color(1.0,0.3,0.3))
 	cond_lbl.add_theme_color_override("font_color", cc)
 	hdr.add_child(cond_lbl)
@@ -292,7 +294,7 @@ func _build_car_card(car) -> PanelContainer:
 	# ── Parts grid (2 rows × 3 cols) ──────────────────────────────────────────
 	var parts_title = Label.new()
 	parts_title.text = "PARTS"
-	parts_title.add_theme_font_size_override("font_size", 11)
+	parts_title.add_theme_font_size_override("font_size", 22)
 	parts_title.modulate = Color(0.55,0.55,0.55)
 	vbox.add_child(parts_title)
 
@@ -321,7 +323,7 @@ func _make_staff_slot(car, role: String) -> VBoxContainer:
 
 	var lbl_role = Label.new()
 	lbl_role.text = role
-	lbl_role.add_theme_font_size_override("font_size", 10)
+	lbl_role.add_theme_font_size_override("font_size", 20)
 	lbl_role.modulate = Color(0.5,0.5,0.5)
 	box.add_child(lbl_role)
 
@@ -340,7 +342,7 @@ func _make_staff_slot(car, role: String) -> VBoxContainer:
 		person = GameState.all_staff.get(assigned_id)
 
 	var lbl_name = Label.new()
-	lbl_name.add_theme_font_size_override("font_size", 13)
+	lbl_name.add_theme_font_size_override("font_size", 26)
 	if person:
 		lbl_name.text = person.full_name()
 		lbl_name.add_theme_color_override("font_color", Color(0.9,0.9,0.9))
@@ -356,7 +358,7 @@ func _make_staff_slot(car, role: String) -> VBoxContainer:
 	var btn_assign = Button.new()
 	btn_assign.text = "Change" if person else "Assign"
 	btn_assign.custom_minimum_size = Vector2(72, 26)
-	btn_assign.add_theme_font_size_override("font_size", 11)
+	btn_assign.add_theme_font_size_override("font_size", 22)
 	var cap_car_id = car.id
 	var cap_role = role
 	btn_assign.pressed.connect(func(): _open_staff_popup(cap_car_id, cap_role))
@@ -366,7 +368,7 @@ func _make_staff_slot(car, role: String) -> VBoxContainer:
 		var btn_un = Button.new()
 		btn_un.text = "Unassign"
 		btn_un.custom_minimum_size = Vector2(72, 26)
-		btn_un.add_theme_font_size_override("font_size", 11)
+		btn_un.add_theme_font_size_override("font_size", 22)
 		btn_un.modulate = Color(1.0,0.5,0.5)
 		btn_un.pressed.connect(func():
 			if cap_role == "DRIVER": GameState.unassign_driver_from_car(cap_car_id)
@@ -396,14 +398,14 @@ func _build_part_slot(car, pcode: String, is_spec: bool, part_data: Dictionary) 
 
 	var lbl_name = Label.new()
 	lbl_name.text = PART_NAMES.get(pcode, pcode)
-	lbl_name.add_theme_font_size_override("font_size", 12)
+	lbl_name.add_theme_font_size_override("font_size", 24)
 	lbl_name.add_theme_color_override("font_color", col)
 	lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row1.add_child(lbl_name)
 
 	var lbl_spec = Label.new()
 	lbl_spec.text = "SPEC" if is_spec else "OPEN"
-	lbl_spec.add_theme_font_size_override("font_size", 9)
+	lbl_spec.add_theme_font_size_override("font_size", 18)
 	lbl_spec.add_theme_color_override("font_color",
 		Color(1.0,0.6,0.2) if is_spec else Color(0.4,0.88,0.55))
 	row1.add_child(lbl_spec)
@@ -412,7 +414,7 @@ func _build_part_slot(car, pcode: String, is_spec: bool, part_data: Dictionary) 
 	if is_empty:
 		var lbl_empty = Label.new()
 		lbl_empty.text = "⚠ EMPTY SLOT"
-		lbl_empty.add_theme_font_size_override("font_size", 11)
+		lbl_empty.add_theme_font_size_override("font_size", 22)
 		lbl_empty.add_theme_color_override("font_color", Color(1.0,0.35,0.35))
 		vbox.add_child(lbl_empty)
 	else:
@@ -428,7 +430,7 @@ func _build_part_slot(car, pcode: String, is_spec: bool, part_data: Dictionary) 
 		vbox.add_child(lv_row)
 		var lbl_lv = Label.new()
 		lbl_lv.text = "L%d" % level
-		lbl_lv.add_theme_font_size_override("font_size", 13)
+		lbl_lv.add_theme_font_size_override("font_size", 26)
 		var lv_colors = {0:Color(0.55,0.55,0.55),1:Color(0.4,0.88,0.55),
 			2:Color(0.55,0.75,1.0),3:Color(1.0,0.75,0.3),
 			4:Color(1.0,0.45,0.45),5:Color(0.85,0.4,1.0)}
@@ -437,20 +439,20 @@ func _build_part_slot(car, pcode: String, is_spec: bool, part_data: Dictionary) 
 		if ptype == "provider":
 			var lbl_prov = Label.new()
 			lbl_prov.text = "Provider"
-			lbl_prov.add_theme_font_size_override("font_size", 10)
+			lbl_prov.add_theme_font_size_override("font_size", 20)
 			lbl_prov.modulate = Color(0.6,0.6,0.6)
 			lv_row.add_child(lbl_prov)
 		else:
 			var lbl_cnc = Label.new()
 			lbl_cnc.text = "CNC"
-			lbl_cnc.add_theme_font_size_override("font_size", 10)
+			lbl_cnc.add_theme_font_size_override("font_size", 20)
 			lbl_cnc.add_theme_color_override("font_color", Color(0.4,0.9,0.4))
 			lv_row.add_child(lbl_cnc)
 
 		## Stats row
 		var stats = Label.new()
 		stats.text = "Rel: %.0f%%  Qual: %.2f×" % [rel, qual]
-		stats.add_theme_font_size_override("font_size", 10)
+		stats.add_theme_font_size_override("font_size", 20)
 		stats.modulate = Color(0.65,0.65,0.65)
 		vbox.add_child(stats)
 
@@ -460,7 +462,7 @@ func _build_part_slot(car, pcode: String, is_spec: bool, part_data: Dictionary) 
 		vbox.add_child(cond_row)
 		var cond_lbl = Label.new()
 		cond_lbl.text = "%.0f%%" % cond
-		cond_lbl.add_theme_font_size_override("font_size", 10)
+		cond_lbl.add_theme_font_size_override("font_size", 20)
 		var cc = Color(0.3,0.9,0.3) if cond > 60 else (Color(1.0,0.75,0.1) if cond > 30 else Color(1.0,0.3,0.3))
 		cond_lbl.add_theme_color_override("font_color", cc)
 		cond_row.add_child(cond_lbl)
@@ -485,14 +487,14 @@ func _build_part_slot(car, pcode: String, is_spec: bool, part_data: Dictionary) 
 		var btn_change = Button.new()
 		btn_change.text = "Change"
 		btn_change.custom_minimum_size = Vector2(62, 24)
-		btn_change.add_theme_font_size_override("font_size", 10)
+		btn_change.add_theme_font_size_override("font_size", 20)
 		btn_change.pressed.connect(func(): _open_part_popup(cap_car_id, cap_pcode, cap_cid))
 		btn_row.add_child(btn_change)
 		## Remove button
 		var btn_remove = Button.new()
 		btn_remove.text = "Remove"
 		btn_remove.custom_minimum_size = Vector2(62, 24)
-		btn_remove.add_theme_font_size_override("font_size", 10)
+		btn_remove.add_theme_font_size_override("font_size", 20)
 		btn_remove.modulate = Color(1.0,0.5,0.5)
 		var ptype2 = part_data.get("type","provider")
 		btn_remove.pressed.connect(func():
@@ -505,7 +507,7 @@ func _build_part_slot(car, pcode: String, is_spec: bool, part_data: Dictionary) 
 		var btn_install = Button.new()
 		btn_install.text = "Install →"
 		btn_install.custom_minimum_size = Vector2(72, 24)
-		btn_install.add_theme_font_size_override("font_size", 10)
+		btn_install.add_theme_font_size_override("font_size", 20)
 		btn_install.pressed.connect(func(): _open_part_popup(cap_car_id, cap_pcode, cap_cid))
 		btn_row.add_child(btn_install)
 
@@ -529,7 +531,7 @@ func _open_part_popup(car_id: String, pcode: String, champ_id: String) -> void:
 	if not cnc_keys.is_empty():
 		var sec = Label.new()
 		sec.text = "CNC PARTS IN WAREHOUSE"
-		sec.add_theme_font_size_override("font_size", 11)
+		sec.add_theme_font_size_override("font_size", 22)
 		sec.add_theme_color_override("font_color", Color(0.4,0.9,0.4))
 		_popup_list.add_child(sec)
 		for inv_key in cnc_keys:
@@ -548,11 +550,11 @@ func _open_part_popup(car_id: String, pcode: String, champ_id: String) -> void:
 			var lbl = Label.new()
 			lbl.text = "%s  L%d" % [bp_name, lvl]
 			lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			lbl.add_theme_font_size_override("font_size", 12)
+			lbl.add_theme_font_size_override("font_size", 24)
 			row.add_child(lbl)
 			var lbl_qty = Label.new()
 			lbl_qty.text = "×%d" % qty
-			lbl_qty.add_theme_font_size_override("font_size", 11)
+			lbl_qty.add_theme_font_size_override("font_size", 22)
 			lbl_qty.modulate = Color(0.6,0.6,0.6)
 			row.add_child(lbl_qty)
 			var btn = Button.new()
@@ -574,7 +576,7 @@ func _open_part_popup(car_id: String, pcode: String, champ_id: String) -> void:
 		_popup_list.add_child(HSeparator.new())
 		var sec2 = Label.new()
 		sec2.text = "PROVIDER PARTS (L0)"
-		sec2.add_theme_font_size_override("font_size", 11)
+		sec2.add_theme_font_size_override("font_size", 22)
 		sec2.add_theme_color_override("font_color", Color(0.7,0.7,0.7))
 		_popup_list.add_child(sec2)
 		var row = HBoxContainer.new()
@@ -583,11 +585,11 @@ func _open_part_popup(car_id: String, pcode: String, champ_id: String) -> void:
 		var lbl = Label.new()
 		lbl.text = "%s  L0  (Provider)" % part_name
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_font_size_override("font_size", 24)
 		row.add_child(lbl)
 		var lbl_qty = Label.new()
 		lbl_qty.text = "×%d" % prov_stock
-		lbl_qty.add_theme_font_size_override("font_size", 11)
+		lbl_qty.add_theme_font_size_override("font_size", 22)
 		lbl_qty.modulate = Color(0.6,0.6,0.6)
 		row.add_child(lbl_qty)
 		var btn = Button.new()
@@ -608,7 +610,7 @@ func _open_part_popup(car_id: String, pcode: String, champ_id: String) -> void:
 		lbl_none.text = "No parts available.\nBuy provider parts at Logistics or manufacture CNC parts."
 		lbl_none.modulate = Color(0.5,0.5,0.5)
 		lbl_none.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		lbl_none.add_theme_font_size_override("font_size", 12)
+		lbl_none.add_theme_font_size_override("font_size", 24)
 		_popup_list.add_child(lbl_none)
 		var btn_logi = Button.new()
 		btn_logi.text = "→ Logistics"
@@ -684,7 +686,7 @@ func _open_staff_popup(car_id: String, role: String) -> void:
 
 		var lbl_name = Label.new()
 		lbl_name.text = p.full_name()
-		lbl_name.add_theme_font_size_override("font_size", 13)
+		lbl_name.add_theme_font_size_override("font_size", 26)
 		lbl_name.add_theme_color_override("font_color",
 			Color(0.4, 0.95, 0.5) if is_assigned_here else Color(0.9, 0.9, 1.0))
 		lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -692,7 +694,7 @@ func _open_staff_popup(car_id: String, role: String) -> void:
 
 		var lbl_age = Label.new()
 		lbl_age.text = "Age %d" % p.age
-		lbl_age.add_theme_font_size_override("font_size", 11)
+		lbl_age.add_theme_font_size_override("font_size", 22)
 		lbl_age.modulate = Color(0.5, 0.5, 0.5)
 		name_row.add_child(lbl_age)
 
@@ -700,7 +702,7 @@ func _open_staff_popup(car_id: String, role: String) -> void:
 		if assignment_label != "":
 			var lbl_assign = Label.new()
 			lbl_assign.text = "← %s" % assignment_label
-			lbl_assign.add_theme_font_size_override("font_size", 10)
+			lbl_assign.add_theme_font_size_override("font_size", 20)
 			lbl_assign.add_theme_color_override("font_color",
 				Color(0.4, 0.9, 0.4) if is_assigned_here else Color(0.6, 0.6, 0.6))
 			name_row.add_child(lbl_assign)
@@ -773,12 +775,12 @@ func _add_stat_chip(parent: HBoxContainer, label: String, value: int) -> void:
 	parent.add_child(chip)
 	var ll = Label.new()
 	ll.text = label
-	ll.add_theme_font_size_override("font_size", 10)
+	ll.add_theme_font_size_override("font_size", 20)
 	ll.modulate = Color(0.45, 0.45, 0.45)
 	chip.add_child(ll)
 	var lv = Label.new()
 	lv.text = str(value)
-	lv.add_theme_font_size_override("font_size", 11)
+	lv.add_theme_font_size_override("font_size", 22)
 	lv.add_theme_color_override("font_color",
 		Color(0.4, 0.9, 0.4) if value >= 70
 		else Color(1.0, 0.85, 0.3) if value >= 50

@@ -1,4 +1,7 @@
 extends Control
+## Version: S29.7 — Registration button moved to TOP of WRA panel, above the "Racing
+##   this Season" box (#8). S29.6: removed duplicate "Take Loan" button (#4).
+## --- S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
 ## Version: S28.3 — Team-colour badge in HQ header (Bug 5); "Wet"→"Ctrl" stat label.
 ## --- S28.2 — WRA registration panel split into THIS SEASON (current race set, full
 ##   requirement checklist) + NEXT SEASON (planned, compact rows from the ledger). Reads
@@ -63,7 +66,7 @@ func _build_ui() -> void:
 	badge.add_theme_stylebox_override("panel", badge_style)
 	var badge_lbl = Label.new()
 	badge_lbl.text = GameState.player_team_name
-	badge_lbl.add_theme_font_size_override("font_size", 16)
+	badge_lbl.add_theme_font_size_override("font_size", 32)
 	## Pick readable text color: secondary unless it's too close to primary, then white/black by luminance.
 	badge_lbl.add_theme_color_override("font_color", GameState.team_color_secondary)
 	badge.add_child(badge_lbl)
@@ -71,7 +74,7 @@ func _build_ui() -> void:
 
 	var lbl_title = Label.new()
 	lbl_title.text = "🏛  HEADQUARTERS"
-	lbl_title.add_theme_font_size_override("font_size", 22)
+	lbl_title.add_theme_font_size_override("font_size", 44)
 	lbl_title.add_theme_color_override("font_color", Color.WHITE)
 	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(lbl_title)
@@ -79,7 +82,7 @@ func _build_ui() -> void:
 	var building = GameState.campus_buildings.get("Headquarters", {})
 	var lbl_lv = Label.new()
 	lbl_lv.text = "Level %d" % building.get("level", 1)
-	lbl_lv.add_theme_font_size_override("font_size", 13)
+	lbl_lv.add_theme_font_size_override("font_size", 26)
 	lbl_lv.add_theme_color_override("font_color", Color(0.4, 0.9, 0.5))
 	header.add_child(lbl_lv)
 
@@ -102,7 +105,7 @@ func _build_ui() -> void:
 		btn.text = tab[1]
 		btn.custom_minimum_size = Vector2(0, 36)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.add_theme_font_size_override("font_size", 13)
+		btn.add_theme_font_size_override("font_size", 26)
 		var tid = tab[0]
 		btn.pressed.connect(func(): _show_tab(tid))
 		tab_bar.add_child(btn)
@@ -231,16 +234,16 @@ func _build_ceo_card() -> PanelContainer:
 	var name_row = HBoxContainer.new()
 	name_row.add_theme_constant_override("separation", 8)
 	var icon = Label.new(); icon.text = "👔"
-	icon.add_theme_font_size_override("font_size", 20)
+	icon.add_theme_font_size_override("font_size", 40)
 	name_row.add_child(icon)
 	var name_vb = VBoxContainer.new()
 	var lbl_role = Label.new(); lbl_role.text = "CEO  (You)"
-	lbl_role.add_theme_font_size_override("font_size", 10)
+	lbl_role.add_theme_font_size_override("font_size", 20)
 	lbl_role.modulate = Color(0.5, 0.5, 0.5)
 	name_vb.add_child(lbl_role)
 	var lbl_name = Label.new()
 	lbl_name.text = GameState.player_name if GameState.player_name != "" else "CEO"
-	lbl_name.add_theme_font_size_override("font_size", 15)
+	lbl_name.add_theme_font_size_override("font_size", 30)
 	lbl_name.add_theme_color_override("font_color", Color.WHITE)
 	name_vb.add_child(lbl_name)
 	name_row.add_child(name_vb)
@@ -300,7 +303,7 @@ func _build_effects_card() -> PanelContainer:
 		["Loan Tier %d" % min(lv / 3 + 1, 5), Color(0.6, 0.8, 1.0)],
 	]:
 		var lbl = Label.new(); lbl.text = rd[0]
-		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_font_size_override("font_size", 24)
 		lbl.add_theme_color_override("font_color", rd[1])
 		vbox.add_child(lbl)
 	return panel
@@ -326,7 +329,7 @@ func _build_champs_strip() -> VBoxContainer:
 		lbl.text = "No active championships. Register via World Racing Association tab."
 		lbl.modulate = Color(0.5, 0.5, 0.5)
 		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_font_size_override("font_size", 24)
 		vbox.add_child(lbl)
 		return vbox
 
@@ -342,7 +345,7 @@ func _build_champs_strip() -> VBoxContainer:
 
 		var lbl_name = Label.new()
 		lbl_name.text = "🏆 %s" % champ.championship_name
-		lbl_name.add_theme_font_size_override("font_size", 13)
+		lbl_name.add_theme_font_size_override("font_size", 26)
 		lbl_name.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
 		info.add_child(lbl_name)
 
@@ -357,7 +360,7 @@ func _build_champs_strip() -> VBoxContainer:
 		var lbl_detail = Label.new()
 		lbl_detail.text = "P%d  ·  %d pts  ·  Round %d / %d" % [
 			player_pos, player_pts, races_done, champ.num_races]
-		lbl_detail.add_theme_font_size_override("font_size", 11)
+		lbl_detail.add_theme_font_size_override("font_size", 22)
 		lbl_detail.modulate = Color(0.55, 0.55, 0.55)
 		info.add_child(lbl_detail)
 
@@ -373,7 +376,7 @@ func _build_drivers_strip() -> VBoxContainer:
 	if GameState.player_team.drivers.is_empty():
 		var lbl = Label.new(); lbl.text = "No drivers signed."
 		lbl.modulate = Color(0.5, 0.5, 0.5)
-		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_font_size_override("font_size", 24)
 		vbox.add_child(lbl)
 		return vbox
 
@@ -386,21 +389,21 @@ func _build_drivers_strip() -> VBoxContainer:
 		var lbl_name = Label.new()
 		lbl_name.text = d.full_name()
 		lbl_name.custom_minimum_size = Vector2(150, 0)
-		lbl_name.add_theme_font_size_override("font_size", 12)
+		lbl_name.add_theme_font_size_override("font_size", 24)
 		lbl_name.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
 		row.add_child(lbl_name)
 
 		for stat in [["Pace", d.pace],["Ctrl", d.car_control],["Focus", d.focus],["Craft", d.race_craft]]:
 			var sl = Label.new()
 			sl.text = "%s %.0f" % [stat[0], stat[1]]
-			sl.add_theme_font_size_override("font_size", 11)
+			sl.add_theme_font_size_override("font_size", 22)
 			sl.add_theme_color_override("font_color", _skill_col(stat[1]))
 			sl.custom_minimum_size = Vector2(68, 0)
 			row.add_child(sl)
 
 		var lbl_sal = Label.new()
 		lbl_sal.text = "CR %s/wk" % _fmt(int(d.weekly_salary)) if d.weekly_salary > 0 else "—"
-		lbl_sal.add_theme_font_size_override("font_size", 11)
+		lbl_sal.add_theme_font_size_override("font_size", 22)
 		lbl_sal.modulate = Color(0.5, 0.5, 0.5)
 		row.add_child(lbl_sal)
 
@@ -422,7 +425,7 @@ func _build_staff_grid() -> VBoxContainer:
 	if hired.is_empty():
 		var lbl = Label.new(); lbl.text = "No staff hired."
 		lbl.modulate = Color(0.5, 0.5, 0.5)
-		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_font_size_override("font_size", 24)
 		vbox.add_child(lbl)
 		return vbox
 
@@ -443,7 +446,7 @@ func _build_staff_grid() -> VBoxContainer:
 		var staffs = by_role[role]
 		var sec = Label.new()
 		sec.text = role.to_upper()
-		sec.add_theme_font_size_override("font_size", 10)
+		sec.add_theme_font_size_override("font_size", 20)
 		sec.modulate = Color(0.4, 0.4, 0.4)
 		vbox.add_child(sec)
 
@@ -454,13 +457,13 @@ func _build_staff_grid() -> VBoxContainer:
 			var lbl_n = Label.new()
 			lbl_n.text = s.full_name()
 			lbl_n.custom_minimum_size = Vector2(150, 0)
-			lbl_n.add_theme_font_size_override("font_size", 12)
+			lbl_n.add_theme_font_size_override("font_size", 24)
 			lbl_n.add_theme_color_override("font_color", Color(0.82, 0.82, 0.82))
 			row.add_child(lbl_n)
 
 			var lbl_sk = Label.new()
 			lbl_sk.text = "%s %.0f" % [s.get_primary_skill_label(), s.get_primary_skill()]
-			lbl_sk.add_theme_font_size_override("font_size", 12)
+			lbl_sk.add_theme_font_size_override("font_size", 24)
 			lbl_sk.add_theme_color_override("font_color", _skill_col(s.get_primary_skill()))
 			lbl_sk.custom_minimum_size = Vector2(100, 0)
 			row.add_child(lbl_sk)
@@ -468,7 +471,7 @@ func _build_staff_grid() -> VBoxContainer:
 			var lbl_c = Label.new()
 			lbl_c.text = "%d season%s" % [s.contract_seasons_remaining,
 				"s" if s.contract_seasons_remaining != 1 else ""]
-			lbl_c.add_theme_font_size_override("font_size", 11)
+			lbl_c.add_theme_font_size_override("font_size", 22)
 			lbl_c.add_theme_color_override("font_color",
 				Color(1.0, 0.4, 0.4) if s.contract_seasons_remaining <= 1
 				else Color(0.5, 0.5, 0.5))
@@ -485,7 +488,7 @@ func _build_active_sponsor_card_hq() -> VBoxContainer:
 	if GameState.active_sponsors.is_empty():
 		var lbl = Label.new(); lbl.text = "No sponsors signed."
 		lbl.modulate = Color(0.5, 0.5, 0.5)
-		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_font_size_override("font_size", 24)
 		vbox.add_child(lbl)
 		return vbox
 
@@ -497,7 +500,7 @@ func _build_active_sponsor_card_hq() -> VBoxContainer:
 		var lbl_name = Label.new()
 		lbl_name.text = sp.get("name", "?")
 		lbl_name.custom_minimum_size = Vector2(160, 0)
-		lbl_name.add_theme_font_size_override("font_size", 12)
+		lbl_name.add_theme_font_size_override("font_size", 24)
 		lbl_name.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
 		row.add_child(lbl_name)
 
@@ -520,7 +523,7 @@ func _build_active_sponsor_card_hq() -> VBoxContainer:
 		var lbl_detail = Label.new()
 		lbl_detail.text = detail
 		lbl_detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		lbl_detail.add_theme_font_size_override("font_size", 11)
+		lbl_detail.add_theme_font_size_override("font_size", 22)
 		lbl_detail.add_theme_color_override("font_color", detail_col)
 		row.add_child(lbl_detail)
 
@@ -528,7 +531,7 @@ func _build_active_sponsor_card_hq() -> VBoxContainer:
 		var seasons = sp.get("seasons_remaining", 1)
 		var lbl_s = Label.new()
 		lbl_s.text = "%d season%s left" % [seasons, "s" if seasons != 1 else ""]
-		lbl_s.add_theme_font_size_override("font_size", 11)
+		lbl_s.add_theme_font_size_override("font_size", 22)
 		lbl_s.add_theme_color_override("font_color",
 			Color(1.0, 0.4, 0.4) if seasons <= 1 else Color(0.5, 0.5, 0.5))
 		row.add_child(lbl_s)
@@ -553,13 +556,13 @@ func _build_tp_slots() -> VBoxContainer:
 			var tp = hired_tp[i]
 			var lbl_n = Label.new()
 			lbl_n.text = "🧑‍💼 " + tp.full_name()
-			lbl_n.add_theme_font_size_override("font_size", 13)
+			lbl_n.add_theme_font_size_override("font_size", 26)
 			lbl_n.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
 			inner.add_child(lbl_n)
 			var lbl_s = Label.new()
 			lbl_s.text = "Strat %.0f  ·  Pace %.0f  ·  CR %s/wk" % [
 				tp.race_strategy, tp.race_pace_reading, _fmt(int(tp.weekly_salary))]
-			lbl_s.add_theme_font_size_override("font_size", 11)
+			lbl_s.add_theme_font_size_override("font_size", 22)
 			lbl_s.modulate = Color(0.55, 0.55, 0.55)
 			inner.add_child(lbl_s)
 
@@ -568,7 +571,7 @@ func _build_tp_slots() -> VBoxContainer:
 			var lbl_a = Label.new()
 			lbl_a.text = "→ %s" % reg.get("name", tp.assigned_championship) \
 				if tp.assigned_championship != "" else "⚠ Not assigned"
-			lbl_a.add_theme_font_size_override("font_size", 11)
+			lbl_a.add_theme_font_size_override("font_size", 22)
 			lbl_a.add_theme_color_override("font_color",
 				Color(0.4, 0.85, 0.4) if tp.assigned_championship != ""
 				else Color(1.0, 0.6, 0.2))
@@ -579,14 +582,14 @@ func _build_tp_slots() -> VBoxContainer:
 			inner.add_child(btn_row)
 			var btn_assign = Button.new()
 			btn_assign.text = "Assign →"
-			btn_assign.add_theme_font_size_override("font_size", 10)
+			btn_assign.add_theme_font_size_override("font_size", 20)
 			btn_assign.custom_minimum_size = Vector2(70, 22)
 			var tp_id = tp.id
 			btn_assign.pressed.connect(func(): _show_tp_assign_popup(tp_id))
 			btn_row.add_child(btn_assign)
 			var btn_rel = Button.new()
 			btn_rel.text = "Release"
-			btn_rel.add_theme_font_size_override("font_size", 10)
+			btn_rel.add_theme_font_size_override("font_size", 20)
 			btn_rel.custom_minimum_size = Vector2(60, 22)
 			btn_rel.modulate = Color(1.0, 0.45, 0.45)
 			var tid = tp.id
@@ -598,11 +601,11 @@ func _build_tp_slots() -> VBoxContainer:
 			var lbl_e = Label.new()
 			lbl_e.text = "TP Slot %d — Empty" % (i + 1)
 			lbl_e.modulate = Color(0.45, 0.45, 0.45)
-			lbl_e.add_theme_font_size_override("font_size", 12)
+			lbl_e.add_theme_font_size_override("font_size", 24)
 			inner.add_child(lbl_e)
 			var btn_h = Button.new()
 			btn_h.text = "Hire TP →"
-			btn_h.add_theme_font_size_override("font_size", 11)
+			btn_h.add_theme_font_size_override("font_size", 22)
 			btn_h.pressed.connect(func():
 				GameState.pending_staff_filter = "Team Principal"
 				get_tree().change_scene_to_file("res://scenes/Staff.tscn"))
@@ -655,7 +658,7 @@ func _show_tp_assign_popup(tp_id: String) -> void:
 	var hdr = HBoxContainer.new()
 	var lbl = Label.new()
 	lbl.text = "Assign %s to championship:" % (tp.full_name() if tp else "TP")
-	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.add_theme_font_size_override("font_size", 26)
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hdr.add_child(lbl)
@@ -731,25 +734,25 @@ func _build_cfo_slot() -> PanelContainer:
 		var cfo = cfos[0]
 		var lbl_n = Label.new()
 		lbl_n.text = "💼 " + cfo.full_name()
-		lbl_n.add_theme_font_size_override("font_size", 13)
+		lbl_n.add_theme_font_size_override("font_size", 26)
 		lbl_n.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
 		inner.add_child(lbl_n)
 		var lbl_s = Label.new()
 		lbl_s.text = "FinMgmt %.0f  ·  Neg %.0f  ·  Sales %.0f" % [
 			cfo.budget_planning, cfo.sponsor_negotiation, cfo.sales_skill]
-		lbl_s.add_theme_font_size_override("font_size", 11)
+		lbl_s.add_theme_font_size_override("font_size", 22)
 		lbl_s.modulate = Color(0.55, 0.55, 0.55)
 		inner.add_child(lbl_s)
 		var lbl_c = Label.new()
 		lbl_c.text = "CR %s/wk  ·  %d season%s left" % [
 			_fmt(int(cfo.weekly_salary)), cfo.contract_seasons_remaining,
 			"s" if cfo.contract_seasons_remaining != 1 else ""]
-		lbl_c.add_theme_font_size_override("font_size", 11)
+		lbl_c.add_theme_font_size_override("font_size", 22)
 		lbl_c.modulate = Color(0.5, 0.5, 0.5)
 		inner.add_child(lbl_c)
 		var btn_rel = Button.new()
 		btn_rel.text = "Release CFO"
-		btn_rel.add_theme_font_size_override("font_size", 11)
+		btn_rel.add_theme_font_size_override("font_size", 22)
 		btn_rel.modulate = Color(1.0, 0.45, 0.45)
 		var cid = cfo.id
 		btn_rel.pressed.connect(func():
@@ -770,17 +773,17 @@ func _build_cfo_slot() -> PanelContainer:
 			btn_search.pressed.connect(func():
 				GameState.start_cfo_sponsor_search()
 				_show_tab("overview"))
-		btn_search.add_theme_font_size_override("font_size", 11)
+		btn_search.add_theme_font_size_override("font_size", 22)
 		inner.add_child(btn_search)
 	else:
 		var lbl_e = Label.new()
 		lbl_e.text = "— No CFO hired —"
 		lbl_e.modulate = Color(0.9, 0.5, 0.15)
-		lbl_e.add_theme_font_size_override("font_size", 13)
+		lbl_e.add_theme_font_size_override("font_size", 26)
 		inner.add_child(lbl_e)
 		var btn_h = Button.new()
 		btn_h.text = "Hire CFO →"
-		btn_h.add_theme_font_size_override("font_size", 11)
+		btn_h.add_theme_font_size_override("font_size", 22)
 		btn_h.pressed.connect(func():
 			GameState.pending_staff_filter = "CFO"
 			get_tree().change_scene_to_file("res://scenes/Staff.tscn"))
@@ -800,7 +803,7 @@ func _build_nav_buttons() -> VBoxContainer:
 		var btn = Button.new()
 		btn.text = btn_data[0]
 		btn.custom_minimum_size = Vector2(0, 32)
-		btn.add_theme_font_size_override("font_size", 12)
+		btn.add_theme_font_size_override("font_size", 24)
 		var dest = btn_data[1]
 		btn.pressed.connect(func(): get_tree().change_scene_to_file(dest))
 		vbox.add_child(btn)
@@ -812,26 +815,16 @@ func _build_nav_buttons() -> VBoxContainer:
 # ══════════════════════════════════════════════════════════════════════════════
 
 func _build_sponsors_tab(parent: VBoxContainer) -> void:
-	## ── Quick action bar: Loan button prominent at top ───────────────────────
+	## ── Info bar (S29.6: removed the duplicate "Take Loan" button that was here;
+	## the single loan entry point now lives in the LOANS section below). ───────
 	var action_bar = HBoxContainer.new()
 	action_bar.add_theme_constant_override("separation", 12)
 	parent.add_child(action_bar)
 
-	var loan_slots = GameState.active_loans.size()
-	var max_slots  = GameState.get_max_loan_slots()
-	var btn_loan = Button.new()
-	btn_loan.text = "🏦  Take Loan  (%d/%d slots)" % [loan_slots, max_slots]
-	btn_loan.custom_minimum_size = Vector2(200, 38)
-	btn_loan.add_theme_font_size_override("font_size", 13)
-	btn_loan.disabled = loan_slots >= max_slots
-	btn_loan.modulate = Color(0.5, 0.8, 1.0)
-	btn_loan.pressed.connect(func(): _show_take_loan_popup())
-	action_bar.add_child(btn_loan)
-
 	var lbl_rate = Label.new()
 	lbl_rate.text = "Current rate: %.1f%%/yr  ·  Economy: %s (%.0f)" % [
 		GameState.current_loan_rate, GameState.global_economy_state, GameState.economy_index]
-	lbl_rate.add_theme_font_size_override("font_size", 11)
+	lbl_rate.add_theme_font_size_override("font_size", 22)
 	lbl_rate.modulate = Color(0.55, 0.55, 0.55)
 	lbl_rate.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	action_bar.add_child(lbl_rate)
@@ -878,7 +871,7 @@ func _build_sponsors_tab(parent: VBoxContainer) -> void:
 		var btn = Button.new()
 		btn.text = gdata[0]
 		btn.custom_minimum_size = Vector2(110, 28)
-		btn.add_theme_font_size_override("font_size", 11)
+		btn.add_theme_font_size_override("font_size", 22)
 		var gkey = gdata[1]
 		btn.pressed.connect(func():
 			for c in graph_container.get_children(): c.queue_free()
@@ -898,7 +891,7 @@ func _build_sponsors_tab(parent: VBoxContainer) -> void:
 	var sp_used_slots = GameState.active_sponsors.size()
 	var lbl_slots  = Label.new()
 	lbl_slots.text = "Sponsor Slots:  %d / %d" % [sp_used_slots, sp_max_slots]
-	lbl_slots.add_theme_font_size_override("font_size", 14)
+	lbl_slots.add_theme_font_size_override("font_size", 28)
 	lbl_slots.add_theme_color_override("font_color",
 		Color(0.4, 0.9, 0.4) if sp_used_slots < sp_max_slots else Color(1.0, 0.55, 0.2))
 	slot_row.add_child(lbl_slots)
@@ -928,7 +921,7 @@ func _build_sponsors_tab(parent: VBoxContainer) -> void:
 	if GameState.active_sponsors.is_empty():
 		var lbl = Label.new(); lbl.text = "No active sponsors."
 		lbl.modulate = Color(0.5, 0.5, 0.5)
-		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_font_size_override("font_size", 24)
 		sp_left.add_child(lbl)
 	else:
 		for sp in GameState.active_sponsors:
@@ -944,7 +937,7 @@ func _build_sponsors_tab(parent: VBoxContainer) -> void:
 	if GameState.sponsor_offers.is_empty():
 		var lbl = Label.new(); lbl.text = "No offers pending."
 		lbl.modulate = Color(0.5, 0.5, 0.5)
-		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_font_size_override("font_size", 24)
 		sp_right.add_child(lbl)
 	else:
 		for offer in GameState.sponsor_offers:
@@ -971,7 +964,7 @@ func _build_fin_income() -> PanelContainer:
 	var panel = _fin_panel(Color(0.3, 0.7, 0.3))
 	var vbox = panel.get_child(0)
 	var lbl = Label.new(); lbl.text = "WEEKLY INCOME"
-	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.add_theme_font_size_override("font_size", 26)
 	lbl.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
 	vbox.add_child(lbl); vbox.add_child(HSeparator.new())
 
@@ -1004,7 +997,7 @@ func _build_fin_expenses() -> PanelContainer:
 	var panel = _fin_panel(Color(0.8, 0.3, 0.3))
 	var vbox = panel.get_child(0)
 	var lbl = Label.new(); lbl.text = "WEEKLY EXPENSES"
-	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.add_theme_font_size_override("font_size", 26)
 	lbl.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4))
 	vbox.add_child(lbl); vbox.add_child(HSeparator.new())
 
@@ -1046,7 +1039,7 @@ func _build_fin_indicators() -> PanelContainer:
 	var panel = _fin_panel(Color(0.3, 0.55, 0.9))
 	var vbox = panel.get_child(0)
 	var lbl = Label.new(); lbl.text = "KEY INDICATORS"
-	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.add_theme_font_size_override("font_size", 26)
 	lbl.add_theme_color_override("font_color", Color(0.4, 0.7, 1.0))
 	vbox.add_child(lbl); vbox.add_child(HSeparator.new())
 	var runway = GameState.get_runway_weeks()
@@ -1073,11 +1066,11 @@ func _build_fin_indicators() -> PanelContainer:
 		vbox.add_child(row)
 		var kl = Label.new(); kl.text = ind[0]
 		kl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		kl.add_theme_font_size_override("font_size", 11)
+		kl.add_theme_font_size_override("font_size", 22)
 		kl.modulate = Color(0.6,0.6,0.6)
 		row.add_child(kl)
 		var vl = Label.new(); vl.text = ind[1]
-		vl.add_theme_font_size_override("font_size", 11)
+		vl.add_theme_font_size_override("font_size", 22)
 		vl.add_theme_color_override("font_color", ind[2])
 		vl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		vl.custom_minimum_size = Vector2(110, 0)
@@ -1094,14 +1087,14 @@ func _build_cfo_proposals_panel() -> PanelContainer:
 		var e = Label.new()
 		e.text = "No CFO hired — hire one to receive financial proposals."
 		e.modulate = Color(0.45, 0.45, 0.45)
-		e.add_theme_font_size_override("font_size", 12)
+		e.add_theme_font_size_override("font_size", 24)
 		e.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		vbox.add_child(e)
 		return panel
 	var lbl_c = Label.new()
 	lbl_c.text = "CFO: %s  ·  FinMgmt %.0f  ·  Negotiation %.0f" % [
 		cfo.full_name(), cfo.budget_planning, cfo.sponsor_negotiation]
-	lbl_c.add_theme_font_size_override("font_size", 12)
+	lbl_c.add_theme_font_size_override("font_size", 24)
 	lbl_c.modulate = Color(0.65, 0.65, 0.65)
 	vbox.add_child(lbl_c)
 	vbox.add_child(HSeparator.new())
@@ -1109,13 +1102,13 @@ func _build_cfo_proposals_panel() -> PanelContainer:
 	if proposals.is_empty():
 		var ok = Label.new()
 		ok.text = "✅ All financial indicators healthy this week."
-		ok.add_theme_font_size_override("font_size", 12)
+		ok.add_theme_font_size_override("font_size", 24)
 		ok.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
 		vbox.add_child(ok)
 	else:
 		for prop in proposals:
 			var lp = Label.new(); lp.text = prop.text
-			lp.add_theme_font_size_override("font_size", 12)
+			lp.add_theme_font_size_override("font_size", 24)
 			lp.add_theme_color_override("font_color", prop.color)
 			lp.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			vbox.add_child(lp)
@@ -1160,7 +1153,7 @@ func _build_loans_panel() -> VBoxContainer:
 	var lbl_info = Label.new()
 	lbl_info.text = "Tier %d  ·  Max CR %s  ·  Rate %.1f%%/yr  ·  Slots %d/%d" % [
 		eff_tier, _fmt(int(max_amount)), rate, slots_used, slots_max]
-	lbl_info.add_theme_font_size_override("font_size", 12)
+	lbl_info.add_theme_font_size_override("font_size", 24)
 	lbl_info.modulate = Color(0.65, 0.65, 0.65)
 	lbl_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hdr.add_child(lbl_info)
@@ -1168,7 +1161,7 @@ func _build_loans_panel() -> VBoxContainer:
 	if cfo == null:
 		var lbl_nocfo = Label.new()
 		lbl_nocfo.text = "⚠ No CFO — capped at Tier 1, +1.5% rate"
-		lbl_nocfo.add_theme_font_size_override("font_size", 11)
+		lbl_nocfo.add_theme_font_size_override("font_size", 22)
 		lbl_nocfo.add_theme_color_override("font_color", Color(1.0, 0.6, 0.2))
 		vbox.add_child(lbl_nocfo)
 
@@ -1183,7 +1176,7 @@ func _build_loans_panel() -> VBoxContainer:
 	if GameState.active_loans.is_empty():
 		var lbl_empty = Label.new()
 		lbl_empty.text = "No active loans."
-		lbl_empty.add_theme_font_size_override("font_size", 12)
+		lbl_empty.add_theme_font_size_override("font_size", 24)
 		lbl_empty.modulate = Color(0.45, 0.45, 0.45)
 		vbox.add_child(lbl_empty)
 	else:
@@ -1211,14 +1204,14 @@ func _build_loan_card(loan: Dictionary) -> PanelContainer:
 
 	var lbl_amount = Label.new()
 	lbl_amount.text = "Loan #%d  ·  CR %s" % [loan.get("id", 0), _fmt(int(loan.get("amount_original", 0)))]
-	lbl_amount.add_theme_font_size_override("font_size", 13)
+	lbl_amount.add_theme_font_size_override("font_size", 26)
 	lbl_amount.add_theme_color_override("font_color", Color(0.5, 0.78, 1.0))
 	lbl_amount.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(lbl_amount)
 
 	var lbl_rate = Label.new()
 	lbl_rate.text = "%.1f%% p.a." % loan.get("annual_rate", 0.0)
-	lbl_rate.add_theme_font_size_override("font_size", 11)
+	lbl_rate.add_theme_font_size_override("font_size", 22)
 	lbl_rate.modulate = Color(0.6, 0.6, 0.6)
 	top.add_child(lbl_rate)
 
@@ -1231,20 +1224,20 @@ func _build_loan_card(loan: Dictionary) -> PanelContainer:
 	var seasons_rem = int(weeks_rem / 52.0) if weeks_rem > 0 else 0
 	var lbl_bal = Label.new()
 	lbl_bal.text = "Balance: CR %s" % _fmt(int(loan.get("balance_remaining", 0)))
-	lbl_bal.add_theme_font_size_override("font_size", 12)
+	lbl_bal.add_theme_font_size_override("font_size", 24)
 	lbl_bal.modulate = Color(0.75, 0.75, 0.75)
 	lbl_bal.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	prog.add_child(lbl_bal)
 
 	var lbl_pay = Label.new()
 	lbl_pay.text = "−CR %s/wk" % _fmt(int(loan.get("weekly_payment", 0)))
-	lbl_pay.add_theme_font_size_override("font_size", 12)
+	lbl_pay.add_theme_font_size_override("font_size", 24)
 	lbl_pay.add_theme_color_override("font_color", Color(1.0, 0.55, 0.55))
 	prog.add_child(lbl_pay)
 
 	var lbl_left = Label.new()
 	lbl_left.text = "%d wks (%d seasons)" % [weeks_rem, seasons_rem]
-	lbl_left.add_theme_font_size_override("font_size", 11)
+	lbl_left.add_theme_font_size_override("font_size", 22)
 	lbl_left.modulate = Color(0.55, 0.55, 0.55)
 	prog.add_child(lbl_left)
 
@@ -1262,7 +1255,7 @@ func _build_loan_card(loan: Dictionary) -> PanelContainer:
 	btn_repay.text = "💳 Repay Early  (CR %s + CR %s penalty)" % [
 		_fmt(int(balance_rem)), _fmt(int(penalty))]
 	btn_repay.custom_minimum_size = Vector2(0, 28)
-	btn_repay.add_theme_font_size_override("font_size", 11)
+	btn_repay.add_theme_font_size_override("font_size", 22)
 	btn_repay.modulate = Color(1.0, 0.85, 0.5)
 	btn_repay.disabled = (GameState.player_team.balance < total_cost)
 	var loan_id = loan.get("id", 0)
@@ -1308,7 +1301,7 @@ func _show_take_loan_popup() -> void:
 
 	var lbl_title = Label.new()
 	lbl_title.text = "🏦  Take a Loan"
-	lbl_title.add_theme_font_size_override("font_size", 17)
+	lbl_title.add_theme_font_size_override("font_size", 34)
 	lbl_title.add_theme_color_override("font_color", Color(0.5, 0.78, 1.0))
 	vb.add_child(lbl_title)
 
@@ -1323,7 +1316,7 @@ func _show_take_loan_popup() -> void:
 	var lbl_info = Label.new()
 	lbl_info.text = "Tier %d  ·  Rate %.1f%%/yr  ·  Max CR %s" % [
 		eff_tier, base_rate, _fmt(int(max_amount))]
-	lbl_info.add_theme_font_size_override("font_size", 12)
+	lbl_info.add_theme_font_size_override("font_size", 24)
 	lbl_info.modulate = Color(0.65, 0.65, 0.65)
 	vb.add_child(lbl_info)
 
@@ -1334,7 +1327,7 @@ func _show_take_loan_popup() -> void:
 
 	var lbl_amount_hdr = Label.new()
 	lbl_amount_hdr.text = "Loan Amount"
-	lbl_amount_hdr.add_theme_font_size_override("font_size", 12)
+	lbl_amount_hdr.add_theme_font_size_override("font_size", 24)
 	amount_row.add_child(lbl_amount_hdr)
 
 	var slider_row = HBoxContainer.new()
@@ -1351,7 +1344,7 @@ func _show_take_loan_popup() -> void:
 
 	var lbl_amount_val = Label.new()
 	lbl_amount_val.text = "CR %s" % _fmt(int(slider.value))
-	lbl_amount_val.add_theme_font_size_override("font_size", 13)
+	lbl_amount_val.add_theme_font_size_override("font_size", 26)
 	lbl_amount_val.add_theme_color_override("font_color", Color(0.5, 0.9, 0.5))
 	lbl_amount_val.custom_minimum_size = Vector2(90, 0)
 	lbl_amount_val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -1367,7 +1360,7 @@ func _show_take_loan_popup() -> void:
 
 	var lbl_dur_hdr = Label.new()
 	lbl_dur_hdr.text = "Duration (seasons)"
-	lbl_dur_hdr.add_theme_font_size_override("font_size", 12)
+	lbl_dur_hdr.add_theme_font_size_override("font_size", 24)
 	dur_row.add_child(lbl_dur_hdr)
 
 	var dur_btns = HBoxContainer.new()
@@ -1381,13 +1374,13 @@ func _show_take_loan_popup() -> void:
 		var dbtn = Button.new()
 		dbtn.text = "%d" % s
 		dbtn.custom_minimum_size = Vector2(36, 28)
-		dbtn.add_theme_font_size_override("font_size", 11)
+		dbtn.add_theme_font_size_override("font_size", 22)
 		dur_btns.add_child(dbtn)
 		dur_btn_list.append({"btn": dbtn, "seasons": s})
 
 	## Live summary label
 	var lbl_summary = Label.new()
-	lbl_summary.add_theme_font_size_override("font_size", 13)
+	lbl_summary.add_theme_font_size_override("font_size", 26)
 	lbl_summary.add_theme_color_override("font_color", Color(0.85, 0.85, 0.6))
 	vb.add_child(lbl_summary)
 
@@ -1433,7 +1426,7 @@ func _show_take_loan_popup() -> void:
 	var btn_confirm = Button.new()
 	btn_confirm.text = "✅ Take Loan"
 	btn_confirm.custom_minimum_size = Vector2(120, 34)
-	btn_confirm.add_theme_font_size_override("font_size", 13)
+	btn_confirm.add_theme_font_size_override("font_size", 26)
 	btn_confirm.modulate = Color(0.4, 0.9, 0.5)
 	btn_confirm.pressed.connect(func():
 		var err = GameState.take_loan(slider.value, selected_seasons_ref[0])
@@ -1477,12 +1470,12 @@ func _fin_income_row(label: String, amount: int, active: bool) -> HBoxContainer:
 	var row = HBoxContainer.new()
 	var lbl = Label.new(); lbl.text = label
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lbl.add_theme_font_size_override("font_size", 12)
+	lbl.add_theme_font_size_override("font_size", 24)
 	if not active: lbl.modulate = Color(0.35, 0.35, 0.35)
 	row.add_child(lbl)
 	var val = Label.new()
 	val.text = "+CR %s" % _fmt(amount) if amount > 0 else "—"
-	val.add_theme_font_size_override("font_size", 12)
+	val.add_theme_font_size_override("font_size", 24)
 	val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	val.custom_minimum_size = Vector2(100, 0)
 	val.add_theme_color_override("font_color",
@@ -1495,12 +1488,12 @@ func _fin_expense_row(label: String, amount: int) -> HBoxContainer:
 	var row = HBoxContainer.new()
 	var lbl = Label.new(); lbl.text = label
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lbl.add_theme_font_size_override("font_size", 12)
+	lbl.add_theme_font_size_override("font_size", 24)
 	if amount == 0: lbl.modulate = Color(0.35, 0.35, 0.35)
 	row.add_child(lbl)
 	var val = Label.new()
 	val.text = "-CR %s" % _fmt(amount) if amount > 0 else "—"
-	val.add_theme_font_size_override("font_size", 12)
+	val.add_theme_font_size_override("font_size", 24)
 	val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	val.custom_minimum_size = Vector2(100, 0)
 	val.add_theme_color_override("font_color",
@@ -1536,7 +1529,7 @@ func _build_active_sponsor_card(sp: Dictionary) -> PanelContainer:
 
 	var lbl_name = Label.new()
 	lbl_name.text = sp.get("name", "Unknown Sponsor")
-	lbl_name.add_theme_font_size_override("font_size", 13)
+	lbl_name.add_theme_font_size_override("font_size", 26)
 	lbl_name.add_theme_color_override("font_color", Color(0.4, 0.9, 0.5))
 	info.add_child(lbl_name)
 
@@ -1549,7 +1542,7 @@ func _build_active_sponsor_card(sp: Dictionary) -> PanelContainer:
 	var lbl_detail = Label.new()
 	lbl_detail.text = detail + "  ·  %d season%s remaining" % [
 		sp.get("seasons_remaining", 0), "s" if sp.get("seasons_remaining", 0) != 1 else ""]
-	lbl_detail.add_theme_font_size_override("font_size", 11)
+	lbl_detail.add_theme_font_size_override("font_size", 22)
 	lbl_detail.modulate = Color(0.6, 0.6, 0.6)
 	info.add_child(lbl_detail)
 
@@ -1557,7 +1550,7 @@ func _build_active_sponsor_card(sp: Dictionary) -> PanelContainer:
 	if sp.get("seasons_remaining", 99) <= 1:
 		var lbl_exp = Label.new()
 		lbl_exp.text = "⚠ Expires this season"
-		lbl_exp.add_theme_font_size_override("font_size", 11)
+		lbl_exp.add_theme_font_size_override("font_size", 22)
 		lbl_exp.add_theme_color_override("font_color", Color(1.0, 0.6, 0.2))
 		info.add_child(lbl_exp)
 
@@ -1574,7 +1567,7 @@ func _build_active_sponsor_card(sp: Dictionary) -> PanelContainer:
 	var btn_reneg = Button.new()
 	btn_reneg.text = "📋 Renegotiate"
 	btn_reneg.custom_minimum_size = Vector2(110, 26)
-	btn_reneg.add_theme_font_size_override("font_size", 11)
+	btn_reneg.add_theme_font_size_override("font_size", 22)
 	var sp_id = sp.get("sponsor_id", "")
 	btn_reneg.pressed.connect(func():
 		var neg = GameState.generate_sponsor_negotiation(sp_id)
@@ -1590,7 +1583,7 @@ func _build_active_sponsor_card(sp: Dictionary) -> PanelContainer:
 	var btn_cancel = Button.new()
 	btn_cancel.text = "✕ Cancel Deal"
 	btn_cancel.custom_minimum_size = Vector2(100, 26)
-	btn_cancel.add_theme_font_size_override("font_size", 11)
+	btn_cancel.add_theme_font_size_override("font_size", 22)
 	btn_cancel.modulate = Color(1.0, 0.45, 0.45)
 	var seasons_left = sp.get("seasons_remaining", 1)
 	btn_cancel.tooltip_text = "Penalty: −%d rep, −%d marketability" % [
@@ -1632,14 +1625,14 @@ func _show_cancel_sponsor_confirm(sponsor_id: String, sponsor_name: String) -> v
 
 	var lbl_t = Label.new()
 	lbl_t.text = "Cancel Sponsor Deal?"
-	lbl_t.add_theme_font_size_override("font_size", 16)
+	lbl_t.add_theme_font_size_override("font_size", 32)
 	lbl_t.add_theme_color_override("font_color", Color(1.0, 0.5, 0.5))
 	vb.add_child(lbl_t)
 
 	var lbl_b = Label.new()
 	lbl_b.text = "Cancelling %s will apply a reputation and marketability penalty." % sponsor_name
 	lbl_b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	lbl_b.add_theme_font_size_override("font_size", 12)
+	lbl_b.add_theme_font_size_override("font_size", 24)
 	lbl_b.modulate = Color(0.75, 0.75, 0.75)
 	vb.add_child(lbl_b)
 
@@ -1683,17 +1676,17 @@ func _build_sponsor_offer_card(offer: Dictionary) -> PanelContainer:
 	var lbl_name = Label.new()
 	lbl_name.text = offer.get("name", "?")
 	lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lbl_name.add_theme_font_size_override("font_size", 13)
+	lbl_name.add_theme_font_size_override("font_size", 26)
 	hdr.add_child(lbl_name)
 
 	var lbl_t = Label.new()
 	lbl_t.text = "Type %d" % offer.get("type", 1)
-	lbl_t.add_theme_font_size_override("font_size", 10)
+	lbl_t.add_theme_font_size_override("font_size", 20)
 	lbl_t.modulate = Color(0.5, 0.5, 0.5)
 	hdr.add_child(lbl_t)
 
 	var lbl_detail = Label.new()
-	lbl_detail.add_theme_font_size_override("font_size", 11)
+	lbl_detail.add_theme_font_size_override("font_size", 22)
 	lbl_detail.modulate = Color(0.65, 0.65, 0.65)
 	match offer.get("type", 1):
 		1: lbl_detail.text = "CR %s/wk  ·  %d seasons" % [
@@ -1719,14 +1712,14 @@ func _build_sponsor_offer_card(offer: Dictionary) -> PanelContainer:
 		# No slots available
 		var lbl_full = Label.new()
 		lbl_full.text = "🔒 No slots available"
-		lbl_full.add_theme_font_size_override("font_size", 12)
+		lbl_full.add_theme_font_size_override("font_size", 24)
 		lbl_full.add_theme_color_override("font_color", Color(1.0, 0.45, 0.45))
 		lbl_full.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn_row.add_child(lbl_full)
 
 		var lbl_hint = Label.new()
 		lbl_hint.text = "(Upgrade HQ)"
-		lbl_hint.add_theme_font_size_override("font_size", 11)
+		lbl_hint.add_theme_font_size_override("font_size", 22)
 		lbl_hint.modulate = Color(0.6, 0.6, 0.6)
 		btn_row.add_child(lbl_hint)
 	else:
@@ -1773,7 +1766,7 @@ func _build_cfo_search_panel() -> PanelContainer:
 		lbl.text = "🔍 CFO is searching...  Next offer in %d week%s." % [
 			GameState.cfo_search_weeks_remaining,
 			"s" if GameState.cfo_search_weeks_remaining != 1 else ""]
-		lbl.add_theme_font_size_override("font_size", 13)
+		lbl.add_theme_font_size_override("font_size", 26)
 		lbl.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
 		inner.add_child(lbl)
 		var btn_stop = Button.new()
@@ -1789,13 +1782,13 @@ func _build_cfo_search_panel() -> PanelContainer:
 		var lbl = Label.new()
 		lbl.text = "CFO available (%s — Negotiation %.0f)" % [
 			cfo.full_name(), cfo.sponsor_negotiation]
-		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_font_size_override("font_size", 24)
 		lbl.modulate = Color(0.65, 0.65, 0.65)
 		inner.add_child(lbl)
 		var btn_start = Button.new()
 		btn_start.text = "🔍  Start Sponsor Search"
 		btn_start.custom_minimum_size = Vector2(0, 34)
-		btn_start.add_theme_font_size_override("font_size", 13)
+		btn_start.add_theme_font_size_override("font_size", 26)
 		btn_start.pressed.connect(func():
 			GameState.start_cfo_sponsor_search()
 			_show_tab("sponsors"))
@@ -1804,7 +1797,7 @@ func _build_cfo_search_panel() -> PanelContainer:
 		var lbl = Label.new()
 		lbl.text = "No CFO hired. A CFO can search for sponsors on your behalf."
 		lbl.modulate = Color(0.5, 0.5, 0.5)
-		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_font_size_override("font_size", 24)
 		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		inner.add_child(lbl)
 		var btn_hire = Button.new()
@@ -1881,11 +1874,11 @@ func _build_wra_cycles() -> VBoxContainer:
 		var lbl_g = Label.new()
 		lbl_g.text = group
 		lbl_g.custom_minimum_size = Vector2(100, 0)
-		lbl_g.add_theme_font_size_override("font_size", 12)
+		lbl_g.add_theme_font_size_override("font_size", 24)
 		row.add_child(lbl_g)
 
 		var lbl_s = Label.new()
-		lbl_s.add_theme_font_size_override("font_size", 12)
+		lbl_s.add_theme_font_size_override("font_size", 24)
 		if seasons_until == 1:
 			lbl_s.text = "⚠ Resets NEXT SEASON"
 			lbl_s.add_theme_color_override("font_color", Color(1.0, 0.45, 0.1))
@@ -1911,7 +1904,7 @@ func _build_wra_submit() -> VBoxContainer:
 	if submittable.is_empty():
 		var e = Label.new(); e.text = "No blueprints awaiting submission."
 		e.modulate = Color(0.45, 0.45, 0.45)
-		e.add_theme_font_size_override("font_size", 12)
+		e.add_theme_font_size_override("font_size", 24)
 		vbox.add_child(e)
 		return vbox
 
@@ -1929,12 +1922,12 @@ func _build_wra_submit() -> VBoxContainer:
 		var ln = Label.new()
 		ln.text = "%s  [%s]" % [bp.get("name", bp_id), reg.get("name", cid)]
 		ln.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		ln.add_theme_font_size_override("font_size", 11)
+		ln.add_theme_font_size_override("font_size", 22)
 		row.add_child(ln)
 
 		var li = Label.new()
 		li.text = "%d wks" % wks
-		li.add_theme_font_size_override("font_size", 10)
+		li.add_theme_font_size_override("font_size", 20)
 		li.modulate = Color(0.5, 0.5, 0.5)
 		row.add_child(li)
 
@@ -1954,7 +1947,7 @@ func _build_wra_pending() -> VBoxContainer:
 	if GameState.active_wra_submissions.is_empty():
 		var e = Label.new(); e.text = "No pending submissions."
 		e.modulate = Color(0.45, 0.45, 0.45)
-		e.add_theme_font_size_override("font_size", 12)
+		e.add_theme_font_size_override("font_size", 24)
 		vbox.add_child(e)
 		return vbox
 	for sub in GameState.active_wra_submissions:
@@ -1966,11 +1959,11 @@ func _build_wra_pending() -> VBoxContainer:
 		var ln = Label.new()
 		ln.text = "%s  [%s]" % [bp.get("name", sub.blueprint_id), reg.get("name", sub.championship_id)]
 		ln.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		ln.add_theme_font_size_override("font_size", 11)
+		ln.add_theme_font_size_override("font_size", 22)
 		row.add_child(ln)
 		var lw = Label.new()
 		lw.text = "⏳ %d wk%s" % [sub.weeks_remaining, "s" if sub.weeks_remaining != 1 else ""]
-		lw.add_theme_font_size_override("font_size", 11)
+		lw.add_theme_font_size_override("font_size", 22)
 		lw.add_theme_color_override("font_color",
 			Color(1.0, 0.6, 0.1) if sub.weeks_remaining <= 1 else Color(0.5, 0.5, 0.5))
 		row.add_child(lw)
@@ -1983,7 +1976,7 @@ func _build_wra_approved() -> VBoxContainer:
 	if GameState.wra_approved_blueprints.is_empty():
 		var e = Label.new(); e.text = "No approved blueprints yet."
 		e.modulate = Color(0.45, 0.45, 0.45)
-		e.add_theme_font_size_override("font_size", 12)
+		e.add_theme_font_size_override("font_size", 24)
 		vbox.add_child(e)
 		return vbox
 	for app in GameState.wra_approved_blueprints:
@@ -1998,7 +1991,7 @@ func _build_wra_approved() -> VBoxContainer:
 		var ln = Label.new()
 		ln.text = "%s  [%s]" % [bp.get("name", app.blueprint_id), reg.get("name", app.championship_id)]
 		ln.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		ln.add_theme_font_size_override("font_size", 11)
+		ln.add_theme_font_size_override("font_size", 22)
 		ln.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
 		row.add_child(ln)
 		var btn = Button.new()
@@ -2018,7 +2011,7 @@ func _build_supply_contracts() -> VBoxContainer:
 	if active.is_empty():
 		var e = Label.new(); e.text = "No active supply contracts."
 		e.modulate = Color(0.45, 0.45, 0.45)
-		e.add_theme_font_size_override("font_size", 12)
+		e.add_theme_font_size_override("font_size", 24)
 		vbox.add_child(e)
 		return vbox
 	for sc in active:
@@ -2032,12 +2025,12 @@ func _build_supply_contracts() -> VBoxContainer:
 			reg.get("name", sc.championship_id),
 			_fmt(sc.cr_per_part), sc.seasons_remaining]
 		ln.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		ln.add_theme_font_size_override("font_size", 11)
+		ln.add_theme_font_size_override("font_size", 22)
 		row.add_child(ln)
 		var pct = float(sc.parts_delivered) / float(max(sc.parts_per_season, 1))
 		var prog = Label.new()
 		prog.text = "%d/%d" % [sc.parts_delivered, sc.parts_per_season]
-		prog.add_theme_font_size_override("font_size", 11)
+		prog.add_theme_font_size_override("font_size", 22)
 		prog.add_theme_color_override("font_color",
 			Color(0.4,0.9,0.4) if pct >= 0.8 else
 			Color(1.0,0.6,0.1) if pct >= 0.4 else Color(1.0,0.3,0.3))
@@ -2065,7 +2058,7 @@ func _build_reg_requirement_card(cid: String) -> PanelContainer:
 
 	var lbl_name = Label.new()
 	lbl_name.text = "✅ %s" % reg.get("name", cid)
-	lbl_name.add_theme_font_size_override("font_size", 12)
+	lbl_name.add_theme_font_size_override("font_size", 24)
 	lbl_name.add_theme_color_override("font_color", Color(0.4, 0.85, 0.4))
 	cvb.add_child(lbl_name)
 
@@ -2113,11 +2106,11 @@ func _build_reg_requirement_card(cid: String) -> PanelContainer:
 		cvb.add_child(row)
 		var icon = Label.new()
 		icon.text = "✅" if req["ok"] else "⚠"
-		icon.add_theme_font_size_override("font_size", 11)
+		icon.add_theme_font_size_override("font_size", 22)
 		row.add_child(icon)
 		var lbl_req = Label.new()
 		lbl_req.text = req["text"]
-		lbl_req.add_theme_font_size_override("font_size", 11)
+		lbl_req.add_theme_font_size_override("font_size", 22)
 		lbl_req.add_theme_color_override("font_color",
 			Color(0.6, 0.9, 0.6) if req["ok"] else Color(1.0, 0.55, 0.2))
 		row.add_child(lbl_req)
@@ -2136,12 +2129,23 @@ func _build_registration_panel() -> VBoxContainer:
 	var vbox = VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 8)
 
+	## S29.7 — Registration button moved to the TOP, above the "Racing this Season"
+	## informative box (was at the bottom of the panel).
+	var btn = Button.new()
+	btn.text = "🏁  Championship Registration →"
+	btn.custom_minimum_size = Vector2(0, 38)
+	btn.add_theme_font_size_override("font_size", 28)
+	btn.pressed.connect(func():
+		get_tree().change_scene_to_file("res://scenes/ChampionshipSelect.tscn"))
+	vbox.add_child(btn)
+	vbox.add_child(HSeparator.new())
+
 	# ── SECTION 1: THIS SEASON (current race set, full requirement checklist) ──
 	var this_count = GameState.player_registered_championships.size()
 	var lbl_this = Label.new()
 	lbl_this.text = "🏁 Racing this Season %d:  %d championship%s" % [
 		GameState.current_season, this_count, "s" if this_count != 1 else ""]
-	lbl_this.add_theme_font_size_override("font_size", 13)
+	lbl_this.add_theme_font_size_override("font_size", 26)
 	lbl_this.add_theme_color_override("font_color",
 		Color(0.4, 0.9, 0.4) if this_count > 0 else Color(0.7, 0.7, 0.7))
 	vbox.add_child(lbl_this)
@@ -2149,7 +2153,7 @@ func _build_registration_panel() -> VBoxContainer:
 	if this_count == 0:
 		var none_lbl = Label.new()
 		none_lbl.text = "Not racing any championship this season."
-		none_lbl.add_theme_font_size_override("font_size", 11)
+		none_lbl.add_theme_font_size_override("font_size", 22)
 		none_lbl.modulate = Color(0.6, 0.6, 0.6)
 		vbox.add_child(none_lbl)
 
@@ -2162,7 +2166,7 @@ func _build_registration_panel() -> VBoxContainer:
 	var lbl_next = Label.new()
 	lbl_next.text = "📋 Planned for Season %d:  %d championship%s" % [
 		GameState.current_season + 1, next_count, "s" if next_count != 1 else ""]
-	lbl_next.add_theme_font_size_override("font_size", 13)
+	lbl_next.add_theme_font_size_override("font_size", 26)
 	lbl_next.add_theme_color_override("font_color",
 		Color(0.5, 0.7, 1.0) if next_count > 0 else Color(1.0, 0.6, 0.2))
 	vbox.add_child(lbl_next)
@@ -2170,7 +2174,7 @@ func _build_registration_panel() -> VBoxContainer:
 	if next_count == 0:
 		var none2 = Label.new()
 		none2.text = "Nothing registered for next season yet — use Championship Registration before the deadline."
-		none2.add_theme_font_size_override("font_size", 11)
+		none2.add_theme_font_size_override("font_size", 22)
 		none2.modulate = Color(1.0, 0.6, 0.3)
 		none2.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		vbox.add_child(none2)
@@ -2183,22 +2187,14 @@ func _build_registration_panel() -> VBoxContainer:
 			vbox.add_child(row)
 			var icon = Label.new()
 			icon.text = "📋"
-			icon.add_theme_font_size_override("font_size", 11)
+			icon.add_theme_font_size_override("font_size", 22)
 			row.add_child(icon)
 			var lbl = Label.new()
 			lbl.text = "%s  ·  Deadline Wk %d" % [
 				reg.get("name", cid), GameState.get_entry_deadline_week(cid)]
-			lbl.add_theme_font_size_override("font_size", 11)
+			lbl.add_theme_font_size_override("font_size", 22)
 			lbl.add_theme_color_override("font_color", Color(0.7, 0.8, 1.0))
 			row.add_child(lbl)
-
-	var btn = Button.new()
-	btn.text = "🏁  Championship Registration →"
-	btn.custom_minimum_size = Vector2(0, 38)
-	btn.add_theme_font_size_override("font_size", 14)
-	btn.pressed.connect(func():
-		get_tree().change_scene_to_file("res://scenes/ChampionshipSelect.tscn"))
-	vbox.add_child(btn)
 
 	return vbox
 
@@ -2216,9 +2212,9 @@ func _build_pending_activity() -> VBoxContainer:
 		row.add_theme_constant_override("separation", 8)
 
 		var icon_lbl = Label.new()
-		icon_lbl.add_theme_font_size_override("font_size", 12)
+		icon_lbl.add_theme_font_size_override("font_size", 24)
 		var desc_lbl = Label.new()
-		desc_lbl.add_theme_font_size_override("font_size", 11)
+		desc_lbl.add_theme_font_size_override("font_size", 22)
 		desc_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 		var status = ap.get("status", "")
@@ -2269,7 +2265,7 @@ func _build_pending_activity() -> VBoxContainer:
 				var btn = Button.new()
 				btn.text = "Open →"
 				btn.custom_minimum_size = Vector2(70, 24)
-				btn.add_theme_font_size_override("font_size", 10)
+				btn.add_theme_font_size_override("font_size", 20)
 				btn.modulate = Color(0.4, 0.85, 0.55)
 				var neg_id = ap["neg_id"]
 				btn.pressed.connect(func():
@@ -2282,14 +2278,14 @@ func _build_pending_activity() -> VBoxContainer:
 			else:
 				var lbl_wait = Label.new()
 				lbl_wait.text = "⏳ Awaiting reply"
-				lbl_wait.add_theme_font_size_override("font_size", 10)
+				lbl_wait.add_theme_font_size_override("font_size", 20)
 				lbl_wait.modulate = Color(0.5, 0.5, 0.5)
 				row.add_child(lbl_wait)
 		elif status == "bond_incoming":
 			var btn = Button.new()
 			btn.text = "Respond →"
 			btn.custom_minimum_size = Vector2(80, 24)
-			btn.add_theme_font_size_override("font_size", 10)
+			btn.add_theme_font_size_override("font_size", 20)
 			btn.modulate = Color(1.0, 0.75, 0.2)
 			var dest = "res://scenes/Drivers.tscn" if ap.get("subject_type") == "driver" \
 				else "res://scenes/Staff.tscn"
@@ -2308,7 +2304,7 @@ func _build_pending_activity() -> VBoxContainer:
 func _section_label(text: String) -> Label:
 	var lbl = Label.new()
 	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.add_theme_font_size_override("font_size", 22)
 	lbl.add_theme_color_override("font_color", Color(0.45, 0.55, 0.70))
 	return lbl
 
@@ -2317,11 +2313,11 @@ func _kv_row(key: String, value: String, key_width: int, val_col: Color = Color.
 	row.add_theme_constant_override("separation", 6)
 	var k = Label.new(); k.text = key
 	k.custom_minimum_size = Vector2(key_width, 0)
-	k.add_theme_font_size_override("font_size", 12)
+	k.add_theme_font_size_override("font_size", 24)
 	k.modulate = Color(0.45, 0.45, 0.45)
 	row.add_child(k)
 	var v = Label.new(); v.text = value
-	v.add_theme_font_size_override("font_size", 12)
+	v.add_theme_font_size_override("font_size", 24)
 	v.add_theme_color_override("font_color", val_col)
 	row.add_child(v)
 	return row
@@ -2390,14 +2386,14 @@ func _draw_graph(container: VBoxContainer, key: String) -> void:
 	## Title label — added after clear to prevent overlap
 	var title_lbl = Label.new()
 	title_lbl.text = chart_title
-	title_lbl.add_theme_font_size_override("font_size", 13)
+	title_lbl.add_theme_font_size_override("font_size", 26)
 	title_lbl.add_theme_color_override("font_color", line_color)
 	container.add_child(title_lbl)
 
 	if history.is_empty():
 		var empty_lbl = Label.new()
 		empty_lbl.text = "No data yet — advance weeks to populate."
-		empty_lbl.add_theme_font_size_override("font_size", 11)
+		empty_lbl.add_theme_font_size_override("font_size", 22)
 		empty_lbl.modulate = Color(0.5, 0.5, 0.5)
 		container.add_child(empty_lbl)
 		return
@@ -2415,12 +2411,12 @@ func _draw_graph(container: VBoxContainer, key: String) -> void:
 	var last  = history[history.size() - 1]
 	var lbl_first = Label.new()
 	lbl_first.text = "S%d W%d" % [first["season"], first["week"]]
-	lbl_first.add_theme_font_size_override("font_size", 10)
+	lbl_first.add_theme_font_size_override("font_size", 20)
 	lbl_first.modulate = Color(0.5, 0.5, 0.5)
 	lbl_first.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var lbl_last = Label.new()
 	lbl_last.text = "S%d W%d" % [last["season"], last["week"]]
-	lbl_last.add_theme_font_size_override("font_size", 10)
+	lbl_last.add_theme_font_size_override("font_size", 20)
 	lbl_last.modulate = Color(0.5, 0.5, 0.5)
 	x_row.add_child(lbl_first)
 	x_row.add_child(lbl_last)

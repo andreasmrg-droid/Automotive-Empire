@@ -1,4 +1,6 @@
 extends Control
+## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S28.3 — Warehouse shows available CNC parts; section renamed "Available Parts (CNC)".
 ## --- S28.1 — Removed hardcoded ["C-001"] GK fallback in BUY RACING CAR tab.
 ##   The buy-car list now reflects the player's real registered set; empty → clear message.
@@ -49,7 +51,7 @@ func _build_ui() -> void:
 
 	var title = Label.new()
 	title.text = "📦 LOGISTICS CENTER"
-	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_font_size_override("font_size", 52)
 	title.add_theme_color_override("font_color", Color.WHITE)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
@@ -59,7 +61,7 @@ func _build_ui() -> void:
 	_lbl_sp = Label.new()
 	_lbl_fu = Label.new()
 	for lbl in [_lbl_cr, _lbl_sp, _lbl_fu]:
-		lbl.add_theme_font_size_override("font_size", 14)
+		lbl.add_theme_font_size_override("font_size", 28)
 		header.add_child(lbl)
 	_refresh_header_labels()
 
@@ -85,7 +87,7 @@ func _build_ui() -> void:
 		btn.text = pair[0]
 		btn.custom_minimum_size = Vector2(0, 36)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.add_theme_font_size_override("font_size", 13)
+		btn.add_theme_font_size_override("font_size", 26)
 		var idx = pair[1]
 		btn.pressed.connect(func(): _switch_tab(idx))
 		_tab_bar.add_child(btn)
@@ -170,12 +172,12 @@ func _make_sp_card(sp_per_10: int) -> PanelContainer:
 
 	var input_row = HBoxContainer.new(); input_row.add_theme_constant_override("separation", 8)
 	vbox.add_child(input_row)
-	var il = Label.new(); il.text = "Amount:"; il.add_theme_font_size_override("font_size", 13)
+	var il = Label.new(); il.text = "Amount:"; il.add_theme_font_size_override("font_size", 26)
 	input_row.add_child(il)
 	sp_input = LineEdit.new(); sp_input.placeholder_text = "e.g. 500"
 	sp_input.custom_minimum_size = Vector2(140, 32)
 	input_row.add_child(sp_input)
-	var cost_lbl = Label.new(); cost_lbl.add_theme_font_size_override("font_size", 12)
+	var cost_lbl = Label.new(); cost_lbl.add_theme_font_size_override("font_size", 24)
 	cost_lbl.add_theme_color_override("font_color", Color(0.5, 0.9, 0.5))
 	input_row.add_child(cost_lbl)
 	sp_input.text_changed.connect(func(t):
@@ -183,7 +185,7 @@ func _make_sp_card(sp_per_10: int) -> PanelContainer:
 		cost_lbl.text = "= CR %d" % a if a > 0 else "")
 
 	var preset_lbl = Label.new(); preset_lbl.text = "Quick fill:"
-	preset_lbl.add_theme_font_size_override("font_size", 12); preset_lbl.modulate = Color(0.6, 0.6, 0.6)
+	preset_lbl.add_theme_font_size_override("font_size", 24); preset_lbl.modulate = Color(0.6, 0.6, 0.6)
 	vbox.add_child(preset_lbl)
 	var preset_row = HBoxContainer.new(); preset_row.add_theme_constant_override("separation", 8)
 	vbox.add_child(preset_row)
@@ -199,7 +201,7 @@ func _make_sp_card(sp_per_10: int) -> PanelContainer:
 	buy_btn.text = "Buy Spare Parts →"
 	buy_btn.custom_minimum_size = Vector2(0, 36)
 	buy_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	buy_btn.add_theme_font_size_override("font_size", 13)
+	buy_btn.add_theme_font_size_override("font_size", 26)
 	buy_btn.pressed.connect(_on_buy_sp_pressed)
 	vbox.add_child(buy_btn)
 	return panel
@@ -216,12 +218,12 @@ func _make_fuel_card(fuel_per_race: float, cars: int) -> PanelContainer:
 
 	var input_row = HBoxContainer.new(); input_row.add_theme_constant_override("separation", 8)
 	vbox.add_child(input_row)
-	var il = Label.new(); il.text = "Amount:"; il.add_theme_font_size_override("font_size", 13)
+	var il = Label.new(); il.text = "Amount:"; il.add_theme_font_size_override("font_size", 26)
 	input_row.add_child(il)
 	fuel_input = LineEdit.new(); fuel_input.placeholder_text = "e.g. 60"
 	fuel_input.custom_minimum_size = Vector2(140, 32)
 	input_row.add_child(fuel_input)
-	var cost_lbl = Label.new(); cost_lbl.add_theme_font_size_override("font_size", 12)
+	var cost_lbl = Label.new(); cost_lbl.add_theme_font_size_override("font_size", 24)
 	cost_lbl.add_theme_color_override("font_color", Color(0.5, 0.9, 0.5))
 	input_row.add_child(cost_lbl)
 	fuel_input.text_changed.connect(func(t):
@@ -229,7 +231,7 @@ func _make_fuel_card(fuel_per_race: float, cars: int) -> PanelContainer:
 		cost_lbl.text = "= CR %d" % (a * 2) if a > 0 else "")
 
 	var preset_lbl = Label.new(); preset_lbl.text = "Quick fill:"
-	preset_lbl.add_theme_font_size_override("font_size", 12); preset_lbl.modulate = Color(0.6, 0.6, 0.6)
+	preset_lbl.add_theme_font_size_override("font_size", 24); preset_lbl.modulate = Color(0.6, 0.6, 0.6)
 	vbox.add_child(preset_lbl)
 	var preset_row = HBoxContainer.new(); preset_row.add_theme_constant_override("separation", 8)
 	vbox.add_child(preset_row)
@@ -246,7 +248,7 @@ func _make_fuel_card(fuel_per_race: float, cars: int) -> PanelContainer:
 	buy_btn.text = "Buy Fuel →"
 	buy_btn.custom_minimum_size = Vector2(0, 36)
 	buy_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	buy_btn.add_theme_font_size_override("font_size", 13)
+	buy_btn.add_theme_font_size_override("font_size", 26)
 	buy_btn.pressed.connect(_on_buy_fuel_pressed)
 	vbox.add_child(buy_btn)
 	return panel
@@ -265,7 +267,7 @@ func _build_tab_warehouse(parent: VBoxContainer) -> void:
 		var lbl = Label.new()
 		lbl.text = "No cars in garage yet. Go to BUY RACING CAR to purchase one."
 		lbl.modulate = Color(0.55, 0.55, 0.55)
-		lbl.add_theme_font_size_override("font_size", 14)
+		lbl.add_theme_font_size_override("font_size", 28)
 		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		parent.add_child(lbl)
 		return
@@ -291,7 +293,7 @@ func _make_warehouse_champ_card(champ_id: String) -> PanelContainer:
 
 	var lbl_champ = Label.new()
 	lbl_champ.text = "🏆 %s" % cname
-	lbl_champ.add_theme_font_size_override("font_size", 16)
+	lbl_champ.add_theme_font_size_override("font_size", 32)
 	lbl_champ.add_theme_color_override("font_color", DISC_COLORS.get(disc, Color.WHITE))
 	vbox.add_child(lbl_champ)
 
@@ -300,7 +302,7 @@ func _make_warehouse_champ_card(champ_id: String) -> PanelContainer:
 	vbox.add_child(hdr)
 	for pair in [["Part", 130], ["Stock", 60], ["Cost ea", 100], ["Qty", 70], ["Buy", 60]]:
 		var lh = Label.new(); lh.text = pair[0]
-		lh.add_theme_font_size_override("font_size", 11); lh.modulate = Color(0.45, 0.45, 0.45)
+		lh.add_theme_font_size_override("font_size", 22); lh.modulate = Color(0.45, 0.45, 0.45)
 		lh.custom_minimum_size = Vector2(pair[1], 0)
 		hdr.add_child(lh)
 
@@ -316,7 +318,7 @@ func _make_warehouse_champ_card(champ_id: String) -> PanelContainer:
 		# Part name
 		var lbl_p = Label.new(); lbl_p.text = part
 		lbl_p.custom_minimum_size = Vector2(130, 0)
-		lbl_p.add_theme_font_size_override("font_size", 13)
+		lbl_p.add_theme_font_size_override("font_size", 26)
 		var pc = Color(1.0,0.3,0.3) if stock == 0 else (Color(1.0,0.65,0.2) if stock <= 2 else Color(0.85,0.85,0.85))
 		lbl_p.add_theme_color_override("font_color", pc)
 		row.add_child(lbl_p)
@@ -325,14 +327,14 @@ func _make_warehouse_champ_card(champ_id: String) -> PanelContainer:
 		var lbl_s = Label.new()
 		lbl_s.text = ("×%d" % stock) if stock > 0 else "NONE"
 		lbl_s.custom_minimum_size = Vector2(60, 0)
-		lbl_s.add_theme_font_size_override("font_size", 13)
+		lbl_s.add_theme_font_size_override("font_size", 26)
 		lbl_s.add_theme_color_override("font_color", pc)
 		row.add_child(lbl_s)
 
 		# Cost
 		var lbl_c = Label.new(); lbl_c.text = "CR %s" % _fmt(float(cost)) if cost > 0 else "—"
 		lbl_c.custom_minimum_size = Vector2(100, 0)
-		lbl_c.add_theme_font_size_override("font_size", 12); lbl_c.modulate = Color(0.55, 0.55, 0.55)
+		lbl_c.add_theme_font_size_override("font_size", 24); lbl_c.modulate = Color(0.55, 0.55, 0.55)
 		row.add_child(lbl_c)
 
 		# Qty input
@@ -344,7 +346,7 @@ func _make_warehouse_champ_card(champ_id: String) -> PanelContainer:
 		# Buy button
 		var buy_btn = Button.new(); buy_btn.text = "Buy"
 		buy_btn.custom_minimum_size = Vector2(60, 28)
-		buy_btn.add_theme_font_size_override("font_size", 12)
+		buy_btn.add_theme_font_size_override("font_size", 24)
 		var _part = part; var _cid = champ_id
 		buy_btn.pressed.connect(func(): _on_buy_part_pressed(_part, _cid))
 		row.add_child(buy_btn)
@@ -364,7 +366,7 @@ func _make_warehouse_champ_card(champ_id: String) -> PanelContainer:
 	if not cnc_rows.is_empty():
 		var cnc_hdr = Label.new()
 		cnc_hdr.text = "⚙ Available Parts (CNC)"
-		cnc_hdr.add_theme_font_size_override("font_size", 12)
+		cnc_hdr.add_theme_font_size_override("font_size", 24)
 		cnc_hdr.add_theme_color_override("font_color", Color(0.4, 0.9, 0.5))
 		vbox.add_child(cnc_hdr)
 		for item in cnc_rows:
@@ -380,25 +382,25 @@ func _make_warehouse_champ_card(champ_id: String) -> PanelContainer:
 			var clbl = Label.new()
 			clbl.text = "%s  L%d" % [bp_name, lvl]
 			clbl.custom_minimum_size = Vector2(260, 0)
-			clbl.add_theme_font_size_override("font_size", 12)
+			clbl.add_theme_font_size_override("font_size", 24)
 			clbl.add_theme_color_override("font_color", Color(0.8, 0.9, 0.8))
 			crow.add_child(clbl)
 			var cqty = Label.new()
 			cqty.text = "×%d" % item.get("quantity", 0)
-			cqty.add_theme_font_size_override("font_size", 12)
+			cqty.add_theme_font_size_override("font_size", 24)
 			cqty.modulate = Color(0.6, 0.6, 0.6)
 			crow.add_child(cqty)
 			var crel = Label.new()
 			crel.text = "Rel %.0f%%  ·  Qual %.2f×" % [
 				item.get("reliability", 0.0), item.get("quality", 1.0)]
-			crel.add_theme_font_size_override("font_size", 11)
+			crel.add_theme_font_size_override("font_size", 22)
 			crel.modulate = Color(0.55, 0.6, 0.7)
 			crow.add_child(crel)
 		vbox.add_child(HSeparator.new())
 
 	# Bulk buy row
 	var bulk_lbl = Label.new(); bulk_lbl.text = "Buy all parts at once:"
-	bulk_lbl.add_theme_font_size_override("font_size", 12); bulk_lbl.modulate = Color(0.6, 0.6, 0.6)
+	bulk_lbl.add_theme_font_size_override("font_size", 24); bulk_lbl.modulate = Color(0.6, 0.6, 0.6)
 	vbox.add_child(bulk_lbl)
 	var bulk_row = HBoxContainer.new(); bulk_row.add_theme_constant_override("separation", 8)
 	vbox.add_child(bulk_row)
@@ -406,7 +408,7 @@ func _make_warehouse_champ_card(champ_id: String) -> PanelContainer:
 		var btn = Button.new()
 		btn.text = "+%d each" % qty
 		btn.custom_minimum_size = Vector2(80, 30)
-		btn.add_theme_font_size_override("font_size", 12)
+		btn.add_theme_font_size_override("font_size", 24)
 		var _qty = qty; var _cid = champ_id
 		btn.pressed.connect(func():
 			# Collect quantities BEFORE any buy (buying calls _switch_tab which wipes part_inputs)
@@ -439,7 +441,7 @@ func _build_tab_buy_car(parent: VBoxContainer) -> void:
 	var garage = GameState.get_building("Garage")
 	var slots_lbl = Label.new()
 	slots_lbl.text = "Car Slots: %d / %d  (Garage Lv%d)" % [cur_cars, max_cars, garage.get("level", 1)]
-	slots_lbl.add_theme_font_size_override("font_size", 14)
+	slots_lbl.add_theme_font_size_override("font_size", 28)
 	slots_lbl.add_theme_color_override("font_color",
 		Color(1.0, 0.4, 0.4) if cur_cars >= max_cars else Color(0.4, 0.9, 0.4))
 	sv.add_child(slots_lbl)
@@ -472,14 +474,14 @@ func _build_tab_buy_car(parent: VBoxContainer) -> void:
 			sv.add_child(crow)
 			var lbl_cn = Label.new()
 			lbl_cn.text = champ_name
-			lbl_cn.add_theme_font_size_override("font_size", 12)
+			lbl_cn.add_theme_font_size_override("font_size", 24)
 			lbl_cn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			lbl_cn.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
 			crow.add_child(lbl_cn)
 			var req_ok = cars_in_champ >= min_c
 			var lbl_req = Label.new()
 			lbl_req.text = "Min %d / Max %d  ·  You have: %d" % [min_c, max_c, cars_in_champ]
-			lbl_req.add_theme_font_size_override("font_size", 12)
+			lbl_req.add_theme_font_size_override("font_size", 24)
 			lbl_req.add_theme_color_override("font_color",
 				Color(0.4, 0.9, 0.4) if req_ok else Color(1.0, 0.4, 0.4))
 			crow.add_child(lbl_req)
@@ -487,7 +489,7 @@ func _build_tab_buy_car(parent: VBoxContainer) -> void:
 				var lbl_warn = Label.new()
 				lbl_warn.text = "⚠ Need %d more car%s — buy below!" % [
 					min_c - cars_in_champ, "s" if min_c - cars_in_champ != 1 else ""]
-				lbl_warn.add_theme_font_size_override("font_size", 11)
+				lbl_warn.add_theme_font_size_override("font_size", 22)
 				lbl_warn.modulate = Color(1.0, 0.5, 0.2)
 				sv.add_child(lbl_warn)
 
@@ -502,7 +504,7 @@ func _build_tab_buy_car(parent: VBoxContainer) -> void:
 	if champ_ids.is_empty():
 		var empty_lbl = Label.new()
 		empty_lbl.text = "No championships registered for this season. Register during the season for next season at Championship Registration."
-		empty_lbl.add_theme_font_size_override("font_size", 13)
+		empty_lbl.add_theme_font_size_override("font_size", 26)
 		empty_lbl.modulate = Color(0.8, 0.6, 0.3)
 		empty_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		parent.add_child(empty_lbl)
@@ -539,7 +541,7 @@ func _make_buy_car_card(champ_id: String) -> PanelContainer:
 	panel.add_child(vbox)
 
 	var lbl_champ = Label.new(); lbl_champ.text = champ_name
-	lbl_champ.add_theme_font_size_override("font_size", 14)
+	lbl_champ.add_theme_font_size_override("font_size", 28)
 	lbl_champ.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
 	lbl_champ.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vbox.add_child(lbl_champ)
@@ -580,7 +582,7 @@ func _make_buy_car_card(champ_id: String) -> PanelContainer:
 		# Standard buy path
 		var lbl_contract = Label.new()
 		lbl_contract.text = "Buying from provider delivers a full car. All parts locked — no modifications under provider contract. Own-designed parts must be manufactured at CNC Plant."
-		lbl_contract.add_theme_font_size_override("font_size", 10)
+		lbl_contract.add_theme_font_size_override("font_size", 20)
 		lbl_contract.modulate = Color(0.5, 0.5, 0.5)
 		lbl_contract.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		vbox.add_child(lbl_contract)
@@ -608,18 +610,18 @@ func _make_buy_car_card(champ_id: String) -> PanelContainer:
 		var race1_week    = GameState.FIRST_RACE_WEEK.get(champ_id, 6)
 
 		var lbl_prov = Label.new(); lbl_prov.text = provider
-		lbl_prov.add_theme_font_size_override("font_size", 11); lbl_prov.modulate = Color(0.6, 0.6, 0.6)
+		lbl_prov.add_theme_font_size_override("font_size", 22); lbl_prov.modulate = Color(0.6, 0.6, 0.6)
 		vbox.add_child(lbl_prov)
 
 		var lbl_del = Label.new()
 		lbl_del.text = "Delivery Wk %d  ·  Race 1 Wk %d" % [delivery_week, race1_week]
-		lbl_del.add_theme_font_size_override("font_size", 11)
+		lbl_del.add_theme_font_size_override("font_size", 22)
 		lbl_del.add_theme_color_override("font_color", Color(0.6, 0.75, 1.0))
 		vbox.add_child(lbl_del)
 
 		var lbl_cost = Label.new()
 		lbl_cost.text = "CR %s" % _fmt(float(car_cost))
-		lbl_cost.add_theme_font_size_override("font_size", 16)
+		lbl_cost.add_theme_font_size_override("font_size", 32)
 		lbl_cost.add_theme_color_override("font_color", Color(0.5,0.9,0.5) if can_afford else Color(1.0,0.35,0.35))
 		vbox.add_child(lbl_cost)
 
@@ -630,7 +632,7 @@ func _make_buy_car_card(champ_id: String) -> PanelContainer:
 		buy_btn.text = "Buy Car — %s" % champ_name.left(16)
 		buy_btn.custom_minimum_size = Vector2(0, 34)
 		buy_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		buy_btn.add_theme_font_size_override("font_size", 12)
+		buy_btn.add_theme_font_size_override("font_size", 24)
 		buy_btn.disabled = slots_full or not can_afford
 		buy_btn.pressed.connect(_on_buy_car_pressed.bind(car_cost, provider, champ_id))
 		vbox.add_child(buy_btn)
@@ -642,7 +644,7 @@ func _make_buy_car_card(champ_id: String) -> PanelContainer:
 			eng_btn.text = "Buy Engine Contract  (CR %s/season)" % _fmt(float(engine_cost))
 			eng_btn.custom_minimum_size = Vector2(0, 34)
 			eng_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			eng_btn.add_theme_font_size_override("font_size", 12)
+			eng_btn.add_theme_font_size_override("font_size", 24)
 			eng_btn.disabled = GameState.player_team.balance < engine_cost
 			eng_btn.pressed.connect(_on_buy_engine_contract_pressed.bind(engine_cost, "GP1 Contracted Provider", champ_id))
 			vbox.add_child(eng_btn)
@@ -650,14 +652,14 @@ func _make_buy_car_card(champ_id: String) -> PanelContainer:
 		# Own-build championship — no buy button, redirect to R&D / CNC
 		var lbl_ob = Label.new()
 		lbl_ob.text = "This championship requires the team to design and manufacture their own car. All parts are Open — no provider car available."
-		lbl_ob.add_theme_font_size_override("font_size", 11)
+		lbl_ob.add_theme_font_size_override("font_size", 22)
 		lbl_ob.modulate = Color(0.7, 0.7, 0.7)
 		lbl_ob.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		vbox.add_child(lbl_ob)
 
 		var lbl_steps = Label.new()
 		lbl_steps.text = "① Research blueprints in R&D Studio  ②  Submit for WRA approval  ③  Manufacture at CNC Plant"
-		lbl_steps.add_theme_font_size_override("font_size", 11)
+		lbl_steps.add_theme_font_size_override("font_size", 22)
 		lbl_steps.add_theme_color_override("font_color", Color(0.55, 0.85, 0.55))
 		lbl_steps.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		vbox.add_child(lbl_steps)
@@ -666,7 +668,7 @@ func _make_buy_car_card(champ_id: String) -> PanelContainer:
 		btn_rnd.text = "🔬 Go to R&D Design Studio"
 		btn_rnd.custom_minimum_size = Vector2(0, 34)
 		btn_rnd.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn_rnd.add_theme_font_size_override("font_size", 12)
+		btn_rnd.add_theme_font_size_override("font_size", 24)
 		btn_rnd.modulate = Color(0.3, 0.7, 1.0)
 		btn_rnd.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/buildings/RnDStudio.tscn"))
 		vbox.add_child(btn_rnd)
@@ -675,7 +677,7 @@ func _make_buy_car_card(champ_id: String) -> PanelContainer:
 		btn_cnc.text = "⚙ Go to CNC Parts Plant"
 		btn_cnc.custom_minimum_size = Vector2(0, 34)
 		btn_cnc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn_cnc.add_theme_font_size_override("font_size", 12)
+		btn_cnc.add_theme_font_size_override("font_size", 24)
 		btn_cnc.modulate = Color(0.3, 0.85, 0.55)
 		btn_cnc.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/buildings/CNCPlant.tscn"))
 		vbox.add_child(btn_cnc)
@@ -760,20 +762,20 @@ func _card_panel() -> PanelContainer:
 
 func _card_title(parent: VBoxContainer, text: String) -> void:
 	var lbl = Label.new(); lbl.text = text
-	lbl.add_theme_font_size_override("font_size", 17)
+	lbl.add_theme_font_size_override("font_size", 34)
 	lbl.add_theme_color_override("font_color", Color(1.0, 0.8, 0.4))
 	parent.add_child(lbl)
 
 func _card_info(parent: VBoxContainer, text: String) -> void:
 	var lbl = Label.new(); lbl.text = text
-	lbl.add_theme_font_size_override("font_size", 12)
+	lbl.add_theme_font_size_override("font_size", 24)
 	lbl.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	parent.add_child(lbl)
 
 func _spec_label(parent: VBoxContainer, text: String, color: Color) -> void:
 	var lbl = Label.new(); lbl.text = text
-	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.add_theme_font_size_override("font_size", 22)
 	lbl.add_theme_color_override("font_color", color)
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	parent.add_child(lbl)
@@ -781,7 +783,7 @@ func _spec_label(parent: VBoxContainer, text: String, color: Color) -> void:
 func _preset_btn(label: String) -> Button:
 	var btn = Button.new(); btn.text = label
 	btn.custom_minimum_size = Vector2(100, 46)
-	btn.add_theme_font_size_override("font_size", 11)
+	btn.add_theme_font_size_override("font_size", 22)
 	return btn
 
 func _show_error(message: String) -> void:

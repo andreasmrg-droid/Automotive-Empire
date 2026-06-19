@@ -1,5 +1,6 @@
 class_name Team
 extends Resource
+## Version: S29.8 — Comment: "GK Regional" -> "GK Championship" (cosmetic).
 
 # Identity
 @export var id: String = ""
@@ -25,7 +26,7 @@ extends Resource
 @export var drivers: Array[String] = []  # driver IDs
 @export var loan_balance: float = 0.0
 
-# Weekly costs specific to GK Regional
+# Weekly costs specific to GK Championship
 @export var weekly_entry_fee: float = 0.0
 @export var weekly_driver_salary: float = 50.0
 @export var weekly_mechanic_salary: float = 250.0

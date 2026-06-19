@@ -1,4 +1,7 @@
 extends Control
+## Version: S29.10 — Added Pillar 5 "COMMERCIAL CARS" button (stub): clicking shows a
+##   coming-soon popup; reserved for the commercial car R&D system (future update).
+## --- S29.9 — Pillar 1 next-season only (#5); catalog scroll min-height (#6).
 ## Version: S17.2 — Blueprint ownership grid added per championship (P1+P3 combined visual).
 ## R&D Design Studio
 ## P1 — All part blueprints, all championships, no filter
@@ -11,18 +14,21 @@ const PILLAR_COLORS = {
 	2: Color(1.0,  0.65, 0.1),
 	3: Color(0.55, 0.35, 1.0),
 	4: Color(0.15, 0.85, 0.55),
+	5: Color(0.9,  0.3,  0.55),  ## S29.10 — Commercial Cars R&D (future)
 }
 const PILLAR_NAMES = {
 	1: "DESIGN",
 	2: "UPGRADE",
 	3: "REV. ENGINEERING",
 	4: "SPECIAL PROJECTS",
+	5: "COMMERCIAL CARS",
 }
 const PILLAR_DESCS = {
 	1: "Design blueprints for any part.\nUnlocks CNC manufacturing once approved by WRA.",
 	2: "Upgrade Open parts on your owned cars.\nIn-season improvements carry to next season.",
 	3: "Reverse-engineer Spec parts you own.\nTeam must have the part in the warehouse.",
 	4: "Building-linked special projects.\nUnlocks unique team capabilities and bonuses.",
+	5: "Research for the commercial car business.\nComing in a future update.",
 }
 const PART_COLORS = {
 	"Aero":       Color(0.25, 0.65, 1.0),
@@ -73,7 +79,7 @@ func _build_ui() -> void:
 
 	var lbl_title = Label.new()
 	lbl_title.text = "🔬  R&D DESIGN STUDIO"
-	lbl_title.add_theme_font_size_override("font_size", 21)
+	lbl_title.add_theme_font_size_override("font_size", 42)
 	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(lbl_title)
 
@@ -83,7 +89,7 @@ func _build_ui() -> void:
 	rp_box.add_child(rp_inner)
 	var lbl_rp_icon = Label.new()
 	lbl_rp_icon.text = "🔵 RP"
-	lbl_rp_icon.add_theme_font_size_override("font_size", 12)
+	lbl_rp_icon.add_theme_font_size_override("font_size", 24)
 	rp_inner.add_child(lbl_rp_icon)
 	var rp_bar = ProgressBar.new()
 	rp_bar.custom_minimum_size = Vector2(120, 16)
@@ -94,14 +100,14 @@ func _build_ui() -> void:
 	rp_inner.add_child(rp_bar)
 	var lbl_rp = Label.new()
 	lbl_rp.text = "%.0f / %d" % [GameState.research_points, GameState.get_rnd_rp_storage_cap()]
-	lbl_rp.add_theme_font_size_override("font_size", 12)
+	lbl_rp.add_theme_font_size_override("font_size", 24)
 	lbl_rp.add_theme_color_override("font_color", Color(0.45, 0.75, 1.0))
 	rp_inner.add_child(lbl_rp)
 	header.add_child(rp_box)
 
 	var lbl_bal = Label.new()
 	lbl_bal.text = "💰 %s" % _fmt(int(GameState.player_team.balance))
-	lbl_bal.add_theme_font_size_override("font_size", 13)
+	lbl_bal.add_theme_font_size_override("font_size", 26)
 	lbl_bal.add_theme_color_override("font_color", Color(0.5, 0.9, 0.4))
 	header.add_child(lbl_bal)
 
@@ -126,19 +132,24 @@ func _build_ui() -> void:
 	tab_bar.add_theme_constant_override("separation", 6)
 	root.add_child(tab_bar)
 
-	for p in [1, 2, 3, 4]:
+	for p in [1, 2, 3, 4, 5]:
 		var btn = Button.new()
 		btn.text = PILLAR_NAMES[p]
 		btn.custom_minimum_size = Vector2(0, 32)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.add_theme_font_size_override("font_size", 12)
+		btn.add_theme_font_size_override("font_size", 24)
 		if p == _selected_pillar:
 			btn.modulate = PILLAR_COLORS[p]
 		var pid = p
-		btn.pressed.connect(func():
-			GameState.pending_rnd_pillar = pid
-			get_tree().change_scene_to_file("res://scenes/buildings/RnDStudio.tscn")
-		)
+		if pid == 5:
+			## S29.10 — Pillar 5 (Commercial Cars R&D) is a stub for a future update.
+			btn.modulate = PILLAR_COLORS[5].darkened(0.15)
+			btn.pressed.connect(_show_p5_coming_soon)
+		else:
+			btn.pressed.connect(func():
+				GameState.pending_rnd_pillar = pid
+				get_tree().change_scene_to_file("res://scenes/buildings/RnDStudio.tscn")
+			)
 		tab_bar.add_child(btn)
 
 	root.add_child(_hsep())
@@ -184,7 +195,7 @@ func _build_designer_column(parent: VBoxContainer) -> void:
 	var lv = building.get("level", 1)
 	var lbl_slots = Label.new()
 	lbl_slots.text = "Studio Lvl %d — %d concurrent task%s" % [lv, lv, "s" if lv != 1 else ""]
-	lbl_slots.add_theme_font_size_override("font_size", 11)
+	lbl_slots.add_theme_font_size_override("font_size", 22)
 	lbl_slots.modulate = Color(0.55, 0.55, 0.55)
 	parent.add_child(lbl_slots)
 
@@ -193,7 +204,7 @@ func _build_designer_column(parent: VBoxContainer) -> void:
 		var lbl = Label.new()
 		lbl.text = "No Designers hired."
 		lbl.modulate = Color(0.5, 0.5, 0.5)
-		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_font_size_override("font_size", 24)
 		parent.add_child(lbl)
 	else:
 		for d in designers:
@@ -203,7 +214,7 @@ func _build_designer_column(parent: VBoxContainer) -> void:
 	var btn_hire = Button.new()
 	btn_hire.text = "👤 Hire Designer  →  Staff"
 	btn_hire.custom_minimum_size = Vector2(180, 32)
-	btn_hire.add_theme_font_size_override("font_size", 12)
+	btn_hire.add_theme_font_size_override("font_size", 24)
 	btn_hire.pressed.connect(func():
 		GameState.pending_staff_filter = "Designer"
 		get_tree().change_scene_to_file("res://scenes/Staff.tscn")
@@ -214,7 +225,7 @@ func _build_designer_column(parent: VBoxContainer) -> void:
 
 	var lbl_comp = Label.new()
 	lbl_comp.text = "COMPLETED  (%d)" % GameState.completed_rnd_tasks.size()
-	lbl_comp.add_theme_font_size_override("font_size", 11)
+	lbl_comp.add_theme_font_size_override("font_size", 22)
 	lbl_comp.add_theme_color_override("font_color", Color(0.5, 0.8, 0.5))
 	parent.add_child(lbl_comp)
 
@@ -230,7 +241,7 @@ func _build_designer_column(parent: VBoxContainer) -> void:
 		if td.is_empty(): continue
 		var lbl_done = Label.new()
 		lbl_done.text = "✅ %s" % td.get("name", tid)
-		lbl_done.add_theme_font_size_override("font_size", 10)
+		lbl_done.add_theme_font_size_override("font_size", 20)
 		lbl_done.modulate = Color(0.42, 0.72, 0.42)
 		lbl_done.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		comp_vbox.add_child(lbl_done)
@@ -265,20 +276,20 @@ func _build_designer_card(d) -> PanelContainer:
 	row1.add_child(icon)
 	var lbl_name = Label.new()
 	lbl_name.text = d.full_name()
-	lbl_name.add_theme_font_size_override("font_size", 12)
+	lbl_name.add_theme_font_size_override("font_size", 24)
 	lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lbl_name.add_theme_color_override("font_color", Color(1.0, 0.6, 0.2) if is_busy else Color(0.85, 0.85, 0.85))
 	row1.add_child(lbl_name)
 	var lbl_tal = Label.new()
 	lbl_tal.text = "⭐%.0f" % d.talent
-	lbl_tal.add_theme_font_size_override("font_size", 10)
+	lbl_tal.add_theme_font_size_override("font_size", 20)
 	lbl_tal.modulate = Color(0.7, 0.7, 0.4)
 	row1.add_child(lbl_tal)
 
 	if is_busy:
 		var lbl_task = Label.new()
 		lbl_task.text = busy_task_name + (" · %s" % busy_champ if busy_champ != "" else "")
-		lbl_task.add_theme_font_size_override("font_size", 10)
+		lbl_task.add_theme_font_size_override("font_size", 20)
 		lbl_task.modulate = Color(0.7, 0.7, 0.7)
 		lbl_task.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		vbox.add_child(lbl_task)
@@ -290,13 +301,13 @@ func _build_designer_card(d) -> PanelContainer:
 		vbox.add_child(bar)
 		var lbl_wks = Label.new()
 		lbl_wks.text = "%d weeks left" % busy_wks
-		lbl_wks.add_theme_font_size_override("font_size", 10)
+		lbl_wks.add_theme_font_size_override("font_size", 20)
 		lbl_wks.modulate = Color(0.55, 0.55, 0.55)
 		vbox.add_child(lbl_wks)
 	else:
 		var lbl_avail = Label.new()
 		lbl_avail.text = "Available"
-		lbl_avail.add_theme_font_size_override("font_size", 10)
+		lbl_avail.add_theme_font_size_override("font_size", 20)
 		lbl_avail.modulate = Color(0.3, 0.9, 0.4)
 		vbox.add_child(lbl_avail)
 
@@ -311,7 +322,7 @@ func _build_active_column(parent: VBoxContainer) -> void:
 		var lbl = Label.new()
 		lbl.text = "No active research.\nSelect a task from the catalog →"
 		lbl.modulate = Color(0.5, 0.5, 0.5)
-		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_font_size_override("font_size", 24)
 		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		parent.add_child(lbl)
 		return
@@ -343,12 +354,12 @@ func _build_active_task_card(task: Dictionary) -> PanelContainer:
 	vbox.add_child(row1)
 	var lbl_p = Label.new()
 	lbl_p.text = "P%d" % task.get("pillar", 1)
-	lbl_p.add_theme_font_size_override("font_size", 10)
+	lbl_p.add_theme_font_size_override("font_size", 20)
 	lbl_p.add_theme_color_override("font_color", p_color)
 	row1.add_child(lbl_p)
 	var lbl_name = Label.new()
 	lbl_name.text = task["name"]
-	lbl_name.add_theme_font_size_override("font_size", 13)
+	lbl_name.add_theme_font_size_override("font_size", 26)
 	lbl_name.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
 	lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lbl_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -359,7 +370,7 @@ func _build_active_task_card(task: Dictionary) -> PanelContainer:
 		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(task["championship_id"], {})
 		var lbl_c = Label.new()
 		lbl_c.text = reg.get("name", task["championship_id"]).left(14)
-		lbl_c.add_theme_font_size_override("font_size", 10)
+		lbl_c.add_theme_font_size_override("font_size", 20)
 		lbl_c.modulate = Color(0.55, 0.55, 0.55)
 		vbox.add_child(lbl_c)
 
@@ -374,7 +385,7 @@ func _build_active_task_card(task: Dictionary) -> PanelContainer:
 	var lbl_prog = Label.new()
 	lbl_prog.text = "Week %d / %d  (%d remaining)" % [
 		task["weeks_total"] - task["weeks_remaining"], task["weeks_total"], task["weeks_remaining"]]
-	lbl_prog.add_theme_font_size_override("font_size", 10)
+	lbl_prog.add_theme_font_size_override("font_size", 20)
 	lbl_prog.modulate = Color(0.55, 0.55, 0.55)
 	vbox.add_child(lbl_prog)
 
@@ -384,13 +395,13 @@ func _build_active_task_card(task: Dictionary) -> PanelContainer:
 	var designer = GameState.all_staff.get(task["designer_id"])
 	var lbl_who = Label.new()
 	lbl_who.text = "👤 %s" % (designer.full_name() if designer else "Unknown")
-	lbl_who.add_theme_font_size_override("font_size", 10)
+	lbl_who.add_theme_font_size_override("font_size", 20)
 	lbl_who.modulate = Color(0.55, 0.55, 0.55)
 	lbl_who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row2.add_child(lbl_who)
 	var btn_cancel = Button.new()
 	btn_cancel.text = "Cancel"
-	btn_cancel.add_theme_font_size_override("font_size", 10)
+	btn_cancel.add_theme_font_size_override("font_size", 20)
 	btn_cancel.modulate = Color(0.75, 0.35, 0.35)
 	btn_cancel.custom_minimum_size = Vector2(58, 24)
 	var tid = task["id"]
@@ -408,13 +419,13 @@ func _build_catalog_column(parent: VBoxContainer) -> void:
 
 	var lbl_hdr = Label.new()
 	lbl_hdr.text = "PILLAR %d — %s" % [_selected_pillar, PILLAR_NAMES[_selected_pillar]]
-	lbl_hdr.add_theme_font_size_override("font_size", 14)
+	lbl_hdr.add_theme_font_size_override("font_size", 28)
 	lbl_hdr.add_theme_color_override("font_color", p_color)
 	parent.add_child(lbl_hdr)
 
 	var lbl_desc = Label.new()
 	lbl_desc.text = PILLAR_DESCS[_selected_pillar]
-	lbl_desc.add_theme_font_size_override("font_size", 11)
+	lbl_desc.add_theme_font_size_override("font_size", 22)
 	lbl_desc.modulate = Color(0.5, 0.5, 0.5)
 	lbl_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	parent.add_child(lbl_desc)
@@ -424,6 +435,11 @@ func _build_catalog_column(parent: VBoxContainer) -> void:
 	var scroll = ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	## S29.9 (#6) — guarantee a usable height so the catalog (esp. Pillar 4's 100
+	## special projects) can't collapse to a few rows; the vertical scrollbar then
+	## reliably reaches every project.
+	scroll.custom_minimum_size = Vector2(0, 400)
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	parent.add_child(scroll)
 
 	var inner = VBoxContainer.new()
@@ -442,6 +458,7 @@ func _build_catalog_column(parent: VBoxContainer) -> void:
 		2: _build_p2_catalog(inner, free_designers)
 		3: _build_p3_catalog(inner, free_designers)
 		4: _build_p4_catalog(inner, free_designers)
+		5: inner.add_child(_lbl_empty("Commercial Cars R&D is coming in a future update."))
 
 
 # ── P1: All blueprints for all parts, all championships ───────────────────────
@@ -484,36 +501,22 @@ func _build_p1_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 		## Championship header
 		var lbl_champ = Label.new()
 		lbl_champ.text = champ_name
-		lbl_champ.add_theme_font_size_override("font_size", 13)
+		lbl_champ.add_theme_font_size_override("font_size", 26)
 		lbl_champ.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
 		parent.add_child(lbl_champ)
 
-		## ── Current season tasks ──────────────────────────────────────
-		var cur_lbl = Label.new()
-		cur_lbl.text = "Current Season (S%d)" % season
-		cur_lbl.add_theme_font_size_override("font_size", 12)
-		cur_lbl.add_theme_color_override("font_color", Color(0.6, 0.8, 0.6))
-		parent.add_child(cur_lbl)
-
-		## Get parts for this championship from current season tasks
+		## ── Current-season blueprints removed (S29.9, issue #5): the current
+		## season's car is already locked in / not actionable, so only NEXT
+		## season's blueprints are shown here. We still derive parts_seen from
+		## the current-season task list so the next-season section knows which
+		## parts this championship uses.
 		var parts_seen: Array = []
 		for entry in by_champ[cid]:
 			var t = entry["task"]
-			var part = t.get("part", "")
-			var level = t.get("level", 1)
-			var task_id = entry["id"]
-			if level == 1:
-				parts_seen.append(part)
-				## Always show L1
-				parent.add_child(_build_task_card(task_id, t, free_designers, cid))
-				## Show L2 only if L1 is completed
-				var l1_done = task_id in GameState.completed_rnd_tasks
-				if l1_done:
-					## Find the L2 task
-					var l2_id = task_id.replace("-L1", "-L2")
-					if l2_id in GameState.RND_TASKS:
-						parent.add_child(_build_task_card(
-							l2_id, GameState.RND_TASKS[l2_id], free_designers, cid))
+			if t.get("level", 1) == 1:
+				var part = t.get("part", "")
+				if not part in parts_seen:
+					parts_seen.append(part)
 
 		## ── Next season tasks ─────────────────────────────────────────
 		var next_lbl = Label.new()
@@ -523,7 +526,7 @@ func _build_p1_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 		else:
 			next_lbl.text = "▶ Next Season (S%d)" % next_season
 			next_lbl.add_theme_color_override("font_color", Color(0.55, 0.75, 1.0))
-		next_lbl.add_theme_font_size_override("font_size", 12)
+		next_lbl.add_theme_font_size_override("font_size", 24)
 		parent.add_child(next_lbl)
 
 		for part in parts_seen:
@@ -571,7 +574,7 @@ func _build_p2_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 			lbl.text = "🏎 %s  [%s] — All parts are Spec. No upgrades available." % [
 				car.car_name if car.car_name != "" else "Car %d" % car.car_number,
 				reg.get("name", cid)]
-			lbl.add_theme_font_size_override("font_size", 12)
+			lbl.add_theme_font_size_override("font_size", 24)
 			lbl.modulate = Color(0.5, 0.5, 0.5)
 			lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			parent.add_child(lbl)
@@ -583,13 +586,13 @@ func _build_p2_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 		lbl_car.text = "🏎 %s  —  %s" % [
 			car.car_name if car.car_name != "" else "Car %d" % car.car_number,
 			reg.get("name", cid)]
-		lbl_car.add_theme_font_size_override("font_size", 13)
+		lbl_car.add_theme_font_size_override("font_size", 26)
 		lbl_car.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
 		parent.add_child(lbl_car)
 
 		var lbl_open = Label.new()
 		lbl_open.text = "Open parts (upgradeable): %s" % ", ".join(open_parts)
-		lbl_open.add_theme_font_size_override("font_size", 11)
+		lbl_open.add_theme_font_size_override("font_size", 22)
 		lbl_open.modulate = Color(0.4, 0.88, 0.55)
 		parent.add_child(lbl_open)
 
@@ -619,7 +622,7 @@ func _build_p2_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 				# All 5 levels done for this part
 				var lbl_max = Label.new()
 				lbl_max.text = "  %s — Max upgrade (L5) complete ✅" % part
-				lbl_max.add_theme_font_size_override("font_size", 11)
+				lbl_max.add_theme_font_size_override("font_size", 22)
 				lbl_max.add_theme_color_override("font_color", Color(0.4, 0.82, 0.4))
 				parent.add_child(lbl_max)
 				any_shown = true
@@ -634,7 +637,7 @@ func _build_p2_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 				if highest_done > 0:
 					var lbl_prog = Label.new()
 					lbl_prog.text = "  %s — L%d complete, researching L%d" % [part, highest_done, next_lv]
-					lbl_prog.add_theme_font_size_override("font_size", 11)
+					lbl_prog.add_theme_font_size_override("font_size", 22)
 					lbl_prog.add_theme_color_override("font_color", Color(0.65, 0.65, 0.65))
 					parent.add_child(lbl_prog)
 				parent.add_child(_build_task_card(next_id, t, free_designers, cid))
@@ -680,7 +683,7 @@ func _build_p3_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 			lbl.text = "🏎 %s  [%s] — All parts Open. Nothing to Reverse Engineer." % [
 				car.car_name if car.car_name != "" else "Car %d" % car.car_number,
 				reg.get("name", cid)]
-			lbl.add_theme_font_size_override("font_size", 12)
+			lbl.add_theme_font_size_override("font_size", 24)
 			lbl.modulate = Color(0.5, 0.5, 0.5)
 			lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			parent.add_child(lbl)
@@ -691,34 +694,34 @@ func _build_p3_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 		lbl_car.text = "🏎 %s  —  %s" % [
 			car.car_name if car.car_name != "" else "Car %d" % car.car_number,
 			reg.get("name", cid)]
-		lbl_car.add_theme_font_size_override("font_size", 13)
+		lbl_car.add_theme_font_size_override("font_size", 26)
 		lbl_car.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
 		parent.add_child(lbl_car)
 
 		if not owned_spec.is_empty():
 			var lbl_ok = Label.new()
 			lbl_ok.text = "✅ Can RE: %s" % ", ".join(owned_spec)
-			lbl_ok.add_theme_font_size_override("font_size", 11)
+			lbl_ok.add_theme_font_size_override("font_size", 22)
 			lbl_ok.modulate = Color(0.4, 0.88, 0.55)
 			parent.add_child(lbl_ok)
 
 		if not missing_spec.is_empty():
 			var lbl_miss = Label.new()
 			lbl_miss.text = "🔒 Need to buy: %s" % ", ".join(missing_spec)
-			lbl_miss.add_theme_font_size_override("font_size", 11)
+			lbl_miss.add_theme_font_size_override("font_size", 22)
 			lbl_miss.modulate = Color(0.65, 0.45, 0.2)
 			parent.add_child(lbl_miss)
 
 		if owned_spec.is_empty():
 			var lbl_no = Label.new()
 			lbl_no.text = "Buy spec parts at Logistics Center to unlock RE."
-			lbl_no.add_theme_font_size_override("font_size", 11)
+			lbl_no.add_theme_font_size_override("font_size", 22)
 			lbl_no.modulate = Color(0.5, 0.5, 0.5)
 			parent.add_child(lbl_no)
 		else:
 			var lbl_re_hint = Label.new()
 			lbl_re_hint.text = "💡 Completing a RE task unlocks P1 Design L2 for that part, and produces a blueprint you can submit to the WRA for CNC manufacturing."
-			lbl_re_hint.add_theme_font_size_override("font_size", 10)
+			lbl_re_hint.add_theme_font_size_override("font_size", 20)
 			lbl_re_hint.modulate = Color(0.5, 0.75, 1.0)
 			lbl_re_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			parent.add_child(lbl_re_hint)
@@ -735,6 +738,20 @@ func _build_p3_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 	if not any_shown:
 		parent.add_child(_lbl_empty(
 			"No Spec parts owned yet. Buy parts at the Logistics Center warehouse to unlock Reverse Engineering."))
+
+
+# ── P5: Commercial Cars R&D (stub — future update) ────────────────────────────
+## S29.10 — Pillar 5 is reserved for the commercial car business R&D. The button
+## exists now so the pillar bar is stable; clicking it shows this notice.
+func _show_p5_coming_soon() -> void:
+	var dialog = AcceptDialog.new()
+	dialog.title = "🚗  Commercial Cars R&D"
+	dialog.dialog_text = "Research for the commercial car business is coming in a future update.\n\nThis pillar will let you develop and improve the road cars your company sells, feeding the commercial market system."
+	dialog.ok_button_text = "Close"
+	add_child(dialog)
+	dialog.popup_centered()
+	dialog.confirmed.connect(dialog.queue_free)
+	dialog.canceled.connect(dialog.queue_free)
 
 
 # ── P4: Special Projects ───────────────────────────────────────────────────────
@@ -787,7 +804,7 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 	vbox.add_child(row1)
 	var lbl_name = Label.new()
 	lbl_name.text = task["name"]
-	lbl_name.add_theme_font_size_override("font_size", 13)
+	lbl_name.add_theme_font_size_override("font_size", 26)
 	lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	if is_done: lbl_name.add_theme_color_override("font_color", Color(0.4, 0.82, 0.4))
 	elif not unlocked: lbl_name.modulate = Color(0.4, 0.4, 0.4)
@@ -798,7 +815,7 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 	if level > 0:
 		var lbl_lv = Label.new()
 		lbl_lv.text = "L%d" % level
-		lbl_lv.add_theme_font_size_override("font_size", 10)
+		lbl_lv.add_theme_font_size_override("font_size", 20)
 		var lv_colors = {1: Color(0.4, 0.88, 0.55), 2: Color(0.55, 0.75, 1.0),
 			3: Color(1.0, 0.75, 0.3), 4: Color(1.0, 0.45, 0.45), 5: Color(0.85, 0.4, 1.0)}
 		lbl_lv.add_theme_color_override("font_color", lv_colors.get(level, Color(0.7, 0.7, 0.7)))
@@ -806,14 +823,14 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 
 	var lbl_part = Label.new()
 	lbl_part.text = task["part"]
-	lbl_part.add_theme_font_size_override("font_size", 10)
+	lbl_part.add_theme_font_size_override("font_size", 20)
 	lbl_part.add_theme_color_override("font_color", PART_COLORS.get(task["part"], Color.WHITE))
 	row1.add_child(lbl_part)
 	if is_done:
 		var lbl_ok = Label.new(); lbl_ok.text = "✅"; row1.add_child(lbl_ok)
 	elif is_active:
 		var lbl_p = Label.new(); lbl_p.text = "🔬 In progress"
-		lbl_p.add_theme_font_size_override("font_size", 10); lbl_p.modulate = Color(0.4, 0.7, 1.0)
+		lbl_p.add_theme_font_size_override("font_size", 20); lbl_p.modulate = Color(0.4, 0.7, 1.0)
 		row1.add_child(lbl_p)
 
 	# Row 2: costs / lock / assign
@@ -827,20 +844,20 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 		if GameState.is_blueprint_approved(bp_id):
 			var lbl_wra = Label.new()
 			lbl_wra.text = "✅ WRA Approved — ready for CNC manufacturing"
-			lbl_wra.add_theme_font_size_override("font_size", 11)
+			lbl_wra.add_theme_font_size_override("font_size", 22)
 			lbl_wra.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
 			row2.add_child(lbl_wra)
 		elif GameState.is_blueprint_submitted(bp_id):
 			var lbl_wra = Label.new()
 			lbl_wra.text = "⏳ Submitted to WRA — awaiting approval"
-			lbl_wra.add_theme_font_size_override("font_size", 11)
+			lbl_wra.add_theme_font_size_override("font_size", 22)
 			lbl_wra.modulate = Color(0.7, 0.7, 0.4)
 			row2.add_child(lbl_wra)
 		elif bp_id in GameState.known_blueprints:
 			var btn_wra = Button.new()
 			btn_wra.text = "📋 Send to WRA for Approval →"
 			btn_wra.custom_minimum_size = Vector2(0, 28)
-			btn_wra.add_theme_font_size_override("font_size", 11)
+			btn_wra.add_theme_font_size_override("font_size", 22)
 			btn_wra.pressed.connect(func():
 				GameState.pending_hq_tab = "wra_office"
 				get_tree().change_scene_to_file("res://scenes/buildings/HQ.tscn"))
@@ -849,7 +866,7 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 		if task.get("pillar", 0) == 3:
 			var lbl_hint = Label.new()
 			lbl_hint.text = "💡 Unlocks P1 Design L2 for this part"
-			lbl_hint.add_theme_font_size_override("font_size", 10)
+			lbl_hint.add_theme_font_size_override("font_size", 20)
 			lbl_hint.modulate = Color(0.5, 0.75, 1.0)
 			vbox.add_child(lbl_hint)
 	elif is_active:
@@ -864,7 +881,7 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 		else:
 			## Next-season L1 tasks have no prerequisite — they're freely available
 			lbl_lock.text = "🔒 Complete Season %d L1 first" % GameState.current_season
-		lbl_lock.add_theme_font_size_override("font_size", 11)
+		lbl_lock.add_theme_font_size_override("font_size", 22)
 		lbl_lock.modulate = Color(0.5, 0.5, 0.5)
 		lbl_lock.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		lbl_lock.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -878,7 +895,7 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 		]:
 			var cl = Label.new()
 			cl.text = pair[0]
-			cl.add_theme_font_size_override("font_size", 11)
+			cl.add_theme_font_size_override("font_size", 22)
 			cl.add_theme_color_override("font_color",
 				Color(0.45, 0.88, 0.45) if pair[1] else Color(1.0, 0.35, 0.35))
 			row2.add_child(cl)
@@ -888,14 +905,14 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 			btn_row.add_theme_constant_override("separation", 6)
 			vbox.add_child(btn_row)
 			var lbl_a = Label.new(); lbl_a.text = "Assign:"
-			lbl_a.add_theme_font_size_override("font_size", 11)
+			lbl_a.add_theme_font_size_override("font_size", 22)
 			lbl_a.modulate = Color(0.55, 0.55, 0.55)
 			btn_row.add_child(lbl_a)
 			for designer in free_designers:
 				var btn = Button.new()
 				btn.text = designer.full_name().split(" ")[0]
 				btn.custom_minimum_size = Vector2(72, 26)
-				btn.add_theme_font_size_override("font_size", 11)
+				btn.add_theme_font_size_override("font_size", 22)
 				btn.modulate = p_color.lightened(0.1)
 				var did = designer.id
 				var tid = task_id
@@ -911,7 +928,7 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 		elif not has_free:
 			var lbl_nd = Label.new()
 			lbl_nd.text = "⚠ No free designer available"
-			lbl_nd.add_theme_font_size_override("font_size", 10)
+			lbl_nd.add_theme_font_size_override("font_size", 20)
 			lbl_nd.modulate = Color(0.75, 0.5, 0.2)
 			vbox.add_child(lbl_nd)
 
@@ -939,14 +956,14 @@ func _lbl_empty(text: String) -> Label:
 	var lbl = Label.new()
 	lbl.text = text
 	lbl.modulate = Color(0.5, 0.5, 0.5)
-	lbl.add_theme_font_size_override("font_size", 12)
+	lbl.add_theme_font_size_override("font_size", 24)
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	return lbl
 
 func _section_header(text: String, color: Color) -> Label:
 	var lbl = Label.new()
 	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.add_theme_font_size_override("font_size", 26)
 	lbl.add_theme_color_override("font_color", color)
 	return lbl
 
@@ -984,7 +1001,7 @@ func _build_blueprint_grid_column(parent: VBoxContainer) -> void:
 	## Legend
 	var legend = Label.new()
 	legend.text = "✅ owned  🔬 active  ⏳ WRA  🟢 approved"
-	legend.add_theme_font_size_override("font_size", 9)
+	legend.add_theme_font_size_override("font_size", 18)
 	legend.modulate = Color(0.5, 0.5, 0.5)
 	parent.add_child(legend)
 
@@ -999,7 +1016,7 @@ func _build_blueprint_grid_column(parent: VBoxContainer) -> void:
 		## Championship header
 		var lbl_champ = Label.new()
 		lbl_champ.text = champ.championship_name
-		lbl_champ.add_theme_font_size_override("font_size", 11)
+		lbl_champ.add_theme_font_size_override("font_size", 22)
 		lbl_champ.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
 		parent.add_child(lbl_champ)
 
@@ -1014,7 +1031,7 @@ func _build_blueprint_grid_column(parent: VBoxContainer) -> void:
 		for hdr_text in ["", "L1","L2","L3","L4","L5","RE",""]:
 			var h = Label.new()
 			h.text = hdr_text
-			h.add_theme_font_size_override("font_size", 9)
+			h.add_theme_font_size_override("font_size", 18)
 			h.add_theme_color_override("font_color", Color(0.5,0.5,0.5))
 			h.custom_minimum_size = Vector2(22, 0)
 			h.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1030,7 +1047,7 @@ func _build_blueprint_grid_column(parent: VBoxContainer) -> void:
 			## Part name cell
 			var lbl_p = Label.new()
 			lbl_p.text = PSHORT.get(pcode, pcode)
-			lbl_p.add_theme_font_size_override("font_size", 9)
+			lbl_p.add_theme_font_size_override("font_size", 18)
 			lbl_p.add_theme_color_override("font_color", p_color)
 			lbl_p.custom_minimum_size = Vector2(30, 0)
 			grid.add_child(lbl_p)
@@ -1040,7 +1057,7 @@ func _build_blueprint_grid_column(parent: VBoxContainer) -> void:
 				var cell = Label.new()
 				cell.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 				cell.custom_minimum_size = Vector2(22, 0)
-				cell.add_theme_font_size_override("font_size", 11)
+				cell.add_theme_font_size_override("font_size", 22)
 				var owned_levels: Array = pd.get("bp_levels", [])
 				if lvl in owned_levels:
 					cell.text = "✅"
@@ -1059,7 +1076,7 @@ func _build_blueprint_grid_column(parent: VBoxContainer) -> void:
 			var re_cell = Label.new()
 			re_cell.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			re_cell.custom_minimum_size = Vector2(22, 0)
-			re_cell.add_theme_font_size_override("font_size", 11)
+			re_cell.add_theme_font_size_override("font_size", 22)
 			var re_done: bool = pd.get("re", false)
 			if re_done:
 				re_cell.text = "✅"

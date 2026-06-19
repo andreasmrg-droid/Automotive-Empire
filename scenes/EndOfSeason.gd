@@ -1,4 +1,6 @@
 extends Control
+## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S28.4 — EOS only shows championships the player actually raced (fixes empty GK
 ##   card when not registered). GK standings read GKDiscipline (champion +
 ##   final-round group standings) instead of the empty champ.standings (Bug 1).
@@ -33,7 +35,7 @@ func _build_ui() -> void:
 	# ── Title ─────────────────────────────────────────────────────────────────
 	var lbl_title = Label.new()
 	lbl_title.text = "🏁  SEASON %d COMPLETE" % GameState.current_season
-	lbl_title.add_theme_font_size_override("font_size", 36)
+	lbl_title.add_theme_font_size_override("font_size", 72)
 	lbl_title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
 	lbl_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(lbl_title)
@@ -75,7 +77,7 @@ func _build_ui() -> void:
 	var lbl_next = Label.new()
 	lbl_next.text = "Season %d awaits. Review standings, then start your preparations." \
 		% (GameState.current_season + 1)
-	lbl_next.add_theme_font_size_override("font_size", 13)
+	lbl_next.add_theme_font_size_override("font_size", 26)
 	lbl_next.modulate = Color(0.55, 0.55, 0.55)
 	lbl_next.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lbl_next.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -88,7 +90,7 @@ func _build_ui() -> void:
 
 	var btn_cont = _action_btn("▶  Continue to Season %d" % (GameState.current_season + 1),
 		Color(0.14, 0.48, 0.18))
-	btn_cont.add_theme_font_size_override("font_size", 15)
+	btn_cont.add_theme_font_size_override("font_size", 30)
 	btn_cont.custom_minimum_size = Vector2(240, 44)
 	btn_cont.pressed.connect(_on_continue)
 	footer.add_child(btn_cont)
@@ -124,14 +126,14 @@ func _build_standings() -> VBoxContainer:
 
 		var lbl_champ = Label.new()
 		lbl_champ.text = "🏆 %s" % champ.championship_name
-		lbl_champ.add_theme_font_size_override("font_size", 14)
+		lbl_champ.add_theme_font_size_override("font_size", 28)
 		lbl_champ.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
 		cv.add_child(lbl_champ)
 
 		## Driver standings
 		var lbl_drv_hdr = Label.new()
 		lbl_drv_hdr.text = "DRIVERS"
-		lbl_drv_hdr.add_theme_font_size_override("font_size", 10)
+		lbl_drv_hdr.add_theme_font_size_override("font_size", 20)
 		lbl_drv_hdr.modulate = Color(0.45, 0.45, 0.45)
 		cv.add_child(lbl_drv_hdr)
 
@@ -147,7 +149,7 @@ func _build_standings() -> VBoxContainer:
 				var clbl = Label.new()
 				clbl.text = "🏆 Champion: %s — %d pts" % [
 					cd.full_name() if cd else "Unknown", champ_entry.get("points", 0)]
-				clbl.add_theme_font_size_override("font_size", 13)
+				clbl.add_theme_font_size_override("font_size", 26)
 				clbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.1))
 				crow.add_child(clbl)
 				cv.add_child(crow)
@@ -169,16 +171,16 @@ func _build_standings() -> VBoxContainer:
 				grow.add_theme_constant_override("separation", 10)
 				var gpos = Label.new(); gpos.text = "P%d" % (i + 1)
 				gpos.custom_minimum_size = Vector2(32, 0)
-				gpos.add_theme_font_size_override("font_size", 13)
+				gpos.add_theme_font_size_override("font_size", 26)
 				grow.add_child(gpos)
 				var gname = Label.new()
 				gname.text = gd.full_name() + ("  ← Our Driver" if is_p else "")
-				gname.add_theme_font_size_override("font_size", 13)
+				gname.add_theme_font_size_override("font_size", 26)
 				gname.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 				if is_p: gname.add_theme_color_override("font_color", Color(0.4, 1.0, 0.4))
 				grow.add_child(gname)
 				var gpts = Label.new(); gpts.text = "%d pts" % e.get("points", 0)
-				gpts.add_theme_font_size_override("font_size", 13)
+				gpts.add_theme_font_size_override("font_size", 26)
 				gpts.modulate = Color(0.65, 0.65, 0.65)
 				grow.add_child(gpts)
 				cv.add_child(grow)
@@ -203,7 +205,7 @@ func _build_standings() -> VBoxContainer:
 			var lbl_pos = Label.new()
 			lbl_pos.text = "P%d" % (i + 1)
 			lbl_pos.custom_minimum_size = Vector2(32, 0)
-			lbl_pos.add_theme_font_size_override("font_size", 13)
+			lbl_pos.add_theme_font_size_override("font_size", 26)
 			lbl_pos.add_theme_color_override("font_color",
 				Color(1.0, 0.85, 0.1) if i == 0 else
 				Color(0.75, 0.75, 0.75) if i < 3 else Color(0.5, 0.5, 0.5))
@@ -211,7 +213,7 @@ func _build_standings() -> VBoxContainer:
 
 			var lbl_drv = Label.new()
 			lbl_drv.text = drv.full_name() + ("  ← Our Driver" if is_player else "")
-			lbl_drv.add_theme_font_size_override("font_size", 13)
+			lbl_drv.add_theme_font_size_override("font_size", 26)
 			lbl_drv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			if is_player:
 				lbl_drv.add_theme_color_override("font_color", Color(0.4, 1.0, 0.4))
@@ -219,7 +221,7 @@ func _build_standings() -> VBoxContainer:
 
 			var lbl_pts = Label.new()
 			lbl_pts.text = "%d pts" % entry.get("points", 0)
-			lbl_pts.add_theme_font_size_override("font_size", 13)
+			lbl_pts.add_theme_font_size_override("font_size", 26)
 			lbl_pts.modulate = Color(0.65, 0.65, 0.65)
 			row.add_child(lbl_pts)
 
@@ -235,7 +237,7 @@ func _build_standings() -> VBoxContainer:
 			cv.add_child(HSeparator.new())
 			var lbl_team_hdr = Label.new()
 			lbl_team_hdr.text = "TEAMS"
-			lbl_team_hdr.add_theme_font_size_override("font_size", 10)
+			lbl_team_hdr.add_theme_font_size_override("font_size", 20)
 			lbl_team_hdr.modulate = Color(0.45, 0.45, 0.45)
 			cv.add_child(lbl_team_hdr)
 			var t_shown = 0
@@ -252,21 +254,21 @@ func _build_standings() -> VBoxContainer:
 				var t_pos = Label.new()
 				t_pos.text = "P%d" % (i + 1)
 				t_pos.custom_minimum_size = Vector2(32, 0)
-				t_pos.add_theme_font_size_override("font_size", 12)
+				t_pos.add_theme_font_size_override("font_size", 24)
 				t_pos.add_theme_color_override("font_color",
 					Color(1.0, 0.85, 0.1) if i == 0 else
 					Color(0.75, 0.75, 0.75) if i < 3 else Color(0.5, 0.5, 0.5))
 				t_row.add_child(t_pos)
 				var t_name = Label.new()
 				t_name.text = team.team_name + ("  ← Us" if is_player_team else "")
-				t_name.add_theme_font_size_override("font_size", 12)
+				t_name.add_theme_font_size_override("font_size", 24)
 				t_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 				if is_player_team:
 					t_name.add_theme_color_override("font_color", Color(0.4, 1.0, 0.4))
 				t_row.add_child(t_name)
 				var t_pts = Label.new()
 				t_pts.text = "%d pts" % t_entry.get("points", 0)
-				t_pts.add_theme_font_size_override("font_size", 12)
+				t_pts.add_theme_font_size_override("font_size", 24)
 				t_pts.modulate = Color(0.65, 0.65, 0.65)
 				t_row.add_child(t_pts)
 				cv.add_child(t_row)
@@ -293,12 +295,12 @@ func _build_people() -> VBoxContainer:
 		var lbl = Label.new()
 		lbl.text = "🏎 %s  (age %d)" % [drv.full_name(), drv.age]
 		lbl.custom_minimum_size = Vector2(220, 0)
-		lbl.add_theme_font_size_override("font_size", 13)
+		lbl.add_theme_font_size_override("font_size", 26)
 		row.add_child(lbl)
 		for s in [["Pace", drv.pace],["Ctrl", drv.car_control],["Focus", drv.focus],["Exp", drv.experience]]:
 			var sl = Label.new()
 			sl.text = "%s %.0f" % [s[0], s[1]]
-			sl.add_theme_font_size_override("font_size", 12)
+			sl.add_theme_font_size_override("font_size", 24)
 			sl.add_theme_color_override("font_color", _skill_col(s[1]))
 			sl.custom_minimum_size = Vector2(72, 0)
 			row.add_child(sl)
@@ -318,18 +320,18 @@ func _build_people() -> VBoxContainer:
 		row.add_theme_constant_override("separation", 12)
 		var lbl = Label.new()
 		lbl.text = "👤 %s  (%s)" % [s.full_name(), s.role]
-		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_font_size_override("font_size", 24)
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(lbl)
 		var sk = Label.new()
 		sk.text = "%s %.0f" % [s.get_primary_skill_label(), s.get_primary_skill()]
-		sk.add_theme_font_size_override("font_size", 12)
+		sk.add_theme_font_size_override("font_size", 24)
 		sk.add_theme_color_override("font_color", _skill_col(s.get_primary_skill()))
 		row.add_child(sk)
 		var cl = Label.new()
 		cl.text = "%d season%s left" % [s.contract_seasons_remaining,
 			"s" if s.contract_seasons_remaining != 1 else ""]
-		cl.add_theme_font_size_override("font_size", 11)
+		cl.add_theme_font_size_override("font_size", 22)
 		cl.add_theme_color_override("font_color",
 			Color(1.0, 0.4, 0.4) if s.contract_seasons_remaining <= 1 else Color(0.55, 0.55, 0.55))
 		row.add_child(cl)
@@ -420,7 +422,7 @@ func _build_finance() -> VBoxContainer:
 				sp.get("name","?"), detail,
 				sp.get("seasons_remaining",1),
 				"s" if sp.get("seasons_remaining",1) != 1 else ""]
-			lbl.add_theme_font_size_override("font_size", 12)
+			lbl.add_theme_font_size_override("font_size", 24)
 			lbl.add_theme_color_override("font_color", Color(0.6, 0.85, 0.6))
 			vbox.add_child(lbl)
 
@@ -439,7 +441,7 @@ func _on_continue() -> void:
 func _section_lbl(text: String) -> Label:
 	var l = Label.new()
 	l.text = text
-	l.add_theme_font_size_override("font_size", 14)
+	l.add_theme_font_size_override("font_size", 28)
 	l.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
 	return l
 
@@ -447,7 +449,7 @@ func _lbl_gray(text: String) -> Label:
 	var l = Label.new()
 	l.text = text
 	l.modulate = Color(0.5, 0.5, 0.5)
-	l.add_theme_font_size_override("font_size", 12)
+	l.add_theme_font_size_override("font_size", 24)
 	return l
 
 func _stat_row(key: String, value: String, col: Color) -> HBoxContainer:
@@ -455,11 +457,11 @@ func _stat_row(key: String, value: String, col: Color) -> HBoxContainer:
 	row.add_theme_constant_override("separation", 8)
 	var k = Label.new(); k.text = key
 	k.custom_minimum_size = Vector2(220, 0)
-	k.add_theme_font_size_override("font_size", 12)
+	k.add_theme_font_size_override("font_size", 24)
 	k.modulate = Color(0.45, 0.45, 0.45)
 	row.add_child(k)
 	var v = Label.new(); v.text = value
-	v.add_theme_font_size_override("font_size", 12)
+	v.add_theme_font_size_override("font_size", 24)
 	v.add_theme_color_override("font_color", col)
 	row.add_child(v)
 	return row
@@ -483,7 +485,7 @@ func _action_btn(text: String, bg: Color) -> Button:
 	var btn = Button.new()
 	btn.text = text
 	btn.custom_minimum_size = Vector2(0, 34)
-	btn.add_theme_font_size_override("font_size", 13)
+	btn.add_theme_font_size_override("font_size", 26)
 	var style = StyleBoxFlat.new()
 	style.bg_color = bg
 	style.corner_radius_top_left = 4; style.corner_radius_top_right = 4

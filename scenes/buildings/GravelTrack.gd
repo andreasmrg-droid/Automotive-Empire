@@ -1,4 +1,6 @@
 extends Control
+## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -24,7 +26,7 @@ func _build_ui() -> void:
 	var building = GameState.campus_buildings.get("Gravel Track", {})
 	var lbl_title = Label.new()
 	lbl_title.text = "🟤 GRAVEL TRACK  ·  Level %d" % building.get("level", 1)
-	lbl_title.add_theme_font_size_override("font_size", 22)
+	lbl_title.add_theme_font_size_override("font_size", 44)
 	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(lbl_title)
 	var btn_back = Button.new()
@@ -54,12 +56,12 @@ func _build_ui() -> void:
 		var lbl_prc = Label.new()
 		lbl_prc.text = "⚠ Build the Public Racing Club to unlock track income."
 		lbl_prc.add_theme_color_override("font_color", Color(1.0, 0.6, 0.2))
-		lbl_prc.add_theme_font_size_override("font_size", 12)
+		lbl_prc.add_theme_font_size_override("font_size", 24)
 		left.add_child(lbl_prc)
 	lbl_desc.text = "Unpaved rally stage. Improves Rally discipline stats. Generates income via Public Racing Club."
 	lbl_desc.modulate = Color(0.7, 0.7, 0.7)
 	lbl_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	lbl_desc.add_theme_font_size_override("font_size", 13)
+	lbl_desc.add_theme_font_size_override("font_size", 26)
 	left.add_child(lbl_desc)
 
 	left.add_child(HSeparator.new())
@@ -96,7 +98,7 @@ func _build_effects_panel() -> PanelContainer:
 		vbox.add_child(HSeparator.new())
 		var lbl = Label.new()
 		lbl.text = effects_str
-		lbl.add_theme_font_size_override("font_size", 11)
+		lbl.add_theme_font_size_override("font_size", 22)
 		lbl.modulate = Color(0.6, 0.85, 1.0)
 		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		vbox.add_child(lbl)
@@ -108,16 +110,16 @@ func _on_back() -> void:
 func _section_label(text: String) -> Label:
 	var lbl = Label.new()
 	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.add_theme_font_size_override("font_size", 22)
 	lbl.modulate = Color(0.5, 0.5, 0.5)
 	return lbl
 
 func _stat_row(label: String, value: String) -> HBoxContainer:
 	var row = HBoxContainer.new()
 	var l = Label.new(); l.text = label; l.custom_minimum_size = Vector2(140, 0)
-	l.add_theme_font_size_override("font_size", 12); l.modulate = Color(0.55, 0.55, 0.55)
+	l.add_theme_font_size_override("font_size", 24); l.modulate = Color(0.55, 0.55, 0.55)
 	row.add_child(l)
-	var v = Label.new(); v.text = value; v.add_theme_font_size_override("font_size", 12)
+	var v = Label.new(); v.text = value; v.add_theme_font_size_override("font_size", 24)
 	row.add_child(v)
 	return row
 

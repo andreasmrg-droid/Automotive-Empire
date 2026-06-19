@@ -1,4 +1,6 @@
 extends Control
+## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S29.0 — Not-interested popup on renewal decline (issue 1: visible AcceptDialog).
 ## --- S28.3 — Re-applied "Wet"→"Car Control" label (Batch B).
 ## --- S23.0 — TP proposals panel: new structured proposals with Accept All, per-item Accept/Skip, priority coloring.
@@ -56,12 +58,12 @@ func _build_ui() -> void:
 
 	var lbl_title = Label.new()
 	lbl_title.text = "🏎 RACING DEPARTMENT  ·  Level %d" % level
-	lbl_title.add_theme_font_size_override("font_size", 22)
+	lbl_title.add_theme_font_size_override("font_size", 44)
 	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(lbl_title)
 
 	_lbl_slots = Label.new()
-	_lbl_slots.add_theme_font_size_override("font_size", 14)
+	_lbl_slots.add_theme_font_size_override("font_size", 28)
 	_lbl_slots.modulate = Color(0.7, 0.7, 0.7)
 	header.add_child(_lbl_slots)
 
@@ -178,7 +180,7 @@ func _build_ui() -> void:
 	popup_vbox.add_child(popup_hdr)
 
 	_popup_title = Label.new()
-	_popup_title.add_theme_font_size_override("font_size", 16)
+	_popup_title.add_theme_font_size_override("font_size", 32)
 	_popup_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	popup_hdr.add_child(_popup_title)
 
@@ -251,20 +253,20 @@ func _build_driver_card(driver) -> PanelContainer:
 
 	var lbl_name = Label.new()
 	lbl_name.text = driver.full_name()
-	lbl_name.add_theme_font_size_override("font_size", 15)
+	lbl_name.add_theme_font_size_override("font_size", 30)
 	lbl_name.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
 	lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row1.add_child(lbl_name)
 
 	var lbl_ovr = Label.new()
 	lbl_ovr.text = "Ovr %.0f" % driver.get_overall_skill()
-	lbl_ovr.add_theme_font_size_override("font_size", 13)
+	lbl_ovr.add_theme_font_size_override("font_size", 26)
 	lbl_ovr.add_theme_color_override("font_color", _skill_color(driver.get_overall_skill()))
 	row1.add_child(lbl_ovr)
 
 	var lbl_age = Label.new()
 	lbl_age.text = "Age %d  ·  %s" % [driver.age, driver.nationality]
-	lbl_age.add_theme_font_size_override("font_size", 12)
+	lbl_age.add_theme_font_size_override("font_size", 24)
 	lbl_age.modulate = Color(0.6, 0.6, 0.6)
 	row1.add_child(lbl_age)
 
@@ -282,7 +284,7 @@ func _build_driver_card(driver) -> PanelContainer:
 	else:
 		car_lbl.text = "🏎 No car assigned"
 		car_lbl.add_theme_color_override("font_color", Color(0.9, 0.5, 0.15))
-	car_lbl.add_theme_font_size_override("font_size", 12)
+	car_lbl.add_theme_font_size_override("font_size", 24)
 	row2.add_child(car_lbl)
 
 	# Championship standing
@@ -296,7 +298,7 @@ func _build_driver_card(driver) -> PanelContainer:
 			break
 	var lbl_champ = Label.new()
 	lbl_champ.text = "P%d  ·  %d pts" % [pos, pts] if pos > 0 else "Not in standings"
-	lbl_champ.add_theme_font_size_override("font_size", 12)
+	lbl_champ.add_theme_font_size_override("font_size", 24)
 	lbl_champ.modulate = Color(0.65, 0.65, 0.65)
 	row2.add_child(lbl_champ)
 
@@ -304,7 +306,7 @@ func _build_driver_card(driver) -> PanelContainer:
 	lbl_contract.text = "%d season%s left" % [
 		driver.contract_seasons_remaining,
 		"s" if driver.contract_seasons_remaining != 1 else ""]
-	lbl_contract.add_theme_font_size_override("font_size", 12)
+	lbl_contract.add_theme_font_size_override("font_size", 24)
 	lbl_contract.modulate = Color(1.0, 0.4, 0.4) if driver.contract_seasons_remaining <= 1 \
 		else Color(0.6, 0.6, 0.6)
 	row2.add_child(lbl_contract)
@@ -391,7 +393,7 @@ func _build_tp_proposals_panel() -> PanelContainer:
 	if proposals.is_empty():
 		var lbl = Label.new()
 		lbl.text = Locale.t("tp_popup_empty")
-		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_font_size_override("font_size", 24)
 		lbl.modulate = Color(0.4, 0.9, 0.4)
 		vbox.add_child(lbl)
 		return panel
@@ -411,14 +413,14 @@ func _build_tp_proposals_panel() -> PanelContainer:
 		lbl_sum.add_theme_color_override("font_color", Color(1.0, 0.82, 0.3))
 	else:
 		lbl_sum.add_theme_color_override("font_color", Color(0.4, 0.9, 0.5))
-	lbl_sum.add_theme_font_size_override("font_size", 13)
+	lbl_sum.add_theme_font_size_override("font_size", 26)
 	vbox.add_child(lbl_sum)
 
 	## Review button — opens popup
 	var btn_review = Button.new()
 	btn_review.text = Locale.t("tp_popup_open_btn")
 	btn_review.custom_minimum_size = Vector2(0, 36)
-	btn_review.add_theme_font_size_override("font_size", 13)
+	btn_review.add_theme_font_size_override("font_size", 26)
 	btn_review.modulate = Color(0.5, 0.78, 1.0)
 	btn_review.pressed.connect(func(): _open_tp_popup())
 	vbox.add_child(btn_review)
@@ -461,7 +463,7 @@ func _build_champ_panel() -> PanelContainer:
 		var lbl_warn = Label.new()
 		lbl_warn.text = "⚠ %d car%s at DNS risk" % [
 			dns_risks, "s" if dns_risks != 1 else ""]
-		lbl_warn.add_theme_font_size_override("font_size", 12)
+		lbl_warn.add_theme_font_size_override("font_size", 24)
 		lbl_warn.add_theme_color_override("font_color", Color(1.0, 0.45, 0.1))
 		vbox.add_child(lbl_warn)
 
@@ -523,7 +525,7 @@ func _open_assign_popup(driver_id: String) -> void:
 				var lbl_occ = Label.new()
 				lbl_occ.text = "→ %s" % (other.full_name() if other else "?")
 				lbl_occ.modulate = Color(0.55, 0.55, 0.55)
-				lbl_occ.add_theme_font_size_override("font_size", 11)
+				lbl_occ.add_theme_font_size_override("font_size", 22)
 				row.add_child(lbl_occ)
 
 			var btn = Button.new()
@@ -594,7 +596,7 @@ func _on_back() -> void:
 func _section_label(text: String) -> Label:
 	var lbl = Label.new()
 	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.add_theme_font_size_override("font_size", 22)
 	lbl.modulate = Color(0.5, 0.5, 0.5)
 	return lbl
 
@@ -603,12 +605,12 @@ func _stat_row(label: String, value: String, value_color: Color = Color(0.85, 0.
 	var lbl = Label.new()
 	lbl.text = label
 	lbl.custom_minimum_size = Vector2(130, 0)
-	lbl.add_theme_font_size_override("font_size", 12)
+	lbl.add_theme_font_size_override("font_size", 24)
 	lbl.modulate = Color(0.55, 0.55, 0.55)
 	row.add_child(lbl)
 	var val = Label.new()
 	val.text = value
-	val.add_theme_font_size_override("font_size", 12)
+	val.add_theme_font_size_override("font_size", 24)
 	val.add_theme_color_override("font_color", value_color)
 	row.add_child(val)
 	return row
@@ -628,7 +630,7 @@ func _stat_chip(label: String, value: float) -> PanelContainer:
 	chip.add_theme_stylebox_override("panel", style)
 	var lbl = Label.new()
 	lbl.text = "%s %.0f" % [label, value]
-	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.add_theme_font_size_override("font_size", 22)
 	lbl.add_theme_color_override("font_color", _skill_color(value))
 	chip.add_child(lbl)
 	return chip
@@ -691,7 +693,7 @@ func _show_driver_card(driver_id: String) -> void:
 	vbox.add_child(header)
 	var name_lbl = Label.new()
 	name_lbl.text = "👤 %s" % driver.full_name()
-	name_lbl.add_theme_font_size_override("font_size", 24)
+	name_lbl.add_theme_font_size_override("font_size", 48)
 	name_lbl.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(name_lbl)
@@ -718,7 +720,7 @@ func _show_driver_card(driver_id: String) -> void:
 
 	var attrs_title = Label.new()
 	attrs_title.text = "ATTRIBUTES"
-	attrs_title.add_theme_font_size_override("font_size", 15)
+	attrs_title.add_theme_font_size_override("font_size", 30)
 	attrs_title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
 	vbox.add_child(attrs_title)
 
@@ -738,7 +740,7 @@ func _show_driver_card(driver_id: String) -> void:
 		var lbl = Label.new()
 		lbl.text = stat[0]
 		lbl.custom_minimum_size = Vector2(200, 0)
-		lbl.add_theme_font_size_override("font_size", 15)
+		lbl.add_theme_font_size_override("font_size", 30)
 		lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 		row.add_child(lbl)
 		var bar = ProgressBar.new()
@@ -748,7 +750,7 @@ func _show_driver_card(driver_id: String) -> void:
 		var val_lbl = Label.new()
 		val_lbl.text = "%.1f" % stat[1]
 		if stat[2] >= 0: val_lbl.text += "  (eff: %.1f)" % stat[2]
-		val_lbl.add_theme_font_size_override("font_size", 15)
+		val_lbl.add_theme_font_size_override("font_size", 30)
 		val_lbl.add_theme_color_override("font_color", _skill_color(stat[1]))
 		row.add_child(val_lbl)
 
@@ -763,12 +765,12 @@ func _card_row(parent: VBoxContainer, label: String, value: String,
 	var lbl = Label.new()
 	lbl.text = label
 	lbl.custom_minimum_size = Vector2(200, 0)
-	lbl.add_theme_font_size_override("font_size", 15)
+	lbl.add_theme_font_size_override("font_size", 30)
 	lbl.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 	row.add_child(lbl)
 	var val = Label.new()
 	val.text = value
-	val.add_theme_font_size_override("font_size", 15)
+	val.add_theme_font_size_override("font_size", 30)
 	val.add_theme_color_override("font_color", value_color)
 	row.add_child(val)
 

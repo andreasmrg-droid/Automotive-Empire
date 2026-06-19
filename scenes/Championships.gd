@@ -1,4 +1,7 @@
 extends Control
+## Version: S29.8 — GK browser race count 29->21 (matches calendar).
+## --- S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S24.0 — Championships browser. Navigates all 24 championships
 ## grouped by discipline. Accessible from the title screen.
 ## No game state changes — read-only reference screen.
@@ -72,7 +75,7 @@ const CHAMPIONSHIPS: Array = [
 	 "icon":"🪨","color":Color(0.9,0.5,0.1)},
 	## GK
 	{"id":"C-001","name":"GK Championship","discipline":"Go-Karting","tier":1,
-	 "teams":85,"races":29,"desc":"A single progressive championship across 4 rounds. Round 1: 32 groups. Round 2: 16 groups of 20. Round 3: 4 groups of 32. Final: 2 groups of 30, winner crowned World Champion.",
+	 "teams":85,"races":21,"desc":"A single progressive championship across 4 rounds. Round 1: 32 groups. Round 2: 16 groups of 20. Round 3: 4 groups of 32. Final: 2 groups of 30, winner crowned World Champion.",
 	 "icon":"🏁","color":Color(0.4,0.85,0.9)},
 ]
 
@@ -1134,7 +1137,7 @@ func _build() -> void:
 
 	var lbl_title = Label.new()
 	lbl_title.text = "CHAMPIONSHIPS"
-	lbl_title.add_theme_font_size_override("font_size", 28)
+	lbl_title.add_theme_font_size_override("font_size", 56)
 	lbl_title.add_theme_color_override("font_color", Color.WHITE)
 	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hdr.add_child(lbl_title)
@@ -1142,7 +1145,7 @@ func _build() -> void:
 	## Counter
 	var lbl_count = Label.new()
 	lbl_count.text = "%d / %d" % [_idx + 1, CHAMPIONSHIPS.size()]
-	lbl_count.add_theme_font_size_override("font_size", 14)
+	lbl_count.add_theme_font_size_override("font_size", 28)
 	lbl_count.modulate = Color(0.4, 0.4, 0.4)
 	lbl_count.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	hdr.add_child(lbl_count)
@@ -1173,7 +1176,7 @@ func _build() -> void:
 		var tab_btn = Button.new()
 		tab_btn.text = "%s %s" % [DISC_ICONS[disc], disc]
 		tab_btn.custom_minimum_size = Vector2(0, 32)
-		tab_btn.add_theme_font_size_override("font_size", 11)
+		tab_btn.add_theme_font_size_override("font_size", 22)
 		var tab_style = StyleBoxFlat.new()
 		tab_style.bg_color = CHAMPIONSHIPS[start]["color"].darkened(0.4) if is_cur else Color(0.10, 0.12, 0.16)
 		tab_style.border_width_bottom = 3 if is_cur else 0
@@ -1211,7 +1214,7 @@ func _build() -> void:
 
 	var lbl_icon = Label.new()
 	lbl_icon.text = champ["icon"]
-	lbl_icon.add_theme_font_size_override("font_size", 48)
+	lbl_icon.add_theme_font_size_override("font_size", 96)
 	name_row.add_child(lbl_icon)
 
 	var name_col = VBoxContainer.new()
@@ -1221,7 +1224,7 @@ func _build() -> void:
 
 	var lbl_name = Label.new()
 	lbl_name.text = champ["name"]
-	lbl_name.add_theme_font_size_override("font_size", 26)
+	lbl_name.add_theme_font_size_override("font_size", 52)
 	lbl_name.add_theme_color_override("font_color", Color.WHITE)
 	name_col.add_child(lbl_name)
 
@@ -1231,21 +1234,21 @@ func _build() -> void:
 
 	var lbl_disc = Label.new()
 	lbl_disc.text = champ["discipline"].to_upper()
-	lbl_disc.add_theme_font_size_override("font_size", 11)
+	lbl_disc.add_theme_font_size_override("font_size", 22)
 	lbl_disc.add_theme_color_override("font_color", champ["color"])
 	disc_tier.add_child(lbl_disc)
 
 	if champ["discipline"] != "Go-Karting":
 		var lbl_tier = Label.new()
 		lbl_tier.text = "TIER %d" % champ["tier"]
-		lbl_tier.add_theme_font_size_override("font_size", 11)
+		lbl_tier.add_theme_font_size_override("font_size", 22)
 		lbl_tier.modulate = Color(0.4, 0.4, 0.4)
 		disc_tier.add_child(lbl_tier)
 
 	## Description
 	var lbl_desc = Label.new()
 	lbl_desc.text = champ["desc"]
-	lbl_desc.add_theme_font_size_override("font_size", 15)
+	lbl_desc.add_theme_font_size_override("font_size", 30)
 	lbl_desc.modulate = Color(0.75, 0.75, 0.75)
 	lbl_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	card_content.add_child(lbl_desc)
@@ -1266,12 +1269,12 @@ func _build() -> void:
 		stat_col.add_theme_constant_override("separation", 2)
 		var lbl_k = Label.new()
 		lbl_k.text = stat[0].to_upper()
-		lbl_k.add_theme_font_size_override("font_size", 10)
+		lbl_k.add_theme_font_size_override("font_size", 20)
 		lbl_k.modulate = Color(0.4, 0.4, 0.4)
 		stat_col.add_child(lbl_k)
 		var lbl_v = Label.new()
 		lbl_v.text = stat[1]
-		lbl_v.add_theme_font_size_override("font_size", 22)
+		lbl_v.add_theme_font_size_override("font_size", 44)
 		lbl_v.add_theme_color_override("font_color", champ["color"])
 		stat_col.add_child(lbl_v)
 		stats.add_child(stat_col)
@@ -1279,7 +1282,7 @@ func _build() -> void:
 	## Teams list
 	var teams_hdr = Label.new()
 	teams_hdr.text = "PARTICIPATING TEAMS"
-	teams_hdr.add_theme_font_size_override("font_size", 10)
+	teams_hdr.add_theme_font_size_override("font_size", 20)
 	teams_hdr.modulate = Color(0.4, 0.4, 0.4)
 	card_content.add_child(teams_hdr)
 
@@ -1322,7 +1325,7 @@ func _build() -> void:
 			var count = base + (1 if g < extras else 0)
 			var lbl_grp = Label.new()
 			lbl_grp.text = "GROUP %d" % (g + 1)
-			lbl_grp.add_theme_font_size_override("font_size", 10)
+			lbl_grp.add_theme_font_size_override("font_size", 20)
 			lbl_grp.add_theme_color_override("font_color", champ["color"])
 			team_grid.add_child(lbl_grp)
 			for i in range(current, current + count):
@@ -1402,7 +1405,7 @@ func _add_team_row(parent: VBoxContainer, team_name: String, champ_key: String, 
 
 	var lbl_team = Label.new()
 	lbl_team.text = "  · %s" % team_name
-	lbl_team.add_theme_font_size_override("font_size", 12)
+	lbl_team.add_theme_font_size_override("font_size", 24)
 	lbl_team.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
 	lbl_team.custom_minimum_size = Vector2(200, 0)
 	team_row.add_child(lbl_team)
@@ -1413,7 +1416,7 @@ func _add_team_row(parent: VBoxContainer, team_name: String, champ_key: String, 
 		if not tp_names.is_empty():
 			var lbl_tp = Label.new()
 			lbl_tp.text = "TP: %s" % ", ".join(tp_names)
-			lbl_tp.add_theme_font_size_override("font_size", 10)
+			lbl_tp.add_theme_font_size_override("font_size", 20)
 			lbl_tp.add_theme_color_override("font_color", Color(0.55, 0.65, 0.85))
 			team_row.add_child(lbl_tp)
 
@@ -1422,7 +1425,7 @@ func _add_team_row(parent: VBoxContainer, team_name: String, champ_key: String, 
 		if cfo != "":
 			var lbl_cfo = Label.new()
 			lbl_cfo.text = "CFO: %s" % cfo
-			lbl_cfo.add_theme_font_size_override("font_size", 10)
+			lbl_cfo.add_theme_font_size_override("font_size", 20)
 			lbl_cfo.add_theme_color_override("font_color", Color(0.55, 0.65, 0.85))
 			team_row.add_child(lbl_cfo)
 
@@ -1431,7 +1434,7 @@ func _add_team_row(parent: VBoxContainer, team_name: String, champ_key: String, 
 		if not designers.is_empty():
 			var lbl_des = Label.new()
 			lbl_des.text = "Designers: %d" % designers.size()
-			lbl_des.add_theme_font_size_override("font_size", 10)
+			lbl_des.add_theme_font_size_override("font_size", 20)
 			lbl_des.add_theme_color_override("font_color", Color(0.55, 0.65, 0.85))
 			team_row.add_child(lbl_des)
 
@@ -1446,7 +1449,7 @@ func _add_team_row(parent: VBoxContainer, team_name: String, champ_key: String, 
 			strat_row.add_child(lbl_si)
 			var lbl_strat = Label.new()
 			lbl_strat.text = "Strat: %s" % strat
-			lbl_strat.add_theme_font_size_override("font_size", 10)
+			lbl_strat.add_theme_font_size_override("font_size", 20)
 			lbl_strat.add_theme_color_override("font_color", Color(0.6, 0.75, 0.6))
 			strat_row.add_child(lbl_strat)
 
@@ -1465,7 +1468,7 @@ func _add_team_row(parent: VBoxContainer, team_name: String, champ_key: String, 
 			## Car ID
 			var lbl_car = Label.new()
 			lbl_car.text = str(car[&"car_id"])
-			lbl_car.add_theme_font_size_override("font_size", 9)
+			lbl_car.add_theme_font_size_override("font_size", 18)
 			lbl_car.add_theme_color_override("font_color", color.lightened(0.1))
 			lbl_car.custom_minimum_size = Vector2(180, 0)
 			car_row.add_child(lbl_car)
@@ -1475,7 +1478,7 @@ func _add_team_row(parent: VBoxContainer, team_name: String, champ_key: String, 
 			for dname in drivers:
 				var lbl_d = Label.new()
 				lbl_d.text = str(dname)
-				lbl_d.add_theme_font_size_override("font_size", 10)
+				lbl_d.add_theme_font_size_override("font_size", 20)
 				lbl_d.add_theme_color_override("font_color", Color(0.75, 0.75, 0.75))
 				lbl_d.custom_minimum_size = Vector2(140, 0)
 				car_row.add_child(lbl_d)
@@ -1485,7 +1488,7 @@ func _add_team_row(parent: VBoxContainer, team_name: String, champ_key: String, 
 			if mech != "":
 				var lbl_m = Label.new()
 				lbl_m.text = "M: %s" % mech
-				lbl_m.add_theme_font_size_override("font_size", 10)
+				lbl_m.add_theme_font_size_override("font_size", 20)
 				lbl_m.add_theme_color_override("font_color", Color(0.7, 0.6, 0.45))
 				lbl_m.custom_minimum_size = Vector2(140, 0)
 				car_row.add_child(lbl_m)
@@ -1495,7 +1498,7 @@ func _add_team_row(parent: VBoxContainer, team_name: String, champ_key: String, 
 			if pit != "":
 				var lbl_p = Label.new()
 				lbl_p.text = "P: %s" % pit
-				lbl_p.add_theme_font_size_override("font_size", 10)
+				lbl_p.add_theme_font_size_override("font_size", 20)
 				lbl_p.add_theme_color_override("font_color", Color(0.7, 0.6, 0.45))
 				car_row.add_child(lbl_p)
 
@@ -1504,7 +1507,7 @@ func _nav_btn(label: String) -> Button:
 	var btn = Button.new()
 	btn.text = label
 	btn.custom_minimum_size = Vector2(60, 48)
-	btn.add_theme_font_size_override("font_size", 20)
+	btn.add_theme_font_size_override("font_size", 40)
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.12, 0.14, 0.18)
 	style.border_width_left = 1; style.border_width_right = 1

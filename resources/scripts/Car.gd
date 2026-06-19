@@ -1,5 +1,6 @@
 class_name Car
 extends Resource
+## Version: S29.8 — Comment: "GK Regional" -> "GK Championship" (cosmetic).
 
 # ── Identity ──────────────────────────────────────────────────────────────────
 @export var id: String = ""              # "CAR-P001", "CAR-P002", etc.
@@ -36,7 +37,7 @@ extends Resource
 # ── Computed properties ───────────────────────────────────────────────────────
 
 ## Estimated HP for display. Formula: index * 15 + 15
-## GK Regional (index 1) → 30 HP ✅   GP1 (index 70) → 1,065 HP ✅
+## GK Championship (index 1) → 30 HP ✅   GP1 (index 70) → 1,065 HP ✅
 func get_estimated_hp() -> int:
 	return baseline_performance_index * 15 + 15
 

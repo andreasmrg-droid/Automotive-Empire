@@ -1,5 +1,7 @@
 extends Node
-## Version: S29.0 — C-014 SC Dev Series car cap 5 -> 4 (explicit max_cars:4/min_cars:1
+## Version: S29.8 — GK: registry num_races 29->21 to match the 21-round calendar
+##   (display-only; logic reads calendar size). Name already "GK Championship".
+## --- S29.0 — C-014 SC Dev Series car cap 5 -> 4 (explicit max_cars:4/min_cars:1
 ##   added to registry; was falling back to default 2 in Logistics). Per GDD handoff
 ##   2026-06-18 §1: SC Dev was the only non-GK championship allowing 5; now ≤4 like the
 ##   rest. All OTHER per-championship cap imports remain backlogged (handoff §2).
@@ -402,7 +404,7 @@ var _last_tp_proposals: Array = []
 var _pending_race_results: Array = []
 
 ## Maps driver_id / staff_id → championship_id they ran in last season
-## Used to show "Prev: GK Regional" badge in Drivers/Staff screens
+## Used to show "Prev: GK Championship" badge in Drivers/Staff screens
 var previous_season_championship: Dictionary = {}
 
 # Hall of fame
@@ -734,7 +736,7 @@ const CHAMPIONSHIP_REGISTRY = {
 	"C-001": {
 		"name":"GK Championship", "discipline":"GK", "tier":1,
 		"min_age":8, "max_age":17, "max_cars":9, "min_cars":1,
-		"entry_fee":10000, "num_races":29, "rep":15,
+		"entry_fee":10000, "num_races":21, "rep":15,
 		"car_type_id":"A_01",
 		"drivers_per_car":1,
 		"min_participation":352, "optimum_participation":640,
@@ -1471,7 +1473,7 @@ func _earn_race_rp(laps: int) -> void:
 	_race_simulator.earn_race_rp(laps)
 
 func buy_spare_parts(units: int) -> bool:
-	var cost_per_unit = 1  # CR 1 per unit for GK Regional (120 units = CR 120/race)
+	var cost_per_unit = 1  # CR 1 per unit for GK Championship (120 units = CR 120/race)
 	var total_cost = units * cost_per_unit
 	if player_team.balance < total_cost:
 		add_notification("High", "Not enough credits to buy spare parts.")
@@ -1518,7 +1520,7 @@ func get_max_cars() -> int:
 
 ## Car telemetry data keyed by car_type_id (from Excel Cars sheet)
 const CAR_TELEMETRY = {
-	"A_01": {"top_speed": 75.0,  "acceleration": 7.5,  "deceleration": 9.0,  "cornering_grip": 2.5,  "fuel_per_km": 0.045, "tire_wear": 0.65, "perf_index": 1},   # GK Regional
+	"A_01": {"top_speed": 75.0,  "acceleration": 7.5,  "deceleration": 9.0,  "cornering_grip": 2.5,  "fuel_per_km": 0.045, "tire_wear": 0.65, "perf_index": 1},   # GK Championship
 	"A_02": {"top_speed": 115.0, "acceleration": 4.8,  "deceleration": 10.0, "cornering_grip": 2.8,  "fuel_per_km": 0.055, "tire_wear": 0.72, "perf_index": 10},  # GK National/Continental/World
 	"A_05": {"top_speed": 175.0, "acceleration": 7.0,  "deceleration": 10.5, "cornering_grip": 3.0,  "fuel_per_km": 0.28,  "tire_wear": 1.20, "perf_index": 30},  # Rally
 	"A_09": {"top_speed": 290.0, "acceleration": 3.5,  "deceleration": 12.0, "cornering_grip": 3.4,  "fuel_per_km": 0.30,  "tire_wear": 1.05, "perf_index": 40},  # GT3/GT4
@@ -3152,7 +3154,7 @@ func _input(event: InputEvent) -> void:
 const DEV_PROFILES = {
 	"starter": {
 		"label": "🏁 Starter",
-		"desc":  "Default start — GK Regional, CR 50K, blank slate.",
+		"desc":  "Default start — GK Championship, CR 50K, blank slate.",
 	},
 	"mid_tier": {
 		"label": "🏆 Mid-Tier Team",

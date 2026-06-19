@@ -1,4 +1,6 @@
 extends Control
+## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S15.2 — Effects panel clarifies Strategist vs Designer slots.
 
 var _strategist_container: VBoxContainer
@@ -31,7 +33,7 @@ func _build_ui() -> void:
 	var building = GameState.campus_buildings.get("Ops Sim & Telemetry", {})
 	var lbl = Label.new()
 	lbl.text = "📡 OPS SIM & TELEMETRY  ·  Level %d" % building.get("level", 1)
-	lbl.add_theme_font_size_override("font_size", 22)
+	lbl.add_theme_font_size_override("font_size", 44)
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(lbl)
 	var btn_back = Button.new()
@@ -131,7 +133,7 @@ func _build_strategist_card(strat) -> PanelContainer:
 	row1.add_theme_constant_override("separation", 10)
 	var lbl_name = Label.new()
 	lbl_name.text = strat.full_name()
-	lbl_name.add_theme_font_size_override("font_size", 15)
+	lbl_name.add_theme_font_size_override("font_size", 30)
 	lbl_name.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
 	lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row1.add_child(lbl_name)
@@ -157,7 +159,7 @@ func _build_strategist_card(strat) -> PanelContainer:
 	var lbl_assign = Label.new()
 	lbl_assign.text = "Assignment: %s" % (champ.championship_name if assigned else "Unassigned")
 	lbl_assign.modulate = Color(0.4, 0.9, 0.4) if assigned else Color(0.9, 0.5, 0.15)
-	lbl_assign.add_theme_font_size_override("font_size", 12)
+	lbl_assign.add_theme_font_size_override("font_size", 24)
 	lbl_assign.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	assign_row.add_child(lbl_assign)
 	var btn = Button.new()
@@ -195,7 +197,7 @@ func _build_effects_panel() -> PanelContainer:
 	var designer_slots = rnd.get("level", 0)
 	var note = Label.new()
 	note.text = "Designer slots: %d (from R&D Studio Lv%d)" % [designer_slots, designer_slots]
-	note.add_theme_font_size_override("font_size", 10)
+	note.add_theme_font_size_override("font_size", 20)
 	note.modulate = Color(0.5, 0.5, 0.5)
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vbox.add_child(note)
@@ -210,7 +212,7 @@ func _build_track_knowledge_panel() -> PanelContainer:
 	lbl.text = "Track knowledge improves race strategy accuracy and qualifying timing.\nOps Sim raises the baseline to 25% without any practice sessions."
 	lbl.modulate = Color(0.6, 0.6, 0.6)
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	lbl.add_theme_font_size_override("font_size", 12)
+	lbl.add_theme_font_size_override("font_size", 24)
 	vbox.add_child(lbl)
 	return panel
 
@@ -235,7 +237,7 @@ func _build_popup() -> PanelContainer:
 	var hdr = HBoxContainer.new()
 	vbox.add_child(hdr)
 	_popup_title = Label.new()
-	_popup_title.add_theme_font_size_override("font_size", 16)
+	_popup_title.add_theme_font_size_override("font_size", 32)
 	_popup_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hdr.add_child(_popup_title)
 	var btn_close = Button.new()
@@ -259,7 +261,7 @@ func _on_back() -> void:
 func _section_label(text: String) -> Label:
 	var lbl = Label.new()
 	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.add_theme_font_size_override("font_size", 22)
 	lbl.modulate = Color(0.5, 0.5, 0.5)
 	return lbl
 
@@ -268,12 +270,12 @@ func _stat_row(label: String, value: String) -> HBoxContainer:
 	var l = Label.new()
 	l.text = label
 	l.custom_minimum_size = Vector2(160, 0)
-	l.add_theme_font_size_override("font_size", 12)
+	l.add_theme_font_size_override("font_size", 24)
 	l.modulate = Color(0.55, 0.55, 0.55)
 	row.add_child(l)
 	var v = Label.new()
 	v.text = value
-	v.add_theme_font_size_override("font_size", 12)
+	v.add_theme_font_size_override("font_size", 24)
 	row.add_child(v)
 	return row
 
@@ -288,7 +290,7 @@ func _stat_chip(label: String, value: float) -> PanelContainer:
 	chip.add_theme_stylebox_override("panel", style)
 	var lbl = Label.new()
 	lbl.text = "%s %.0f" % [label, value]
-	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.add_theme_font_size_override("font_size", 22)
 	lbl.add_theme_color_override("font_color", _skill_color(value))
 	chip.add_child(lbl)
 	return chip

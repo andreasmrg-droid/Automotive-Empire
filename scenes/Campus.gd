@@ -1,4 +1,6 @@
 extends Control
+## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 
 @onready var title_label = $Layout/HeaderRow/TitleLabel
 @onready var back_button = $Layout/HeaderRow/BackButton
@@ -50,7 +52,7 @@ func _ready() -> void:
 
 	# Header
 	title_label.text = "🏗 CAMPUS"
-	title_label.add_theme_font_size_override("font_size", 22)
+	title_label.add_theme_font_size_override("font_size", 44)
 	title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	back_button.text = "← Back to Hub"
@@ -80,7 +82,7 @@ func _build_zone(zone_name: String, buildings: Array) -> void:
 	# Zone header
 	var zone_label = Label.new()
 	zone_label.text = "━━━  %s  ━━━" % zone_name.to_upper()
-	zone_label.add_theme_font_size_override("font_size", 16)
+	zone_label.add_theme_font_size_override("font_size", 32)
 	var zone_color = ZONE_COLORS.get(zone_name, Color(0.5, 0.5, 0.5))
 	zone_label.add_theme_color_override("font_color", zone_color)
 	zones_box.add_child(zone_label)
@@ -112,12 +114,12 @@ func _build_card(building_id: String) -> PanelContainer:
 	var icon_label = Label.new()
 	var icon = BUILDING_ICONS.get(building["name"], "🏢")
 	icon_label.text = icon
-	icon_label.add_theme_font_size_override("font_size", 20)
+	icon_label.add_theme_font_size_override("font_size", 40)
 	name_row.add_child(icon_label)
 
 	var name_label = Label.new()
 	name_label.text = " " + building["name"]
-	name_label.add_theme_font_size_override("font_size", 14)
+	name_label.add_theme_font_size_override("font_size", 28)
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_row.add_child(name_label)
 
@@ -141,7 +143,7 @@ func _build_card(building_id: String) -> PanelContainer:
 	if building["built"] and building["construction_weeks_remaining"] == 0:
 		var effects_label = Label.new()
 		effects_label.text = building["effects"]
-		effects_label.add_theme_font_size_override("font_size", 11)
+		effects_label.add_theme_font_size_override("font_size", 22)
 		effects_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 		effects_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		effects_label.custom_minimum_size = Vector2(260, 0)
@@ -150,7 +152,7 @@ func _build_card(building_id: String) -> PanelContainer:
 		# Show what building provides at L1 once built
 		var preview_label = Label.new()
 		preview_label.text = "ℹ Once built (L1):\n%s" % building["effects"]
-		preview_label.add_theme_font_size_override("font_size", 11)
+		preview_label.add_theme_font_size_override("font_size", 22)
 		preview_label.add_theme_color_override("font_color", Color(0.5, 0.65, 0.5))
 		preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		preview_label.custom_minimum_size = Vector2(260, 0)
@@ -164,7 +166,7 @@ func _build_card(building_id: String) -> PanelContainer:
 		if finance_preview != "":
 			var fp_label = Label.new()
 			fp_label.text = finance_preview
-			fp_label.add_theme_font_size_override("font_size", 11)
+			fp_label.add_theme_font_size_override("font_size", 22)
 			fp_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
 			vbox.add_child(fp_label)
 
@@ -180,7 +182,7 @@ func _build_card(building_id: String) -> PanelContainer:
 			finance_text += "  💰 +CR %d/wk" % cur_income
 	if finance_text != "":
 		finance_label.text = finance_text
-		finance_label.add_theme_font_size_override("font_size", 11)
+		finance_label.add_theme_font_size_override("font_size", 22)
 		vbox.add_child(finance_label)
 
 	# Separator
@@ -228,7 +230,7 @@ func _build_card(building_id: String) -> PanelContainer:
 		var sell_btn = Button.new()
 		sell_btn.text = "🏚 Sell  (+CR %s)" % _fmt(sell_value)
 		sell_btn.custom_minimum_size = Vector2(180, 28)
-		sell_btn.add_theme_font_size_override("font_size", 11)
+		sell_btn.add_theme_font_size_override("font_size", 22)
 		sell_btn.modulate = Color(1.0, 0.5, 0.4)
 		sell_btn.pressed.connect(_on_sell_pressed.bind(building_id, sell_value))
 		vbox.add_child(sell_btn)

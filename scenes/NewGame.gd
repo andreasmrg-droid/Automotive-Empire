@@ -1,4 +1,9 @@
 extends Control
+## Version: S29.8 — GK card renamed "GK Regional"->"GK Championship", races 6->21.
+## --- S29.6 — LOAD GAME now opens the same save-slot picker popup as Main Hub
+##   (ported _show_load_picker + _read_save_meta), instead of blind-loading default slot.
+## --- S29.5 — Cost summary 2×2 grid; _big_button widened so START YOUR EMPIRE fits.
+##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S24.0 — Added Championships browser button on title screen. — Budget = CHAMP_BASE_BUDGETS × DIFFICULTY_ECONOMY multiplier.
 ##                    GKR 50K · Rally4 250K · SC Dev 1.5M · GP4 350K (at Realistic).
 ##                    Screen 4 no longer gates by budget. Screen 5 shows champ-specific budget.
@@ -19,15 +24,16 @@ var _color_primary:   Color = Color(0.85, 0.15, 0.15)
 var _color_secondary: Color = Color(0.95, 0.95, 0.95)
 
 ## Championship
-var _selected_champ: String = "C-001"  # Default: GK Regional
+var _selected_champ: String = "C-001"  # Default: GK Championship
 
 ## Difficulty
 var _difficulty: String = "Realistic"
+var _load_popup: PanelContainer = null  ## S29.6 — load-game slot picker popup
 
 ## Budget (set by difficulty)
 ## Base budget per starting championship (before difficulty multiplier)
 const CHAMP_BASE_BUDGETS: Dictionary = {
-	"C-001":   150000,   ## GK Regional
+	"C-001":   150000,   ## GK Championship
 	"C-005":   350000,   ## RALLY4
 	"C-014":  2200000,   ## SC Dev Series
 	"C-021":   600000,   ## GP4
@@ -66,7 +72,7 @@ const DIFFICULTY_DESC = {
 
 ## Tier 1 championships available at start
 const TIER1_CHAMPS = {
-	"C-001": {"name": "GK Regional",  "discipline": "Go-Karting", "entry_fee": 9000,   "races": 6,  "age": "8–16",
+	"C-001": {"name": "GK Championship",  "discipline": "Go-Karting", "entry_fee": 9000,   "races": 21,  "age": "8–16",
 		"desc": "The classic starting point. Low cost, pure driving skill. Talent scouts watch closely.",
 		"icon": "🏎",
 		"includes": ["1 Car", "1 Driver", "1 Mechanic", "1 Team Principal"],
@@ -140,14 +146,14 @@ func _build_title() -> void:
 
 	var lbl_title = Label.new()
 	lbl_title.text = "AUTOMOTIVE\nEMPIRE"
-	lbl_title.add_theme_font_size_override("font_size", 58)
+	lbl_title.add_theme_font_size_override("font_size", 116)
 	lbl_title.add_theme_color_override("font_color", Color.WHITE)
 	lbl_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	center.add_child(lbl_title)
 
 	var lbl_sub = Label.new()
 	lbl_sub.text = "Build a motorsport dynasty from grassroots karting\nto the pinnacle of Formula racing."
-	lbl_sub.add_theme_font_size_override("font_size", 15)
+	lbl_sub.add_theme_font_size_override("font_size", 30)
 	lbl_sub.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55))
 	lbl_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl_sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -180,7 +186,7 @@ func _build_title() -> void:
 #Game Version Shown in the beginning of the Game
 	var lbl_ver = Label.new()
 	lbl_ver.text = "v0.19  ·  Godot 4.6.2"
-	lbl_ver.add_theme_font_size_override("font_size", 11)
+	lbl_ver.add_theme_font_size_override("font_size", 22)
 	lbl_ver.modulate = Color(0.3, 0.3, 0.3)
 	lbl_ver.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	center.add_child(lbl_ver)
@@ -232,7 +238,7 @@ func _build_ceo() -> void:
 	form.add_child(age_slider)
 	var age_hint = Label.new()
 	age_hint.text = "Above 65 you must retire or promote a staff member as successor."
-	age_hint.add_theme_font_size_override("font_size", 11)
+	age_hint.add_theme_font_size_override("font_size", 22)
 	age_hint.modulate = Color(0.45, 0.45, 0.45)
 	age_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	form.add_child(age_hint)
@@ -241,7 +247,7 @@ func _build_ceo() -> void:
 	form.add_child(_field_label("Nationality"))
 	var nat_btn = OptionButton.new()
 	nat_btn.custom_minimum_size = Vector2(400, 40)
-	nat_btn.add_theme_font_size_override("font_size", 15)
+	nat_btn.add_theme_font_size_override("font_size", 30)
 	var nats = NameData.data.keys()
 	nats.sort()
 	for nat in nats:
@@ -308,7 +314,7 @@ func _build_team() -> void:
 
 	var lbl_prev = Label.new()
 	lbl_prev.text = "BADGE PREVIEW"
-	lbl_prev.add_theme_font_size_override("font_size", 11)
+	lbl_prev.add_theme_font_size_override("font_size", 22)
 	lbl_prev.modulate = Color(0.45, 0.45, 0.45)
 	right.add_child(lbl_prev)
 
@@ -361,7 +367,7 @@ func _draw_badge(container: PanelContainer) -> void:
 	var initials = _get_initials(_team_name if _team_name != "" else "?")
 	var lbl_init = Label.new()
 	lbl_init.text = initials
-	lbl_init.add_theme_font_size_override("font_size", 36)
+	lbl_init.add_theme_font_size_override("font_size", 72)
 	lbl_init.add_theme_color_override("font_color", _color_secondary)
 	lbl_init.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	shield_inner.add_child(lbl_init)
@@ -369,7 +375,7 @@ func _draw_badge(container: PanelContainer) -> void:
 	## Team name below
 	var lbl_name = Label.new()
 	lbl_name.text = (_team_name if _team_name != "" else "Your Team").to_upper()
-	lbl_name.add_theme_font_size_override("font_size", 12)
+	lbl_name.add_theme_font_size_override("font_size", 24)
 	lbl_name.add_theme_color_override("font_color", Color.WHITE)
 	lbl_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -442,7 +448,7 @@ func _build_championship() -> void:
 	var budget = _calc_budget()
 	var lbl_info = Label.new()
 	lbl_info.text = "Select the discipline you want to start in. Starting budget depends on your championship and difficulty choice. Pick a championship, then set your difficulty on the next screen."
-	lbl_info.add_theme_font_size_override("font_size", 13)
+	lbl_info.add_theme_font_size_override("font_size", 26)
 	lbl_info.modulate = Color(0.6, 0.6, 0.6)
 	lbl_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	layout["body"].add_child(lbl_info)
@@ -489,16 +495,31 @@ func _build_champ_card(cid: String, budget: int) -> PanelContainer:
 	vbox.add_theme_constant_override("separation", 8)
 	panel.add_child(vbox)
 
+	## Select button — moved ABOVE the title (S29.4) so it's always the first
+	## thing seen on each championship card. Always enabled, no budget gating.
+	var btn = Button.new()
+	if is_selected:
+		btn.text = "✅ Selected"
+		btn.disabled = true
+	else:
+		btn.text = "Select →"
+		var c = cid
+		btn.pressed.connect(func():
+			_selected_champ = c
+			_show_screen(4))
+	btn.custom_minimum_size = Vector2(0, 34)
+	vbox.add_child(btn)
+
 	## Header
 	var lbl_icon = Label.new()
 	lbl_icon.text = data["icon"]
-	lbl_icon.add_theme_font_size_override("font_size", 32)
+	lbl_icon.add_theme_font_size_override("font_size", 64)
 	lbl_icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(lbl_icon)
 
 	var lbl_name = Label.new()
 	lbl_name.text = data["name"]
-	lbl_name.add_theme_font_size_override("font_size", 16)
+	lbl_name.add_theme_font_size_override("font_size", 32)
 	lbl_name.add_theme_color_override("font_color",
 		_color_primary if is_selected else Color(0.85, 0.85, 0.85))
 	lbl_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -506,7 +527,7 @@ func _build_champ_card(cid: String, budget: int) -> PanelContainer:
 
 	var lbl_disc = Label.new()
 	lbl_disc.text = data["discipline"]
-	lbl_disc.add_theme_font_size_override("font_size", 11)
+	lbl_disc.add_theme_font_size_override("font_size", 22)
 	lbl_disc.modulate = Color(0.5, 0.5, 0.5)
 	lbl_disc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(lbl_disc)
@@ -515,7 +536,7 @@ func _build_champ_card(cid: String, budget: int) -> PanelContainer:
 
 	var lbl_desc = Label.new()
 	lbl_desc.text = data["desc"]
-	lbl_desc.add_theme_font_size_override("font_size", 11)
+	lbl_desc.add_theme_font_size_override("font_size", 22)
 	lbl_desc.modulate = Color(0.6, 0.6, 0.6)
 	lbl_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vbox.add_child(lbl_desc)
@@ -531,11 +552,11 @@ func _build_champ_card(cid: String, budget: int) -> PanelContainer:
 		var row = HBoxContainer.new()
 		var l = Label.new(); l.text = row_data[0]
 		l.custom_minimum_size = Vector2(70, 0)
-		l.add_theme_font_size_override("font_size", 11)
+		l.add_theme_font_size_override("font_size", 22)
 		l.modulate = Color(0.45, 0.45, 0.45)
 		row.add_child(l)
 		var v = Label.new(); v.text = row_data[1]
-		v.add_theme_font_size_override("font_size", 11)
+		v.add_theme_font_size_override("font_size", 22)
 		if row_data[0] == "Total":
 			v.add_theme_color_override("font_color",
 				Color(0.4, 0.9, 0.4) if can_afford else Color(1.0, 0.4, 0.4))
@@ -545,40 +566,21 @@ func _build_champ_card(cid: String, budget: int) -> PanelContainer:
 	## Includes — staff and buildings pre-provided
 	var lbl_inc_hdr = Label.new()
 	lbl_inc_hdr.text = "COMES WITH:"
-	lbl_inc_hdr.add_theme_font_size_override("font_size", 10)
+	lbl_inc_hdr.add_theme_font_size_override("font_size", 20)
 	lbl_inc_hdr.modulate = Color(0.4, 0.4, 0.4)
 	vbox.add_child(lbl_inc_hdr)
 	for item in data.get("includes", []):
 		var li = Label.new()
 		li.text = "  ✓ %s" % item
-		li.add_theme_font_size_override("font_size", 11)
+		li.add_theme_font_size_override("font_size", 22)
 		li.add_theme_color_override("font_color", Color(0.4, 0.85, 0.5))
 		vbox.add_child(li)
 	for bld in data.get("buildings", []):
 		var lb = Label.new()
 		lb.text = "  🏗 %s" % bld
-		lb.add_theme_font_size_override("font_size", 11)
+		lb.add_theme_font_size_override("font_size", 22)
 		lb.add_theme_color_override("font_color", Color(0.55, 0.7, 1.0))
 		vbox.add_child(lb)
-
-	## Spacer to push button to bottom
-	var spacer = Control.new()
-	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	vbox.add_child(spacer)
-
-	## Select button — always enabled, no budget gating
-	var btn = Button.new()
-	if is_selected:
-		btn.text = "✅ Selected"
-		btn.disabled = true
-	else:
-		btn.text = "Select →"
-		var c = cid
-		btn.pressed.connect(func():
-			_selected_champ = c
-			_show_screen(4))
-	btn.custom_minimum_size = Vector2(0, 34)
-	vbox.add_child(btn)
 
 	return panel
 
@@ -594,8 +596,10 @@ func _build_cost_summary(budget: int) -> PanelContainer:
 	style.content_margin_top = 10; style.content_margin_bottom = 10
 	panel.add_theme_stylebox_override("panel", style)
 
-	var row = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 20)
+	var row = GridContainer.new()
+	row.columns = 2  ## S29.5 — 2×2 grid instead of 4-across row, so large fonts don't overflow horizontally
+	row.add_theme_constant_override("h_separation", 40)
+	row.add_theme_constant_override("v_separation", 12)
 	panel.add_child(row)
 
 	var data = TIER1_CHAMPS.get(_selected_champ, {})
@@ -613,11 +617,11 @@ func _build_cost_summary(budget: int) -> PanelContainer:
 	]:
 		var col = VBoxContainer.new()
 		var l = Label.new(); l.text = item[0]
-		l.add_theme_font_size_override("font_size", 10)
+		l.add_theme_font_size_override("font_size", 20)
 		l.modulate = Color(0.45, 0.45, 0.45)
 		col.add_child(l)
 		var v = Label.new(); v.text = item[1]
-		v.add_theme_font_size_override("font_size", 14)
+		v.add_theme_font_size_override("font_size", 28)
 		v.add_theme_color_override("font_color", item[2])
 		col.add_child(v)
 		row.add_child(col)
@@ -634,7 +638,7 @@ func _build_difficulty() -> void:
 
 	var lbl_hint = Label.new()
 	lbl_hint.text = "Can be increased at any time. Can only be DECREASED once per career."
-	lbl_hint.add_theme_font_size_override("font_size", 12)
+	lbl_hint.add_theme_font_size_override("font_size", 24)
 	lbl_hint.modulate = Color(0.5, 0.5, 0.5)
 	layout["body"].add_child(lbl_hint)
 
@@ -680,7 +684,7 @@ func _build_difficulty_card(diff: String) -> PanelContainer:
 
 	var lbl_name = Label.new()
 	lbl_name.text = diff.to_upper()
-	lbl_name.add_theme_font_size_override("font_size", 15)
+	lbl_name.add_theme_font_size_override("font_size", 30)
 	lbl_name.add_theme_color_override("font_color", diff_color)
 	lbl_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(lbl_name)
@@ -689,7 +693,7 @@ func _build_difficulty_card(diff: String) -> PanelContainer:
 	var base = CHAMP_BASE_BUDGETS.get(_selected_champ, 50000)
 	var mult = DIFFICULTY_ECONOMY.get(diff, 1.0)
 	lbl_budget.text = "CR %s starting" % _fmt(int(base * mult))
-	lbl_budget.add_theme_font_size_override("font_size", 11)
+	lbl_budget.add_theme_font_size_override("font_size", 22)
 	lbl_budget.modulate = Color(0.6, 0.6, 0.6)
 	lbl_budget.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(lbl_budget)
@@ -699,7 +703,7 @@ func _build_difficulty_card(diff: String) -> PanelContainer:
 	for line in desc:
 		var lbl = Label.new()
 		lbl.text = line
-		lbl.add_theme_font_size_override("font_size", 11)
+		lbl.add_theme_font_size_override("font_size", 22)
 		lbl.modulate = Color(0.65, 0.65, 0.65) if not line.begins_with("Recommended") \
 			and not line.begins_with("A ") and not line.begins_with("The ") \
 			and not line.begins_with("Tight") and not line.begins_with("No ") \
@@ -771,7 +775,7 @@ func _build_summary() -> void:
 	color_row.add_theme_constant_override("separation", 8)
 	var lbl_c = Label.new(); lbl_c.text = "Colors"
 	lbl_c.custom_minimum_size = Vector2(130, 0)
-	lbl_c.add_theme_font_size_override("font_size", 12)
+	lbl_c.add_theme_font_size_override("font_size", 24)
 	lbl_c.modulate = Color(0.45, 0.45, 0.45)
 	color_row.add_child(lbl_c)
 	for col in [_color_primary, _color_secondary]:
@@ -842,13 +846,168 @@ func _build_summary() -> void:
 # ══════════════════════════════════════════════════════════════════════════════
 
 func _on_continue_pressed() -> void:
-	if FileAccess.file_exists("user://save_game.json"):
-		GameState.load_game()
-		get_tree().change_scene_to_file("res://scenes/MainHub.tscn")
-	else:
-		## Show message on the title screen itself
-		_show_screen(1)  ## Rebuild to ensure we're on title
-		GameState.add_notification("Normal", "No saved game found. Start a New Game.")
+	## S29.6 — open the same save-slot picker popup as Main Hub, instead of
+	## blind-loading the default slot.
+	_show_load_picker()
+
+## Ported from MainHub so the title screen offers the same slot picker.
+func _read_save_meta(path: String) -> Dictionary:
+	if not FileAccess.file_exists(path): return {}
+	var file = FileAccess.open(path, FileAccess.READ)
+	if not file: return {}
+	var txt = file.get_as_text()
+	file.close()
+	var json = JSON.new()
+	if json.parse(txt) != OK: return {}
+	var data = json.get_data()
+	if not data is Dictionary: return {}
+	return {
+		"season":   data.get("current_season", 0),
+		"week":     data.get("current_week", 0),
+		"balance":  data.get("player_team", {}).get("balance", 0.0) \
+			if data.get("player_team") is Dictionary else 0.0,
+		"team":     data.get("player_team", {}).get("team_name", "?") \
+			if data.get("player_team") is Dictionary else "?",
+		"modified": FileAccess.get_modified_time(path),
+	}
+
+func _show_load_picker() -> void:
+	if _load_popup != null and is_instance_valid(_load_popup):
+		_load_popup.queue_free()
+
+	var dim = ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.65)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(dim)
+
+	_load_popup = PanelContainer.new()
+	_load_popup.custom_minimum_size = Vector2(420, 0)
+	_load_popup.set_anchor(SIDE_LEFT,   0.5)
+	_load_popup.set_anchor(SIDE_RIGHT,  0.5)
+	_load_popup.set_anchor(SIDE_TOP,    0.15)
+	_load_popup.set_anchor(SIDE_BOTTOM, 0.15)
+	_load_popup.offset_left   = -250
+	_load_popup.offset_right  = 0
+	_load_popup.offset_top    = 0
+	_load_popup.offset_bottom = 0
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.10, 0.11, 0.15)
+	style.border_width_left = 2; style.border_width_right = 2
+	style.border_width_top = 2; style.border_width_bottom = 2
+	style.border_color = Color(0.30, 0.38, 0.52)
+	style.corner_radius_top_left = 8; style.corner_radius_top_right = 8
+	style.corner_radius_bottom_left = 8; style.corner_radius_bottom_right = 8
+	style.content_margin_left = 20; style.content_margin_right = 20
+	style.content_margin_top = 18; style.content_margin_bottom = 18
+	_load_popup.add_theme_stylebox_override("panel", style)
+	add_child(_load_popup)
+
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	_load_popup.add_child(vbox)
+
+	var hdr = HBoxContainer.new()
+	var lbl_title = Label.new()
+	lbl_title.text = "📂  LOAD GAME"
+	lbl_title.add_theme_font_size_override("font_size", 32)
+	lbl_title.add_theme_color_override("font_color", Color.WHITE)
+	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hdr.add_child(lbl_title)
+	var close_btn = Button.new()
+	close_btn.text = "✕"; close_btn.flat = true
+	close_btn.custom_minimum_size = Vector2(32, 32)
+	close_btn.pressed.connect(func():
+		dim.queue_free()
+		_load_popup.queue_free(); _load_popup = null)
+	hdr.add_child(close_btn)
+	vbox.add_child(hdr)
+	vbox.add_child(HSeparator.new())
+
+	const SLOTS = [
+		["Manual Save", "user://save_game.json"],
+		["Autosave 1",  "user://autosave_0.json"],
+		["Autosave 2",  "user://autosave_1.json"],
+		["Autosave 3",  "user://autosave_2.json"],
+		["Autosave 4",  "user://autosave_3.json"],
+	]
+
+	var any_found = false
+	for slot in SLOTS:
+		var label = slot[0]
+		var path  = slot[1]
+		var meta  = _read_save_meta(path)
+
+		var sp = PanelContainer.new()
+		sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var sp_style = StyleBoxFlat.new()
+		sp_style.bg_color = Color(0.13, 0.16, 0.22) if not meta.is_empty() \
+			else Color(0.09, 0.10, 0.13)
+		sp_style.corner_radius_top_left = 5; sp_style.corner_radius_top_right = 5
+		sp_style.corner_radius_bottom_left = 5; sp_style.corner_radius_bottom_right = 5
+		sp_style.content_margin_left = 12; sp_style.content_margin_right = 12
+		sp_style.content_margin_top = 8; sp_style.content_margin_bottom = 8
+		sp.add_theme_stylebox_override("panel", sp_style)
+
+		var row = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		sp.add_child(row)
+
+		var info = VBoxContainer.new()
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		info.add_theme_constant_override("separation", 3)
+		row.add_child(info)
+
+		var lbl_slot = Label.new()
+		lbl_slot.text = label
+		lbl_slot.add_theme_font_size_override("font_size", 26)
+		lbl_slot.add_theme_color_override("font_color",
+			Color(0.8, 0.88, 1.0) if not meta.is_empty() else Color(0.4, 0.4, 0.4))
+		info.add_child(lbl_slot)
+
+		if meta.is_empty():
+			var lbl_e = Label.new()
+			lbl_e.text = "— empty —"
+			lbl_e.add_theme_font_size_override("font_size", 22)
+			lbl_e.modulate = Color(0.35, 0.35, 0.35)
+			info.add_child(lbl_e)
+		else:
+			any_found = true
+			var lbl_d = Label.new()
+			lbl_d.text = "%s  ·  S%d W%d  ·  CR %s" % [
+				meta["team"], meta["season"], meta["week"],
+				GameState._fmt_int(int(meta["balance"]))]
+			lbl_d.add_theme_font_size_override("font_size", 22)
+			lbl_d.modulate = Color(0.6, 0.6, 0.6)
+			info.add_child(lbl_d)
+
+			var ts = int(meta["modified"])
+			var lbl_t = Label.new()
+			lbl_t.text = Time.get_datetime_string_from_unix_time(ts).left(16).replace("T", "  ")
+			lbl_t.add_theme_font_size_override("font_size", 20)
+			lbl_t.modulate = Color(0.38, 0.38, 0.38)
+			info.add_child(lbl_t)
+
+			var btn = Button.new()
+			btn.text = "Load"
+			btn.custom_minimum_size = Vector2(70, 32)
+			btn.add_theme_font_size_override("font_size", 26)
+			var load_path = path
+			btn.pressed.connect(func():
+				dim.queue_free()
+				_load_popup.queue_free(); _load_popup = null
+				GameState.load_game(load_path)
+				get_tree().change_scene_to_file("res://scenes/MainHub.tscn"))
+			row.add_child(btn)
+
+		vbox.add_child(sp)
+
+	if not any_found:
+		var lbl_none = Label.new()
+		lbl_none.text = "No save files found."
+		lbl_none.modulate = Color(0.5, 0.5, 0.5)
+		lbl_none.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vbox.add_child(lbl_none)
 
 func _on_start_pressed() -> void:
 	var team_name  = _team_name  if _team_name  != "" else "My Racing Team"
@@ -897,7 +1056,7 @@ func _screen_layout(title: String, step: int) -> Dictionary:
 	for i in range(STEPS.size()):
 		var lbl = Label.new()
 		lbl.text = "%d %s" % [i + 1, STEPS[i]]
-		lbl.add_theme_font_size_override("font_size", 10)
+		lbl.add_theme_font_size_override("font_size", 20)
 		var is_cur = (i + 1) == step
 		var is_done = (i + 1) < step
 		lbl.add_theme_color_override("font_color",
@@ -908,13 +1067,13 @@ func _screen_layout(title: String, step: int) -> Dictionary:
 		if i < STEPS.size() - 1:
 			var sep = Label.new(); sep.text = "›"
 			sep.modulate = Color(0.25, 0.25, 0.25)
-			sep.add_theme_font_size_override("font_size", 10)
+			sep.add_theme_font_size_override("font_size", 20)
 			step_row.add_child(sep)
 
 	## Title
 	var lbl_title = Label.new()
 	lbl_title.text = title
-	lbl_title.add_theme_font_size_override("font_size", 26)
+	lbl_title.add_theme_font_size_override("font_size", 52)
 	lbl_title.add_theme_color_override("font_color", Color.WHITE)
 	root_vbox.add_child(lbl_title)
 
@@ -924,13 +1083,21 @@ func _screen_layout(title: String, step: int) -> Dictionary:
 	accent.custom_minimum_size = Vector2(0, 2)
 	root_vbox.add_child(accent)
 
-	## Body — expand to fill
+	## Body — wrapped in a ScrollContainer so tall content scrolls internally
+	## instead of pushing the footer off-screen (S29.3: large-font safety).
+	var body_scroll = ScrollContainer.new()
+	body_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	root_vbox.add_child(body_scroll)
+
 	var body = VBoxContainer.new()
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_theme_constant_override("separation", 14)
-	root_vbox.add_child(body)
+	body_scroll.add_child(body)
 
-	## Footer
+	## Footer — always pinned below the scroll, never scrolls away
 	var footer = HBoxContainer.new()
 	footer.add_theme_constant_override("separation", 12)
 	footer.alignment = BoxContainer.ALIGNMENT_END
@@ -955,7 +1122,7 @@ func _nav_footer(footer: HBoxContainer, back_fn, next_fn, next_label: String) ->
 		var btn_next = Button.new()
 		btn_next.text = next_label
 		btn_next.custom_minimum_size = Vector2(180, 40)
-		btn_next.add_theme_font_size_override("font_size", 14)
+		btn_next.add_theme_font_size_override("font_size", 28)
 		var style = StyleBoxFlat.new()
 		style.bg_color = _color_primary
 		style.corner_radius_top_left = 4; style.corner_radius_top_right = 4
@@ -995,13 +1162,16 @@ func _card_panel() -> PanelContainer:
 func _big_button(label: String, bg: Color) -> Button:
 	var btn = Button.new()
 	btn.text = label
-	btn.custom_minimum_size = Vector2(340, 56)
-	btn.add_theme_font_size_override("font_size", 20)
+	## S29.5 — widened from 340 and added horizontal padding so long labels
+	## (e.g. "START YOUR EMPIRE" at 40px) are not clipped at the trailing edge.
+	btn.custom_minimum_size = Vector2(480, 56)
+	btn.add_theme_font_size_override("font_size", 40)
 	var style = StyleBoxFlat.new()
 	style.bg_color = bg
 	style.corner_radius_top_left = 5; style.corner_radius_top_right = 5
 	style.corner_radius_bottom_left = 5; style.corner_radius_bottom_right = 5
 	style.content_margin_top = 4; style.content_margin_bottom = 4
+	style.content_margin_left = 24; style.content_margin_right = 24
 	btn.add_theme_stylebox_override("normal", style)
 	var style_hover = style.duplicate()
 	style_hover.bg_color = bg.lightened(0.12)
@@ -1012,7 +1182,7 @@ func _toggle_btn(label: String, selected: bool) -> Button:
 	var btn = Button.new()
 	btn.text = label
 	btn.custom_minimum_size = Vector2(120, 40)
-	btn.add_theme_font_size_override("font_size", 14)
+	btn.add_theme_font_size_override("font_size", 28)
 	var style = StyleBoxFlat.new()
 	style.bg_color = _color_primary if selected else Color(0.14, 0.16, 0.20)
 	style.border_width_left = 2; style.border_width_right = 2
@@ -1026,7 +1196,7 @@ func _toggle_btn(label: String, selected: bool) -> Button:
 func _field_label(text: String) -> Label:
 	var lbl = Label.new()
 	lbl.text = text.to_upper()
-	lbl.add_theme_font_size_override("font_size", 10)
+	lbl.add_theme_font_size_override("font_size", 20)
 	lbl.add_theme_color_override("font_color", Color(0.45, 0.45, 0.45))
 	return lbl
 
@@ -1035,13 +1205,13 @@ func _line_edit(current: String, placeholder: String) -> LineEdit:
 	le.text = current
 	le.placeholder_text = placeholder
 	le.custom_minimum_size = Vector2(400, 44)
-	le.add_theme_font_size_override("font_size", 18)
+	le.add_theme_font_size_override("font_size", 36)
 	return le
 
 func _summary_section(title: String) -> Label:
 	var lbl = Label.new()
 	lbl.text = title
-	lbl.add_theme_font_size_override("font_size", 12)
+	lbl.add_theme_font_size_override("font_size", 24)
 	lbl.add_theme_color_override("font_color", Color(0.45, 0.65, 0.9))
 	return lbl
 
@@ -1049,11 +1219,11 @@ func _summary_row(key: String, value: String) -> HBoxContainer:
 	var row = HBoxContainer.new()
 	var l = Label.new(); l.text = key
 	l.custom_minimum_size = Vector2(130, 0)
-	l.add_theme_font_size_override("font_size", 12)
+	l.add_theme_font_size_override("font_size", 24)
 	l.modulate = Color(0.45, 0.45, 0.45)
 	row.add_child(l)
 	var v = Label.new(); v.text = value
-	v.add_theme_font_size_override("font_size", 12)
+	v.add_theme_font_size_override("font_size", 24)
 	v.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
 	row.add_child(v)
 	return row

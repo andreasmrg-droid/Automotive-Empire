@@ -1,4 +1,6 @@
 extends Control
+## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S28.3 — Production queue is slot-aware: shows slot count, marks QUEUED jobs, and
 ##   computes slot-aware ETAs (issue 4).
 ## --- S17.2 — Blueprint ownership panel added (col D); INSTALLED ON CARS uses get_installed_parts_for_car.
@@ -54,7 +56,7 @@ func _build_ui() -> void:
 	var building = GameState.campus_buildings.get("CNC Parts Plant", {})
 	var lbl_title = Label.new()
 	lbl_title.text = "⚙  CNC PARTS PLANT   ·   Level %d" % building.get("level", 1)
-	lbl_title.add_theme_font_size_override("font_size", 21)
+	lbl_title.add_theme_font_size_override("font_size", 42)
 	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(lbl_title)
 
@@ -62,7 +64,7 @@ func _build_ui() -> void:
 	var bp_count = GameState.wra_approved_blueprints.size()
 	var lbl_bp = Label.new()
 	lbl_bp.text = "✅ %d WRA Approved" % bp_count if bp_count > 0 else "📋 No approved blueprints"
-	lbl_bp.add_theme_font_size_override("font_size", 13)
+	lbl_bp.add_theme_font_size_override("font_size", 26)
 	lbl_bp.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4) if bp_count > 0 else Color(0.45, 0.45, 0.45))
 	header.add_child(lbl_bp)
 
@@ -80,7 +82,7 @@ func _build_ui() -> void:
 		warn.text = "⚠  CNC Parts Plant not built.\nBuild it on Campus to manufacture parts."
 		warn.modulate = Color(1.0, 0.55, 0.2)
 		warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		warn.add_theme_font_size_override("font_size", 14)
+		warn.add_theme_font_size_override("font_size", 28)
 		root.add_child(warn)
 		return
 
@@ -139,7 +141,7 @@ func _build_queue_card(job: Dictionary, idx: int = 0, slots: int = 1) -> PanelCo
 
 	var lbl_p = Label.new()
 	lbl_p.text = "⚙ %dx %s" % [job["quantity"], part]
-	lbl_p.add_theme_font_size_override("font_size", 13)
+	lbl_p.add_theme_font_size_override("font_size", 26)
 	lbl_p.add_theme_color_override("font_color", PART_COLORS.get(part, Color.WHITE))
 	lbl_p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row1.add_child(lbl_p)
@@ -151,7 +153,7 @@ func _build_queue_card(job: Dictionary, idx: int = 0, slots: int = 1) -> PanelCo
 	else:
 		lbl_wks.text = "%d wks left" % job["weeks_remaining"]
 		lbl_wks.modulate = Color(0.6, 0.6, 0.6)
-	lbl_wks.add_theme_font_size_override("font_size", 11)
+	lbl_wks.add_theme_font_size_override("font_size", 22)
 	row1.add_child(lbl_wks)
 
 	var bar = ProgressBar.new()
@@ -174,7 +176,7 @@ func _build_queue_card(job: Dictionary, idx: int = 0, slots: int = 1) -> PanelCo
 	var eta_week = GameState.current_week + wait
 	lbl_eta.text = ("Starts after slot frees · ~Wk %d" % eta_week) if is_queued else \
 		("Est. ready: Season %d, Week %d" % [GameState.current_season, eta_week])
-	lbl_eta.add_theme_font_size_override("font_size", 10)
+	lbl_eta.add_theme_font_size_override("font_size", 20)
 	lbl_eta.modulate = Color(0.5, 0.5, 0.5)
 	vbox.add_child(lbl_eta)
 
@@ -190,7 +192,7 @@ func _build_inventory_column(parent: VBoxContainer) -> void:
 		var lbl = Label.new()
 		lbl.text = "No parts in stock.\nManufacture parts using WRA-approved blueprints above."
 		lbl.modulate = Color(0.5, 0.5, 0.5)
-		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_font_size_override("font_size", 24)
 		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		parent.add_child(lbl)
 	else:
@@ -217,7 +219,7 @@ func _build_inventory_column(parent: VBoxContainer) -> void:
 		var lbl = Label.new()
 		lbl.text = "No CNC parts installed on any car yet."
 		lbl.modulate = Color(0.5, 0.5, 0.5)
-		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_font_size_override("font_size", 24)
 		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		parent.add_child(lbl)
 
@@ -246,20 +248,20 @@ func _build_inventory_card(inv_key: String, item) -> PanelContainer:
 
 	var lbl_part = Label.new()
 	lbl_part.text = part
-	lbl_part.add_theme_font_size_override("font_size", 13)
+	lbl_part.add_theme_font_size_override("font_size", 26)
 	lbl_part.add_theme_color_override("font_color", PART_COLORS.get(part, Color.WHITE))
 	lbl_part.custom_minimum_size = Vector2(90, 0)
 	row.add_child(lbl_part)
 
 	var lbl_qty = Label.new()
 	lbl_qty.text = "× %d" % qty
-	lbl_qty.add_theme_font_size_override("font_size", 13)
+	lbl_qty.add_theme_font_size_override("font_size", 26)
 	lbl_qty.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(lbl_qty)
 
 	var lbl_stats = Label.new()
 	lbl_stats.text = "Rel:%.0f%%  Qual:%.2f×" % [rel, qual]
-	lbl_stats.add_theme_font_size_override("font_size", 11)
+	lbl_stats.add_theme_font_size_override("font_size", 22)
 	lbl_stats.modulate = Color(0.6, 0.6, 0.6)
 	row.add_child(lbl_stats)
 
@@ -269,7 +271,7 @@ func _build_inventory_card(inv_key: String, item) -> PanelContainer:
 	if cars_for_assignment.is_empty():
 		var lbl_no = Label.new()
 		lbl_no.text = "No matching cars"
-		lbl_no.add_theme_font_size_override("font_size", 10)
+		lbl_no.add_theme_font_size_override("font_size", 20)
 		lbl_no.modulate = Color(0.5, 0.5, 0.5)
 		vbox.add_child(lbl_no)
 	else:
@@ -281,7 +283,7 @@ func _build_inventory_card(inv_key: String, item) -> PanelContainer:
 			var btn = Button.new()
 			btn.text = "Install → %s" % cname.left(14)
 			btn.custom_minimum_size = Vector2(110, 26)
-			btn.add_theme_font_size_override("font_size", 10)
+			btn.add_theme_font_size_override("font_size", 20)
 			var cid_car = car.id
 			var cid_champ = car.championship_id
 			var pc = pcode
@@ -302,7 +304,7 @@ func _build_installed_car_panel(car, car_name: String, installed: Dictionary) ->
 
 	var lbl_car = Label.new()
 	lbl_car.text = "🏎 %s" % car_name
-	lbl_car.add_theme_font_size_override("font_size", 12)
+	lbl_car.add_theme_font_size_override("font_size", 24)
 	lbl_car.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
 	vbox.add_child(lbl_car)
 
@@ -310,7 +312,7 @@ func _build_installed_car_panel(car, car_name: String, installed: Dictionary) ->
 	var bonus = GameState.get_cnc_part_bonus(car.id)
 	var lbl_bonus = Label.new()
 	lbl_bonus.text = "⚡ CNC bonus: +%.1f%% lap time" % (bonus * 100.0)
-	lbl_bonus.add_theme_font_size_override("font_size", 11)
+	lbl_bonus.add_theme_font_size_override("font_size", 22)
 	lbl_bonus.add_theme_color_override("font_color", Color(0.4, 0.88, 0.5))
 	vbox.add_child(lbl_bonus)
 
@@ -324,7 +326,7 @@ func _build_installed_car_panel(car, car_name: String, installed: Dictionary) ->
 
 		var lbl_p = Label.new()
 		lbl_p.text = "  %s  Rel:%.0f%%  Qual:%.2f×" % [pcode, rel, qual]
-		lbl_p.add_theme_font_size_override("font_size", 11)
+		lbl_p.add_theme_font_size_override("font_size", 22)
 		lbl_p.add_theme_color_override("font_color", Color(0.7, 0.9, 0.7))
 		lbl_p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(lbl_p)
@@ -332,7 +334,7 @@ func _build_installed_car_panel(car, car_name: String, installed: Dictionary) ->
 		var btn_remove = Button.new()
 		btn_remove.text = "Remove"
 		btn_remove.custom_minimum_size = Vector2(65, 22)
-		btn_remove.add_theme_font_size_override("font_size", 10)
+		btn_remove.add_theme_font_size_override("font_size", 20)
 		btn_remove.modulate = Color(0.7, 0.35, 0.35)
 		var pc = pcode
 		var cid = car.id
@@ -372,7 +374,7 @@ func _build_info_column(parent: VBoxContainer) -> void:
 		info_vbox.add_child(_hsep())
 		var lbl_fx = Label.new()
 		lbl_fx.text = effects
-		lbl_fx.add_theme_font_size_override("font_size", 11)
+		lbl_fx.add_theme_font_size_override("font_size", 22)
 		lbl_fx.modulate = Color(0.6, 0.85, 1.0)
 		lbl_fx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		info_vbox.add_child(lbl_fx)
@@ -405,12 +407,12 @@ func _build_info_column(parent: VBoxContainer) -> void:
 			lbl_icon.text = "✅" if not in_prod else "⚙"
 		else:
 			lbl_icon.text = "🔒"
-		lbl_icon.add_theme_font_size_override("font_size", 12)
+		lbl_icon.add_theme_font_size_override("font_size", 24)
 		row.add_child(lbl_icon)
 
 		var lbl_p = Label.new()
 		lbl_p.text = part
-		lbl_p.add_theme_font_size_override("font_size", 12)
+		lbl_p.add_theme_font_size_override("font_size", 24)
 		lbl_p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		lbl_p.add_theme_color_override("font_color",
 			PART_COLORS.get(part, Color.WHITE) if has_bp else Color(0.45, 0.45, 0.45))
@@ -426,13 +428,13 @@ func _build_info_column(parent: VBoxContainer) -> void:
 				if item_part == part:
 					total_qty += item.get("quantity", 0) if item is Dictionary else int(item)
 			lbl_stk.text = "×%d" % total_qty
-			lbl_stk.add_theme_font_size_override("font_size", 12)
+			lbl_stk.add_theme_font_size_override("font_size", 24)
 			lbl_stk.add_theme_color_override("font_color", Color(0.5, 0.9, 0.5))
 			row.add_child(lbl_stk)
 		elif not has_bp:
 			var lbl_rnd = Label.new()
 			lbl_rnd.text = "R&D"
-			lbl_rnd.add_theme_font_size_override("font_size", 10)
+			lbl_rnd.add_theme_font_size_override("font_size", 20)
 			lbl_rnd.modulate = Color(0.45, 0.45, 0.45)
 			row.add_child(lbl_rnd)
 
@@ -465,7 +467,7 @@ func _build_info_column(parent: VBoxContainer) -> void:
 		var lbl_k = Label.new()
 		lbl_k.text = effects_map[key]
 		lbl_k.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		lbl_k.add_theme_font_size_override("font_size", 11)
+		lbl_k.add_theme_font_size_override("font_size", 22)
 		lbl_k.modulate = Color(0.6, 0.6, 0.6)
 		row.add_child(lbl_k)
 		var lbl_v = Label.new()
@@ -478,14 +480,14 @@ func _build_info_column(parent: VBoxContainer) -> void:
 			lbl_v.text = "+%.1f pts" % val
 		else:
 			lbl_v.text = "+%.0f%%" % (val * 100.0)
-		lbl_v.add_theme_font_size_override("font_size", 11)
+		lbl_v.add_theme_font_size_override("font_size", 22)
 		lbl_v.add_theme_color_override("font_color", Color(0.4, 0.88, 0.4))
 		row.add_child(lbl_v)
 
 	if not has_any:
 		var lbl_no = Label.new()
 		lbl_no.text = "No bonuses yet.\nComplete R&D tasks to gain them."
-		lbl_no.add_theme_font_size_override("font_size", 11)
+		lbl_no.add_theme_font_size_override("font_size", 22)
 		lbl_no.modulate = Color(0.45, 0.45, 0.45)
 		lbl_no.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		bvbox.add_child(lbl_no)
@@ -499,13 +501,13 @@ func _build_info_column(parent: VBoxContainer) -> void:
 		bvbox.add_child(row_sim)
 		var lbl_sk = Label.new()
 		lbl_sk.text = "Sim lap bonus"
-		lbl_sk.add_theme_font_size_override("font_size", 11)
+		lbl_sk.add_theme_font_size_override("font_size", 22)
 		lbl_sk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		lbl_sk.modulate = Color(0.3, 0.85, 0.6)
 		row_sim.add_child(lbl_sk)
 		var lbl_sv = Label.new()
 		lbl_sv.text = "+%.1f%%" % (sim_bonus * 100.0)
-		lbl_sv.add_theme_font_size_override("font_size", 11)
+		lbl_sv.add_theme_font_size_override("font_size", 22)
 		lbl_sv.add_theme_color_override("font_color", Color(0.3, 0.9, 0.55))
 		row_sim.add_child(lbl_sv)
 
@@ -525,7 +527,7 @@ func _get_part_cost_info(part: String, champ_id: String) -> Dictionary:
 func _section_header(text: String, color: Color) -> Label:
 	var lbl = Label.new()
 	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.add_theme_font_size_override("font_size", 26)
 	lbl.add_theme_color_override("font_color", color)
 	return lbl
 
@@ -552,12 +554,12 @@ func _stat_row(label: String, value: String) -> HBoxContainer:
 	var l = Label.new()
 	l.text = label
 	l.custom_minimum_size = Vector2(120, 0)
-	l.add_theme_font_size_override("font_size", 12)
+	l.add_theme_font_size_override("font_size", 24)
 	l.modulate = Color(0.55, 0.55, 0.55)
 	row.add_child(l)
 	var v = Label.new()
 	v.text = value
-	v.add_theme_font_size_override("font_size", 12)
+	v.add_theme_font_size_override("font_size", 24)
 	row.add_child(v)
 	return row
 
@@ -579,7 +581,7 @@ func _build_blueprint_ownership_column(parent: VBoxContainer) -> void:
 
 	var legend = Label.new()
 	legend.text = "✅ owned  🔧 not mfg  📦 in warehouse  🔩 installed"
-	legend.add_theme_font_size_override("font_size", 9)
+	legend.add_theme_font_size_override("font_size", 18)
 	legend.modulate = Color(0.5, 0.5, 0.5)
 	legend.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	parent.add_child(legend)
@@ -599,7 +601,7 @@ func _build_blueprint_ownership_column(parent: VBoxContainer) -> void:
 	for champ in champs:
 		var lbl_c = Label.new()
 		lbl_c.text = champ.championship_name
-		lbl_c.add_theme_font_size_override("font_size", 11)
+		lbl_c.add_theme_font_size_override("font_size", 22)
 		lbl_c.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
 		parent.add_child(lbl_c)
 
@@ -640,13 +642,13 @@ func _build_blueprint_ownership_column(parent: VBoxContainer) -> void:
 
 			var lbl_p = Label.new()
 			lbl_p.text = pcode
-			lbl_p.add_theme_font_size_override("font_size", 10)
+			lbl_p.add_theme_font_size_override("font_size", 20)
 			lbl_p.custom_minimum_size = Vector2(32, 0)
 			lbl_p.add_theme_color_override("font_color", PART_COLORS.get(part_name, Color(0.6,0.6,0.6)))
 			row.add_child(lbl_p)
 
 			var status = Label.new()
-			status.add_theme_font_size_override("font_size", 11)
+			status.add_theme_font_size_override("font_size", 22)
 			status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 			if pcode in installed_pcodes:
@@ -685,7 +687,7 @@ func _build_wra_blueprints_column(parent: VBoxContainer) -> void:
 
 	var lbl_flow = Label.new()
 	lbl_flow.text = "R&D → Send to WRA (HQ) → Approved here → Manufacture → Warehouse → Garage"
-	lbl_flow.add_theme_font_size_override("font_size", 10)
+	lbl_flow.add_theme_font_size_override("font_size", 20)
 	lbl_flow.modulate = Color(0.5, 0.5, 0.5)
 	lbl_flow.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	parent.add_child(lbl_flow)
@@ -695,7 +697,7 @@ func _build_wra_blueprints_column(parent: VBoxContainer) -> void:
 		var slots = GameState.get_cnc_slots()
 		var q_lbl = Label.new()
 		q_lbl.text = "IN PRODUCTION:   (%d slot%s)" % [slots, "s" if slots != 1 else ""]
-		q_lbl.add_theme_font_size_override("font_size", 11)
+		q_lbl.add_theme_font_size_override("font_size", 22)
 		q_lbl.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
 		parent.add_child(q_lbl)
 		var qi = 0
@@ -715,7 +717,7 @@ func _build_wra_blueprints_column(parent: VBoxContainer) -> void:
 		e.text = "No approved blueprints yet.\n\n1. Research a part in R&D Studio\n2. Submit blueprint to WRA Office in HQ\n3. Return here once approved to manufacture"
 		e.modulate = Color(0.5, 0.5, 0.5)
 		e.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		e.add_theme_font_size_override("font_size", 12)
+		e.add_theme_font_size_override("font_size", 24)
 		parent.add_child(e)
 		var btn_hq = Button.new()
 		btn_hq.text = "🏛 Go to WRA Office in HQ →"
@@ -757,7 +759,7 @@ func _build_wra_blueprints_column(parent: VBoxContainer) -> void:
 			bp.get("name", bp_id),
 			reg.get("name", app.championship_id)]
 		ln.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		ln.add_theme_font_size_override("font_size", 12)
+		ln.add_theme_font_size_override("font_size", 24)
 		ln.add_theme_color_override("font_color",
 			Color(0.4, 0.9, 0.4) if not already_queued else Color(0.5,0.5,0.5))
 		hdr.add_child(ln)
@@ -765,7 +767,7 @@ func _build_wra_blueprints_column(parent: VBoxContainer) -> void:
 		if already_queued:
 			var lq = Label.new()
 			lq.text = "IN QUEUE"
-			lq.add_theme_font_size_override("font_size", 10)
+			lq.add_theme_font_size_override("font_size", 20)
 			lq.add_theme_color_override("font_color", Color(1.0, 0.6, 0.1))
 			hdr.add_child(lq)
 			continue
@@ -779,7 +781,7 @@ func _build_wra_blueprints_column(parent: VBoxContainer) -> void:
 		var stats = Label.new()
 		stats.text = "CR %s | %dwks | Rel:%.0f%% | Qual:%.2f×" % [
 			_fmt(base_cr), base_wk, base_rel, quality]
-		stats.add_theme_font_size_override("font_size", 10)
+		stats.add_theme_font_size_override("font_size", 20)
 		stats.modulate = Color(0.6, 0.6, 0.6)
 		vb.add_child(stats)
 
@@ -790,7 +792,7 @@ func _build_wra_blueprints_column(parent: VBoxContainer) -> void:
 
 		var qty_lbl = Label.new()
 		qty_lbl.text = "Qty:"
-		qty_lbl.add_theme_font_size_override("font_size", 11)
+		qty_lbl.add_theme_font_size_override("font_size", 22)
 		ctrl.add_child(qty_lbl)
 
 		var qty_spin = SpinBox.new()
@@ -800,7 +802,7 @@ func _build_wra_blueprints_column(parent: VBoxContainer) -> void:
 
 		var ecr_lbl = Label.new()
 		ecr_lbl.text = "+CR:"
-		ecr_lbl.add_theme_font_size_override("font_size", 11)
+		ecr_lbl.add_theme_font_size_override("font_size", 22)
 		ctrl.add_child(ecr_lbl)
 
 		var ecr_spin = SpinBox.new()
@@ -810,7 +812,7 @@ func _build_wra_blueprints_column(parent: VBoxContainer) -> void:
 
 		var ewk_lbl = Label.new()
 		ewk_lbl.text = "+wks:"
-		ewk_lbl.add_theme_font_size_override("font_size", 11)
+		ewk_lbl.add_theme_font_size_override("font_size", 22)
 		ctrl.add_child(ewk_lbl)
 
 		var ewk_spin = SpinBox.new()
@@ -820,7 +822,7 @@ func _build_wra_blueprints_column(parent: VBoxContainer) -> void:
 
 		## Live preview
 		var preview = Label.new()
-		preview.add_theme_font_size_override("font_size", 10)
+		preview.add_theme_font_size_override("font_size", 20)
 		preview.modulate = Color(0.7, 0.7, 0.7)
 		vb.add_child(preview)
 

@@ -1,4 +1,8 @@
 extends Control
+## Version: S29.7 — Header split into title row + button row, and per-champ details
+##   row is now a 4-col grid, so nothing overflows the right edge with large fonts (#7).
+## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S28.1 — NextSeasonLedger aware. "Registered S{n+1}" reads next_season_registrations;
 ##   "RUNNING S{n}" reads player_registered_championships (current race set). Count labels and
 ##   bulk re-register now operate on the ledger.
@@ -31,28 +35,34 @@ func _build_ui() -> void:
 	root.add_theme_constant_override("separation", 14)
 	margin.add_child(root)
 
-	# ── Header ────────────────────────────────────────────────────────────────
+	# ── Header (S29.7: split into a title row + a button row so large fonts
+	# don't push the action buttons off the right edge) ─────────────────────────
 	var header = HBoxContainer.new()
 	header.add_theme_constant_override("separation", 16)
 	root.add_child(header)
 
 	var lbl_title = Label.new()
 	lbl_title.text = "🏆 CHAMPIONSHIP REGISTRATION  —  Season %d" % (GameState.current_season + 1)
-	lbl_title.add_theme_font_size_override("font_size", 22)
+	lbl_title.add_theme_font_size_override("font_size", 44)
 	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(lbl_title)
 
 	var lbl_week = Label.new()
 	lbl_week.text = "Week %d / 52" % GameState.current_week
 	lbl_week.modulate = Color(0.6, 0.6, 0.6)
-	lbl_week.add_theme_font_size_override("font_size", 13)
+	lbl_week.add_theme_font_size_override("font_size", 26)
 	header.add_child(lbl_week)
+
+	## Button row — below the title, so the three actions always fit
+	var btn_row = HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 16)
+	root.add_child(btn_row)
 
 	var btn_back = Button.new()
 	btn_back.text = "← Back to Hub"
 	btn_back.custom_minimum_size = Vector2(140, 36)
 	btn_back.pressed.connect(_on_back)
-	header.add_child(btn_back)
+	btn_row.add_child(btn_back)
 
 	# Register all affordable championships not yet registered
 	var btn_reg_all = Button.new()
@@ -60,7 +70,7 @@ func _build_ui() -> void:
 	btn_reg_all.custom_minimum_size = Vector2(220, 36)
 	btn_reg_all.modulate = Color(0.7, 1.0, 0.85)
 	btn_reg_all.pressed.connect(_on_register_all_pressed)
-	header.add_child(btn_reg_all)
+	btn_row.add_child(btn_reg_all)
 
 	# Re-register all currently-running championships for next season
 	var btn_rereg = Button.new()
@@ -68,7 +78,7 @@ func _build_ui() -> void:
 	btn_rereg.custom_minimum_size = Vector2(220, 36)
 	btn_rereg.modulate = Color(0.7, 1.0, 0.7)
 	btn_rereg.pressed.connect(_on_reregister_all)
-	header.add_child(btn_rereg)
+	btn_row.add_child(btn_rereg)
 
 	root.add_child(HSeparator.new())
 
@@ -79,7 +89,7 @@ func _build_ui() -> void:
 
 	var lbl_bal = Label.new()
 	lbl_bal.text = "Balance: CR %s" % _fmt(int(GameState.player_team.balance))
-	lbl_bal.add_theme_font_size_override("font_size", 14)
+	lbl_bal.add_theme_font_size_override("font_size", 28)
 	lbl_bal.add_theme_color_override("font_color",
 		Color(0.4, 0.9, 0.4) if GameState.player_team.balance >= 0 else Color(1.0, 0.3, 0.3))
 	info_row.add_child(lbl_bal)
@@ -89,7 +99,7 @@ func _build_ui() -> void:
 	lbl_reg.text = "%d championship%s registered for Season %d" % [
 		reg_count, "s" if reg_count != 1 else "", GameState.current_season + 1]
 	lbl_reg.modulate = Color(0.7, 0.7, 0.7)
-	lbl_reg.add_theme_font_size_override("font_size", 13)
+	lbl_reg.add_theme_font_size_override("font_size", 26)
 	info_row.add_child(lbl_reg)
 	_reg_count_label = lbl_reg  ## keep ref for live updates
 
@@ -107,7 +117,7 @@ func _build_ui() -> void:
 		var btn = Button.new()
 		btn.text = disc
 		btn.custom_minimum_size = Vector2(50, 28)
-		btn.add_theme_font_size_override("font_size", 12)
+		btn.add_theme_font_size_override("font_size", 24)
 		var d = disc
 		btn.pressed.connect(func():
 			_filter_discipline = d
@@ -153,7 +163,7 @@ func _refresh_list() -> void:
 	for tier in tiers:
 		var tier_lbl = Label.new()
 		tier_lbl.text = "TIER %d" % tier
-		tier_lbl.add_theme_font_size_override("font_size", 11)
+		tier_lbl.add_theme_font_size_override("font_size", 22)
 		tier_lbl.modulate = Color(0.5, 0.5, 0.5)
 		_list_container.add_child(tier_lbl)
 
@@ -218,7 +228,7 @@ func _build_champ_row(champ_id: String) -> PanelContainer:
 	name_row.add_theme_constant_override("separation", 8)
 	var lbl_name = Label.new()
 	lbl_name.text = reg["name"]
-	lbl_name.add_theme_font_size_override("font_size", 15)
+	lbl_name.add_theme_font_size_override("font_size", 30)
 	if deadline_passed and not is_registered:
 		lbl_name.modulate = Color(0.45, 0.45, 0.45)
 	name_row.add_child(lbl_name)
@@ -232,8 +242,10 @@ func _build_champ_row(champ_id: String) -> PanelContainer:
 		name_row.add_child(_tag("DEADLINE PASSED", Color(0.5, 0.5, 0.5)))
 	left.add_child(name_row)
 
-	var details_row = HBoxContainer.new()
-	details_row.add_theme_constant_override("separation", 16)
+	var details_row = GridContainer.new()
+	details_row.columns = 4  ## S29.7 — 4-col grid (8 items → 4×2) so large fonts don't overflow right
+	details_row.add_theme_constant_override("h_separation", 16)
+	details_row.add_theme_constant_override("v_separation", 4)
 	left.add_child(details_row)
 
 	for item in [
@@ -248,7 +260,7 @@ func _build_champ_row(champ_id: String) -> PanelContainer:
 	]:
 		var lbl = Label.new()
 		lbl.text = str(item[0])
-		lbl.add_theme_font_size_override("font_size", 11)
+		lbl.add_theme_font_size_override("font_size", 22)
 		lbl.add_theme_color_override("font_color", item[1])
 		details_row.add_child(lbl)
 
@@ -281,7 +293,7 @@ func _build_champ_row(champ_id: String) -> PanelContainer:
 			var lbl_wra = Label.new()
 			lbl_wra.text = "\u26A0 WRA reset in %d season%s \u2014 blueprints will be wiped" % [
 				seasons_until, "s" if seasons_until != 1 else ""]
-			lbl_wra.add_theme_font_size_override("font_size", 11)
+			lbl_wra.add_theme_font_size_override("font_size", 22)
 			lbl_wra.add_theme_color_override("font_color",
 				Color(1.0, 0.4, 0.1) if seasons_until == 1 else Color(1.0, 0.75, 0.1))
 			lbl_wra.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -330,7 +342,7 @@ func _tag(text: String, color: Color) -> PanelContainer:
 	chip.add_theme_stylebox_override("panel", style)
 	var lbl = Label.new()
 	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", 10)
+	lbl.add_theme_font_size_override("font_size", 20)
 	lbl.add_theme_color_override("font_color", color)
 	chip.add_child(lbl)
 	return chip

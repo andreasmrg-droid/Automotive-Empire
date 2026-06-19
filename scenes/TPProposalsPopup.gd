@@ -1,4 +1,6 @@
 extends Control
+## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S23.0 — TP Assignment Proposals popup.
 ##   Full-screen overlay listing all proposals with Accept All / per-item Accept / Skip.
 ##   Opened from RacingDept TP panel or directly from notification redirect.
@@ -58,13 +60,13 @@ func _build_ui() -> void:
 
 	var lbl_title = Label.new()
 	lbl_title.text = Locale.t("tp_popup_title")
-	lbl_title.add_theme_font_size_override("font_size", 18)
+	lbl_title.add_theme_font_size_override("font_size", 36)
 	lbl_title.add_theme_color_override("font_color", Color(0.5, 0.78, 1.0))
 	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hdr.add_child(lbl_title)
 
 	_lbl_summary = Label.new()
-	_lbl_summary.add_theme_font_size_override("font_size", 12)
+	_lbl_summary.add_theme_font_size_override("font_size", 24)
 	_lbl_summary.modulate = Color(0.55, 0.55, 0.55)
 	hdr.add_child(_lbl_summary)
 
@@ -78,7 +80,7 @@ func _build_ui() -> void:
 	var btn_accept_all = Button.new()
 	btn_accept_all.text = Locale.t("tp_popup_accept_all")
 	btn_accept_all.custom_minimum_size = Vector2(130, 34)
-	btn_accept_all.add_theme_font_size_override("font_size", 13)
+	btn_accept_all.add_theme_font_size_override("font_size", 26)
 	btn_accept_all.modulate = Color(0.4, 0.9, 0.5)
 	btn_accept_all.pressed.connect(_on_accept_all)
 	action_bar.add_child(btn_accept_all)
@@ -86,7 +88,7 @@ func _build_ui() -> void:
 	var btn_skip_all = Button.new()
 	btn_skip_all.text = Locale.t("tp_popup_skip_all")
 	btn_skip_all.custom_minimum_size = Vector2(100, 34)
-	btn_skip_all.add_theme_font_size_override("font_size", 12)
+	btn_skip_all.add_theme_font_size_override("font_size", 24)
 	btn_skip_all.modulate = Color(0.6, 0.6, 0.6)
 	btn_skip_all.pressed.connect(_on_close)
 	action_bar.add_child(btn_skip_all)
@@ -133,7 +135,7 @@ func _rebuild_list() -> void:
 		var lbl = Label.new()
 		lbl.text = Locale.t("tp_popup_empty")
 		lbl.modulate = Color(0.4, 0.9, 0.4)
-		lbl.add_theme_font_size_override("font_size", 13)
+		lbl.add_theme_font_size_override("font_size", 26)
 		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_list.add_child(lbl)
 		return
@@ -168,7 +170,7 @@ func _build_proposal_row(prop: Dictionary) -> PanelContainer:
 	## Note text
 	var lbl = Label.new()
 	lbl.text = prop.get("note", "")
-	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.add_theme_font_size_override("font_size", 22)
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	match priority:
@@ -206,7 +208,7 @@ func _build_proposal_row(prop: Dictionary) -> PanelContainer:
 		var btn_hire = Button.new()
 		btn_hire.text = "→ Staff"
 		btn_hire.custom_minimum_size = Vector2(70, 28)
-		btn_hire.add_theme_font_size_override("font_size", 11)
+		btn_hire.add_theme_font_size_override("font_size", 22)
 		btn_hire.pressed.connect(func():
 			_on_close()
 			get_tree().change_scene_to_file("res://scenes/Staff.tscn"))

@@ -1,10 +1,11 @@
-## Version: S19.9 — Added drivers_champion_history and teams_champion_history for competition_factor.
+## Version: S29.8 — Default championship_name "GK Regional Championship"->"GK Championship".
+## --- S19.9 — Added drivers_champion_history and teams_champion_history for competition_factor.
 class_name Championship
 extends Resource
 
 # Identity
 @export var id: String = "C-001"
-@export var championship_name: String = "GK Regional Championship"
+@export var championship_name: String = "GK Championship"
 @export var discipline: String = "GK"  # Short codes: GK, Rally, TC, OWC, SC, EPC, GP
 @export var tier: int = 1
 

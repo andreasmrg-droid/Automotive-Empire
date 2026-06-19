@@ -1,4 +1,7 @@
 extends Control
+## Version: S29.6 — Two-column content wrapped in a ScrollContainer so the START
+##   SEASON button stays pinned at the bottom with large fonts (issue #9).
+## --- S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
 ## Version: S28.2 — "Championships This Season" now lists the REGISTERED race set
 ##   (player_registered_championships), not just owned-car championships. Fixes the
 ##   "No championships registered" false display at season start (cars are wiped then).
@@ -30,25 +33,34 @@ func _build_ui() -> void:
 	# ── Title ─────────────────────────────────────────────────────────────────
 	var lbl_season = Label.new()
 	lbl_season.text = "🏁  SEASON %d BEGINS" % GameState.current_season
-	lbl_season.add_theme_font_size_override("font_size", 38)
+	lbl_season.add_theme_font_size_override("font_size", 76)
 	lbl_season.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
 	lbl_season.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(lbl_season)
 
 	var lbl_sub = Label.new()
 	lbl_sub.text = "Week 1 of 52  ·  Build your legacy."
-	lbl_sub.add_theme_font_size_override("font_size", 14)
+	lbl_sub.add_theme_font_size_override("font_size", 28)
 	lbl_sub.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
 	lbl_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(lbl_sub)
 
 	root.add_child(HSeparator.new())
 
-	# ── Two columns ───────────────────────────────────────────────────────────
+	# ── Two columns (wrapped in a scroll so the START button stays pinned) ──────
+	## S29.6 — with large fonts the column content overflowed and pushed START
+	## SEASON off-screen; the cols now scroll internally, footer stays visible.
+	var body_scroll = ScrollContainer.new()
+	body_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	root.add_child(body_scroll)
+
 	var cols = HBoxContainer.new()
 	cols.add_theme_constant_override("separation", 28)
 	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_child(cols)
+	cols.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body_scroll.add_child(cols)
 
 	var left = VBoxContainer.new()
 	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -94,7 +106,7 @@ func _build_ui() -> void:
 	var btn_start = Button.new()
 	btn_start.text = "▶  START SEASON %d" % GameState.current_season
 	btn_start.custom_minimum_size = Vector2(0, 52)
-	btn_start.add_theme_font_size_override("font_size", 22)
+	btn_start.add_theme_font_size_override("font_size", 44)
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.14, 0.48, 0.18)
 	style.corner_radius_top_left = 6; style.corner_radius_top_right = 6
@@ -114,7 +126,7 @@ func _build_champ_card(champ) -> PanelContainer:
 	var lbl_name = Label.new()
 	lbl_name.text = "🏆 %s  ·  Tier %d  ·  %d races" % [
 		champ.championship_name, reg.get("tier", 1), champ.num_races]
-	lbl_name.add_theme_font_size_override("font_size", 14)
+	lbl_name.add_theme_font_size_override("font_size", 28)
 	lbl_name.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
 	vbox.add_child(lbl_name)
 
@@ -123,11 +135,11 @@ func _build_champ_card(champ) -> PanelContainer:
 		row.add_theme_constant_override("separation", 7)
 		var icon = Label.new()
 		icon.text = "✅" if check["ok"] else "⚠"
-		icon.add_theme_font_size_override("font_size", 12)
+		icon.add_theme_font_size_override("font_size", 24)
 		row.add_child(icon)
 		var lbl = Label.new()
 		lbl.text = check["text"]
-		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_font_size_override("font_size", 24)
 		lbl.add_theme_color_override("font_color",
 			Color(0.5, 0.9, 0.5) if check["ok"] else Color(1.0, 0.55, 0.2))
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -136,7 +148,7 @@ func _build_champ_card(champ) -> PanelContainer:
 			var btn = Button.new()
 			btn.text = "Fix →"
 			btn.custom_minimum_size = Vector2(54, 22)
-			btn.add_theme_font_size_override("font_size", 10)
+			btn.add_theme_font_size_override("font_size", 20)
 			var d = check["dest"]
 			btn.pressed.connect(func(): _go(d))
 			row.add_child(btn)
@@ -206,16 +218,16 @@ func _build_tdl() -> VBoxContainer:
 		var row = HBoxContainer.new()
 		row.add_theme_constant_override("separation", 6)
 		var ic = Label.new(); ic.text = item[0]
-		ic.add_theme_font_size_override("font_size", 13)
+		ic.add_theme_font_size_override("font_size", 26)
 		row.add_child(ic)
 		var lbl = Label.new(); lbl.text = item[1]
-		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_font_size_override("font_size", 24)
 		lbl.add_theme_color_override("font_color", Color(0.78, 0.78, 0.78))
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(lbl)
 		var btn = Button.new(); btn.text = "→"
 		btn.custom_minimum_size = Vector2(26, 22)
-		btn.add_theme_font_size_override("font_size", 10)
+		btn.add_theme_font_size_override("font_size", 20)
 		var d = item[2]
 		btn.pressed.connect(func(): _go(d))
 		row.add_child(btn)
@@ -241,11 +253,11 @@ func _build_finance_panel() -> VBoxContainer:
 		row.add_theme_constant_override("separation", 8)
 		var k = Label.new(); k.text = data[0]
 		k.custom_minimum_size = Vector2(120, 0)
-		k.add_theme_font_size_override("font_size", 12)
+		k.add_theme_font_size_override("font_size", 24)
 		k.modulate = Color(0.45, 0.45, 0.45)
 		row.add_child(k)
 		var v = Label.new(); v.text = data[1]
-		v.add_theme_font_size_override("font_size", 12)
+		v.add_theme_font_size_override("font_size", 24)
 		v.add_theme_color_override("font_color", data[2])
 		row.add_child(v)
 		vbox.add_child(row)
@@ -265,7 +277,7 @@ func _go(scene_path: String) -> void:
 func _section_lbl(text: String) -> Label:
 	var l = Label.new()
 	l.text = text
-	l.add_theme_font_size_override("font_size", 13)
+	l.add_theme_font_size_override("font_size", 26)
 	l.add_theme_color_override("font_color", Color(0.5, 0.75, 1.0))
 	return l
 
@@ -288,7 +300,7 @@ func _action_btn(text: String, bg: Color) -> Button:
 	var btn = Button.new()
 	btn.text = text
 	btn.custom_minimum_size = Vector2(0, 34)
-	btn.add_theme_font_size_override("font_size", 13)
+	btn.add_theme_font_size_override("font_size", 26)
 	var style = StyleBoxFlat.new()
 	style.bg_color = bg
 	style.corner_radius_top_left = 4; style.corner_radius_top_right = 4

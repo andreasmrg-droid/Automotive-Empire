@@ -1,4 +1,6 @@
 extends Control
+## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S28.3 — GK "Your Group" reads GKDiscipline.get_standings() (player group only)
 ##   instead of champ.standings which could show all teams. Other-groups skip player index.
 ## --- S22.8 — #2 Team standings; #2 correct tab order; #2 Season 1 GK groups.
@@ -66,7 +68,7 @@ func _build_ui() -> void:
 
 	var lbl_title = Label.new()
 	lbl_title.text = Locale.t("rw_title")
-	lbl_title.add_theme_font_size_override("font_size", 22)
+	lbl_title.add_theme_font_size_override("font_size", 44)
 	lbl_title.add_theme_color_override("font_color", Color.WHITE)
 	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(lbl_title)
@@ -74,7 +76,7 @@ func _build_ui() -> void:
 	var lbl_season = Label.new()
 	lbl_season.text = "Season %d  ·  Week %d" % [
 		GameState.current_season, GameState.current_week]
-	lbl_season.add_theme_font_size_override("font_size", 12)
+	lbl_season.add_theme_font_size_override("font_size", 24)
 	lbl_season.modulate = Color(0.55, 0.55, 0.55)
 	header.add_child(lbl_season)
 
@@ -104,7 +106,7 @@ func _build_ui() -> void:
 		btn.text = "%s %s" % [icon, disc]
 		btn.custom_minimum_size = Vector2(0, 34)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.add_theme_font_size_override("font_size", 12)
+		btn.add_theme_font_size_override("font_size", 24)
 		var d = disc
 		btn.pressed.connect(func(): _show_tab(d))
 		tab_bar.add_child(btn)
@@ -194,20 +196,20 @@ func _build_active_card(cid: String, champ: Championship,
 
 	var lbl_name = Label.new()
 	lbl_name.text = champ.championship_name
-	lbl_name.add_theme_font_size_override("font_size", 14)
+	lbl_name.add_theme_font_size_override("font_size", 28)
 	lbl_name.add_theme_color_override("font_color", disc_color)
 	lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hdr.add_child(lbl_name)
 
 	var lbl_you = Label.new()
 	lbl_you.text = "← YOUR CHAMPIONSHIP"
-	lbl_you.add_theme_font_size_override("font_size", 10)
+	lbl_you.add_theme_font_size_override("font_size", 20)
 	lbl_you.add_theme_color_override("font_color", Color(0.4, 0.9, 0.5))
 	hdr.add_child(lbl_you)
 
 	var lbl_round = Label.new()
 	lbl_round.text = "Round %d / %d" % [champ.current_round, champ.num_races]
-	lbl_round.add_theme_font_size_override("font_size", 11)
+	lbl_round.add_theme_font_size_override("font_size", 22)
 	lbl_round.modulate = Color(0.6, 0.6, 0.6)
 	vb.add_child(lbl_round)
 
@@ -216,7 +218,7 @@ func _build_active_card(cid: String, champ: Championship,
 	if next_race:
 		var lbl_next = Label.new()
 		lbl_next.text = "Next: %s  (Week %d)" % [next_race["name"], next_race["week"]]
-		lbl_next.add_theme_font_size_override("font_size", 12)
+		lbl_next.add_theme_font_size_override("font_size", 24)
 		lbl_next.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
 		vb.add_child(lbl_next)
 
@@ -226,7 +228,7 @@ func _build_active_card(cid: String, champ: Championship,
 	var pos_text = _get_player_pos_text(champ)
 	var lbl_pos = Label.new()
 	lbl_pos.text = pos_text
-	lbl_pos.add_theme_font_size_override("font_size", 12)
+	lbl_pos.add_theme_font_size_override("font_size", 24)
 	lbl_pos.modulate = Color(0.8, 0.8, 0.8)
 	vb.add_child(lbl_pos)
 
@@ -278,21 +280,21 @@ func _build_gk_active_card(cid: String, champ: Championship,
 
 	var lbl_name = Label.new()
 	lbl_name.text = champ.championship_name
-	lbl_name.add_theme_font_size_override("font_size", 14)
+	lbl_name.add_theme_font_size_override("font_size", 28)
 	lbl_name.add_theme_color_override("font_color", disc_color)
 	lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hdr.add_child(lbl_name)
 
 	var lbl_you = Label.new()
 	lbl_you.text = "← YOUR GROUP  ·  %d groups  ·  %d drivers" % [n_groups, total_drivers]
-	lbl_you.add_theme_font_size_override("font_size", 10)
+	lbl_you.add_theme_font_size_override("font_size", 20)
 	lbl_you.add_theme_color_override("font_color", Color(0.4, 0.9, 0.5))
 	hdr.add_child(lbl_you)
 
 	## Round / next race
 	var lbl_round = Label.new()
 	lbl_round.text = "Round %d / %d" % [champ.current_round, champ.num_races]
-	lbl_round.add_theme_font_size_override("font_size", 11)
+	lbl_round.add_theme_font_size_override("font_size", 22)
 	lbl_round.modulate = Color(0.6, 0.6, 0.6)
 	vb.add_child(lbl_round)
 
@@ -300,7 +302,7 @@ func _build_gk_active_card(cid: String, champ: Championship,
 	if next_race:
 		var lbl_next = Label.new()
 		lbl_next.text = "Next: %s  (Week %d)" % [next_race["name"], next_race["week"]]
-		lbl_next.add_theme_font_size_override("font_size", 12)
+		lbl_next.add_theme_font_size_override("font_size", 24)
 		lbl_next.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
 		vb.add_child(lbl_next)
 
@@ -367,7 +369,7 @@ func _build_gk_group_table(standings: Array) -> VBoxContainer:
 
 		var lp = Label.new()
 		lp.text = "P%d" % (i+1)
-		lp.add_theme_font_size_override("font_size", 11)
+		lp.add_theme_font_size_override("font_size", 22)
 		lp.custom_minimum_size = Vector2(28,0)
 		lp.add_theme_color_override("font_color",
 			Color(1.0,0.84,0.0) if i < 3 else Color(0.5,0.5,0.5))
@@ -375,7 +377,7 @@ func _build_gk_group_table(standings: Array) -> VBoxContainer:
 
 		var ln = Label.new()
 		ln.text = d.full_name() if d else entry["driver_id"]
-		ln.add_theme_font_size_override("font_size", 11)
+		ln.add_theme_font_size_override("font_size", 22)
 		ln.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		if is_player:
 			ln.add_theme_color_override("font_color", Color(0.3,0.9,0.5))
@@ -385,7 +387,7 @@ func _build_gk_group_table(standings: Array) -> VBoxContainer:
 
 		var lpts = Label.new()
 		lpts.text = "%d pts" % entry.get("points",0)
-		lpts.add_theme_font_size_override("font_size", 11)
+		lpts.add_theme_font_size_override("font_size", 22)
 		lpts.modulate = Color(0.6,0.6,0.6)
 		row.add_child(lpts)
 
@@ -408,7 +410,7 @@ func _build_group_chip(standings: Array, group_idx: int) -> PanelContainer:
 
 	var lg = Label.new()
 	lg.text = "Group %d" % (group_idx+1)
-	lg.add_theme_font_size_override("font_size", 9)
+	lg.add_theme_font_size_override("font_size", 18)
 	lg.modulate = Color(0.45,0.45,0.45)
 	vb.add_child(lg)
 
@@ -420,7 +422,7 @@ func _build_group_chip(standings: Array, group_idx: int) -> PanelContainer:
 		var ll = Label.new()
 		ll.text = "%s  %dpts" % [
 			d.full_name() if d else "?", leader["points"]]
-		ll.add_theme_font_size_override("font_size", 10)
+		ll.add_theme_font_size_override("font_size", 20)
 		ll.add_theme_color_override("font_color", Color(0.8,0.8,0.8))
 		vb.add_child(ll)
 
@@ -448,13 +450,13 @@ func _build_world_card(cid: String, champ,
 
 	var lbl_name = Label.new()
 	lbl_name.text = reg.get("name", cid)
-	lbl_name.add_theme_font_size_override("font_size", 13)
+	lbl_name.add_theme_font_size_override("font_size", 26)
 	lbl_name.add_theme_color_override("font_color", disc_color.lightened(0.2))
 	lbl_name.modulate.a = 0.75
 	info.add_child(lbl_name)
 
 	var lbl_sub = Label.new()
-	lbl_sub.add_theme_font_size_override("font_size", 10)
+	lbl_sub.add_theme_font_size_override("font_size", 20)
 	lbl_sub.modulate = Color(0.4, 0.4, 0.4)
 
 	if champ != null:
@@ -468,7 +470,7 @@ func _build_world_card(cid: String, champ,
 			lbl_leader.text = "Leader: %s  ·  %d pts" % [
 				leader_d.full_name() if leader_d else sorted[0]["driver_id"],
 				sorted[0]["points"]]
-			lbl_leader.add_theme_font_size_override("font_size", 11)
+			lbl_leader.add_theme_font_size_override("font_size", 22)
 			lbl_leader.modulate = Color(0.6, 0.6, 0.6)
 			info.add_child(lbl_leader)
 	else:
@@ -479,7 +481,7 @@ func _build_world_card(cid: String, champ,
 	## Right: tier badge
 	var lbl_tier = Label.new()
 	lbl_tier.text = "Tier %d" % reg.get("tier", 1)
-	lbl_tier.add_theme_font_size_override("font_size", 10)
+	lbl_tier.add_theme_font_size_override("font_size", 20)
 	lbl_tier.modulate = Color(0.4, 0.4, 0.4)
 	lbl_tier.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	hb.add_child(lbl_tier)
@@ -525,21 +527,21 @@ func _build_standings_mini(champ: Championship, max_rows: int) -> VBoxContainer:
 		vb.add_child(row)
 		var lp = Label.new()
 		lp.text = "P%d" % (i+1)
-		lp.add_theme_font_size_override("font_size", 11)
+		lp.add_theme_font_size_override("font_size", 22)
 		lp.custom_minimum_size = Vector2(26,0)
 		lp.add_theme_color_override("font_color",
 			Color(1.0,0.84,0.0) if i < 3 else Color(0.5,0.5,0.5))
 		row.add_child(lp)
 		var ln = Label.new()
 		ln.text = d.full_name() if d else entry["driver_id"]
-		ln.add_theme_font_size_override("font_size", 11)
+		ln.add_theme_font_size_override("font_size", 22)
 		ln.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		if is_player: ln.add_theme_color_override("font_color", Color(0.3,0.9,0.5))
 		else: ln.modulate = Color(0.7,0.7,0.7)
 		row.add_child(ln)
 		var lpts = Label.new()
 		lpts.text = "%d pts" % entry["points"]
-		lpts.add_theme_font_size_override("font_size", 11)
+		lpts.add_theme_font_size_override("font_size", 22)
 		lpts.modulate = Color(0.55,0.55,0.55)
 		row.add_child(lpts)
 	return vb
@@ -556,7 +558,7 @@ func _build_team_standings_mini(champ: Championship, max_rows: int) -> VBoxConta
 		vb.add_child(row)
 		var lp = Label.new()
 		lp.text = "P%d" % (i+1)
-		lp.add_theme_font_size_override("font_size", 11)
+		lp.add_theme_font_size_override("font_size", 22)
 		lp.custom_minimum_size = Vector2(26,0)
 		lp.add_theme_color_override("font_color",
 			Color(1.0,0.84,0.0) if i < 3 else Color(0.5,0.5,0.5))
@@ -570,14 +572,14 @@ func _build_team_standings_mini(champ: Championship, max_rows: int) -> VBoxConta
 			team_name = GameState.player_team.team_name
 		var ln = Label.new()
 		ln.text = team_name
-		ln.add_theme_font_size_override("font_size", 11)
+		ln.add_theme_font_size_override("font_size", 22)
 		ln.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		if is_player: ln.add_theme_color_override("font_color", Color(0.3,0.9,0.5))
 		else: ln.modulate = Color(0.7,0.7,0.7)
 		row.add_child(ln)
 		var lpts = Label.new()
 		lpts.text = "%d pts" % entry["points"]
-		lpts.add_theme_font_size_override("font_size", 11)
+		lpts.add_theme_font_size_override("font_size", 22)
 		lpts.modulate = Color(0.55,0.55,0.55)
 		row.add_child(lpts)
 	return vb
@@ -585,7 +587,7 @@ func _build_team_standings_mini(champ: Championship, max_rows: int) -> VBoxConta
 func _section_label(text: String) -> Label:
 	var lbl = Label.new()
 	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", 10)
+	lbl.add_theme_font_size_override("font_size", 20)
 	lbl.modulate = Color(0.45, 0.45, 0.45)
 	return lbl
 

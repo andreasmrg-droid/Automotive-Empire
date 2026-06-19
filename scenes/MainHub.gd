@@ -1,4 +1,6 @@
 extends Control
+## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S28.1 — TDL panel wrapped in a height-capped ScrollContainer (220px) so a long
 ##   to-do list scrolls internally and can never push Advance Week / Next Race / End of Season
 ##   off-screen (shot 5 fix).
@@ -56,7 +58,7 @@ func _ready() -> void:
 	$Layout.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	# Title
-	title_label.add_theme_font_size_override("font_size", 28)
+	title_label.add_theme_font_size_override("font_size", 56)
 	title_label.add_theme_color_override("font_color", Color.WHITE)
 
 	# Top navigation bar
@@ -143,7 +145,7 @@ func _ready() -> void:
 
 	var notif_title = Label.new()
 	notif_title.text = "🔔 NOTIFICATIONS"
-	notif_title.add_theme_font_size_override("font_size", 16)
+	notif_title.add_theme_font_size_override("font_size", 32)
 	notif_title.add_theme_color_override("font_color", Color.WHITE)
 	notif_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	notif_header.add_child(notif_title)
@@ -263,14 +265,14 @@ func _ready() -> void:
 
 	# Advance button
 	advance_button.custom_minimum_size = Vector2(200, 50)
-	advance_button.add_theme_font_size_override("font_size", 18)
+	advance_button.add_theme_font_size_override("font_size", 36)
 	advance_button.text = "Advance Week ▶"
 	advance_button.pressed.connect(_on_advance_pressed)
 
 	# Next Race button — sits next to Advance Week in the same parent
 	advance_to_race_button = Button.new()
 	advance_to_race_button.custom_minimum_size = Vector2(200, 50)
-	advance_to_race_button.add_theme_font_size_override("font_size", 18)
+	advance_to_race_button.add_theme_font_size_override("font_size", 36)
 	advance_to_race_button.text = "⏭ Next Race"
 	advance_to_race_button.pressed.connect(_on_advance_to_race_pressed)
 	advance_button.get_parent().add_child(advance_to_race_button)
@@ -278,7 +280,7 @@ func _ready() -> void:
 	# Skip to End of Season button
 	var skip_season_btn = Button.new()
 	skip_season_btn.custom_minimum_size = Vector2(220, 50)
-	skip_season_btn.add_theme_font_size_override("font_size", 16)
+	skip_season_btn.add_theme_font_size_override("font_size", 32)
 	skip_season_btn.text = "⏩ End of Season"
 	skip_season_btn.modulate = Color(0.8, 0.8, 0.8)
 	skip_season_btn.pressed.connect(_on_skip_to_season_end)
@@ -555,7 +557,7 @@ func _refresh_notifications() -> void:
 		var icon = "🔴" if is_critical else ("🟠" if is_high else "🔵")
 		var lbl_header = Label.new()
 		lbl_header.text = "%s  S%d W%d" % [icon, n["season"], n["week"]]
-		lbl_header.add_theme_font_size_override("font_size", 11)
+		lbl_header.add_theme_font_size_override("font_size", 22)
 		lbl_header.modulate = Color(1.0, 1.0, 1.0) if not n["read"] else Color(0.5, 0.5, 0.5)
 		lbl_header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		header_row.add_child(lbl_header)
@@ -563,7 +565,7 @@ func _refresh_notifications() -> void:
 		if not n["read"]:
 			var badge = Label.new()
 			badge.text = "NEW"
-			badge.add_theme_font_size_override("font_size", 10)
+			badge.add_theme_font_size_override("font_size", 20)
 			badge.add_theme_color_override("font_color", Color(1.0, 1.0, 0.3))
 			header_row.add_child(badge)
 
@@ -571,7 +573,7 @@ func _refresh_notifications() -> void:
 		var btn_dismiss = Button.new()
 		btn_dismiss.text = "✕"
 		btn_dismiss.custom_minimum_size = Vector2(24, 22)
-		btn_dismiss.add_theme_font_size_override("font_size", 11)
+		btn_dismiss.add_theme_font_size_override("font_size", 22)
 		btn_dismiss.modulate = Color(0.6, 0.6, 0.6)
 		var capture_idx = idx
 		btn_dismiss.pressed.connect(func():
@@ -587,7 +589,7 @@ func _refresh_notifications() -> void:
 		msg.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var text_color = border_color if not n["read"] else border_color.darkened(0.3)
 		msg.add_theme_color_override("font_color", text_color)
-		msg.add_theme_font_size_override("font_size", 12)
+		msg.add_theme_font_size_override("font_size", 24)
 		msg.text = n["message"]
 		vbox.add_child(msg)
 
@@ -598,14 +600,14 @@ func _refresh_notifications() -> void:
 			vbox.add_child(snooze_row)
 			var snooze_lbl = Label.new()
 			snooze_lbl.text = "Snooze:"
-			snooze_lbl.add_theme_font_size_override("font_size", 10)
+			snooze_lbl.add_theme_font_size_override("font_size", 20)
 			snooze_lbl.modulate = Color(0.5, 0.5, 0.5)
 			snooze_row.add_child(snooze_lbl)
 			for weeks in [1, 2, 4]:
 				var btn_snooze = Button.new()
 				btn_snooze.text = "%d wk" % weeks
 				btn_snooze.custom_minimum_size = Vector2(44, 22)
-				btn_snooze.add_theme_font_size_override("font_size", 10)
+				btn_snooze.add_theme_font_size_override("font_size", 20)
 				var ci = idx
 				var cw = weeks
 				btn_snooze.pressed.connect(func():
@@ -621,7 +623,7 @@ func _refresh_notifications() -> void:
 				var btn_goto = Button.new()
 				btn_goto.text = GameState.NOTIFICATION_DESTINATION_LABELS.get(dest, "Go \u2192")
 				btn_goto.custom_minimum_size = Vector2(140, 24)
-				btn_goto.add_theme_font_size_override("font_size", 11)
+				btn_goto.add_theme_font_size_override("font_size", 22)
 				btn_goto.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
 				var capture_dest = dest
 				var capture_idx2 = idx
@@ -643,7 +645,7 @@ func _refresh_driver_standings() -> void:
 	for champ in GameState.active_championships:
 		var title = Label.new()
 		title.text = "🏆 %s" % champ.championship_name.to_upper()
-		title.add_theme_font_size_override("font_size", 14)
+		title.add_theme_font_size_override("font_size", 28)
 		title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
 		drivers_box.add_child(title)
 
@@ -667,7 +669,7 @@ func _refresh_driver_standings() -> void:
 				(Color(0.75, 0.75, 0.75) if pos == 2 else
 				(Color(0.8, 0.5, 0.2) if pos == 3 else Color.WHITE))))
 			if is_player:
-				label.add_theme_font_size_override("font_size", 15)
+				label.add_theme_font_size_override("font_size", 30)
 			drivers_box.add_child(label)
 
 		# Separator between championships
@@ -681,7 +683,7 @@ func _refresh_team_standings() -> void:
 	for champ in GameState.active_championships:
 		var title = Label.new()
 		title.text = "🏭 %s — TEAMS" % champ.championship_name.to_upper()
-		title.add_theme_font_size_override("font_size", 14)
+		title.add_theme_font_size_override("font_size", 28)
 		title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
 		teams_box.add_child(title)
 
@@ -706,7 +708,7 @@ func _refresh_team_standings() -> void:
 				(Color(0.75, 0.75, 0.75) if pos == 2 else
 				(Color(0.8, 0.5, 0.2) if pos == 3 else Color.WHITE))))
 			if is_player:
-				label.add_theme_font_size_override("font_size", 15)
+				label.add_theme_font_size_override("font_size", 30)
 			teams_box.add_child(label)
 
 
@@ -784,7 +786,7 @@ func _refresh_log() -> void:
 
 	var todo_lbl = Label.new()
 	todo_lbl.text = "📋 TO-DO"
-	todo_lbl.add_theme_font_size_override("font_size", 12)
+	todo_lbl.add_theme_font_size_override("font_size", 24)
 	todo_lbl.add_theme_color_override("font_color", Color(1.0, 0.8, 0.3))
 	todo_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	todo_header.add_child(todo_lbl)
@@ -793,7 +795,7 @@ func _refresh_log() -> void:
 	if tasks.is_empty():
 		var lbl_ok = Label.new()
 		lbl_ok.text = "✅ All clear"
-		lbl_ok.add_theme_font_size_override("font_size", 11)
+		lbl_ok.add_theme_font_size_override("font_size", 22)
 		lbl_ok.modulate = Color(0.4, 0.9, 0.4)
 		tdl_box.add_child(lbl_ok)
 	else:
@@ -805,7 +807,7 @@ func _refresh_log() -> void:
 			var tl = Label.new()
 			tl.text = task_text
 			tl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			tl.add_theme_font_size_override("font_size", 11)
+			tl.add_theme_font_size_override("font_size", 22)
 			tl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			var is_critical = task_text.begins_with("🚫") or task_text.begins_with("⏱") \
 				or task_text.begins_with("⛽") or task_text.begins_with("💸") \
@@ -819,7 +821,7 @@ func _refresh_log() -> void:
 				var btn_go = Button.new()
 				btn_go.text = "→"
 				btn_go.custom_minimum_size = Vector2(28, 22)
-				btn_go.add_theme_font_size_override("font_size", 10)
+				btn_go.add_theme_font_size_override("font_size", 20)
 				btn_go.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
 				var d = dest
 				btn_go.pressed.connect(func():
@@ -833,7 +835,7 @@ func _refresh_log() -> void:
 				var btn_x = Button.new()
 				btn_x.text = "✕"
 				btn_x.custom_minimum_size = Vector2(22, 22)
-				btn_x.add_theme_font_size_override("font_size", 10)
+				btn_x.add_theme_font_size_override("font_size", 20)
 				btn_x.modulate = Color(0.5, 0.5, 0.5)
 				var tt = task_text
 				btn_x.pressed.connect(func():
@@ -855,7 +857,7 @@ func _refresh_log() -> void:
 		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		if message.begins_with("==="):
 			label.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
-			label.add_theme_font_size_override("font_size", 15)
+			label.add_theme_font_size_override("font_size", 30)
 			if GameState.active_championships.size() > 1:
 				const DISC_COLORS = {
 					"GK": Color(0.3, 0.9, 0.3), "Rally": Color(0.9, 0.55, 0.1),
@@ -1044,7 +1046,7 @@ func _show_modal(title: String, subtitle: String, items: Array,
 	# Title
 	var title_lbl = Label.new()
 	title_lbl.text = title
-	title_lbl.add_theme_font_size_override("font_size", 22)
+	title_lbl.add_theme_font_size_override("font_size", 44)
 	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
 	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title_lbl)
@@ -1055,7 +1057,7 @@ func _show_modal(title: String, subtitle: String, items: Array,
 	if subtitle != "":
 		var sub_lbl = Label.new()
 		sub_lbl.text = subtitle
-		sub_lbl.add_theme_font_size_override("font_size", 14)
+		sub_lbl.add_theme_font_size_override("font_size", 28)
 		sub_lbl.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
 		sub_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		sub_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1089,7 +1091,7 @@ func _show_modal(title: String, subtitle: String, items: Array,
 
 			var item_lbl = Label.new()
 			item_lbl.text = item
-			item_lbl.add_theme_font_size_override("font_size", 13)
+			item_lbl.add_theme_font_size_override("font_size", 26)
 			item_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.6))
 			item_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			item_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1106,7 +1108,7 @@ func _show_modal(title: String, subtitle: String, items: Array,
 	var cancel_btn = Button.new()
 	cancel_btn.text = cancel_text
 	cancel_btn.custom_minimum_size = Vector2(220, 44)
-	cancel_btn.add_theme_font_size_override("font_size", 14)
+	cancel_btn.add_theme_font_size_override("font_size", 28)
 	cancel_btn.visible = cancel_text != ""
 	cancel_btn.pressed.connect(func():
 		overlay.queue_free()
@@ -1119,7 +1121,7 @@ func _show_modal(title: String, subtitle: String, items: Array,
 	var confirm_btn = Button.new()
 	confirm_btn.text = confirm_text
 	confirm_btn.custom_minimum_size = Vector2(220, 44)
-	confirm_btn.add_theme_font_size_override("font_size", 14)
+	confirm_btn.add_theme_font_size_override("font_size", 28)
 	confirm_btn.pressed.connect(func():
 		overlay.queue_free()
 		panel.queue_free()
@@ -1267,7 +1269,7 @@ func _show_menu_popup() -> void:
 	var hdr = HBoxContainer.new()
 	var lbl = Label.new()
 	lbl.text = "☰  MENU"
-	lbl.add_theme_font_size_override("font_size", 18)
+	lbl.add_theme_font_size_override("font_size", 36)
 	lbl.add_theme_color_override("font_color", Color.WHITE)
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hdr.add_child(lbl)
@@ -1294,11 +1296,11 @@ func _show_menu_popup() -> void:
 		r.add_theme_constant_override("separation", 8)
 		var k = Label.new(); k.text = row[0]
 		k.custom_minimum_size = Vector2(80, 0)
-		k.add_theme_font_size_override("font_size", 12)
+		k.add_theme_font_size_override("font_size", 24)
 		k.modulate = Color(0.5, 0.5, 0.5)
 		r.add_child(k)
 		var v = Label.new(); v.text = row[1]
-		v.add_theme_font_size_override("font_size", 12)
+		v.add_theme_font_size_override("font_size", 24)
 		r.add_child(v)
 		vbox.add_child(r)
 
@@ -1316,7 +1318,7 @@ func _show_menu_popup() -> void:
 		var btn = Button.new()
 		btn.text = action[0]
 		btn.custom_minimum_size = Vector2(0, 44)
-		btn.add_theme_font_size_override("font_size", 15)
+		btn.add_theme_font_size_override("font_size", 30)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var btn_style = StyleBoxFlat.new()
 		btn_style.bg_color = action[2]
@@ -1356,7 +1358,7 @@ func _on_menu_action(action: String) -> void:
 
 func _make_resource_label(_prefix: String, color: Color) -> Label:
 	var label = Label.new()
-	label.add_theme_font_size_override("font_size", 15)
+	label.add_theme_font_size_override("font_size", 30)
 	label.add_theme_color_override("font_color", color)
 	label.custom_minimum_size = Vector2(130, 0)
 	return label
@@ -1423,7 +1425,7 @@ func _show_load_picker() -> void:
 	var hdr = HBoxContainer.new()
 	var lbl_title = Label.new()
 	lbl_title.text = "📂  LOAD GAME"
-	lbl_title.add_theme_font_size_override("font_size", 16)
+	lbl_title.add_theme_font_size_override("font_size", 32)
 	lbl_title.add_theme_color_override("font_color", Color.WHITE)
 	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hdr.add_child(lbl_title)
@@ -1474,7 +1476,7 @@ func _show_load_picker() -> void:
 
 		var lbl_slot = Label.new()
 		lbl_slot.text = label
-		lbl_slot.add_theme_font_size_override("font_size", 13)
+		lbl_slot.add_theme_font_size_override("font_size", 26)
 		lbl_slot.add_theme_color_override("font_color",
 			Color(0.8, 0.88, 1.0) if not meta.is_empty() else Color(0.4, 0.4, 0.4))
 		info.add_child(lbl_slot)
@@ -1482,7 +1484,7 @@ func _show_load_picker() -> void:
 		if meta.is_empty():
 			var lbl_e = Label.new()
 			lbl_e.text = "— empty —"
-			lbl_e.add_theme_font_size_override("font_size", 11)
+			lbl_e.add_theme_font_size_override("font_size", 22)
 			lbl_e.modulate = Color(0.35, 0.35, 0.35)
 			info.add_child(lbl_e)
 		else:
@@ -1491,21 +1493,21 @@ func _show_load_picker() -> void:
 			lbl_d.text = "%s  ·  S%d W%d  ·  CR %s" % [
 				meta["team"], meta["season"], meta["week"],
 				GameState._fmt_int(int(meta["balance"]))]
-			lbl_d.add_theme_font_size_override("font_size", 11)
+			lbl_d.add_theme_font_size_override("font_size", 22)
 			lbl_d.modulate = Color(0.6, 0.6, 0.6)
 			info.add_child(lbl_d)
 
 			var ts = int(meta["modified"])
 			var lbl_t = Label.new()
 			lbl_t.text = Time.get_datetime_string_from_unix_time(ts).left(16).replace("T", "  ")
-			lbl_t.add_theme_font_size_override("font_size", 10)
+			lbl_t.add_theme_font_size_override("font_size", 20)
 			lbl_t.modulate = Color(0.38, 0.38, 0.38)
 			info.add_child(lbl_t)
 
 			var btn = Button.new()
 			btn.text = "Load"
 			btn.custom_minimum_size = Vector2(70, 32)
-			btn.add_theme_font_size_override("font_size", 13)
+			btn.add_theme_font_size_override("font_size", 26)
 			var load_path = path
 			btn.pressed.connect(func():
 				dim.queue_free()
@@ -1532,7 +1534,7 @@ func _refresh_cars() -> void:
 	# ── Header ───────────────────────────────────────────────
 	var title = Label.new()
 	title.text = "🔩 MY CARS"
-	title.add_theme_font_size_override("font_size", 15)
+	title.add_theme_font_size_override("font_size", 30)
 	title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
 	cars_box.add_child(title)
 
@@ -1546,7 +1548,7 @@ func _refresh_cars() -> void:
 	var res_label = Label.new()
 	res_label.text = "%s SP: %d units   %s FU: %.0f kg" % [sp_icon, GameState.spare_parts, fu_icon, GameState.fuel_kg]
 	res_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
-	res_label.add_theme_font_size_override("font_size", 13)
+	res_label.add_theme_font_size_override("font_size", 26)
 	cars_box.add_child(res_label)
 
 	if GameState.fuel_kg < fu_threshold:
@@ -1554,7 +1556,7 @@ func _refresh_cars() -> void:
 		warn.text = "⛽ WARNING: Fuel below %.0f kg — car will DNS!" % fu_threshold
 		warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		warn.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
-		warn.add_theme_font_size_override("font_size", 12)
+		warn.add_theme_font_size_override("font_size", 24)
 		cars_box.add_child(warn)
 
 	cars_box.add_child(HSeparator.new())
@@ -1604,13 +1606,13 @@ func _refresh_cars() -> void:
 		vbox.add_child(name_row)
 		var car_lbl = Label.new()
 		car_lbl.text = "🏎  %s" % (car.car_name if car.car_name != "" else "Car %d" % car.car_number)
-		car_lbl.add_theme_font_size_override("font_size", 14)
+		car_lbl.add_theme_font_size_override("font_size", 28)
 		car_lbl.add_theme_color_override("font_color", Color.WHITE)
 		car_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		name_row.add_child(car_lbl)
 		var drv_lbl = Label.new()
 		drv_lbl.text = driver.full_name() if driver else "⚠ No Driver"
-		drv_lbl.add_theme_font_size_override("font_size", 13)
+		drv_lbl.add_theme_font_size_override("font_size", 26)
 		drv_lbl.add_theme_color_override("font_color",
 			Color(0.4, 0.8, 1.0) if driver else Color(1.0, 0.4, 0.4))
 		name_row.add_child(drv_lbl)
@@ -1618,7 +1620,7 @@ func _refresh_cars() -> void:
 		# Mechanic row
 		var mech_lbl = Label.new()
 		mech_lbl.text = "🔧 Mechanic: %s" % (mechanic.full_name() if mechanic else "⚠ None assigned")
-		mech_lbl.add_theme_font_size_override("font_size", 12)
+		mech_lbl.add_theme_font_size_override("font_size", 24)
 		mech_lbl.add_theme_color_override("font_color",
 			Color(0.7, 0.9, 0.7) if mechanic else Color(1.0, 0.6, 0.2))
 		vbox.add_child(mech_lbl)
@@ -1629,7 +1631,7 @@ func _refresh_cars() -> void:
 		vbox.add_child(cond_row)
 		var cond_title = Label.new()
 		cond_title.text = "Condition:"
-		cond_title.add_theme_font_size_override("font_size", 12)
+		cond_title.add_theme_font_size_override("font_size", 24)
 		cond_title.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 		cond_title.custom_minimum_size = Vector2(80, 0)
 		cond_row.add_child(cond_title)
@@ -1647,7 +1649,7 @@ func _refresh_cars() -> void:
 		cond_row.add_child(bar)
 		var pct_lbl = Label.new()
 		pct_lbl.text = "%.0f%%" % condition
-		pct_lbl.add_theme_font_size_override("font_size", 13)
+		pct_lbl.add_theme_font_size_override("font_size", 26)
 		pct_lbl.custom_minimum_size = Vector2(40, 0)
 		pct_lbl.add_theme_color_override("font_color",
 			Color(0.3, 1.0, 0.3) if condition >= 70.0
@@ -1659,7 +1661,7 @@ func _refresh_cars() -> void:
 		vbox.add_child(fuel_row)
 		var fuel_title = Label.new()
 		fuel_title.text = "Fuel:"
-		fuel_title.add_theme_font_size_override("font_size", 12)
+		fuel_title.add_theme_font_size_override("font_size", 24)
 		fuel_title.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 		fuel_title.custom_minimum_size = Vector2(80, 0)
 		fuel_row.add_child(fuel_title)
@@ -1668,7 +1670,7 @@ func _refresh_cars() -> void:
 		fuel_val.text = "%.0f kg available  (need %.0f kg)  %s" % [
 			GameState.fuel_kg, fu_threshold,
 			"✅ OK" if fuel_ok else "🚫 DNS RISK"]
-		fuel_val.add_theme_font_size_override("font_size", 12)
+		fuel_val.add_theme_font_size_override("font_size", 24)
 		fuel_val.add_theme_color_override("font_color",
 			Color(0.3, 1.0, 0.3) if fuel_ok else Color(1.0, 0.3, 0.3))
 		fuel_row.add_child(fuel_val)
@@ -1679,7 +1681,7 @@ func _refresh_cars() -> void:
 			var sp_preview = Label.new()
 			sp_preview.text = "Full repair cost: %d SP  (have: %d SP)" % [
 				sp_for_full, GameState.spare_parts]
-			sp_preview.add_theme_font_size_override("font_size", 12)
+			sp_preview.add_theme_font_size_override("font_size", 24)
 			sp_preview.add_theme_color_override("font_color",
 				Color(0.6, 0.9, 1.0) if GameState.spare_parts >= sp_for_full else Color(1.0, 0.5, 0.3))
 			vbox.add_child(sp_preview)
@@ -1729,7 +1731,7 @@ func _refresh_cars() -> void:
 	# Bottom hint
 	var hint = Label.new()
 	hint.text = "Buy SP, FU and parts at the Logistics Center on Campus."
-	hint.add_theme_font_size_override("font_size", 11)
+	hint.add_theme_font_size_override("font_size", 22)
 	hint.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	cars_box.add_child(hint)
@@ -1828,14 +1830,14 @@ func _show_bankruptcy_screen() -> void:
 
 	var lbl_title = Label.new()
 	lbl_title.text = "🚨 BANKRUPTCY"
-	lbl_title.add_theme_font_size_override("font_size", 36)
+	lbl_title.add_theme_font_size_override("font_size", 72)
 	lbl_title.add_theme_color_override("font_color", Color(1.0, 0.2, 0.2))
 	lbl_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	center.add_child(lbl_title)
 
 	var lbl_sub = Label.new()
 	lbl_sub.text = "Your team has been insolvent for 8 consecutive weeks.\nYou must choose how to proceed."
-	lbl_sub.add_theme_font_size_override("font_size", 15)
+	lbl_sub.add_theme_font_size_override("font_size", 30)
 	lbl_sub.add_theme_color_override("font_color", Color(0.75, 0.75, 0.75))
 	lbl_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl_sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1843,7 +1845,7 @@ func _show_bankruptcy_screen() -> void:
 
 	var lbl_bal = Label.new()
 	lbl_bal.text = "Balance: CR %s" % GameState._fmt_int(int(GameState.player_team.balance))
-	lbl_bal.add_theme_font_size_override("font_size", 18)
+	lbl_bal.add_theme_font_size_override("font_size", 36)
 	lbl_bal.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4))
 	lbl_bal.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	center.add_child(lbl_bal)
@@ -1895,7 +1897,7 @@ func _show_bankruptcy_screen() -> void:
 	## Dismiss — temporary, allows continue
 	var btn_dismiss = Button.new()
 	btn_dismiss.text = "Dismiss  (continue at your own risk)"
-	btn_dismiss.add_theme_font_size_override("font_size", 11)
+	btn_dismiss.add_theme_font_size_override("font_size", 22)
 	btn_dismiss.modulate = Color(0.4, 0.4, 0.4)
 	btn_dismiss.pressed.connect(func():
 		overlay.queue_free()
@@ -1935,14 +1937,14 @@ func _bankruptcy_btn(title: String, desc: String, border_color: Color) -> Button
 
 	var lt = Label.new()
 	lt.text = title
-	lt.add_theme_font_size_override("font_size", 14)
+	lt.add_theme_font_size_override("font_size", 28)
 	lt.add_theme_color_override("font_color", border_color)
 	lt.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vb.add_child(lt)
 
 	var ld = Label.new()
 	ld.text = desc
-	ld.add_theme_font_size_override("font_size", 11)
+	ld.add_theme_font_size_override("font_size", 22)
 	ld.add_theme_color_override("font_color", Color(0.65, 0.65, 0.65))
 	ld.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	ld.mouse_filter = Control.MOUSE_FILTER_IGNORE

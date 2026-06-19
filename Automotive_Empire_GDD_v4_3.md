@@ -1731,3 +1731,13 @@ AI world fully alive (rivals race, get results, sign drivers, build reputation).
 A read-only "Other Championships This Season" list on the EOS screen showing just
 name / discipline / tier / "Not entered" — **no standings access**, so no crash risk.
 Low value (duplicates the championship browser) but zero risk. Currently declined.
+
+#Future Update
+Decision (S29.5): The resource bar (the player's top-of-screen resource readouts — credits/balance and other live resource indicators) is globally visible across all in-game scenes, with a fixed set of exceptions.
+Visible in: all normal gameplay scenes — Main Hub, all building/department screens (HQ, Garage, Logistics, CNC Plant, R&D Studio, Racing Dept, Financial, Staff Hub, Drivers, Championships, and all track/facility buildings, etc.).
+Hidden in (the exceptions):
+Popups / modal overlays — any slide-in panel, dialog, or overlay (e.g. contract negotiation, confirmation dialogs, the not-interested popup, the loans popup).
+New Game scene (the setup wizard).
+Race Results scene.
+End of Season scene.
+Beginning of Season scene.

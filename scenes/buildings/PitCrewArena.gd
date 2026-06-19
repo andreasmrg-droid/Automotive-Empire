@@ -1,4 +1,6 @@
 extends Control
+## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S28.3 — Fixed crash: Pit Crew "teamwork" stat (removed) → "fatigue_resistance".
 ## --- S15.2 — Build/upgrade costs reduced to Garage standards (build 10wks/30K, upgrade 4wks/15K).
 
@@ -29,7 +31,7 @@ func _build_ui() -> void:
 	var building = GameState.campus_buildings.get("Pit Crew Arena", {})
 	var lbl = Label.new()
 	lbl.text = "⏱ PIT CREW ARENA  ·  Level %d" % building.get("level", 1)
-	lbl.add_theme_font_size_override("font_size", 22)
+	lbl.add_theme_font_size_override("font_size", 44)
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(lbl)
 	var btn_back = Button.new()
@@ -135,7 +137,7 @@ func _build_crew_card(crew) -> PanelContainer:
 	# Show as crew unit, not individual name
 	var crew_label = crew.display_name() if crew.crew_number > 0 else ("Crew (Chief: %s)" % crew.full_name())
 	lbl_name.text = crew_label
-	lbl_name.add_theme_font_size_override("font_size", 15)
+	lbl_name.add_theme_font_size_override("font_size", 30)
 	lbl_name.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
 	lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row1.add_child(lbl_name)
@@ -151,7 +153,7 @@ func _build_crew_card(crew) -> PanelContainer:
 	var fit_lbl = Label.new()
 	fit_lbl.text = "Fitness:"
 	fit_lbl.custom_minimum_size.x = 60
-	fit_lbl.add_theme_font_size_override("font_size", 12)
+	fit_lbl.add_theme_font_size_override("font_size", 24)
 	fit_row.add_child(fit_lbl)
 	var bar = ProgressBar.new()
 	bar.min_value = 0
@@ -164,7 +166,7 @@ func _build_crew_card(crew) -> PanelContainer:
 	var fit_val = Label.new()
 	fit_val.text = "%.0f%%" % crew.fitness
 	fit_val.modulate = _fit_color(crew.fitness)
-	fit_val.add_theme_font_size_override("font_size", 12)
+	fit_val.add_theme_font_size_override("font_size", 24)
 	fit_row.add_child(fit_val)
 	vbox.add_child(fit_row)
 
@@ -185,14 +187,14 @@ func _build_crew_card(crew) -> PanelContainer:
 		var lbl_car = Label.new()
 		lbl_car.text = "Assigned to: %s" % (_car_name(assigned_car) if assigned_car else "⚠ Unassigned — DNS risk")
 		lbl_car.modulate = Color(0.4, 0.9, 0.4) if assigned_car else Color(1.0, 0.5, 0.15)
-		lbl_car.add_theme_font_size_override("font_size", 12)
+		lbl_car.add_theme_font_size_override("font_size", 24)
 		lbl_car.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		assign_row.add_child(lbl_car)
 		for car in non_gk_cars:
 			var btn = Button.new()
 			var reg = GameState.CHAMPIONSHIP_REGISTRY.get(car.championship_id, {})
 			btn.text = "%s (%s)" % [_car_name(car), reg.get("discipline", "?")]
-			btn.add_theme_font_size_override("font_size", 11)
+			btn.add_theme_font_size_override("font_size", 22)
 			if assigned_car and assigned_car.id == car.id:
 				btn.text += " ✅"
 				btn.disabled = true
@@ -210,13 +212,13 @@ func _build_crew_card(crew) -> PanelContainer:
 	elif GameState.player_team_cars.is_empty():
 		var lbl_no_car = Label.new()
 		lbl_no_car.text = "No cars in garage yet."
-		lbl_no_car.add_theme_font_size_override("font_size", 11)
+		lbl_no_car.add_theme_font_size_override("font_size", 22)
 		lbl_no_car.modulate = Color(0.5, 0.5, 0.5)
 		vbox.add_child(lbl_no_car)
 	else:
 		var lbl_gk = Label.new()
 		lbl_gk.text = "All current cars are GK — no pit crew needed."
-		lbl_gk.add_theme_font_size_override("font_size", 11)
+		lbl_gk.add_theme_font_size_override("font_size", 22)
 		lbl_gk.modulate = Color(0.5, 0.5, 0.5)
 		vbox.add_child(lbl_gk)
 
@@ -259,16 +261,16 @@ func _fit_color(v: float) -> Color:
 func _section_label(text: String) -> Label:
 	var lbl = Label.new()
 	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.add_theme_font_size_override("font_size", 22)
 	lbl.modulate = Color(0.5, 0.5, 0.5)
 	return lbl
 
 func _stat_row(label: String, value: String) -> HBoxContainer:
 	var row = HBoxContainer.new()
 	var l = Label.new(); l.text = label; l.custom_minimum_size = Vector2(140, 0)
-	l.add_theme_font_size_override("font_size", 12); l.modulate = Color(0.55, 0.55, 0.55)
+	l.add_theme_font_size_override("font_size", 24); l.modulate = Color(0.55, 0.55, 0.55)
 	row.add_child(l)
-	var v = Label.new(); v.text = value; v.add_theme_font_size_override("font_size", 12)
+	var v = Label.new(); v.text = value; v.add_theme_font_size_override("font_size", 24)
 	row.add_child(v)
 	return row
 
@@ -283,7 +285,7 @@ func _stat_chip(label: String, value: float) -> PanelContainer:
 	chip.add_theme_stylebox_override("panel", style)
 	var lbl = Label.new()
 	lbl.text = "%s %.0f" % [label, value]
-	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.add_theme_font_size_override("font_size", 22)
 	lbl.add_theme_color_override("font_color", _skill_color(value))
 	chip.add_child(lbl)
 	return chip

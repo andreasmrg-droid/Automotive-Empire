@@ -1,4 +1,6 @@
 extends Control
+## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Hall of Fame Screen
 ## Accessible from HQ and Museum.
 ## Shows all race wins, championship wins, and team history.
@@ -27,7 +29,7 @@ func _build_ui() -> void:
 
 	var lbl_title = Label.new()
 	lbl_title.text = "🏆 HALL OF FAME  —  %s" % GameState.player_team.team_name
-	lbl_title.add_theme_font_size_override("font_size", 24)
+	lbl_title.add_theme_font_size_override("font_size", 48)
 	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(lbl_title)
 
@@ -64,12 +66,12 @@ func _build_ui() -> void:
 		stats_row.add_child(sv)
 		var lbl_v = Label.new()
 		lbl_v.text = stat[1]
-		lbl_v.add_theme_font_size_override("font_size", 28)
+		lbl_v.add_theme_font_size_override("font_size", 56)
 		lbl_v.add_theme_color_override("font_color", Color(1.0, 0.84, 0.0))
 		sv.add_child(lbl_v)
 		var lbl_k = Label.new()
 		lbl_k.text = stat[0]
-		lbl_k.add_theme_font_size_override("font_size", 11)
+		lbl_k.add_theme_font_size_override("font_size", 22)
 		lbl_k.modulate = Color(0.6, 0.6, 0.6)
 		sv.add_child(lbl_k)
 
@@ -89,7 +91,7 @@ func _build_ui() -> void:
 
 	var lbl_by_champ = Label.new()
 	lbl_by_champ.text = "WINS BY CHAMPIONSHIP"
-	lbl_by_champ.add_theme_font_size_override("font_size", 13)
+	lbl_by_champ.add_theme_font_size_override("font_size", 26)
 	lbl_by_champ.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
 	left.add_child(lbl_by_champ)
 
@@ -97,7 +99,7 @@ func _build_ui() -> void:
 		var empty = Label.new()
 		empty.text = "No wins yet — get racing! 🏎"
 		empty.modulate = Color(0.5, 0.5, 0.5)
-		empty.add_theme_font_size_override("font_size", 13)
+		empty.add_theme_font_size_override("font_size", 26)
 		left.add_child(empty)
 	else:
 		# Sort by wins descending
@@ -118,12 +120,12 @@ func _build_ui() -> void:
 			var lbl_champ = Label.new()
 			lbl_champ.text = entry[0]
 			lbl_champ.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			lbl_champ.add_theme_font_size_override("font_size", 12)
+			lbl_champ.add_theme_font_size_override("font_size", 24)
 			row.add_child(lbl_champ)
 
 			var lbl_count = Label.new()
 			lbl_count.text = "%d win%s" % [entry[1], "s" if entry[1] != 1 else ""]
-			lbl_count.add_theme_font_size_override("font_size", 12)
+			lbl_count.add_theme_font_size_override("font_size", 24)
 			lbl_count.add_theme_color_override("font_color", Color(1.0, 0.84, 0.0))
 			row.add_child(lbl_count)
 
@@ -140,7 +142,7 @@ func _build_ui() -> void:
 
 	var lbl_wins = Label.new()
 	lbl_wins.text = "ALL RACE WINS  (%d)" % total_wins
-	lbl_wins.add_theme_font_size_override("font_size", 13)
+	lbl_wins.add_theme_font_size_override("font_size", 26)
 	lbl_wins.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
 	right.add_child(lbl_wins)
 
@@ -161,28 +163,28 @@ func _build_ui() -> void:
 			var lbl_season = Label.new()
 			lbl_season.text = "S%d R%d" % [entry.get("season", 0), entry.get("round", 0)]
 			lbl_season.custom_minimum_size = Vector2(60, 0)
-			lbl_season.add_theme_font_size_override("font_size", 11)
+			lbl_season.add_theme_font_size_override("font_size", 22)
 			lbl_season.modulate = Color(0.5, 0.5, 0.5)
 			row.add_child(lbl_season)
 
 			var lbl_track = Label.new()
 			lbl_track.text = entry.get("track", "?")
 			lbl_track.custom_minimum_size = Vector2(180, 0)
-			lbl_track.add_theme_font_size_override("font_size", 12)
+			lbl_track.add_theme_font_size_override("font_size", 24)
 			lbl_track.add_theme_color_override("font_color", Color(1.0, 0.84, 0.0))
 			row.add_child(lbl_track)
 
 			var lbl_champ = Label.new()
 			lbl_champ.text = entry.get("championship", "")
 			lbl_champ.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			lbl_champ.add_theme_font_size_override("font_size", 11)
+			lbl_champ.add_theme_font_size_override("font_size", 22)
 			lbl_champ.modulate = Color(0.6, 0.7, 0.9)
 			row.add_child(lbl_champ)
 
 			var lbl_driver = Label.new()
 			lbl_driver.text = entry.get("winner", "?")
 			lbl_driver.custom_minimum_size = Vector2(140, 0)
-			lbl_driver.add_theme_font_size_override("font_size", 12)
+			lbl_driver.add_theme_font_size_override("font_size", 24)
 			lbl_driver.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
 			row.add_child(lbl_driver)
 
