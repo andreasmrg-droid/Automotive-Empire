@@ -1,6 +1,8 @@
 extends Node
-## Version: S29.13 — Added championship-selection keys: ng_champ_info + ng_cost_* (budget
-##   summary labels).
+## Version: S29.15 — Restored 16 keys lost in the S29.12→S29.13 merge (rr_*, creg_*, p5_*).
+##   These were referenced by RaceResults/ChampionshipSelect/HQ/RnDStudio but absent from
+##   the pushed Locale.gd, causing raw key text to show in-game. Now complete.
+## --- S29.13 — Added championship-selection keys: ng_champ_info + ng_cost_*.
 ## --- S29.0 — Added not-interested popup keys (ap_ni_popup_*).
 ## --- S23.0 — TP proposals popup keys added.
 ## Usage: Locale.t("key")  →  returns translated string for current language.
@@ -230,6 +232,28 @@ const STRINGS: Dictionary = {
 	"ng_primary_color":     { "en": "Primary Color",          },
 	"ng_secondary_color":   { "en": "Secondary Color",         },
 	"ng_badge_preview":     { "en": "BADGE PREVIEW",          },
+
+	# ── Race Results paged screens (#2) ───────────────────────────────────────
+	"rr_nav_back":          { "en": "◀  Back",        },
+	"rr_nav_next":          { "en": "Next  ▶",        },
+	"rr_page_results":      { "en": "Race Results",            },
+	"rr_page_standings":    { "en": "Championship Standings",  },
+	"rr_page_development":  { "en": "Season Development",      },
+	"rr_page_indicator":    { "en": "{0}   ({1} / {2})",       },
+
+	# ── Championship registration scene (#7/#8) ───────────────────────────────
+	"creg_title":           { "en": "🏆 CHAMPIONSHIP REGISTRATION  —  Season {0}", },
+	"creg_back_to_hub":     { "en": "← Back to Hub",           },
+	"creg_register_all":    { "en": "✅ Register All Affordable", },
+	"creg_reregister_all":  { "en": "🔄 Re-register All Running", },
+	"creg_button":          { "en": "🏁  Championship Registration →", },
+
+	# ── R&D Pillar 5 stub (Commercial Cars) ───────────────────────────────────
+	"p5_name":              { "en": "COMMERCIAL CARS",         },
+	"p5_desc":              { "en": "Research for the commercial car business.\nComing in a future update.", },
+	"p5_popup_title":       { "en": "🚗  Commercial Cars R&D", },
+	"p5_popup_body":        { "en": "Research for the commercial car business is coming in a future update.\n\nThis pillar will let you develop and improve the road cars your company sells, feeding the commercial market system.", },
+	"p5_catalog_stub":      { "en": "Commercial Cars R&D is coming in a future update.", },
 
 	# Championship selection — info + budget cost summary (S29.13)
 	"ng_champ_info":        { "en": "Select the discipline you want to start in. Starting budget depends on your championship and difficulty choice. Pick a championship, then set your difficulty on the next screen.", },
