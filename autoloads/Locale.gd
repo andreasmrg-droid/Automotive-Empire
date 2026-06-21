@@ -1,5 +1,9 @@
 extends Node
-## Version: S29.15 — Restored 16 keys lost in the S29.12→S29.13 merge (rr_*, creg_*, p5_*).
+## Version: S30.6 — Added Garage car-delivery keys (gar_in_build_*, gar_parts_locked) for
+##   the Phase 2 in-build display in Garage.gd.
+## --- S30.5 — Added CNC "Build Whole Car" keys (cnc_bwc_*) for the Phase 2 one-pass
+##   own-build action in CNCPlant.
+## --- S29.15 — Restored 16 keys lost in the S29.12→S29.13 merge (rr_*, creg_*, p5_*).
 ##   These were referenced by RaceResults/ChampionshipSelect/HQ/RnDStudio but absent from
 ##   the pushed Locale.gd, causing raw key text to show in-game. Now complete.
 ## --- S29.13 — Added championship-selection keys: ng_champ_info + ng_cost_*.
@@ -409,6 +413,24 @@ const STRINGS: Dictionary = {
 	"ready_no_pit_crew":    { "en": "No pit crew — DNS risk", },
 	"ready_blueprint_req":  { "en": "REQUIRED (Formula)",     },
 	"ready_blueprint_ok":   { "en": "ready ✓",              },
+
+	# ── CNC BUILD WHOLE CAR (Phase 2) ─────────────────────────────────────────
+	"cnc_bwc_header":       { "en": "BUILD WHOLE CAR",                                   },
+	"cnc_bwc_intro":        { "en": "Queue all 6 parts in one pass. The car is created now (assign crew while it builds) and is race-ready when the last part finishes.", },
+	"cnc_bwc_btn":          { "en": "🏗 Build Whole Car",                                },
+	"cnc_bwc_ready":        { "en": "All 6 blueprints approved — arrives Wk {0}  ·  CR {1}", },
+	"cnc_bwc_missing":      { "en": "Missing approved blueprints: {0}",                  },
+	"cnc_bwc_garage_full":  { "en": "Garage full — upgrade the Garage to build more cars.", },
+	"cnc_bwc_cant_afford":  { "en": "Need CR {0} to build all 6 parts.",                 },
+	"cnc_bwc_have_car":     { "en": "Car already present for this championship.",        },
+
+	# ── GARAGE — CAR DELIVERY (Phase 2) ───────────────────────────────────────
+	"gar_in_build_week":    { "en": "🏗 In build — arrives Week {0}  ({1})",            },
+	"gar_in_build_wleft":   { "en": "{0} week left",                                    },
+	"gar_in_build_wsleft":  { "en": "{0} weeks left",                                   },
+	"gar_in_build_due":     { "en": "due this week",                                    },
+	"gar_in_build_hint":    { "en": "Pre-assign a driver and crew now — they'll be ready the moment the car is delivered.", },
+	"gar_parts_locked":     { "en": "🔒 Parts locked until delivery",                   },
 
 }
 

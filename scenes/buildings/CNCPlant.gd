@@ -1,7 +1,12 @@
 extends Control
 ## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
 ##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
-## Version: S28.3 — Production queue is slot-aware: shows slot count, marks QUEUED jobs, and
+## Version: S30.5 — Phase 2 "Build Whole Car": one-pass build section at the top of the
+##   MANUFACTURE PARTS column. Enabled per registered championship with no car yet once all
+##   6 blueprints are WRA-approved; queues all 6 jobs + creates the in-build Car via
+##   GameState.build_whole_car. New strings localized (cnc_bwc_* in Locale.gd S30.5);
+##   pre-existing hardcoded strings in this file left for the deferred full sweep (GDD §16).
+## --- S28.3 — Production queue is slot-aware: shows slot count, marks QUEUED jobs, and
 ##   computes slot-aware ETAs (issue 4).
 ## --- S17.2 — Blueprint ownership panel added (col D); INSTALLED ON CARS uses get_installed_parts_for_car.
 ## CNC Parts Plant
@@ -682,7 +687,96 @@ func _build_blueprint_ownership_column(parent: VBoxContainer) -> void:
 ## S15 — WRA APPROVED BLUEPRINTS COLUMN
 ## ═══════════════════════════════════════════════════════════════════════════
 
+## Phase 2 — one-pass "Build Whole Car" section. Shows one card per registered
+## championship the player has no car for yet. Enabled once all 6 blueprints are
+## WRA-approved; queues all 6 jobs and creates the in-build Car in a single action.
+func _build_whole_car_section(parent: VBoxContainer) -> void:
+	# Championships the player is registered for but has no car in yet.
+	var candidates: Array = []
+	for cid in GameState.player_registered_championships:
+		var has_car = false
+		for car in GameState.player_team_cars:
+			if car.championship_id == cid:
+				has_car = true
+				break
+		if not has_car:
+			candidates.append(cid)
+	if candidates.is_empty():
+		return
+
+	parent.add_child(_section_header(Locale.t("cnc_bwc_header"), Color(0.3, 0.7, 1.0)))
+
+	var intro = Label.new()
+	intro.text = Locale.t("cnc_bwc_intro")
+	intro.add_theme_font_size_override("font_size", 20)
+	intro.modulate = Color(0.5, 0.5, 0.5)
+	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	parent.add_child(intro)
+
+	for cid in candidates:
+		parent.add_child(_build_whole_car_card(cid))
+	parent.add_child(_hsep())
+
+func _build_whole_car_card(champ_id: String) -> PanelContainer:
+	var reg        = GameState.CHAMPIONSHIP_REGISTRY.get(champ_id, {})
+	var champ_name = reg.get("name", champ_id)
+	var can_build  = GameState.can_build_whole_car(champ_id)
+	var garage_full = GameState.player_team_cars.size() >= GameState.get_max_cars()
+
+	var panel = _make_panel(Color(0.09, 0.11, 0.16))
+	var style = panel.get_theme_stylebox("panel") as StyleBoxFlat
+	if style:
+		style.border_color = Color(0.3, 0.7, 1.0) if can_build else Color(0.5, 0.5, 0.5)
+		style.border_width_left = 3
+	var vb = VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 5)
+	panel.add_child(vb)
+
+	var ln = Label.new()
+	ln.text = "🏗 %s" % champ_name
+	ln.add_theme_font_size_override("font_size", 24)
+	ln.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	vb.add_child(ln)
+
+	var status = Label.new()
+	status.add_theme_font_size_override("font_size", 20)
+	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if can_build:
+		var dwk = GameState.get_build_whole_car_delivery_week(champ_id)
+		var cost = GameState.get_build_whole_car_cost(champ_id)
+		status.text = Locale.tf("cnc_bwc_ready", [dwk, _fmt(cost)])
+		status.add_theme_color_override("font_color", Color(0.4, 0.9, 0.5))
+	else:
+		var miss = GameState.missing_car_blueprints(champ_id)
+		status.text = Locale.tf("cnc_bwc_missing", [", ".join(miss)])
+		status.modulate = Color(0.8, 0.6, 0.3)
+	vb.add_child(status)
+
+	var btn = Button.new()
+	btn.text = Locale.t("cnc_bwc_btn")
+	btn.custom_minimum_size = Vector2(0, 32)
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn.add_theme_font_size_override("font_size", 24)
+	btn.disabled = not can_build or garage_full
+	if garage_full:
+		var gf = Label.new()
+		gf.text = Locale.t("cnc_bwc_garage_full")
+		gf.add_theme_font_size_override("font_size", 20)
+		gf.modulate = Color(1.0, 0.5, 0.2)
+		gf.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		vb.add_child(gf)
+	var _cid = champ_id
+	btn.pressed.connect(func(): _on_build_whole_car(_cid))
+	vb.add_child(btn)
+
+	return panel
+
+func _on_build_whole_car(champ_id: String) -> void:
+	if GameState.build_whole_car(champ_id):
+		get_tree().change_scene_to_file("res://scenes/buildings/CNCPlant.tscn")
+
 func _build_wra_blueprints_column(parent: VBoxContainer) -> void:
+	_build_whole_car_section(parent)
 	parent.add_child(_section_header("MANUFACTURE PARTS", Color(0.4, 0.9, 0.4)))
 
 	var lbl_flow = Label.new()

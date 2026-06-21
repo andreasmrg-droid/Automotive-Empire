@@ -1,5 +1,13 @@
 extends Node
-## Version: S29.8 — GK: registry num_races 29->21 to match the 21-round calendar
+## Version: S30.4 — Phase 2 "Build Whole Car": one-pass own-build path. New engine API
+##   can_build_whole_car / missing_car_blueprints / build_whole_car queues all 6 approved
+##   part jobs, creates the in-build Car (acquisition="built") with a slot-aware delivery
+##   week, and fires assignment + TP proposals via add_car. Delivery fields now serialized.
+## --- S30.2 — Phase 2 car delivery clock: _process_car_deliveries() runs each
+##   weekly tick (after CNC advance, before the race-check loop) and flips undelivered
+##   player cars to delivered once current_week >= car.delivery_week. Paired with the
+##   Car.gd delivery state (S30.0) and RaceSimulator DNS-until-ready (S30.1).
+## --- S29.8 — GK: registry num_races 29->21 to match the 21-round calendar
 ##   (display-only; logic reads calendar size). Name already "GK Championship".
 ## --- S29.0 — C-014 SC Dev Series car cap 5 -> 4 (explicit max_cars:4/min_cars:1
 ##   added to registry; was falling back to default 2 in Logistics). Per GDD handoff
@@ -1206,6 +1214,148 @@ func start_cnc_production(part: String, champ_id: String, quantity: int = 1) -> 
 
 func _advance_cnc_production() -> void:
 	_rnd_engine._advance_cnc_production()
+
+## Phase 2 — weekly car delivery clock.
+## Flips any in-build player car to delivered once the season week reaches its
+## delivery_week. Runs each tick in advance_week() right after CNC production, before
+## the race-check loop, so a car delivered on a race week is raceable that same week.
+## Idempotent: only undelivered cars are touched; legacy/instant cars (delivered=true,
+## delivery_week=0) are skipped.
+func _process_car_deliveries() -> void:
+	for car in player_team_cars:
+		if car.delivered:
+			continue
+		if current_week >= car.delivery_week:
+			car.delivered = true
+			var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
+			var reg = CHAMPIONSHIP_REGISTRY.get(car.championship_id, {})
+			var champ_name = reg.get("name", car.championship_id)
+			add_notification("Normal",
+				"🏎 %s delivered — ready to race in %s. Assign crew in the Garage." % [
+				car_label, champ_name], "garage")
+			add_log("🏎 %s delivered (Week %d) for %s." % [car_label, current_week, champ_name])
+
+# ── Build Whole Car (Phase 2) ─────────────────────────────────────────────────
+## Maps each of the 6 car parts to the WRA-approved blueprint_id for a championship.
+## Returns { part_name: blueprint_id } containing only parts that HAVE an approved
+## blueprint in CNC for that championship.
+func _approved_car_blueprints(champ_id: String) -> Dictionary:
+	var result: Dictionary = {}
+	for app in wra_approved_blueprints:
+		if app.get("championship_id", "") != champ_id:
+			continue
+		var bp_id = app.get("blueprint_id", "")
+		var bp = known_blueprints.get(bp_id, {})
+		var part = bp.get("part", "")
+		if part in PARTS_LIST and not result.has(part):
+			result[part] = bp_id
+	return result
+
+## Parts still missing an approved blueprint for this championship (for UI hinting).
+func missing_car_blueprints(champ_id: String) -> Array:
+	var approved = _approved_car_blueprints(champ_id)
+	var missing: Array = []
+	for part in PARTS_LIST:
+		if not approved.has(part):
+			missing.append(part)
+	return missing
+
+## True only if ALL 6 part blueprints for champ_id are WRA-approved & in CNC.
+func can_build_whole_car(champ_id: String) -> bool:
+	return _approved_car_blueprints(champ_id).size() == PARTS_LIST.size()
+
+## Slot-aware completion offset (weeks from now) for a set of job durations, given
+## the number of parallel CNC slots. List-scheduling: each freed slot takes the next
+## job; the answer is the latest slot-end. With slots >= jobs this is max(weeks).
+func _slot_aware_completion(weeks_list: Array, slots: int) -> int:
+	if weeks_list.is_empty():
+		return 0
+	var s = max(1, slots)
+	var slot_ends: Array = []
+	for _i in range(s):
+		slot_ends.append(0)
+	# Longest-first improves packing realism and matches a busy plant's behaviour.
+	var sorted_weeks = weeks_list.duplicate()
+	sorted_weeks.sort()
+	sorted_weeks.reverse()
+	for w in sorted_weeks:
+		# assign to the earliest-free slot
+		var min_idx = 0
+		for i in range(slot_ends.size()):
+			if slot_ends[i] < slot_ends[min_idx]:
+				min_idx = i
+		slot_ends[min_idx] += w
+	var latest = 0
+	for e in slot_ends:
+		latest = max(latest, e)
+	return latest
+
+## Total CR to manufacture all 6 parts once (base, no extra investment).
+func get_build_whole_car_cost(champ_id: String) -> int:
+	var approved = _approved_car_blueprints(champ_id)
+	var total = 0
+	for part in approved:
+		total += get_cnc_manufacturing_cr(approved[part], 1)
+	return total
+
+## Projected delivery week if the whole car is built now (current_week + slot-aware
+## completion of the 6 base jobs). Returns 0 if not buildable.
+func get_build_whole_car_delivery_week(champ_id: String) -> int:
+	var approved = _approved_car_blueprints(champ_id)
+	if approved.size() != PARTS_LIST.size():
+		return 0
+	var weeks_list: Array = []
+	for part in approved:
+		weeks_list.append(get_cnc_manufacturing_weeks(approved[part]))
+	return current_week + _slot_aware_completion(weeks_list, get_cnc_slots())
+
+## One-pass car build. Creates the in-build Car (acquisition="built"), queues all 6
+## CNC jobs, sets the slot-aware delivery week, and fires assignment + TP proposals
+## (via add_car). Build/buy is independent of assignments — this only OFFERS them.
+func build_whole_car(champ_id: String) -> bool:
+	if not can_build_whole_car(champ_id):
+		var miss = missing_car_blueprints(champ_id)
+		add_notification("High",
+			"Cannot build car yet — missing approved blueprints: %s." % ", ".join(miss), "cnc_plant")
+		return false
+	if player_team_cars.size() >= get_max_cars():
+		add_notification("High",
+			"Garage full (%d/%d). Upgrade the Garage to build more cars." % [
+			player_team_cars.size(), get_max_cars()], "garage")
+		return false
+	var total_cr = get_build_whole_car_cost(champ_id)
+	if player_team.balance < total_cr:
+		add_notification("High",
+			"Insufficient funds to build the car. Need CR %s for all 6 parts." % _fmt_int(total_cr),
+			"cnc_plant")
+		return false
+
+	var approved = _approved_car_blueprints(champ_id)
+	var reg = CHAMPIONSHIP_REGISTRY.get(champ_id, {})
+	var champ_name = reg.get("name", champ_id)
+
+	# Create the in-build car first (this fires assignment + TP proposals, like buying).
+	if not add_car(champ_id, false):
+		return false
+	var car = player_team_cars[player_team_cars.size() - 1]
+	car.acquisition = "built"
+
+	# Queue all 6 part jobs and collect their durations for the delivery calc.
+	var weeks_list: Array = []
+	for part in PARTS_LIST:
+		var bp_id = approved[part]
+		weeks_list.append(get_cnc_manufacturing_weeks(bp_id))
+		start_cnc_job(bp_id, 1)
+
+	# Slot-aware delivery: car ready when the LAST part finishes.
+	car.delivery_week = current_week + _slot_aware_completion(weeks_list, get_cnc_slots())
+
+	add_log("🏗 %s — whole car build started: 6 parts queued, arrives Week %d (CR %s)." % [
+		champ_name, car.delivery_week, _fmt_int(total_cr)])
+	add_notification("Normal",
+		"🏗 %s car in build — all 6 parts queued, arrives Week %d. Pre-assign crew in the Garage." % [
+		champ_name, car.delivery_week], "garage")
+	return true
 
 func assign_cnc_part_to_car(car_id: String, part: String) -> bool:
 	return _rnd_engine.assign_cnc_part_to_car(car_id, part)
@@ -2451,6 +2601,9 @@ func advance_week() -> void:
 	_advance_wra_submissions()
 	# Advance CNC production
 	_advance_cnc_production()
+	# Phase 2: flip any in-build cars whose delivery week has arrived (BEFORE the
+	# race-check loop below, so a car delivered this week can race this week).
+	_process_car_deliveries()
 	# Sponsor and CFO
 	_advance_cfo_search()
 	_process_sponsors_weekly()
@@ -3008,6 +3161,8 @@ func _serialize_cars() -> Array:
 			"fuel_consumption_per_km": car.fuel_consumption_per_km,
 			"tire_wear_rate": car.tire_wear_rate,
 			"baseline_performance_index": car.baseline_performance_index,
+			"delivered": car.delivered, "delivery_week": car.delivery_week,
+			"acquisition": car.acquisition,
 		})
 	return result
 
@@ -3031,6 +3186,11 @@ func _deserialize_cars(data_array: Array) -> void:
 		car.fuel_consumption_per_km = cd["fuel_consumption_per_km"]
 		car.tire_wear_rate = cd["tire_wear_rate"]
 		car.baseline_performance_index = cd["baseline_performance_index"]
+		## Phase 2 delivery state. Older saves predate these keys → default to a
+		## delivered/legacy-safe state so a loaded car is never silently held in build.
+		car.delivered     = cd.get("delivered", true)
+		car.delivery_week = cd.get("delivery_week", 0)
+		car.acquisition   = cd.get("acquisition", "delivered")
 		player_team_cars.append(car)
 
 func _serialize_staff() -> Dictionary:

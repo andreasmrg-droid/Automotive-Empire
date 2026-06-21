@@ -1,5 +1,10 @@
 class_name RaceSimulator
-## Version: S27.0 — Extracted from GameState.gd (P57 Phase 3)
+## Version: S30.1 — Phase 2 DNS-until-ready: a car that has not yet been delivered
+##   (car.delivered == false) DNS's the round. Enforced both in can_car_race() and as
+##   the first reason in the simulate_race() per-car DNS loop. Because the check runs
+##   per-round, an undelivered car simply misses early rounds and joins automatically
+##   the round on/after its delivery week — no whole-season forfeit.
+## --- S27.0 — Extracted from GameState.gd (P57 Phase 3)
 ##   Owns race simulation, DNS checks, post-race processing,
 ##   driver/staff stat growth, car degradation, fitness recovery.
 ##   Called by GameState.advance_week() via wrapper functions.
@@ -42,6 +47,15 @@ func can_car_race(driver_id: String) -> bool:
 		return false
 
 	if car == null:
+		return false
+
+	# DNS: car not yet delivered (in build / in transit) — Phase 2
+	if not car.delivered:
+		gs.add_notification("Critical",
+			"DNS: %s is still in build — arrives Week %d." % [
+				(car.car_name if car.car_name != "" else "Car %d" % car.car_number), car.delivery_week])
+		gs.add_log("🚫 DNS — %s not yet delivered (arrives Wk %d)." % [
+			(car.car_name if car.car_name != "" else "Car %d" % car.car_number), car.delivery_week])
 		return false
 
 	# DNS: no race mechanic
@@ -131,13 +145,25 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 			var car_dns = false
 			var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
 
+			# DNS: car not yet delivered (in build / in transit) — Phase 2.
+			# Checked first: an undelivered car cannot start regardless of crew.
+			if not car.delivered:
+				gs.add_log("🚫 DNS [%s] %s — car not yet delivered (arrives Wk %d)." % [
+					c.championship_name, car_label, car.delivery_week])
+				gs.add_notification("High",
+					"DNS: %s not delivered until Week %d for %s." % [
+					car_label, car.delivery_week, c.championship_name], "logistics")
+				car_dns = true
+
 			if car.driver_id == "":
 				gs.add_log("🚫 DNS [%s] %s — no driver assigned." % [c.championship_name, car_label])
 				gs.add_notification("Critical",
 					"DNS: %s has no driver for %s! Assign in Garage." % [
 					car_label, c.championship_name], "garage")
 				car_dns = true
-			elif not can_car_race(car.driver_id):
+			elif car.delivered and not can_car_race(car.driver_id):
+				# Only run the full requirement gate for delivered cars — an undelivered
+				# car is already flagged above; calling can_car_race() would double-notify.
 				car_dns = true
 
 			if car.mechanic_id == "":

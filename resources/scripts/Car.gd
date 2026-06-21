@@ -1,6 +1,12 @@
 class_name Car
 extends Resource
-## Version: S29.8 — Comment: "GK Regional" -> "GK Championship" (cosmetic).
+## Version: S30.0 — Phase 2 delivery state: delivered / delivery_week / acquisition.
+##   Cars are now acquired in an "in-build" state and only become raceable on their
+##   delivery week (max part build time, per get_car_delivery_week). is_ready_for_race
+##   short-circuits to false while undelivered → DNS-until-ready (enforced in RaceSimulator).
+##   All three new fields default to a delivered/legacy-safe state so existing saves and
+##   the new-game starter car load as ready (no silent DNS regressions).
+## --- S29.8 — Comment: "GK Regional" -> "GK Championship" (cosmetic).
 
 # ── Identity ──────────────────────────────────────────────────────────────────
 @export var id: String = ""              # "CAR-P001", "CAR-P002", etc.
@@ -34,6 +40,19 @@ extends Resource
 	"Suspension": 100.0, "Brakes": 100.0, "Chassis": 100.0
 }
 
+# ── Delivery state (Phase 2) ──────────────────────────────────────────────────
+## A car is acquired either by BUYING a supplier car (buyable championships) or by
+## BUILDING it via R&D → CNC (any championship). In both cases the car is not raceable
+## the instant it is acquired: it becomes ready on its delivery_week — the week the
+## lengthiest part finishes (usually the engine; see GameState.get_car_delivery_week).
+##
+## Defaults are deliberately legacy-safe: delivered = true so any car loaded from an
+## older save, or created by the new-game / silent setup path, is treated as ready.
+## Real in-season acquisitions set delivered = false and a delivery_week explicitly.
+@export var delivered: bool = true          # false while in build / in transit
+@export var delivery_week: int = 0          # absolute week in the season the car becomes raceable
+@export var acquisition: String = "delivered" # "bought" | "built" | "delivered" (legacy/instant)
+
 # ── Computed properties ───────────────────────────────────────────────────────
 
 ## Estimated HP for display. Formula: index * 15 + 15
@@ -43,7 +62,11 @@ func get_estimated_hp() -> int:
 
 ## Returns true if the car has a driver, mechanic assigned (and pit crew if non-GK).
 ## Used for pre-race readiness checks.
+## Phase 2: an undelivered (in-build) car can never start — it DNS's until its
+## delivery week arrives. This short-circuit makes delivery the first gate.
 func is_ready_for_race(discipline: String) -> bool:
+	if not delivered:
+		return false
 	if driver_id == "":
 		return false
 	if mechanic_id == "":
@@ -51,6 +74,18 @@ func is_ready_for_race(discipline: String) -> bool:
 	if discipline != "GK" and pit_crew_id == "":
 		return false
 	return true
+
+## True while the car is being built / in transit (acquired but not yet raceable).
+## Convenience for UI ("In build — arrives Wk N") and delivery processing.
+func is_in_build() -> bool:
+	return not delivered
+
+## Weeks remaining until delivery, given the current season week.
+## Returns 0 once delivered or if the delivery week has already passed.
+func weeks_until_delivery(current_week: int) -> int:
+	if delivered:
+		return 0
+	return max(0, delivery_week - current_week)
 
 ## Returns overall condition considering worst individual part.
 ## A car can have 80% overall but a 10% Aero — that matters for racing.

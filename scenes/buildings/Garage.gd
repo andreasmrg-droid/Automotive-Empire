@@ -1,12 +1,18 @@
 extends Control
-## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+## Version: S30.6 — Phase 2 car delivery: car card shows an "In build — arrives Week X
+##   (Y left)" banner while undelivered (car.is_in_build). Driver/mechanic/pit-crew
+##   assignment stays AVAILABLE (pre-assign while it builds); part slots are LOCKED until
+##   delivery (Change/Remove/Install disabled + a "Parts locked" note). New strings
+##   localized (gar_* in Locale.gd S30.6); pre-existing hardcoded strings left for the
+##   deferred full sweep (GDD §16).
+## --- S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
 ##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
-## Version: S28.4 — Pit Crew assignment slot + popup in Garage (Bug 6). CNC/provider install
+## --- S28.4 — Pit Crew assignment slot + popup in Garage (Bug 6). CNC/provider install
 ##   buttons check success before closing popup;
 ##   show failure notice. "Wet"→"Ctrl" stat label.
 ## --- S22.8 — #5 Assign popup shows all with current assignment status and reassign.
 ##                    so the player can make an informed choice.
-## Version: S17.2 — Full redesign: championship tabs; car cards with 6 part slots;
+## --- S17.2 — Full redesign: championship tabs; car cards with 6 part slots;
 ##                    provider (L0) and CNC parts unified; Change popup (any level from stock);
 ##                    per-part condition bars; Remove returns part to stock/inventory.
 
@@ -271,6 +277,37 @@ func _build_car_card(car) -> PanelContainer:
 	cond_lbl.add_theme_color_override("font_color", cc)
 	hdr.add_child(cond_lbl)
 
+	# ── Delivery banner (Phase 2) ─────────────────────────────────────────────
+	## While the car is in build (bought or built but not yet delivered) show when it
+	## arrives. Assignments below remain available so the player can pre-crew the car.
+	if car.is_in_build():
+		var weeks_left = car.weeks_until_delivery(GameState.current_week)
+		var left_txt: String
+		if weeks_left <= 0:
+			left_txt = Locale.t("gar_in_build_due")
+		elif weeks_left == 1:
+			left_txt = Locale.tf("gar_in_build_wleft", [weeks_left])
+		else:
+			left_txt = Locale.tf("gar_in_build_wsleft", [weeks_left])
+
+		var banner = _make_panel(Color(0.10,0.13,0.20), Color(0.3,0.6,1.0), 4)
+		banner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var bvb = VBoxContainer.new()
+		bvb.add_theme_constant_override("separation", 3)
+		banner.add_child(bvb)
+		var blbl = Label.new()
+		blbl.text = Locale.tf("gar_in_build_week", [car.delivery_week, left_txt])
+		blbl.add_theme_font_size_override("font_size", 24)
+		blbl.add_theme_color_override("font_color", Color(0.55,0.78,1.0))
+		bvb.add_child(blbl)
+		var bhint = Label.new()
+		bhint.text = Locale.t("gar_in_build_hint")
+		bhint.add_theme_font_size_override("font_size", 20)
+		bhint.modulate = Color(0.6,0.6,0.6)
+		bhint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		bvb.add_child(bhint)
+		vbox.add_child(banner)
+
 	# ── Driver & Mechanic row ─────────────────────────────────────────────────
 	var staff_row = HBoxContainer.new()
 	staff_row.add_theme_constant_override("separation", 20)
@@ -297,6 +334,14 @@ func _build_car_card(car) -> PanelContainer:
 	parts_title.add_theme_font_size_override("font_size", 22)
 	parts_title.modulate = Color(0.55,0.55,0.55)
 	vbox.add_child(parts_title)
+
+	## Parts cannot be installed/changed/removed while the car is in build.
+	if car.is_in_build():
+		var lock_lbl = Label.new()
+		lock_lbl.text = Locale.t("gar_parts_locked")
+		lock_lbl.add_theme_font_size_override("font_size", 20)
+		lock_lbl.add_theme_color_override("font_color", Color(1.0,0.7,0.3))
+		vbox.add_child(lock_lbl)
 
 	var grid = GridContainer.new()
 	grid.columns = 3
@@ -481,6 +526,8 @@ func _build_part_slot(car, pcode: String, is_spec: bool, part_data: Dictionary) 
 	var cap_car_id = car.id
 	var cap_pcode  = pcode
 	var cap_cid    = car.championship_id
+	## Parts are locked while the car is in build (cannot install/change/remove until delivered).
+	var locked = car.is_in_build()
 
 	if not is_empty:
 		## Change button — opens part picker popup
@@ -488,6 +535,7 @@ func _build_part_slot(car, pcode: String, is_spec: bool, part_data: Dictionary) 
 		btn_change.text = "Change"
 		btn_change.custom_minimum_size = Vector2(62, 24)
 		btn_change.add_theme_font_size_override("font_size", 20)
+		btn_change.disabled = locked
 		btn_change.pressed.connect(func(): _open_part_popup(cap_car_id, cap_pcode, cap_cid))
 		btn_row.add_child(btn_change)
 		## Remove button
@@ -496,6 +544,7 @@ func _build_part_slot(car, pcode: String, is_spec: bool, part_data: Dictionary) 
 		btn_remove.custom_minimum_size = Vector2(62, 24)
 		btn_remove.add_theme_font_size_override("font_size", 20)
 		btn_remove.modulate = Color(1.0,0.5,0.5)
+		btn_remove.disabled = locked
 		var ptype2 = part_data.get("type","provider")
 		btn_remove.pressed.connect(func():
 			if ptype2 == "cnc": GameState.remove_part_from_car(cap_car_id, cap_pcode)
@@ -508,6 +557,7 @@ func _build_part_slot(car, pcode: String, is_spec: bool, part_data: Dictionary) 
 		btn_install.text = "Install →"
 		btn_install.custom_minimum_size = Vector2(72, 24)
 		btn_install.add_theme_font_size_override("font_size", 20)
+		btn_install.disabled = locked
 		btn_install.pressed.connect(func(): _open_part_popup(cap_car_id, cap_pcode, cap_cid))
 		btn_row.add_child(btn_install)
 
