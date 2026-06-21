@@ -1,5 +1,11 @@
 class_name TPProposalEngine
-## Version: S32.2 — TP system rebuild (spec v2), Phase 1 engine + path reconciliation. Shared
+## Version: S32.3 — Fix stale Racing Dept panel: compute_optimal_assignments now SKIPS
+##   already-assigned roles. Pre-commits assigned drivers/mechanics/pit-crew (per car) and
+##   strategists/TPs (per championship) so the optimiser neither re-proposes them nor offers
+##   them elsewhere; each role block is guarded to skip if the car/championship already has
+##   it. Without this, regenerating after an accept re-proposed satisfied assignments and the
+##   panel never cleared.
+## --- S32.2 — TP system rebuild (spec v2), Phase 1 engine + path reconciliation. Shared
 ##   compute_optimal_assignments(team, cars, include_tp): driver/mechanic/pit(raw)/strategist
 ##   (per champ, GK+Rally skip)/TP(per champ, AI-only, sorted by overall). Prestige-ordered,
 ##   adaptation-corrected (except pit crew), commitment (one person → one championship; GK
@@ -74,6 +80,22 @@ func compute_optimal_assignments(team, team_cars: Array, include_tp: bool) -> Ar
 			"Race Strategist": avail_strategists.append(s)
 			"Team Principal":  avail_tps.append(s)
 
+	## Pre-commit personnel who are ALREADY assigned, so the optimiser neither re-proposes
+	## them nor offers them to another car/championship. Without this, regenerating after an
+	## accept re-proposes the same (now-satisfied) assignments → the Racing Dept panel looks
+	## stale and never clears.
+	for car in sorted_cars:
+		if car.driver_id != "":
+			committed[car.driver_id] = true
+		if car.mechanic_id != "" and car.mechanic_id != "N/A":
+			committed[car.mechanic_id] = true
+		if car.pit_crew_id != "" and car.pit_crew_id != "N/A":
+			committed[car.pit_crew_id] = true
+	## Strategists / TPs assigned to a championship are committed via assigned_championship.
+	for s in avail_strategists + avail_tps:
+		if s.assigned_championship != "":
+			committed[s.id] = true
+
 	## ── Per-CAR roles: driver, mechanic, pit crew (prestige order) ──────────────
 	for car in sorted_cars:
 		var reg = gs.CHAMPIONSHIP_REGISTRY.get(car.championship_id, {})
@@ -82,41 +104,43 @@ func compute_optimal_assignments(team, team_cars: Array, include_tp: bool) -> Ar
 		var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
 		var pit_required = gs.get_pit_crew_required(car.championship_id)
 
-		## Driver
-		var best_driver = _find_best_driver(car, disc, avail_drivers, committed)
-		if best_driver != null:
-			var eff = _eff_driver_score(best_driver, disc)
-			var adapt = best_driver.discipline_adaptation.get(disc, 0.0)
-			var note = "Assign %s → %s [%s]  (Eff. pace: %.0f" % [
-				best_driver.full_name(), car_label, champ_name, eff]
-			if adapt < 40.0:   note += ", 🚨 Very low adaptation %.0f%% — DNS risk" % adapt
-			elif adapt < 70.0: note += ", ⚠ Low adaptation %.0f%%" % adapt
-			note += ")"
-			proposals.append(_mk(car, "assign_driver", "car", best_driver.id,
-				best_driver.full_name(), eff, note, "normal" if adapt >= 70.0 else "warning"))
-			committed[best_driver.id] = true
-		else:
-			proposals.append(_mk(car, "missing_driver", "car", "", "", 0.0,
-				"🚫 %s [%s] — no driver available. Hire one." % [car_label, champ_name], "critical"))
+		## Driver — only propose if the car has no driver yet
+		if car.driver_id == "":
+			var best_driver = _find_best_driver(car, disc, avail_drivers, committed)
+			if best_driver != null:
+				var eff = _eff_driver_score(best_driver, disc)
+				var adapt = best_driver.discipline_adaptation.get(disc, 0.0)
+				var note = "Assign %s → %s [%s]  (Eff. pace: %.0f" % [
+					best_driver.full_name(), car_label, champ_name, eff]
+				if adapt < 40.0:   note += ", 🚨 Very low adaptation %.0f%% — DNS risk" % adapt
+				elif adapt < 70.0: note += ", ⚠ Low adaptation %.0f%%" % adapt
+				note += ")"
+				proposals.append(_mk(car, "assign_driver", "car", best_driver.id,
+					best_driver.full_name(), eff, note, "normal" if adapt >= 70.0 else "warning"))
+				committed[best_driver.id] = true
+			else:
+				proposals.append(_mk(car, "missing_driver", "car", "", "", 0.0,
+					"🚫 %s [%s] — no driver available. Hire one." % [car_label, champ_name], "critical"))
 
-		## Mechanic
-		var best_mech = _find_best_mechanic(car, disc, avail_mechanics, committed)
-		if best_mech != null:
-			var eff = _eff_mechanic_score(best_mech, disc)
-			var adapt = best_mech.discipline_adaptation.get(disc, 50.0) \
-				if best_mech.discipline_adaptation.has(disc) else 50.0
-			var note = "Assign mechanic %s → %s [%s]  (Eff. setup: %.0f%s)" % [
-				best_mech.full_name(), car_label, champ_name, eff,
-				", ⚠ Low adaptation %.0f%%" % adapt if adapt < 60.0 else ""]
-			proposals.append(_mk(car, "assign_mechanic", "car", best_mech.id,
-				best_mech.full_name(), eff, note, "normal" if adapt >= 60.0 else "warning"))
-			committed[best_mech.id] = true
-		else:
-			proposals.append(_mk(car, "missing_mechanic", "car", "", "", 0.0,
-				"🚫 %s [%s] — no mechanic available. Hire one." % [car_label, champ_name], "critical"))
+		## Mechanic — only propose if the car has no mechanic yet
+		if car.mechanic_id == "" or car.mechanic_id == "N/A":
+			var best_mech = _find_best_mechanic(car, disc, avail_mechanics, committed)
+			if best_mech != null:
+				var eff = _eff_mechanic_score(best_mech, disc)
+				var adapt = best_mech.discipline_adaptation.get(disc, 50.0) \
+					if best_mech.discipline_adaptation.has(disc) else 50.0
+				var note = "Assign mechanic %s → %s [%s]  (Eff. setup: %.0f%s)" % [
+					best_mech.full_name(), car_label, champ_name, eff,
+					", ⚠ Low adaptation %.0f%%" % adapt if adapt < 60.0 else ""]
+				proposals.append(_mk(car, "assign_mechanic", "car", best_mech.id,
+					best_mech.full_name(), eff, note, "normal" if adapt >= 60.0 else "warning"))
+				committed[best_mech.id] = true
+			else:
+				proposals.append(_mk(car, "missing_mechanic", "car", "", "", 0.0,
+					"🚫 %s [%s] — no mechanic available. Hire one." % [car_label, champ_name], "critical"))
 
-		## Pit crew (not required for GK)
-		if pit_required:
+		## Pit crew (not required for GK) — only propose if unassigned
+		if pit_required and (car.pit_crew_id == "" or car.pit_crew_id == "N/A"):
 			var best_pit = _find_best_pit_crew(avail_pit, committed)
 			if best_pit != null:
 				var score = best_pit.pit_stop_speed   ## RAW — pit crew has no adaptation
@@ -141,8 +165,8 @@ func compute_optimal_assignments(team, team_cars: Array, include_tp: bool) -> Ar
 		var disc = reg.get("discipline", "GK")
 		var champ_name = reg.get("name", cid)
 
-		## Strategist — NOT used in GK or Rally
-		if disc != "GK" and disc != "Rally":
+		## Strategist — NOT used in GK or Rally; skip if this championship already has one
+		if disc != "GK" and disc != "Rally" and gs._get_strategist_for_championship(cid) == null:
 			var best_strat = _find_best_strategist(disc, avail_strategists, committed)
 			if best_strat != null:
 				var eff = _eff_strategist_score(best_strat, disc)
@@ -155,8 +179,8 @@ func compute_optimal_assignments(team, team_cars: Array, include_tp: bool) -> Ar
 				proposals.append(_mk_champ(cid, champ_name, "missing_strategist", "", "", 0.0,
 					"🚫 [%s] — no strategist available. Hire one." % champ_name, "warning"))
 
-		## Team Principal — AI only (player manages TPs manually)
-		if include_tp:
+		## Team Principal — AI only (player manages TPs manually); skip if already assigned
+		if include_tp and gs._get_tp_for_championship(cid) == null:
 			var best_tp = _find_best_tp(disc, avail_tps, committed)
 			if best_tp != null:
 				var eff = _eff_tp_score(best_tp, disc)

@@ -1,5 +1,7 @@
 extends Node
-## Version: S31.0 — Bug 9 (discipline bleed): GK round notifications (elimination, round
+## Version: S32.3 — Added peek_tp_proposals(): read-only TP proposal compute (no notification/
+##   TDL side effects) for the Racing Dept panel display. Pairs with TPProposalEngine S32.3.
+## --- S31.0 — Bug 9 (discipline bleed): GK round notifications (elimination, round
 ##   complete, champion) now gated on the player being registered in GK — a non-GK career
 ##   (e.g. Rally) no longer receives GK messages. _regenerate_ai_team_cars no longer
 ##   hardcodes C-001/GK: it uses the team's actual championship for car_type, telemetry,
@@ -3525,6 +3527,12 @@ const DISC_PRESTIGE: Dictionary = {
 
 func generate_tp_assignment_proposals() -> Array:
 	return _tp_engine.generate_tp_assignment_proposals()
+
+## Compute the player's proposals WITHOUT firing a notification/TDL. For read-only display
+## (e.g. the Racing Dept panel) — calling generate_tp_assignment_proposals() there would
+## re-fire the TP notification + TDL every time the panel is built.
+func peek_tp_proposals() -> Array:
+	return _tp_engine.compute_optimal_assignments(player_team, player_team_cars, false)
 
 func _effective_stat(driver, disc: String, stat: String) -> float:
 	return _tp_engine._effective_stat(driver, disc, stat)

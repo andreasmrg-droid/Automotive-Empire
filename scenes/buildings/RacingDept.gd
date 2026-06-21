@@ -1,5 +1,9 @@
 extends Control
-## Version: S31.2 — Fix: accepting TP proposals now refreshes the Racing Department scene.
+## Version: S32.3 — TP panel now uses GameState.peek_tp_proposals() (read-only compute, no
+##   notification/TDL) instead of generate_tp_assignment_proposals(), which re-fired the TP
+##   notification + TDL every time the panel was built. Pairs with the engine S32.3
+##   skip-already-assigned fix so the panel clears after accepting.
+## --- S31.2 — Fix: accepting TP proposals now refreshes the Racing Department scene.
 ##   The popup's closed signal called _build_ui() only, which clears _drivers_container but
 ##   never refills it (refresh() does); now it calls both, so newly-assigned drivers/mechanics
 ##   appear immediately and the proposals panel clears.
@@ -391,7 +395,8 @@ func _build_tp_proposals_panel() -> PanelContainer:
 
 	var proposals = GameState._last_tp_proposals
 	if proposals.is_empty() and not GameState.player_team_cars.is_empty():
-		proposals = GameState.generate_tp_assignment_proposals()
+		## Read-only compute (no notification/TDL side effects — see peek_tp_proposals).
+		proposals = GameState.peek_tp_proposals()
 		GameState._last_tp_proposals = proposals
 
 	if proposals.is_empty():
