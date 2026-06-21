@@ -1,7 +1,11 @@
 extends Control
-## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+## Version: S31.2 — Fix: accepting TP proposals now refreshes the Racing Department scene.
+##   The popup's closed signal called _build_ui() only, which clears _drivers_container but
+##   never refills it (refresh() does); now it calls both, so newly-assigned drivers/mechanics
+##   appear immediately and the proposals panel clears.
+## --- S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
 ##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
-## Version: S29.0 — Not-interested popup on renewal decline (issue 1: visible AcceptDialog).
+## --- S29.0 — Not-interested popup on renewal decline (issue 1: visible AcceptDialog).
 ## --- S28.3 — Re-applied "Wet"→"Car Control" label (Batch B).
 ## --- S23.0 — TP proposals panel: new structured proposals with Accept All, per-item Accept/Skip, priority coloring.
 ##                    Accept button navigates to Garage for driver/mechanic needed proposals,
@@ -431,7 +435,12 @@ func _open_tp_popup() -> void:
 	var popup = preload("res://scenes/TPProposalsPopup.tscn").instantiate()
 	get_tree().current_scene.add_child(popup)
 	popup.open(GameState._last_tp_proposals)
-	popup.closed.connect(func(): _build_ui())
+	## Rebuild layout AND refresh the dynamic driver list. _build_ui() alone does not
+	## repopulate driver cards (it clears _drivers_container; only refresh() refills it),
+	## so without this the scene showed no update after accepting proposals.
+	popup.closed.connect(func():
+		_build_ui()
+		refresh())
 
 # ── Championship panel ────────────────────────────────────────────────────────
 func _build_champ_panel() -> PanelContainer:

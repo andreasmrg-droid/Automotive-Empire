@@ -1,5 +1,7 @@
 extends Node
-## Version: S30.6 — Added Garage car-delivery keys (gar_in_build_*, gar_parts_locked) for
+## Version: S31.1 — Added CNC blueprint season keys (cnc_bp_season, cnc_bp_season_locked)
+##   for Bug 7/8 (show target season; lock future-season blueprints in CNCPlant).
+## --- S30.6 — Added Garage car-delivery keys (gar_in_build_*, gar_parts_locked) for
 ##   the Phase 2 in-build display in Garage.gd.
 ## --- S30.5 — Added CNC "Build Whole Car" keys (cnc_bwc_*) for the Phase 2 one-pass
 ##   own-build action in CNCPlant.
@@ -423,6 +425,10 @@ const STRINGS: Dictionary = {
 	"cnc_bwc_garage_full":  { "en": "Garage full — upgrade the Garage to build more cars.", },
 	"cnc_bwc_cant_afford":  { "en": "Need CR {0} to build all 6 parts.",                 },
 	"cnc_bwc_have_car":     { "en": "Car already present for this championship.",        },
+
+	# ── CNC BLUEPRINT SEASON (Bug 7/8) ────────────────────────────────────────
+	"cnc_bp_season":        { "en": "Season {0}",                                       },
+	"cnc_bp_season_locked": { "en": "🔒 Season {0} — unlocks next season",              },
 
 	# ── GARAGE — CAR DELIVERY (Phase 2) ───────────────────────────────────────
 	"gar_in_build_week":    { "en": "🏗 In build — arrives Week {0}  ({1})",            },

@@ -1,5 +1,8 @@
 extends Control
-## Version: S30.5 — Phase 2 "Build Whole Car": one-pass build section at the top of the
+## Version: S31.1 — Bug 7: manufacture cards now show the blueprint's target Season; a
+##   future-season blueprint is shown locked with the Start Manufacturing button disabled
+##   (reinforces the RnDEngine S31.1 season gate). New strings localized (cnc_bp_season*).
+## --- S30.5 — Phase 2 "Build Whole Car": one-pass build section at the top of the
 ##   MANUFACTURE PARTS column. Enabled per registered championship with no car yet once all
 ##   6 blueprints are WRA-approved; queues all 6 jobs + creates the in-build Car via
 ##   GameState.build_whole_car. New strings localized (cnc_bwc_* in Locale.gd S30.5);
@@ -858,6 +861,20 @@ func _build_wra_blueprints_column(parent: VBoxContainer) -> void:
 			Color(0.4, 0.9, 0.4) if not already_queued else Color(0.5,0.5,0.5))
 		hdr.add_child(ln)
 
+		## Bug 7: show which season this blueprint targets. Bug 8: a future-season
+		## blueprint is locked for manufacturing until that season begins.
+		var bp_season = int(bp.get("season", GameState.current_season))
+		var season_locked = bp_season > GameState.current_season
+		var season_badge = Label.new()
+		season_badge.add_theme_font_size_override("font_size", 20)
+		if season_locked:
+			season_badge.text = Locale.tf("cnc_bp_season_locked", [bp_season])
+			season_badge.add_theme_color_override("font_color", Color(1.0, 0.6, 0.2))
+		else:
+			season_badge.text = Locale.tf("cnc_bp_season", [bp_season])
+			season_badge.add_theme_color_override("font_color", Color(0.5, 0.7, 0.9))
+		hdr.add_child(season_badge)
+
 		if already_queued:
 			var lq = Label.new()
 			lq.text = "IN QUEUE"
@@ -938,6 +955,9 @@ func _build_wra_blueprints_column(parent: VBoxContainer) -> void:
 		var btn = Button.new()
 		btn.text = "Start Manufacturing"
 		btn.custom_minimum_size = Vector2(150, 30)
+		btn.disabled = season_locked
+		if season_locked:
+			btn.tooltip_text = Locale.tf("cnc_bp_season_locked", [bp_season])
 		btn.pressed.connect(func():
 			if GameState.start_cnc_job(bid,
 					int(qty_spin.value),

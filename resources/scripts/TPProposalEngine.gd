@@ -1,5 +1,12 @@
 class_name TPProposalEngine
-## Version: S28.3 — apply_tp_proposals() regenerates the proposal cache so the Racing Dept
+## Version: S31.3 — Fix: apply_tp_proposals now dismisses the TP TDL item by matching its
+##   ACTUAL text ("TP has … ready"); the old filter looked for "TP proposals ready"/"TP
+##   proposals:" which the item never contained, so it was never removed. (Keeps the S31.1
+##   bug-4 roster-snapshot refresh.)
+## --- S31.1 — Bug 4: apply_tp_proposals now refreshes _tp_roster_snapshot after
+##   accepting, so accepted proposals don't reappear on the next weekly tick (stale
+##   snapshot was making _tp_roster_changed() fire and regenerate them).
+## --- S28.3 — apply_tp_proposals() regenerates the proposal cache so the Racing Dept
 ##   count refreshes to 0 after accepting (issue 5: was showing stale proposals).
 ## --- S27.0 — Extracted from GameState.gd (P57)
 ##   TP auto-assignment proposals: driver/mechanic matching, DNS warnings,
@@ -319,13 +326,20 @@ func apply_tp_proposals(proposals: Array) -> void:
 				var mech_id = prop.get("mechanic_id","")
 				if car_id != "" and mech_id != "":
 					gs.assign_staff_to_car(mech_id, car_id)
-	## Dismiss the TDL item
+	## Dismiss the TP TDL item(s). Match the ACTUAL text created by
+	## _fire_tp_proposal_notification ("🏁 TP has N assignment(s) ready …") plus legacy
+	## variants — the old filter looked for "TP proposals ready"/"TP proposals:" which the
+	## real item never contained, so the TDL item was never removed.
 	for item in gs.custom_todo_items.duplicate():
-		if "TP proposals ready" in item or "TP proposals:" in item:
+		if "TP has" in item or "TP proposals" in item:
 			gs.dismiss_todo_item(item)
 	## S28.3 (issue 5): regenerate the cached proposals so accepted assignments drop out
 	## and the Racing Department count refreshes to 0 (was showing stale cached proposals).
 	gs._last_tp_proposals = generate_tp_assignment_proposals()
+	## Bug 4: also refresh the roster snapshot to the post-accept state. Without this, the
+	## next advance_week sees _tp_roster_changed()==true (the assignment changed the roster
+	## vs the stale snapshot) and regenerates the just-accepted proposals, so they reappear.
+	_tp_roster_snapshot = _take_tp_roster_snapshot()
 	gs.emit_signal("log_updated")
 
 ## Returns all TP/Strategist assignment proposals for all active championships.

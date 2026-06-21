@@ -1,5 +1,9 @@
 class_name NotificationManager
-## Version: S27.0 — Extracted from GameState.gd (P57)
+## Version: S31.1 — Bug 5: cross-week dedup. add_notification now suppresses an identical
+##   non-Critical message while it is still UNREAD (instead of only within the same week),
+##   so standing reminders ("assign a driver") stop restacking every week. Re-fires after
+##   the player reads/dismisses if still relevant. Critical always shows.
+## --- S27.0 — Extracted from GameState.gd (P57)
 ##   Notifications, TDL, logging, resource warnings.
 extends RefCounted
 
@@ -9,11 +13,14 @@ func _init(game_state) -> void:
 	gs = game_state
 
 func add_notification(priority: String, message: String, destination: String = "") -> void:
-	# Deduplicate — skip only if identical priority+message already added this exact week
-	# Exception: Critical notifications always show (bankruptcy risk needs to fire every week)
+	# Bug 5: suppress noise from standing notifications re-firing every week.
+	# Skip if an identical (non-Critical) message is ALREADY UNREAD in the panel —
+	# no point stacking the same "assign a driver" reminder week after week. Once the
+	# player reads or dismisses it, it may fire again if the condition still holds.
+	# Critical always shows (e.g. bankruptcy risk must re-fire each week).
 	if priority != "Critical":
 		for n in gs.notifications:
-			if n["message"] == message and n["week"] == gs.current_week and n["season"] == gs.current_season:
+			if n["message"] == message and not n.get("read", false):
 				return
 	# priority: "Critical", "High", "Normal"
 	gs.notifications.append({

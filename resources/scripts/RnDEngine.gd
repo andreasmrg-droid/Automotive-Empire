@@ -1,5 +1,8 @@
 class_name RnDEngine
-## Version: S28.3 — CNC production now slot-limited (get_cnc_slots from plant level): jobs
+## Version: S31.1 — Bug 8: start_cnc_job blocks manufacturing of a blueprint whose target
+##   season is in the future (bp.season > current_season) — a next-season part can no longer
+##   be built in the current season. Single choke point, so it also covers Build Whole Car.
+## --- S28.3 — CNC production now slot-limited (get_cnc_slots from plant level): jobs
 ##   beyond the slot count queue and only start when a slot frees (issue 4).
 ## --- S27.0 — Extracted from GameState.gd (P57)
 ##   R&D tasks, WRA submissions, CNC production, blueprint management.
@@ -531,6 +534,15 @@ func start_cnc_job(blueprint_id: String, quantity: int = 1,
 		extra_cr: int = 0, extra_weeks: int = 0) -> bool:
 	if not is_blueprint_approved(blueprint_id):
 		gs.add_notification("High", "Blueprint not WRA-approved. Submit it at the WRA Office in HQ first.")
+		return false
+	## Bug 8: a blueprint designed for a FUTURE season cannot be manufactured yet —
+	## the CNC only unlocks it once that season begins. Prevents a next-season part
+	## from becoming available in the current season.
+	var bp_season = int(gs.known_blueprints.get(blueprint_id, {}).get("season", gs.current_season))
+	if bp_season > gs.current_season:
+		gs.add_notification("High",
+			"This blueprint is for Season %d — it unlocks for CNC manufacturing when that season begins." % bp_season,
+			"cnc_plant")
 		return false
 	var building = gs.campus_buildings.get("CNC Parts Plant", {})
 	if not building.get("built", false):

@@ -1,5 +1,8 @@
 extends Control
-## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+## Version: S31.3 — Accept flow now adopts the single source (_last_tp_proposals) after
+##   apply_tp_proposals regenerates it, instead of editing a divergent local copy or forcing
+##   it empty. Fixes duplicate proposal rows and hidden warnings after accepting.
+## --- S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
 ##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S23.0 — TP Assignment Proposals popup.
 ##   Full-screen overlay listing all proposals with Accept All / per-item Accept / Skip.
@@ -188,7 +191,10 @@ func _build_proposal_row(prop: Dictionary) -> PanelContainer:
 		var p = prop.duplicate()
 		btn_ok.pressed.connect(func():
 			GameState.apply_tp_proposals([p])
-			_proposals.erase(p)
+			## apply_tp_proposals regenerates _last_tp_proposals (the just-assigned
+			## proposal drops out). Adopt that single source instead of editing a local
+			## copy — prevents the popup list diverging / showing duplicates.
+			_proposals = GameState._last_tp_proposals.duplicate(true)
 			_rebuild_list())
 		hb.add_child(btn_ok)
 
@@ -219,8 +225,10 @@ func _build_proposal_row(prop: Dictionary) -> PanelContainer:
 func _on_accept_all() -> void:
 	var assignable = _proposals.filter(func(p): return p["type"] in ["assign_driver","assign_mechanic"])
 	GameState.apply_tp_proposals(assignable)
-	GameState._last_tp_proposals = []
-	_proposals.clear()
+	## apply_tp_proposals already regenerated _last_tp_proposals (assigned ones drop out;
+	## any remaining warnings/missing-personnel stay). Adopt it rather than forcing [] —
+	## forcing empty hid still-relevant warnings.
+	_proposals = GameState._last_tp_proposals.duplicate(true)
 	_rebuild_list()
 	await get_tree().create_timer(0.3).timeout
 	_on_close()
