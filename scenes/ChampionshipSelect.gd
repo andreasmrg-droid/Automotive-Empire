@@ -1,5 +1,6 @@
 extends Control
-## Version: S29.7 — Header split into title row + button row, and per-champ details
+## Version: S29.12 — Localized header title + action buttons (creg_* keys).
+## --- S29.7 — Header split into title row + button row, and per-champ details
 ##   row is now a 4-col grid, so nothing overflows the right edge with large fonts (#7).
 ## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
 ##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
@@ -42,7 +43,7 @@ func _build_ui() -> void:
 	root.add_child(header)
 
 	var lbl_title = Label.new()
-	lbl_title.text = "🏆 CHAMPIONSHIP REGISTRATION  —  Season %d" % (GameState.current_season + 1)
+	lbl_title.text = Locale.tf("creg_title", [GameState.current_season + 1])
 	lbl_title.add_theme_font_size_override("font_size", 44)
 	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(lbl_title)
@@ -59,14 +60,14 @@ func _build_ui() -> void:
 	root.add_child(btn_row)
 
 	var btn_back = Button.new()
-	btn_back.text = "← Back to Hub"
+	btn_back.text = Locale.t("creg_back_to_hub")
 	btn_back.custom_minimum_size = Vector2(140, 36)
 	btn_back.pressed.connect(_on_back)
 	btn_row.add_child(btn_back)
 
 	# Register all affordable championships not yet registered
 	var btn_reg_all = Button.new()
-	btn_reg_all.text = "✅ Register All Affordable"
+	btn_reg_all.text = Locale.t("creg_register_all")
 	btn_reg_all.custom_minimum_size = Vector2(220, 36)
 	btn_reg_all.modulate = Color(0.7, 1.0, 0.85)
 	btn_reg_all.pressed.connect(_on_register_all_pressed)
@@ -74,7 +75,7 @@ func _build_ui() -> void:
 
 	# Re-register all currently-running championships for next season
 	var btn_rereg = Button.new()
-	btn_rereg.text = "🔄 Re-register All Running"
+	btn_rereg.text = Locale.t("creg_reregister_all")
 	btn_rereg.custom_minimum_size = Vector2(220, 36)
 	btn_rereg.modulate = Color(0.7, 1.0, 0.7)
 	btn_rereg.pressed.connect(_on_reregister_all)

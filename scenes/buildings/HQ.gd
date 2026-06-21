@@ -1,5 +1,6 @@
 extends Control
-## Version: S29.7 — Registration button moved to TOP of WRA panel, above the "Racing
+## Version: S29.12 — Localized Championship Registration button (creg_button key).
+## --- S29.7 — Registration button moved to TOP of WRA panel, above the "Racing
 ##   this Season" box (#8). S29.6: removed duplicate "Take Loan" button (#4).
 ## --- S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
 ## Version: S28.3 — Team-colour badge in HQ header (Bug 5); "Wet"→"Ctrl" stat label.
@@ -2132,7 +2133,7 @@ func _build_registration_panel() -> VBoxContainer:
 	## S29.7 — Registration button moved to the TOP, above the "Racing this Season"
 	## informative box (was at the bottom of the panel).
 	var btn = Button.new()
-	btn.text = "🏁  Championship Registration →"
+	btn.text = Locale.t("creg_button")
 	btn.custom_minimum_size = Vector2(0, 38)
 	btn.add_theme_font_size_override("font_size", 28)
 	btn.pressed.connect(func():

@@ -1,5 +1,7 @@
 extends Control
-## Version: S29.10 — Added Pillar 5 "COMMERCIAL CARS" button (stub): clicking shows a
+## Version: S29.12 — Localized Pillar 5 strings (p5_* keys): popup, catalog stub, and
+##   name/desc via _pillar_name/_pillar_desc helpers (1–4 still use const dicts).
+## --- S29.10 — Added Pillar 5 "COMMERCIAL CARS" button (stub): clicking shows a
 ##   coming-soon popup; reserved for the commercial car R&D system (future update).
 ## --- S29.9 — Pillar 1 next-season only (#5); catalog scroll min-height (#6).
 ## Version: S17.2 — Blueprint ownership grid added per championship (P1+P3 combined visual).
@@ -134,7 +136,7 @@ func _build_ui() -> void:
 
 	for p in [1, 2, 3, 4, 5]:
 		var btn = Button.new()
-		btn.text = PILLAR_NAMES[p]
+		btn.text = _pillar_name(p)
 		btn.custom_minimum_size = Vector2(0, 32)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn.add_theme_font_size_override("font_size", 24)
@@ -418,13 +420,13 @@ func _build_catalog_column(parent: VBoxContainer) -> void:
 	var p_color = PILLAR_COLORS[_selected_pillar]
 
 	var lbl_hdr = Label.new()
-	lbl_hdr.text = "PILLAR %d — %s" % [_selected_pillar, PILLAR_NAMES[_selected_pillar]]
+	lbl_hdr.text = "PILLAR %d — %s" % [_selected_pillar, _pillar_name(_selected_pillar)]
 	lbl_hdr.add_theme_font_size_override("font_size", 28)
 	lbl_hdr.add_theme_color_override("font_color", p_color)
 	parent.add_child(lbl_hdr)
 
 	var lbl_desc = Label.new()
-	lbl_desc.text = PILLAR_DESCS[_selected_pillar]
+	lbl_desc.text = _pillar_desc(_selected_pillar)
 	lbl_desc.add_theme_font_size_override("font_size", 22)
 	lbl_desc.modulate = Color(0.5, 0.5, 0.5)
 	lbl_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -458,7 +460,7 @@ func _build_catalog_column(parent: VBoxContainer) -> void:
 		2: _build_p2_catalog(inner, free_designers)
 		3: _build_p3_catalog(inner, free_designers)
 		4: _build_p4_catalog(inner, free_designers)
-		5: inner.add_child(_lbl_empty("Commercial Cars R&D is coming in a future update."))
+		5: inner.add_child(_lbl_empty(Locale.t("p5_catalog_stub")))
 
 
 # ── P1: All blueprints for all parts, all championships ───────────────────────
@@ -740,14 +742,24 @@ func _build_p3_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 			"No Spec parts owned yet. Buy parts at the Logistics Center warehouse to unlock Reverse Engineering."))
 
 
+## S29.12 — Pillar 5 name/desc come from Locale; 1–4 remain in the const dicts
+## (pre-existing strings, not part of this localization pass).
+func _pillar_name(p: int) -> String:
+	if p == 5: return Locale.t("p5_name")
+	return PILLAR_NAMES.get(p, "")
+
+func _pillar_desc(p: int) -> String:
+	if p == 5: return Locale.t("p5_desc")
+	return PILLAR_DESCS.get(p, "")
+
 # ── P5: Commercial Cars R&D (stub — future update) ────────────────────────────
 ## S29.10 — Pillar 5 is reserved for the commercial car business R&D. The button
 ## exists now so the pillar bar is stable; clicking it shows this notice.
 func _show_p5_coming_soon() -> void:
 	var dialog = AcceptDialog.new()
-	dialog.title = "🚗  Commercial Cars R&D"
-	dialog.dialog_text = "Research for the commercial car business is coming in a future update.\n\nThis pillar will let you develop and improve the road cars your company sells, feeding the commercial market system."
-	dialog.ok_button_text = "Close"
+	dialog.title = Locale.t("p5_popup_title")
+	dialog.dialog_text = Locale.t("p5_popup_body")
+	dialog.ok_button_text = Locale.t("btn_close")
 	add_child(dialog)
 	dialog.popup_centered()
 	dialog.confirmed.connect(dialog.queue_free)

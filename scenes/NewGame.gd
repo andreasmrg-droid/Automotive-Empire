@@ -1,5 +1,8 @@
 extends Control
-## Version: S29.8 — GK card renamed "GK Regional"->"GK Championship", races 6->21.
+## Version: S29.14 — Cost summary back to a single horizontal row (all four values side by
+##   side, each column EXPAND_FILL), per request. Budget box still sits above the card grid.
+## --- S29.13 — Championship select: budget cost summary moved ABOVE the card grid
+## --- S29.8 — GK card renamed "GK Regional"->"GK Championship", races 6->21.
 ## --- S29.6 — LOAD GAME now opens the same save-slot picker popup as Main Hub
 ##   (ported _show_load_picker + _read_save_meta), instead of blind-loading default slot.
 ## --- S29.5 — Cost summary 2×2 grid; _big_button widened so START YOUR EMPIRE fits.
@@ -447,11 +450,17 @@ func _build_championship() -> void:
 
 	var budget = _calc_budget()
 	var lbl_info = Label.new()
-	lbl_info.text = "Select the discipline you want to start in. Starting budget depends on your championship and difficulty choice. Pick a championship, then set your difficulty on the next screen."
+	lbl_info.text = Locale.t("ng_champ_info")
 	lbl_info.add_theme_font_size_override("font_size", 26)
 	lbl_info.modulate = Color(0.6, 0.6, 0.6)
 	lbl_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	layout["body"].add_child(lbl_info)
+
+	## Live cost summary — S29.13: moved ABOVE the grid so the budget breakdown is
+	## visible immediately, not buried below the championship cards.
+	var summary = _build_cost_summary(budget)
+	summary.name = "CostSummary"
+	layout["body"].add_child(summary)
 
 	var grid = HBoxContainer.new()
 	grid.add_theme_constant_override("separation", 14)
@@ -460,11 +469,6 @@ func _build_championship() -> void:
 
 	for cid in TIER1_CHAMPS:
 		grid.add_child(_build_champ_card(cid, budget))
-
-	## Live cost summary
-	var summary = _build_cost_summary(budget)
-	summary.name = "CostSummary"
-	layout["body"].add_child(summary)
 
 	_nav_footer(layout["footer"], func(): _show_screen(3), func(): _show_screen(5), "Difficulty →")
 
@@ -596,10 +600,9 @@ func _build_cost_summary(budget: int) -> PanelContainer:
 	style.content_margin_top = 10; style.content_margin_bottom = 10
 	panel.add_theme_stylebox_override("panel", style)
 
-	var row = GridContainer.new()
-	row.columns = 2  ## S29.5 — 2×2 grid instead of 4-across row, so large fonts don't overflow horizontally
-	row.add_theme_constant_override("h_separation", 40)
-	row.add_theme_constant_override("v_separation", 12)
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 24)  ## S29.14 — all four values in one horizontal row
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.add_child(row)
 
 	var data = TIER1_CHAMPS.get(_selected_champ, {})
@@ -609,13 +612,14 @@ func _build_cost_summary(budget: int) -> PanelContainer:
 	var remaining = budget - total
 
 	for item in [
-		["Starting Budget", "CR %s" % _fmt(budget), Color(0.7, 0.7, 0.7)],
-		["Entry Fee", "− CR %s" % _fmt(entry_fee), Color(1.0, 0.6, 0.4)],
-		["Car (provider)", "− CR %s" % _fmt(car_cost), Color(1.0, 0.6, 0.4)],
-		["Remaining", "CR %s" % _fmt(remaining),
+		[Locale.t("ng_cost_budget"), "CR %s" % _fmt(budget), Color(0.7, 0.7, 0.7)],
+		[Locale.t("ng_cost_entry_fee"), "− CR %s" % _fmt(entry_fee), Color(1.0, 0.6, 0.4)],
+		[Locale.t("ng_cost_car"), "− CR %s" % _fmt(car_cost), Color(1.0, 0.6, 0.4)],
+		[Locale.t("ng_cost_remaining"), "CR %s" % _fmt(remaining),
 			Color(0.4, 0.9, 0.4) if remaining >= 0 else Color(1.0, 0.35, 0.35)],
 	]:
 		var col = VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var l = Label.new(); l.text = item[0]
 		l.add_theme_font_size_override("font_size", 20)
 		l.modulate = Color(0.45, 0.45, 0.45)

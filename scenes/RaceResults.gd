@@ -1,5 +1,7 @@
 extends Control
-## Version: S29.11 — Race Results split into 3 paged screens with Back/Next (issue #2):
+## Version: S29.12 — Localized all paged-screen UI strings (nav buttons, page titles,
+##   indicator) via Locale.t/tf; PAGE_TITLES const replaced with _page_title() helper.
+## --- S29.11 — Race Results split into 3 paged screens with Back/Next (issue #2):
 ##   (1) Race Results, (2) Driver + Team standings side by side, (3) Season Development
 ##   summary (car condition + driver/staff dev). Continue stays in the header throughout.
 ## --- S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
@@ -86,7 +88,7 @@ func _build_ui() -> void:
 	root.add_child(nav)
 
 	_btn_back = Button.new()
-	_btn_back.text = "◀  Back"
+	_btn_back.text = Locale.t("rr_nav_back")
 	_btn_back.custom_minimum_size = Vector2(160, 44)
 	_btn_back.add_theme_font_size_override("font_size", 28)
 	_btn_back.pressed.connect(func(): _show_page(_page - 1))
@@ -100,7 +102,7 @@ func _build_ui() -> void:
 	nav.add_child(_lbl_page)
 
 	_btn_next = Button.new()
-	_btn_next.text = "Next  ▶"
+	_btn_next.text = Locale.t("rr_nav_next")
 	_btn_next.custom_minimum_size = Vector2(160, 44)
 	_btn_next.add_theme_font_size_override("font_size", 28)
 	_btn_next.pressed.connect(func(): _show_page(_page + 1))
@@ -114,7 +116,12 @@ func _build_ui() -> void:
 	_show_page(1)
 
 # ── Page switching ────────────────────────────────────────────────────────────
-const PAGE_TITLES := {1: "Race Results", 2: "Championship Standings", 3: "Season Development"}
+func _page_title(p: int) -> String:
+	match p:
+		1: return Locale.t("rr_page_results")
+		2: return Locale.t("rr_page_standings")
+		3: return Locale.t("rr_page_development")
+	return ""
 
 func _show_page(p: int) -> void:
 	_page = clampi(p, 1, _page_count)
@@ -132,7 +139,7 @@ func _show_page(p: int) -> void:
 	## Nav state
 	_btn_back.disabled = (_page <= 1)
 	_btn_next.disabled = (_page >= _page_count)
-	_lbl_page.text = "%s   (%d / %d)" % [PAGE_TITLES.get(_page, ""), _page, _page_count]
+	_lbl_page.text = Locale.tf("rr_page_indicator", [_page_title(_page), _page, _page_count])
 
 # ── Page 1: Race Results ──────────────────────────────────────────────────────
 func _build_page_results() -> void:

@@ -1,5 +1,7 @@
 extends Node
-## Version: S29.0 — Added not-interested popup keys (ap_ni_popup_*).
+## Version: S29.13 — Added championship-selection keys: ng_champ_info + ng_cost_* (budget
+##   summary labels).
+## --- S29.0 — Added not-interested popup keys (ap_ni_popup_*).
 ## --- S23.0 — TP proposals popup keys added.
 ## Usage: Locale.t("key")  →  returns translated string for current language.
 ## Adding a language: add a new dict entry in STRINGS below and a matching entry in LANGUAGES.
@@ -228,6 +230,13 @@ const STRINGS: Dictionary = {
 	"ng_primary_color":     { "en": "Primary Color",          },
 	"ng_secondary_color":   { "en": "Secondary Color",         },
 	"ng_badge_preview":     { "en": "BADGE PREVIEW",          },
+
+	# Championship selection — info + budget cost summary (S29.13)
+	"ng_champ_info":        { "en": "Select the discipline you want to start in. Starting budget depends on your championship and difficulty choice. Pick a championship, then set your difficulty on the next screen.", },
+	"ng_cost_budget":       { "en": "Starting Budget",        },
+	"ng_cost_entry_fee":    { "en": "Entry Fee",              },
+	"ng_cost_car":          { "en": "Car (provider)",         },
+	"ng_cost_remaining":    { "en": "Remaining",              },
 
 	# ── BEGIN / END OF SEASON ─────────────────────────────────────────────────
 	"bos_title":            { "en": "🏁  SEASON %d BEGINS", },
