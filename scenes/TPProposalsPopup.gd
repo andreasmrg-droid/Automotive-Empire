@@ -1,5 +1,8 @@
 extends Control
-## Version: S31.3 — Accept flow now adopts the single source (_last_tp_proposals) after
+## Version: S32.2 — TP rebuild: renders all 4 player-assignable roles (driver, mechanic,
+##   pit crew, strategist). Reads the new proposal model (person_id/scope/type). Accept
+##   per-item / accept-all adopt the regenerated single source (_last_tp_proposals).
+## --- S31.3 — Accept flow now adopts the single source (_last_tp_proposals) after
 ##   apply_tp_proposals regenerates it, instead of editing a divergent local copy or forcing
 ##   it empty. Fixes duplicate proposal rows and hidden warnings after accepting.
 ## --- S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
@@ -127,8 +130,10 @@ func _rebuild_list() -> void:
 	for c in _list.get_children(): c.queue_free()
 	await get_tree().process_frame
 
-	var assignable = _proposals.filter(func(p): return p["type"] in ["assign_driver","assign_mechanic"])
-	var warnings   = _proposals.filter(func(p): return p["type"] in ["dns_warning","missing_driver","missing_mechanic"])
+	var assignable = _proposals.filter(func(p): return p["type"] in [
+		"assign_driver", "assign_mechanic", "assign_pit_crew", "assign_strategist"])
+	var warnings   = _proposals.filter(func(p): return p["type"] in [
+		"dns_warning", "missing_driver", "missing_mechanic", "missing_pit_crew", "missing_strategist"])
 
 	_lbl_summary.text = "%d assignment%s · %d warning%s" % [
 		assignable.size(), "s" if assignable.size() != 1 else "",
@@ -183,7 +188,7 @@ func _build_proposal_row(prop: Dictionary) -> PanelContainer:
 	hb.add_child(lbl)
 
 	## Buttons
-	if ptype in ["assign_driver", "assign_mechanic"]:
+	if ptype in ["assign_driver", "assign_mechanic", "assign_pit_crew", "assign_strategist"]:
 		var btn_ok = Button.new()
 		btn_ok.text = "✅"
 		btn_ok.custom_minimum_size = Vector2(34, 28)
@@ -210,7 +215,7 @@ func _build_proposal_row(prop: Dictionary) -> PanelContainer:
 			_rebuild_list())
 		hb.add_child(btn_x)
 
-	elif ptype in ["missing_driver", "missing_mechanic"]:
+	elif ptype in ["missing_driver", "missing_mechanic", "missing_pit_crew", "missing_strategist"]:
 		var btn_hire = Button.new()
 		btn_hire.text = "→ Staff"
 		btn_hire.custom_minimum_size = Vector2(70, 28)
@@ -223,7 +228,8 @@ func _build_proposal_row(prop: Dictionary) -> PanelContainer:
 	return row
 
 func _on_accept_all() -> void:
-	var assignable = _proposals.filter(func(p): return p["type"] in ["assign_driver","assign_mechanic"])
+	var assignable = _proposals.filter(func(p): return p["type"] in [
+		"assign_driver", "assign_mechanic", "assign_pit_crew", "assign_strategist"])
 	GameState.apply_tp_proposals(assignable)
 	## apply_tp_proposals already regenerated _last_tp_proposals (assigned ones drop out;
 	## any remaining warnings/missing-personnel stay). Adopt it rather than forcing [] —

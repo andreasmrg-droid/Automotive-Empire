@@ -1,5 +1,13 @@
 class_name TPProposalEngine
-## Version: S31.3 — Fix: apply_tp_proposals now dismisses the TP TDL item by matching its
+## Version: S32.2 — TP system rebuild (spec v2), Phase 1 engine + path reconciliation. Shared
+##   compute_optimal_assignments(team, cars, include_tp): driver/mechanic/pit(raw)/strategist
+##   (per champ, GK+Rally skip)/TP(per champ, AI-only, sorted by overall). Prestige-ordered,
+##   adaptation-corrected (except pit crew), commitment (one person → one championship; GK
+##   multi-tier exception removed). apply_tp_proposals routes per-car vs per-championship and
+##   re-optimises on partial accept. _fire_assignment_proposals now routes through the SINGLE
+##   consolidated path (was the separate get_tp_proposals_all → duplicate TDL items).
+##   get_tp_proposals_all retained as dead code (no internal callers) pending full removal.
+## --- S31.3 — Fix: apply_tp_proposals now dismisses the TP TDL item by matching its
 ##   ACTUAL text ("TP has … ready"); the old filter looked for "TP proposals ready"/"TP
 ##   proposals:" which the item never contained, so it was never removed. (Keeps the S31.1
 ##   bug-4 roster-snapshot refresh.)
@@ -18,163 +26,258 @@ var gs
 func _init(game_state) -> void:
 	gs = game_state
 
+## Player entry point — produces the consolidated proposal for the player's team (driver,
+## mechanic, pit crew, strategist; NOT TP — player manages TPs manually) and fires the single
+## notification + TDL. Delegates to the shared, team-agnostic optimiser.
 func generate_tp_assignment_proposals() -> Array:
+	var proposals = compute_optimal_assignments(gs.player_team, gs.player_team_cars, false)
+	_fire_tp_proposal_notification(proposals)
+	return proposals
+
+## Shared, team-agnostic optimiser. Computes the optimal allocation for ANY team:
+##   • driver, mechanic, pit crew  → per CAR
+##   • strategist, Team Principal   → per CHAMPIONSHIP
+## Prestige-ordered (best → highest-prestige championship/car first), adaptation-corrected
+## stats (except pit crew = raw), commitment rule (one person → one championship).
+## Exceptions: pit crew skipped for GK; strategist skipped for GK & Rally.
+## include_tp=false for the player surface (TP is manual); true for AI auto-assign.
+## Pure: no side effects — callers decide (player → proposal UI; AI → apply directly).
+func compute_optimal_assignments(team, team_cars: Array, include_tp: bool) -> Array:
 	var proposals: Array = []
 
-	## Build sorted list of player cars by championship prestige (highest first)
-	var sorted_cars: Array = gs.player_team_cars.duplicate()
+	## Sort the team's cars by championship prestige (highest first)
+	var sorted_cars: Array = team_cars.duplicate()
 	sorted_cars.sort_custom(func(a, b):
-		var reg_a = gs.CHAMPIONSHIP_REGISTRY.get(a.championship_id, {})
-		var reg_b = gs.CHAMPIONSHIP_REGISTRY.get(b.championship_id, {})
-		var disc_a = reg_a.get("discipline", "GK")
-		var disc_b = reg_b.get("discipline", "GK")
-		var tier_a = reg_a.get("tier", 1)
-		var tier_b = reg_b.get("tier", 1)
-		var score_a = gs.DISC_PRESTIGE.get(disc_a, 1) * 10 + tier_a
-		var score_b = gs.DISC_PRESTIGE.get(disc_b, 1) * 10 + tier_b
-		return score_a > score_b)
+		return _prestige_score(a.championship_id) > _prestige_score(b.championship_id))
 
-	## Track committed drivers/mechanics per race-week
-	## committed_drivers[driver_id] = Array of {week, track_id} they're committed to
-	var committed_drivers: Dictionary = {}
-	var committed_mechanics: Dictionary = {}
+	## Commitment: one person → one championship. Once committed, removed from the pool for
+	## all lower-prestige cars/championships. Simple set keyed by person id.
+	var committed: Dictionary = {}   ## person_id → true
 
-	## Available drivers/mechanics on the team
+	## Available personnel on THIS team
 	var avail_drivers: Array = []
-	for did in gs.player_team.drivers:
+	for did in team.drivers:
 		var d = gs.all_drivers.get(did)
 		if d: avail_drivers.append(d)
 
 	var avail_mechanics: Array = []
+	var avail_pit: Array = []
+	var avail_strategists: Array = []
+	var avail_tps: Array = []
 	for sid in gs.all_staff:
 		var s = gs.all_staff[sid]
-		if s.contract_team == gs.player_team.id and s.role == "Race Mechanic":
-			avail_mechanics.append(s)
+		if s.contract_team != team.id:
+			continue
+		match s.role:
+			"Race Mechanic":   avail_mechanics.append(s)
+			"Pit Crew":        avail_pit.append(s)
+			"Race Strategist": avail_strategists.append(s)
+			"Team Principal":  avail_tps.append(s)
 
-	## Get race calendar for conflict checking
-	var race_weeks: Dictionary = {}  ## car_id → Array of {week, track_id}
-	for car in sorted_cars:
-		var cid = car.championship_id
-		var cal = gs.CHAMPIONSHIP_CALENDARS.get(cid, [])
-		race_weeks[car.id] = cal.map(func(r): return {"week": r["week"], "track_id": r.get("track_id","")})
-
-	## Process each car in prestige order
+	## ── Per-CAR roles: driver, mechanic, pit crew (prestige order) ──────────────
 	for car in sorted_cars:
 		var reg = gs.CHAMPIONSHIP_REGISTRY.get(car.championship_id, {})
 		var disc = reg.get("discipline", "GK")
 		var champ_name = reg.get("name", car.championship_id)
 		var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
-		var is_gk = (disc == "GK")
-		var car_races = race_weeks.get(car.id, [])
+		var pit_required = gs.get_pit_crew_required(car.championship_id)
 
-		## ── Driver proposal ──────────────────────────────────────────────
-		var best_driver = _find_best_driver_for_car(
-			car, disc, avail_drivers, committed_drivers, car_races, is_gk)
-
+		## Driver
+		var best_driver = _find_best_driver(car, disc, avail_drivers, committed)
 		if best_driver != null:
-			var eff_pace = _effective_stat(best_driver, disc, "pace")
+			var eff = _eff_driver_score(best_driver, disc)
 			var adapt = best_driver.discipline_adaptation.get(disc, 0.0)
 			var note = "Assign %s → %s [%s]  (Eff. pace: %.0f" % [
-				best_driver.full_name(), car_label, champ_name, eff_pace]
-			if adapt < 70.0:
-				note += ", ⚠ Low discipline adaptation %.0f%%" % adapt
-			elif adapt < 40.0:
-				note += ", 🚨 Very low adaptation %.0f%% — DNS risk" % adapt
+				best_driver.full_name(), car_label, champ_name, eff]
+			if adapt < 40.0:   note += ", 🚨 Very low adaptation %.0f%% — DNS risk" % adapt
+			elif adapt < 70.0: note += ", ⚠ Low adaptation %.0f%%" % adapt
 			note += ")"
-
-			## Check if GK same-venue multi-assignment
-			var already_assigned = committed_drivers.get(best_driver.id, [])
-			var is_multi = already_assigned.size() > 0
-			if is_multi:
-				note = "⚡ " + note + "  ← also covering another GK tier (same venue)"
-
-			proposals.append({
-				"type":        "assign_driver",
-				"car_id":      car.id,
-				"car_label":   car_label,
-				"champ_id":    car.championship_id,
-				"champ_name":  champ_name,
-				"driver_id":   best_driver.id,
-				"driver_name": best_driver.full_name(),
-				"eff_pace":    eff_pace,
-				"adaptation":  adapt,
-				"note":        note,
-				"priority":    "normal" if adapt >= 70.0 else "warning",
-			})
-
-			## Mark committed for non-GK or GK with specific race weeks
-			if not committed_drivers.has(best_driver.id):
-				committed_drivers[best_driver.id] = []
-			for race in car_races:
-				committed_drivers[best_driver.id].append(race)
+			proposals.append(_mk(car, "assign_driver", "car", best_driver.id,
+				best_driver.full_name(), eff, note, "normal" if adapt >= 70.0 else "warning"))
+			committed[best_driver.id] = true
 		else:
-			## No driver available
-			var dns_proposals = _build_dns_proposals(car_races, committed_drivers, avail_drivers)
-			if dns_proposals.size() > 0:
-				for dp in dns_proposals:
-					proposals.append({
-						"type":       "dns_warning",
-						"car_id":     car.id,
-						"car_label":  car_label,
-						"champ_name": champ_name,
-						"note":       "⚠ %s — no driver for Week %d (%s). Expected DNS." % [
-							car_label, dp["week"], dp["track_id"]],
-						"priority":   "warning",
-					})
-			else:
-				proposals.append({
-					"type":       "missing_driver",
-					"car_id":     car.id,
-					"car_label":  car_label,
-					"champ_name": champ_name,
-					"note":       "🚫 %s [%s] — no driver available. Hire one." % [car_label, champ_name],
-					"priority":   "critical",
-				})
+			proposals.append(_mk(car, "missing_driver", "car", "", "", 0.0,
+				"🚫 %s [%s] — no driver available. Hire one." % [car_label, champ_name], "critical"))
 
-		## ── Mechanic proposal ────────────────────────────────────────────
-		var best_mech = _find_best_mechanic_for_car(
-			car, disc, avail_mechanics, committed_mechanics, car_races, is_gk)
-
+		## Mechanic
+		var best_mech = _find_best_mechanic(car, disc, avail_mechanics, committed)
 		if best_mech != null:
-			var eff_setup = _effective_stat_staff(best_mech, disc, "car_setup")
-			var adapt = best_mech.discipline_adaptation.get(disc, best_mech.discipline_adaptation.get("GK", 50.0)) \
+			var eff = _eff_mechanic_score(best_mech, disc)
+			var adapt = best_mech.discipline_adaptation.get(disc, 50.0) \
 				if best_mech.discipline_adaptation.has(disc) else 50.0
-			var note = "Assign mechanic %s → %s [%s]  (Eff. setup: %.0f" % [
-				best_mech.full_name(), car_label, champ_name, eff_setup]
-			if adapt < 60.0:
-				note += ", ⚠ Low adaptation %.0f%%" % adapt
-			note += ")"
-
-			proposals.append({
-				"type":         "assign_mechanic",
-				"car_id":       car.id,
-				"car_label":    car_label,
-				"champ_id":     car.championship_id,
-				"champ_name":   champ_name,
-				"mechanic_id":  best_mech.id,
-				"mechanic_name": best_mech.full_name(),
-				"eff_setup":    eff_setup,
-				"note":         note,
-				"priority":     "normal" if adapt >= 60.0 else "warning",
-			})
-
-			if not committed_mechanics.has(best_mech.id):
-				committed_mechanics[best_mech.id] = []
-			for race in car_races:
-				committed_mechanics[best_mech.id].append(race)
+			var note = "Assign mechanic %s → %s [%s]  (Eff. setup: %.0f%s)" % [
+				best_mech.full_name(), car_label, champ_name, eff,
+				", ⚠ Low adaptation %.0f%%" % adapt if adapt < 60.0 else ""]
+			proposals.append(_mk(car, "assign_mechanic", "car", best_mech.id,
+				best_mech.full_name(), eff, note, "normal" if adapt >= 60.0 else "warning"))
+			committed[best_mech.id] = true
 		else:
-			proposals.append({
-				"type":       "missing_mechanic",
-				"car_id":     car.id,
-				"car_label":  car_label,
-				"champ_name": champ_name,
-				"note":       "🚫 %s [%s] — no mechanic available. Hire one." % [car_label, champ_name],
-				"priority":   "critical",
-			})
+			proposals.append(_mk(car, "missing_mechanic", "car", "", "", 0.0,
+				"🚫 %s [%s] — no mechanic available. Hire one." % [car_label, champ_name], "critical"))
 
-	## Fire notification and TDL based on proposal severity
-	_fire_tp_proposal_notification(proposals)
+		## Pit crew (not required for GK)
+		if pit_required:
+			var best_pit = _find_best_pit_crew(avail_pit, committed)
+			if best_pit != null:
+				var score = best_pit.pit_stop_speed   ## RAW — pit crew has no adaptation
+				var note = "Assign pit crew %s → %s [%s]  (Pit speed: %.0f)" % [
+					best_pit.full_name(), car_label, champ_name, score]
+				proposals.append(_mk(car, "assign_pit_crew", "car", best_pit.id,
+					best_pit.full_name(), score, note, "normal"))
+				committed[best_pit.id] = true
+			else:
+				proposals.append(_mk(car, "missing_pit_crew", "car", "", "", 0.0,
+					"🚫 %s [%s] — no pit crew available. Hire one." % [car_label, champ_name], "critical"))
+
+	## ── Per-CHAMPIONSHIP roles: strategist, (TP if include_tp) ──────────────────
+	## One per championship the team races, prestige order, commitment-respecting.
+	var champ_ids: Array = []
+	for car in sorted_cars:
+		if not car.championship_id in champ_ids:
+			champ_ids.append(car.championship_id)
+
+	for cid in champ_ids:
+		var reg = gs.CHAMPIONSHIP_REGISTRY.get(cid, {})
+		var disc = reg.get("discipline", "GK")
+		var champ_name = reg.get("name", cid)
+
+		## Strategist — NOT used in GK or Rally
+		if disc != "GK" and disc != "Rally":
+			var best_strat = _find_best_strategist(disc, avail_strategists, committed)
+			if best_strat != null:
+				var eff = _eff_strategist_score(best_strat, disc)
+				var note = "Assign strategist %s → [%s]  (Eff. strategy: %.0f)" % [
+					best_strat.full_name(), champ_name, eff]
+				proposals.append(_mk_champ(cid, champ_name, "assign_strategist", best_strat.id,
+					best_strat.full_name(), eff, note, "normal"))
+				committed[best_strat.id] = true
+			else:
+				proposals.append(_mk_champ(cid, champ_name, "missing_strategist", "", "", 0.0,
+					"🚫 [%s] — no strategist available. Hire one." % champ_name, "warning"))
+
+		## Team Principal — AI only (player manages TPs manually)
+		if include_tp:
+			var best_tp = _find_best_tp(disc, avail_tps, committed)
+			if best_tp != null:
+				var eff = _eff_tp_score(best_tp, disc)
+				var note = "Assign TP %s → [%s]  (Overall: %.0f)" % [
+					best_tp.full_name(), champ_name, eff]
+				proposals.append(_mk_champ(cid, champ_name, "assign_tp", best_tp.id,
+					best_tp.full_name(), eff, note, "normal"))
+				committed[best_tp.id] = true
+
 	return proposals
+
+## ── Helpers: prestige, proposal builders, scoring, finders ────────────────────
+
+func _prestige_score(champ_id: String) -> float:
+	var reg = gs.CHAMPIONSHIP_REGISTRY.get(champ_id, {})
+	var disc = reg.get("discipline", "GK")
+	var tier = reg.get("tier", 1)
+	return gs.DISC_PRESTIGE.get(disc, 1) * 10 + tier
+
+## Build a per-CAR proposal object.
+func _mk(car, ptype: String, scope: String, pid: String, pname: String,
+		eff: float, note: String, priority: String) -> Dictionary:
+	var reg = gs.CHAMPIONSHIP_REGISTRY.get(car.championship_id, {})
+	return {
+		"kind": "assignment", "type": ptype, "scope": scope,
+		"car_id": car.id,
+		"car_label": car.car_name if car.car_name != "" else "Car %d" % car.car_number,
+		"champ_id": car.championship_id, "champ_name": reg.get("name", car.championship_id),
+		"person_id": pid, "person_name": pname,
+		"eff_score": eff, "note": note, "priority": priority,
+	}
+
+## Build a per-CHAMPIONSHIP proposal object (strategist / TP).
+func _mk_champ(cid: String, champ_name: String, ptype: String, pid: String, pname: String,
+		eff: float, note: String, priority: String) -> Dictionary:
+	return {
+		"kind": "assignment", "type": ptype, "scope": "championship",
+		"car_id": "", "champ_id": cid, "champ_name": champ_name,
+		"person_id": pid, "person_name": pname,
+		"eff_score": eff, "note": note, "priority": priority,
+	}
+
+## Role-appropriate scoring (per the design: each role scored on its performance-driving
+## stat(s); only TP uses an overall aggregate). Adaptation applies to all except pit crew.
+func _eff_driver_score(d, disc: String) -> float:
+	return _effective_stat(d, disc, "pace") * 0.6 + _effective_stat(d, disc, "consistency") * 0.4
+
+func _eff_mechanic_score(s, disc: String) -> float:
+	return _effective_stat_staff(s, disc, "car_setup")
+
+func _eff_strategist_score(s, disc: String) -> float:
+	var raw = s.race_strategy if "race_strategy" in s else 50.0
+	var adapt = s.discipline_adaptation.get(disc, 50.0) \
+		if "discipline_adaptation" in s and s.discipline_adaptation.has(disc) else 50.0
+	return raw * (adapt / 100.0)
+
+func _eff_tp_score(s, disc: String) -> float:
+	var raw = s.get_overall_skill()
+	var adapt = s.discipline_adaptation.get(disc, 50.0) \
+		if "discipline_adaptation" in s and s.discipline_adaptation.has(disc) else 50.0
+	return raw * (adapt / 100.0)
+
+## Finders — pick the highest-scoring uncommitted, age/role-eligible candidate.
+func _find_best_driver(car, disc: String, avail: Array, committed: Dictionary):
+	var best = null
+	var best_score = -1.0
+	var reg = gs.CHAMPIONSHIP_REGISTRY.get(car.championship_id, {})
+	for d in avail:
+		if committed.has(d.id):
+			continue
+		if d.age < reg.get("min_age", 0) or d.age > reg.get("max_age", 99):
+			continue
+		var score = _eff_driver_score(d, disc)
+		if score > best_score:
+			best_score = score; best = d
+	return best
+
+func _find_best_mechanic(car, disc: String, avail: Array, committed: Dictionary):
+	var best = null
+	var best_score = -1.0
+	for s in avail:
+		if committed.has(s.id):
+			continue
+		var score = _eff_mechanic_score(s, disc)
+		if score > best_score:
+			best_score = score; best = s
+	return best
+
+func _find_best_pit_crew(avail: Array, committed: Dictionary):
+	var best = null
+	var best_score = -1.0
+	for s in avail:
+		if committed.has(s.id):
+			continue
+		var score = s.pit_stop_speed   ## RAW — no adaptation
+		if score > best_score:
+			best_score = score; best = s
+	return best
+
+func _find_best_strategist(disc: String, avail: Array, committed: Dictionary):
+	var best = null
+	var best_score = -1.0
+	for s in avail:
+		if committed.has(s.id):
+			continue
+		var score = _eff_strategist_score(s, disc)
+		if score > best_score:
+			best_score = score; best = s
+	return best
+
+func _find_best_tp(disc: String, avail: Array, committed: Dictionary):
+	var best = null
+	var best_score = -1.0
+	for s in avail:
+		if committed.has(s.id):
+			continue
+		var score = _eff_tp_score(s, disc)
+		if score > best_score:
+			best_score = score; best = s
+	return best
+
 
 ## Returns effective stat value for a driver in a discipline
 
@@ -202,84 +305,6 @@ func _effective_stat_staff(staff, disc: String, stat: String) -> float:
 ## Finds the best available driver for a car, respecting GK multi-assignment and adaptation.
 
 
-func _find_best_driver_for_car(car, disc: String, avail_drivers: Array,
-		committed: Dictionary, car_races: Array, is_gk: bool):
-	var best = null
-	var best_score = -1.0
-	for d in avail_drivers:
-		## GK: same driver can cover multiple tiers if no different-track same-week conflict
-		if is_gk:
-			var conflict = false
-			var d_committed = committed.get(d.id, [])
-			for race in car_races:
-				for comm_race in d_committed:
-					if comm_race["week"] == race["week"] and comm_race["track_id"] != race["track_id"]:
-						conflict = true; break
-				if conflict: break
-			if conflict: continue
-		else:
-			## Non-GK: driver can only cover one championship
-			if committed.has(d.id) and committed[d.id].size() > 0: continue
-
-		## Age eligibility
-		var reg = gs.CHAMPIONSHIP_REGISTRY.get(car.championship_id, {})
-		if d.age < reg.get("min_age", 0) or d.age > reg.get("max_age", 99): continue
-
-		var score = _effective_stat(d, disc, "pace") * 0.6 + \
-			_effective_stat(d, disc, "consistency") * 0.4
-		if score > best_score:
-			best_score = score
-			best = d
-	return best
-
-## Finds the best available mechanic for a car.
-
-
-func _find_best_mechanic_for_car(car, disc: String, avail_mechanics: Array,
-		committed: Dictionary, car_races: Array, is_gk: bool):
-	var best = null
-	var best_score = -1.0
-	for s in avail_mechanics:
-		if is_gk:
-			var conflict = false
-			var s_committed = committed.get(s.id, [])
-			for race in car_races:
-				for comm_race in s_committed:
-					if comm_race["week"] == race["week"] and comm_race["track_id"] != race["track_id"]:
-						conflict = true; break
-				if conflict: break
-			if conflict: continue
-		else:
-			if committed.has(s.id) and committed[s.id].size() > 0: continue
-		var setup = s.car_setup_skill if "car_setup_skill" in s else \
-			(s.car_setup if "car_setup" in s else 50.0)
-		var adapt = s.discipline_adaptation.get(disc, 50.0) \
-			if "discipline_adaptation" in s and s.discipline_adaptation.has(disc) else 50.0
-		var score = setup * (adapt / 100.0)
-		if score > best_score:
-			best_score = score
-			best = s
-	return best
-
-## Returns DNS-risk race weeks where a driver conflict means empty car.
-
-
-func _build_dns_proposals(car_races: Array, committed: Dictionary, avail_drivers: Array) -> Array:
-	var dns_weeks: Array = []
-	for race in car_races:
-		var can_cover = false
-		for d in avail_drivers:
-			var d_comm = committed.get(d.id, [])
-			var has_conflict = false
-			for comm_race in d_comm:
-				if comm_race["week"] == race["week"] and comm_race["track_id"] != race["track_id"]:
-					has_conflict = true; break
-			if not has_conflict:
-				can_cover = true; break
-		if not can_cover:
-			dns_weeks.append(race)
-	return dns_weeks
-
 ## Fires notification and TDL for TP proposals.
 
 
@@ -287,8 +312,9 @@ func _fire_tp_proposal_notification(proposals: Array) -> void:
 	if proposals.is_empty(): return
 	var has_critical = proposals.any(func(p): return p.get("priority","") == "critical")
 	var has_warning  = proposals.any(func(p): return p.get("priority","") == "warning")
-	var driver_assigns = proposals.filter(func(p): return p["type"] == "assign_driver").size()
-	var mech_assigns   = proposals.filter(func(p): return p["type"] == "assign_mechanic").size()
+	## Count all assignable roles (driver/mechanic/pit crew/strategist).
+	var assign_types = ["assign_driver", "assign_mechanic", "assign_pit_crew", "assign_strategist"]
+	var total_assigns = proposals.filter(func(p): return p.get("type","") in assign_types).size()
 
 	var msg: String
 	var priority: String
@@ -296,17 +322,18 @@ func _fire_tp_proposal_notification(proposals: Array) -> void:
 		msg = "🚫 TP: missing personnel — some cars cannot race. → Racing Department"
 		priority = "Critical"
 	elif has_warning:
-		msg = "⚠ TP proposals: %d driver + %d mechanic (low adaptation warnings). → Racing Department" % [driver_assigns, mech_assigns]
+		msg = "⚠ TP proposals: %d assignment%s (some low-adaptation). → Racing Department" % [
+			total_assigns, "s" if total_assigns != 1 else ""]
 		priority = "High"
 	else:
-		msg = "🏁 TP proposals ready: %d driver + %d mechanic assignments. → Racing Department" % [driver_assigns, mech_assigns]
+		msg = "🏁 TP proposals ready: %d assignment%s. → Racing Department" % [
+			total_assigns, "s" if total_assigns != 1 else ""]
 		priority = "High"
 
 	gs.add_notification(priority, msg, "racing_dept")
-	## TDL item — routes to Racing Department via _get_todo_destination
+	## ONE TDL item, identifiable by the "TP has … ready" text (dismissed in apply_tp_proposals).
 	var tdl_msg = "🏁 TP has %d assignment%s ready — Racing Department" % [
-		driver_assigns + mech_assigns,
-		"s" if driver_assigns + mech_assigns != 1 else ""]
+		total_assigns, "s" if total_assigns != 1 else ""]
 	gs.add_todo_item(tdl_msg)
 
 ## Applies a list of TP proposals — assigns drivers and mechanics to cars.
@@ -315,30 +342,34 @@ func _fire_tp_proposal_notification(proposals: Array) -> void:
 
 func apply_tp_proposals(proposals: Array) -> void:
 	for prop in proposals:
-		match prop["type"]:
+		var pid = prop.get("person_id", "")
+		var car_id = prop.get("car_id", "")
+		var champ_id = prop.get("champ_id", "")
+		match prop.get("type", ""):
 			"assign_driver":
-				var car_id = prop.get("car_id","")
-				var driver_id = prop.get("driver_id","")
-				if car_id != "" and driver_id != "":
-					gs.assign_driver_to_car(driver_id, car_id)
+				if car_id != "" and pid != "":
+					gs.assign_driver_to_car(pid, car_id)
 			"assign_mechanic":
-				var car_id = prop.get("car_id","")
-				var mech_id = prop.get("mechanic_id","")
-				if car_id != "" and mech_id != "":
-					gs.assign_staff_to_car(mech_id, car_id)
-	## Dismiss the TP TDL item(s). Match the ACTUAL text created by
-	## _fire_tp_proposal_notification ("🏁 TP has N assignment(s) ready …") plus legacy
-	## variants — the old filter looked for "TP proposals ready"/"TP proposals:" which the
-	## real item never contained, so the TDL item was never removed.
+				if car_id != "" and pid != "":
+					gs.assign_staff_to_car(pid, car_id)
+			"assign_pit_crew":
+				if car_id != "" and pid != "":
+					gs.assign_pit_crew_to_car(pid, car_id)
+			"assign_strategist", "assign_tp":
+				## Per-championship roles set the staff member's assigned_championship.
+				if champ_id != "" and pid != "":
+					gs.assign_staff_to_championship(pid, champ_id)
+	## Dismiss the TP TDL item(s) by their actual text (see _fire_tp_proposal_notification).
 	for item in gs.custom_todo_items.duplicate():
 		if "TP has" in item or "TP proposals" in item:
 			gs.dismiss_todo_item(item)
-	## S28.3 (issue 5): regenerate the cached proposals so accepted assignments drop out
-	## and the Racing Department count refreshes to 0 (was showing stale cached proposals).
+	## Partial accept = re-optimise: regenerate proposals for the remaining unassigned cars/
+	## championships over the now-reduced pool (accepted personnel are committed because they're
+	## now assigned, so the optimiser won't re-propose them). This drops accepted items and
+	## surfaces a fresh smaller proposal — the single source of truth.
 	gs._last_tp_proposals = generate_tp_assignment_proposals()
-	## Bug 4: also refresh the roster snapshot to the post-accept state. Without this, the
-	## next advance_week sees _tp_roster_changed()==true (the assignment changed the roster
-	## vs the stale snapshot) and regenerates the just-accepted proposals, so they reappear.
+	## Bug 4: refresh the roster snapshot to the post-accept state so the next advance_week
+	## doesn't see a phantom roster change and regenerate the just-accepted proposals.
 	_tp_roster_snapshot = _take_tp_roster_snapshot()
 	gs.emit_signal("log_updated")
 
@@ -601,22 +632,15 @@ func _tp_roster_changed() -> bool:
 
 
 func _fire_assignment_proposals() -> void:
-	var proposals = get_tp_proposals_all()
-	for prop in proposals:
-		var note = prop.get("note","")
-		if note == "": continue
-		## Only fire actionable assignment proposals, not GK ecosystem proposals
-		var ptype = prop.get("type","")
-		if ptype in ["driver_needed","mechanic_needed","tp_assignment","strategist_assignment"]:
-			## Don't duplicate existing TDL items
-			var already = false
-			for t in gs.custom_todo_items:
-				if t == note: already = true; break
-			if not already and not note in gs.dismissed_todo_items:
-				gs.add_todo_item(note)
-				var priority = "Critical" if ptype in ["driver_needed","mechanic_needed"] else "High"
-				gs.add_notification(priority, note,
-					"garage" if ptype in ["driver_needed","mechanic_needed"] else "racing_dept")
+	## Event-driven trigger (car bought/built, staff hired/lost). Routes through the SINGLE
+	## consolidated proposal path: regenerate the optimal proposal (driver/mechanic/pit/
+	## strategist), store it as the source of truth, and fire ONE notification + ONE TDL via
+	## generate_tp_assignment_proposals. (Previously used the separate get_tp_proposals_all,
+	## which produced duplicate TDL items overlapping the consolidated proposal.)
+	if gs.player_team_cars.is_empty():
+		return
+	gs._last_tp_proposals = generate_tp_assignment_proposals()
+	_tp_roster_snapshot = _take_tp_roster_snapshot()
 
 ## ── P44 LOAN SYSTEM (S21) ────────────────────────────────────────────────────
 

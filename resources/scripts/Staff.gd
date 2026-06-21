@@ -1,6 +1,10 @@
 class_name Staff
 extends Resource
-## Version: S24.1 — Added peak_adaptation dict for TP/Mechanic/Strategist.
+## Version: S32.0 — Added get_overall_skill(): role-aware aggregate rating (mirrors
+##   Driver.get_overall_skill()). Used to rank Team Principals for AI allocation (overseers
+##   whose value is broad amplification). Per-role optimiser scoring still uses each role's
+##   performance-driving stat; only TP allocation uses this aggregate.
+## --- S24.1 — Added peak_adaptation dict for TP/Mechanic/Strategist.
 ##                    get_adaptation_floor(), update_peak_adaptation() added.
 ##                    race_pace (Mechanic), fatigue_resistance (Pit Crew),
 ##                    speculation (CFO), parts_knowledge (TP/Mechanic/Designer).
@@ -132,6 +136,31 @@ func get_primary_skill() -> float:
 		"Designer":         return (engine + aero + chassis + gearbox + brakes + suspension) / 6.0
 		"Race Strategist":  return race_strategy
 	return 0.0
+
+## Aggregate "overall" rating for a staff member — mean of the stats relevant to the role.
+## Mirrors Driver.get_overall_skill(). Primarily used to rank Team Principals (overseers whose
+## value is broad amplification, so no single stat dominates), but defined for all roles for any
+## future "overall" display. Per-role optimiser scoring still uses the role's performance-driving
+## stat(s); only TP allocation uses this aggregate.
+func get_overall_skill() -> float:
+	match role:
+		"Team Principal":
+			return (race_strategy + practice_management + qualifying_management
+				+ race_pace_reading + car_setup_oversight + pit_stop_management
+				+ pr_skill + parts_knowledge + track_knowledge) / 9.0
+		"Race Strategist":
+			return (race_strategy + race_pace_reading + practice_scheduling
+				+ qualifying_timing + track_knowledge) / 5.0
+		"Race Mechanic":
+			return (car_setup + pit_stops + parts_knowledge + track_knowledge + race_pace) / 5.0
+		"Pit Crew":
+			return (pit_stop_speed + repair_skill + fatigue_resistance) / 3.0
+		"CFO":
+			return (sales_skill + sponsor_negotiation + resource_management
+				+ budget_planning + speculation + loan_management) / 6.0
+		"Designer":
+			return (engine + aero + chassis + gearbox + brakes + suspension) / 6.0
+	return get_primary_skill()
 
 ## Returns display label for primary skill.
 func get_primary_skill_label() -> String:
