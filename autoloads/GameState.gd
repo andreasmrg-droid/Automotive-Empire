@@ -1,5 +1,11 @@
 extends Node
-## Version: S30.7 — Fix: build_whole_car sets car.delivered=false explicitly (Option B),
+## Version: S31.0 — Bug 9 (discipline bleed): GK round notifications (elimination, round
+##   complete, champion) now gated on the player being registered in GK — a non-GK career
+##   (e.g. Rally) no longer receives GK messages. _regenerate_ai_team_cars no longer
+##   hardcodes C-001/GK: it uses the team's actual championship for car_type, telemetry,
+##   and pit-crew requirement. GK world shadow-sim still runs (living world), just no longer
+##   leaks player-facing GK content into other disciplines.
+## --- S30.7 — Fix: build_whole_car sets car.delivered=false explicitly (Option B),
 ##   no longer relying on CarManager to have done so. Pairs with restored CarManager.gd
 ##   S30.3 (which was missing from commit f5b8a48, leaving bought/built cars instantly
 ##   delivered — no in-build banner, no DNS).
@@ -2652,27 +2658,32 @@ func advance_week() -> void:
 			gk_discipline.advance_round(all_drivers)
 			_sync_gk_group0_to_standings()
 			var new_round = gk_discipline.get_current_round()
-			var player_eliminated = true
-			for did in player_team.drivers:
-				if not gk_discipline.is_eliminated(did):
-					player_eliminated = false
-					break
-			if player_eliminated and this_gk_round < 4:
-				add_notification("High",
-					"🏁 Your driver was eliminated at the end of GK Round %d. Season over for GK." % this_gk_round)
-			elif this_gk_round >= 4 or gk_discipline.is_complete():
-				## S28.3 (Bug 2): Round 4 is the final — no "Round 5". Announce the champion.
-				var champ = gk_discipline.get_champion()
-				if not champ.is_empty():
-					var cd = all_drivers.get(champ.get("driver_id", ""), null)
-					var cname = cd.full_name() if cd else "Unknown"
+			## Bug 9: only surface GK round notifications to the player if they are
+			## actually registered in GK. The shadow world still advances above, but a
+			## non-GK career (e.g. Rally) must not receive GK elimination/round messages.
+			var player_in_gk = "C-001" in player_registered_championships
+			if player_in_gk:
+				var player_eliminated = true
+				for did in player_team.drivers:
+					if not gk_discipline.is_eliminated(did):
+						player_eliminated = false
+						break
+				if player_eliminated and this_gk_round < 4:
+					add_notification("High",
+						"🏁 Your driver was eliminated at the end of GK Round %d. Season over for GK." % this_gk_round)
+				elif this_gk_round >= 4 or gk_discipline.is_complete():
+					## S28.3 (Bug 2): Round 4 is the final — no "Round 5". Announce the champion.
+					var champ = gk_discipline.get_champion()
+					if not champ.is_empty():
+						var cd = all_drivers.get(champ.get("driver_id", ""), null)
+						var cname = cd.full_name() if cd else "Unknown"
+						add_notification("Normal",
+							"🏆 GK Championship complete — Champion: %s (%d pts)." % [cname, champ.get("points", 0)])
+					else:
+						add_notification("Normal", "🏁 GK Championship complete for the season.")
+				elif not player_eliminated and new_round <= 4:
 					add_notification("Normal",
-						"🏆 GK Championship complete — Champion: %s (%d pts)." % [cname, champ.get("points", 0)])
-				else:
-					add_notification("Normal", "🏁 GK Championship complete for the season.")
-			elif not player_eliminated and new_round <= 4:
-				add_notification("Normal",
-					"✅ GK Round %d complete — advancing to Round %d!" % [this_gk_round, new_round])
+						"✅ GK Round %d complete — advancing to Round %d!" % [this_gk_round, new_round])
 
 	## After all races processed this week — show first result screen
 	if not _pending_race_results.is_empty():
@@ -2803,20 +2814,40 @@ func _regenerate_ai_team_cars(team) -> void:
 	var driver_count = team.drivers.size()
 	if driver_count == 0:
 		return
+	## Bug 9: use the team's ACTUAL championship, not a hardcoded GK (C-001).
+	## Falls back to C-001 only if the team has no registered championship.
+	var team_champ_id = "C-001"
+	if team.active_championships.size() > 0:
+		team_champ_id = team.active_championships[0]
+	var champ_reg = CHAMPIONSHIP_REGISTRY.get(team_champ_id, {})
+	var champ_disc = champ_reg.get("discipline", "GK")
+	## Pit crew required for all disciplines except GK.
+	var pit_required = PIT_CREW_REQUIRED.get(champ_disc, true)
+	## Telemetry / car_type for the team's discipline (mirrors CHAMP_CAR_TYPE in CarManager).
+	const CHAMP_CAR_TYPE = {
+		"C-001": "A_01",
+		"C-005": "A_05", "C-006": "A_05", "C-007": "A_05", "C-008": "A_05",
+		"C-009": "A_09", "C-010": "A_09",
+		"C-011": "A_11", "C-012": "A_11", "C-013": "A_11",
+		"C-014": "A_14", "C-015": "A_14", "C-016": "A_14", "C-017": "A_14",
+		"C-018": "A_18", "C-019": "A_18", "C-020": "A_18",
+		"C-021": "A_21", "C-022": "A_21", "C-023": "A_21", "C-024": "A_21",
+	}
+	var car_type = CHAMP_CAR_TYPE.get(team_champ_id, "A_01")
 	for i in range(driver_count):
 		var car = Car.new()
 		car.id = "CAR-%s-%03d" % [team.id, i + 1]
-		car.car_type_id = "A_01"
-		car.championship_id = "C-001"
+		car.car_type_id = car_type
+		car.championship_id = team_champ_id
 		car.car_number = i + 1
 		car.car_name = ""
 		car.driver_id = team.drivers[i] if i < team.drivers.size() else ""
 		car.mechanic_id = ""
-		car.pit_crew_id = "N/A"  # AI cars start in C-001 (GK) — no pit crew needed
+		car.pit_crew_id = "" if pit_required else "N/A"
 		car.condition = 100.0
 		car.part_conditions = {"Aero": 100.0, "Engine": 100.0, "Gearbox": 100.0,
 			"Suspension": 100.0, "Brakes": 100.0, "Chassis": 100.0}
-		var telemetry = CAR_TELEMETRY.get("A_01", {})
+		var telemetry = CAR_TELEMETRY.get(car_type, CAR_TELEMETRY.get("A_01", {}))
 		if not telemetry.is_empty():
 			car.top_speed = telemetry["top_speed"]
 			car.acceleration = telemetry["acceleration"]
