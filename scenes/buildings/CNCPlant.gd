@@ -1,11 +1,11 @@
 extends Control
-## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
-##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S30.5 — Phase 2 "Build Whole Car": one-pass build section at the top of the
 ##   MANUFACTURE PARTS column. Enabled per registered championship with no car yet once all
 ##   6 blueprints are WRA-approved; queues all 6 jobs + creates the in-build Car via
 ##   GameState.build_whole_car. New strings localized (cnc_bwc_* in Locale.gd S30.5);
 ##   pre-existing hardcoded strings in this file left for the deferred full sweep (GDD §16).
+## --- S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## --- S28.3 — Production queue is slot-aware: shows slot count, marks QUEUED jobs, and
 ##   computes slot-aware ETAs (issue 4).
 ## --- S17.2 — Blueprint ownership panel added (col D); INSTALLED ON CARS uses get_installed_parts_for_car.

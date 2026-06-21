@@ -1,5 +1,10 @@
 class_name CarManager
-## Version: S28.4 — assign_pit_crew_to_car / unassign_pit_crew_from_car added (Bug 6).
+## Version: S30.3 — Phase 2: add_car sets delivery state. A real in-season purchase
+##   (silent=false) creates the car in-build (delivered=false) with delivery_week =
+##   get_car_delivery_week(champ_id) and acquisition="bought" → DNS-until-ready. The
+##   new-game/setup path (silent=true) keeps cars instantly delivered so the starter
+##   car races from Race 1 as before. (Restored S30.5 — file was missing from f5b8a48.)
+## --- S28.4 — assign_pit_crew_to_car / unassign_pit_crew_from_car added (Bug 6).
 ## --- S28.3 — add_car(silent) suppresses premature "assign driver/mechanic" notifications
 ##   during new-game setup (issue 1); install_part_on_car robust to non-canonical inventory keys (CNC install fix).
 ## --- S27.0 — Extracted from GameState.gd (P57)
@@ -70,6 +75,17 @@ func add_car(for_champ_id: String = "", silent: bool = false) -> bool:
 	car.condition   = 100.0
 	car.part_conditions = {"Aero": 100.0, "Engine": 100.0, "Gearbox": 100.0,
 		"Suspension": 100.0, "Brakes": 100.0, "Chassis": 100.0}
+	## Phase 2 delivery state. A real in-season acquisition (silent=false) is in-build:
+	## it becomes raceable on its delivery week (max part build time). The new-game/setup
+	## path (silent=true) keeps the car instantly delivered so the starter car races at once.
+	if silent:
+		car.delivered     = true
+		car.delivery_week = 0
+		car.acquisition   = "delivered"
+	else:
+		car.delivered     = false
+		car.delivery_week = gs.get_car_delivery_week(champ_id)
+		car.acquisition   = "bought"
 	# Use championship-appropriate telemetry
 	const CHAMP_CAR_TYPE = {
 		"C-001": "A_01",
@@ -92,8 +108,12 @@ func add_car(for_champ_id: String = "", silent: bool = false) -> bool:
 		car.tire_wear_rate = telemetry["tire_wear"]
 		car.baseline_performance_index = telemetry["perf_index"]
 	gs.player_team_cars.append(car)
-	gs.add_log("🏎 %s added to garage for %s — assign a driver and mechanic before racing." % [
-		car.car_name, reg.get("name", champ_id)])
+	if car.delivered:
+		gs.add_log("🏎 %s added to garage for %s — assign a driver and mechanic before racing." % [
+			car.car_name, reg.get("name", champ_id)])
+	else:
+		gs.add_log("🏎 %s ordered for %s — in build, arrives Week %d. Pre-assign crew now." % [
+			car.car_name, reg.get("name", champ_id), car.delivery_week])
 	## S28.3 (issue 1): during initial new-game setup, the driver/mechanic/pit crew are
 	## assigned immediately AFTER this call, so firing "assign a driver" notifications and
 	## TP proposals here produces stale warnings. `silent` suppresses them in that case.
@@ -101,7 +121,12 @@ func add_car(for_champ_id: String = "", silent: bool = false) -> bool:
 		if gs.get_pit_crew_required(champ_id):
 			gs.add_notification("High",
 				"🔧 %s needs a Pit Crew assigned before Race 1 or it will DNS. Hire at Pit Crew Arena." % car.car_name)
-		gs.add_notification("Normal", "%s ready. Assign a driver via the Garage." % car.car_name)
+		if car.delivered:
+			gs.add_notification("Normal", "%s ready. Assign a driver via the Garage." % car.car_name)
+		else:
+			gs.add_notification("Normal",
+				"🏎 %s in build — arrives Week %d. Pre-assign a driver via the Garage so it's race-ready on delivery." % [
+				car.car_name, car.delivery_week], "garage")
 		gs._fire_assignment_proposals()
 	gs.emit_signal("log_updated")
 	return true

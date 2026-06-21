@@ -1,5 +1,9 @@
 extends Node
-## Version: S30.4 — Phase 2 "Build Whole Car": one-pass own-build path. New engine API
+## Version: S30.7 — Fix: build_whole_car sets car.delivered=false explicitly (Option B),
+##   no longer relying on CarManager to have done so. Pairs with restored CarManager.gd
+##   S30.3 (which was missing from commit f5b8a48, leaving bought/built cars instantly
+##   delivered — no in-build banner, no DNS).
+## --- S30.4 — Phase 2 "Build Whole Car": one-pass own-build path. New engine API
 ##   can_build_whole_car / missing_car_blueprints / build_whole_car queues all 6 approved
 ##   part jobs, creates the in-build Car (acquisition="built") with a slot-aware delivery
 ##   week, and fires assignment + TP proposals via add_car. Delivery fields now serialized.
@@ -1338,6 +1342,9 @@ func build_whole_car(champ_id: String) -> bool:
 	if not add_car(champ_id, false):
 		return false
 	var car = player_team_cars[player_team_cars.size() - 1]
+	# Self-sufficient delivery state: do not rely on add_car/CarManager to have set it.
+	# A built car is in-build until its last part finishes (delivery_week set below).
+	car.delivered   = false
 	car.acquisition = "built"
 
 	# Queue all 6 part jobs and collect their durations for the delivery calc.
