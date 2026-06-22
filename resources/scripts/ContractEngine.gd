@@ -1,5 +1,10 @@
 class_name ContractEngine
-## Version: S33.0 — TP Phase 2: added team-scoped _get_tp_for_championship_team()/
+## Version: S33.0-DEBUG — INSTRUMENTED BUILD (debug prints ONLY, zero logic changes) on top of
+##   the LIVE committed S33.0 (HEAD 6364a30). Adds [CONTRACT-DEBUG ...] prints at 5 points to
+##   trace the start_date dual-field drift: submit-write, submit-accept, accept-all (before/after),
+##   apply-result decision, and season-rollover activation. Use to confirm the next-season-signing
+##   bug, then DISCARD this file — do not commit. The real fix is the separate S33.1 file.
+## --- S33.0 — TP Phase 2: added team-scoped _get_tp_for_championship_team()/
 ##   _get_strategist_for_championship_team(); the original player-scoped getters are now thin
 ##   wrappers passing player_team.id (callers unchanged). Lets the shared optimiser detect
 ##   already-assigned championship roles for AI teams.
@@ -756,6 +761,9 @@ func submit_approach_contract_offer(neg_id: String,
 	for key in field_offers:
 		if key in ap["terms"]:
 			ap["terms"][key]["player_offer"] = field_offers[key]
+	if "start_date" in field_offers:
+		print("[CONTRACT-DEBUG submit-write] %s | UI dropdown sent start_date='%s' → written to term. top-level ap.start_date still='%s' (NOT updated — this is the drift)" % [
+			ap.get("subject_name","?"), field_offers.get("start_date","?"), ap.get("start_date","?")])
 	ap["locked_fields"] = locked_fields
 	for key in locked_fields:
 		if key in ap["terms"]:
@@ -769,6 +777,9 @@ func submit_approach_contract_offer(neg_id: String,
 
 	if outcome == "accepted":
 		ap["status"] = "agreed"
+		print("[CONTRACT-DEBUG submit-accept] %s | top-level ap.start_date='%s' | term.start_date='%s'" % [
+			ap.get("subject_name","?"), ap.get("start_date","?"),
+			ap.get("terms",{}).get("start_date",{}).get("player_offer","<none>")])
 		_apply_approach_result(ap)
 		gs.emit_signal("approach_updated")
 		return "accepted"
@@ -789,9 +800,16 @@ func submit_approach_contract_offer(neg_id: String,
 func accept_approach_terms(neg_id: String) -> void:
 	var ap = _get_approach(neg_id)
 	if ap == null or ap["status"] != "negotiating": return
+	print("[CONTRACT-DEBUG accept-all BEFORE] %s | top-level='%s' | term.player_offer='%s' | term.their_ask='%s'" % [
+		ap.get("subject_name","?"), ap.get("start_date","?"),
+		ap.get("terms",{}).get("start_date",{}).get("player_offer","<none>"),
+		ap.get("terms",{}).get("start_date",{}).get("their_ask","<none>")])
 	for key in ap["terms"]:
 		ap["terms"][key]["player_offer"] = ap["terms"][key]["their_ask"]
 	ap["status"] = "agreed"
+	print("[CONTRACT-DEBUG accept-all AFTER ] %s | top-level='%s' | term.player_offer='%s'  (note: term just overwritten by their_ask)" % [
+		ap.get("subject_name","?"), ap.get("start_date","?"),
+		ap.get("terms",{}).get("start_date",{}).get("player_offer","<none>")])
 	_apply_approach_result(ap)
 	gs.emit_signal("approach_updated")
 
@@ -848,6 +866,9 @@ func _apply_approach_result(ap: Dictionary) -> void:
 	var subject_type = ap["subject_type"]
 	var start_date = ap.get("start_date", "immediate")
 	var name_str = ap["subject_name"]
+	print("[CONTRACT-DEBUG apply-result] %s | DECIDING on top-level start_date='%s' → %s" % [
+		name_str, start_date,
+		"PRE-SIGN (joins next season)" if start_date == "next_season" else "IMMEDIATE (joins now)"])
 
 	## Pay bond if there was one
 	if ap.get("bond_status", "") == "agreed" and ap.get("bond_amount_final", 0) > 0:
@@ -970,6 +991,11 @@ func _activate_presigned_contracts() -> void:
 			}
 			for key in ap["terms"]:
 				fake_neg["player_offer"][key] = ap["terms"][key]["player_offer"]
+			print("[CONTRACT-DEBUG activation] %s | copied term.start_date='%s' into re-application → _apply_negotiation_result will take the '%s' branch %s" % [
+				ap.get("subject_name","?"),
+				fake_neg["player_offer"].get("start_date","<none>"),
+				fake_neg["player_offer"].get("start_date","<none>"),
+				"(BOUNCES back to pre-signed → person NEVER joins)" if fake_neg["player_offer"].get("start_date","") == "next_season" else "(joins for real)"])
 			_apply_negotiation_result(fake_neg, true)
 			ap["status"] = "activated"
 
