@@ -1,4 +1,9 @@
 extends Control
+## Version: S35.4 — Fuel cost preview fix. The live "= CR X" preview under the fuel input was
+##   hardcoded to (kg × 2) — it didn't match the living per-kg price that buy_fuel actually charges
+##   (S35.3). Now uses GameState.get_fuel_cost_per_kg() so the typed-amount preview and the real
+##   charge agree (e.g. 100 kg at CR 2.26/kg now previews CR 226, not CR 200). The fuel card header
+##   already showed the live rate (S35.3); only the input preview was stale.
 ## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
 ##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S28.3 — Warehouse shows available CNC parts; section renamed "Available Parts (CNC)".
@@ -228,7 +233,9 @@ func _make_fuel_card(fuel_per_race: float, cars: int) -> PanelContainer:
 	input_row.add_child(cost_lbl)
 	fuel_input.text_changed.connect(func(t):
 		var a = int(t) if t.is_valid_int() and int(t) > 0 else 0
-		cost_lbl.text = "= CR %d" % (a * 2) if a > 0 else "")
+		## S35.4: live preview must match what buy_fuel actually charges (living per-kg price),
+		## not the old hardcoded × 2. Rounded to whole CR for display.
+		cost_lbl.text = ("= CR %d" % int(round(a * GameState.get_fuel_cost_per_kg()))) if a > 0 else "")
 
 	var preset_lbl = Label.new(); preset_lbl.text = "Quick fill:"
 	preset_lbl.add_theme_font_size_override("font_size", 24); preset_lbl.modulate = Color(0.6, 0.6, 0.6)
