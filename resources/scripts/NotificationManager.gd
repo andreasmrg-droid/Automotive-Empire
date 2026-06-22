@@ -1,4 +1,6 @@
 class_name NotificationManager
+## Version: S34.2 — Bond-countered To-Do text now points to HQ ("…accept, counter or reject in
+##   HQ") since all negotiation actions are handled from HQ Pending Activity.
 ## Version: S34.1 — TDL bond visibility fix. get_pending_tasks() step 7b now branches on
 ##   bond_status inside the "approaching" case: "awaiting_team"→sent/await, "countered"→an
 ##   ACTIONABLE "team wants CR X — accept/counter/reject" task (was falling through to a stale
@@ -278,9 +280,8 @@ func get_pending_tasks() -> Array[String]:
 					"awaiting_team":
 						tasks.append("📤 Bond approach sent to %s's team — reply expected next week." % ap["subject_name"])
 					"countered":
-						tasks.append("💰 %s's team wants CR %s — accept, counter or reject. Go to %s." % [
-							ap["subject_name"], gs._fmt_int(int(ap.get("bond_team_ask", 0))),
-							"Drivers" if ap["subject_type"] == "driver" else "Staff"])
+						tasks.append("💰 %s's team wants CR %s — accept, counter or reject in HQ." % [
+							ap["subject_name"], gs._fmt_int(int(ap.get("bond_team_ask", 0)))])
 					"offered":
 						tasks.append("📤 Your bond offer for %s is with their team — reply next week." % ap["subject_name"])
 					_:

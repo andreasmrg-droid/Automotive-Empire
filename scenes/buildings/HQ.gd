@@ -1,4 +1,10 @@
 extends Control
+## Version: S34.2 — Pending Activity is now the single home for ALL negotiation actions. Added an
+##   inline bond decision popup (_open_bond_decision) used for BOTH the player's outgoing buyout
+##   (decide on owner team's ask) and incoming AI approaches (set the bond for your own personnel),
+##   each calling the same engine entry points (respond_bond_counter / respond_incoming_approach).
+##   The "approaching" row now distinguishes awaiting_team / offered / countered and shows an
+##   "Open →" button for a countered bond. Incoming bonds open inline instead of navigating away.
 ## Version: S29.12 — Localized Championship Registration button (creg_button key).
 ## --- S29.7 — Registration button moved to TOP of WRA panel, above the "Racing
 ##   this Season" box (#8). S29.6: removed duplicate "Take Loan" button (#4).
@@ -2200,6 +2206,102 @@ func _build_registration_panel() -> VBoxContainer:
 	return vbox
 
 
+## Inline bond decision popup (S34.2) — handles BOTH the player's outgoing buyout (decide on the
+## owner team's ask) and an incoming AI approach (set the bond demanded for your own personnel).
+## Uses the same engine entry points the hub buttons use, so behaviour is identical no matter
+## where the player opens it from. is_incoming routes to respond_incoming_approach; otherwise
+## respond_bond_counter. Closing refreshes the overview so the panel reflects the new state.
+func _open_bond_decision(neg_id: String, is_incoming: bool) -> void:
+	var ap = GameState._get_approach(neg_id)
+	if ap == null or ap.is_empty(): return
+
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.6)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	get_tree().current_scene.add_child(overlay)
+
+	var panel = PanelContainer.new()
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	panel.custom_minimum_size = Vector2(440, 0)
+	overlay.add_child(panel)
+
+	var vb = VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 12)
+	panel.add_child(vb)
+
+	var ask := int(ap.get("bond_team_ask", ap.get("bond_estimate", 0)))
+
+	var title = Label.new()
+	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.3))
+	if is_incoming:
+		title.text = "📥 %s — bond demand" % ap.get("subject_name", "")
+	else:
+		title.text = "💰 Bond — %s" % ap.get("subject_name", "")
+	vb.add_child(title)
+
+	var info = Label.new()
+	info.add_theme_font_size_override("font_size", 22)
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if is_incoming:
+		info.text = "%s wants to sign %s. Set the buyout bond you require to let them go." % [
+			ap.get("approaching_team_name", "A rival team"), ap.get("subject_name", "")]
+	else:
+		info.text = "%s's team will release them for CR %s. Accept, counter, or walk away." % [
+			ap.get("subject_name", ""), _fmt(ask)]
+	vb.add_child(info)
+
+	var spin = SpinBox.new()
+	spin.min_value = 0
+	spin.max_value = max(ask, 1) * 3.0
+	spin.step = 1000
+	spin.value = ask
+	spin.custom_minimum_size = Vector2(200, 36)
+	vb.add_child(spin)
+
+	var btn_row = HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 8)
+	vb.add_child(btn_row)
+
+	var close_and_refresh := func():
+		overlay.queue_free()
+		_show_tab("overview")
+
+	var btn_accept = Button.new()
+	btn_accept.text = "✅ Accept CR %s" % _fmt(ask)
+	btn_accept.add_theme_font_size_override("font_size", 22)
+	btn_accept.pressed.connect(func():
+		if is_incoming: GameState.respond_incoming_approach(neg_id, true)
+		else:           GameState.respond_bond_counter(neg_id, true)
+		close_and_refresh.call())
+	btn_row.add_child(btn_accept)
+
+	var btn_counter = Button.new()
+	btn_counter.text = "↩ Counter"
+	btn_counter.add_theme_font_size_override("font_size", 22)
+	btn_counter.pressed.connect(func():
+		if is_incoming: GameState.respond_incoming_approach(neg_id, false, spin.value)
+		else:           GameState.respond_bond_counter(neg_id, false, spin.value)
+		close_and_refresh.call())
+	btn_row.add_child(btn_counter)
+
+	var btn_reject = Button.new()
+	btn_reject.text = "✕ Reject"
+	btn_reject.add_theme_font_size_override("font_size", 22)
+	btn_reject.modulate = Color(1.0, 0.5, 0.5)
+	btn_reject.pressed.connect(func():
+		if is_incoming: GameState.respond_incoming_approach(neg_id, false, 0.0)
+		else:           GameState.respond_bond_counter(neg_id, false, 0.0)
+		close_and_refresh.call())
+	btn_row.add_child(btn_reject)
+
+	var btn_cancel = Button.new()
+	btn_cancel.text = "Close"
+	btn_cancel.add_theme_font_size_override("font_size", 22)
+	btn_cancel.pressed.connect(func(): overlay.queue_free())
+	btn_row.add_child(btn_cancel)
+
+## ─────────────────────────────────────────────────────────────────────────────
 ## Returns null if nothing pending, otherwise a VBoxContainer with all pending items.
 func _build_pending_activity() -> VBoxContainer:
 	var items = GameState.get_active_approaches_for_display()
@@ -2221,10 +2323,21 @@ func _build_pending_activity() -> VBoxContainer:
 		var status = ap.get("status", "")
 		match status:
 			"approaching":
-				icon_lbl.text = "📤"
-				desc_lbl.text = "Bond approach → %s (%s) · reply next week" % [
-					ap["subject_name"], ap.get("current_team_name","")]
-				desc_lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.4))
+				var bs := str(ap.get("bond_status", ""))
+				if bs == "countered":
+					icon_lbl.text = "💰"
+					desc_lbl.text = "%s's team wants CR %s · accept, counter or reject" % [
+						ap["subject_name"], _fmt(int(ap.get("bond_team_ask", 0)))]
+					desc_lbl.add_theme_color_override("font_color", Color(1.0, 0.75, 0.2))
+				elif bs == "offered":
+					icon_lbl.text = "📤"
+					desc_lbl.text = "Your bond offer for %s is with their team · reply next week" % ap["subject_name"]
+					desc_lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.4))
+				else:
+					icon_lbl.text = "📤"
+					desc_lbl.text = "Bond approach → %s (%s) · reply next week" % [
+						ap["subject_name"], ap.get("current_team_name","")]
+					desc_lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.4))
 			"bond_incoming":
 				icon_lbl.text = "📥"
 				desc_lbl.text = "%s wants %s · CR %s · decide" % [
@@ -2282,15 +2395,24 @@ func _build_pending_activity() -> VBoxContainer:
 				lbl_wait.add_theme_font_size_override("font_size", 20)
 				lbl_wait.modulate = Color(0.5, 0.5, 0.5)
 				row.add_child(lbl_wait)
-		elif status == "bond_incoming":
+		elif status == "approaching" and str(ap.get("bond_status","")) == "countered":
+			## Outgoing bond — the owner team named its price. Open the bond decision inline.
 			var btn = Button.new()
-			btn.text = "Respond →"
-			btn.custom_minimum_size = Vector2(80, 24)
+			btn.text = "Open →"
+			btn.custom_minimum_size = Vector2(70, 24)
 			btn.add_theme_font_size_override("font_size", 20)
 			btn.modulate = Color(1.0, 0.75, 0.2)
-			var dest = "res://scenes/Drivers.tscn" if ap.get("subject_type") == "driver" \
-				else "res://scenes/Staff.tscn"
-			btn.pressed.connect(func(): get_tree().change_scene_to_file(dest))
+			var neg_id = ap["neg_id"]
+			btn.pressed.connect(func(): _open_bond_decision(neg_id, false))
+			row.add_child(btn)
+		elif status == "bond_incoming":
+			var btn = Button.new()
+			btn.text = "Open →"
+			btn.custom_minimum_size = Vector2(70, 24)
+			btn.add_theme_font_size_override("font_size", 20)
+			btn.modulate = Color(1.0, 0.75, 0.2)
+			var neg_id = ap["neg_id"]
+			btn.pressed.connect(func(): _open_bond_decision(neg_id, true))
 			row.add_child(btn)
 
 		vbox.add_child(row)

@@ -1,4 +1,8 @@
 extends Control
+## Version: S34.2 — All negotiation/bond To-Do items route to HQ Overview. The go-button now
+##   sets pending_hq_tab="overview" for any HQ-bound negotiation task so HQ opens on the Pending
+##   Activity panel (with the Open button). Removed the earlier per-subject focus hint (bonds no
+##   longer route to Drivers/Staff). Bond-decide task wording → "in HQ".
 ## Version: S34.1 — Bond TDL routing + live refresh. (1) The new "team wants CR X" bond-decide
 ##   task routes to Drivers/Staff hub (where the Decide popup lives), not HQ; marked a
 ##   non-dismissable negotiation task. (2) MainHub now connects approach_updated → _update_display
@@ -832,7 +836,12 @@ func _refresh_log() -> void:
 				btn_go.add_theme_font_size_override("font_size", 20)
 				btn_go.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
 				var d = dest
+				## Negotiation/bond tasks all route to HQ → open it on the Overview (Pending
+				## Activity) panel so the player lands directly on the Open button for that item.
+				var go_hq_overview: bool = (d == "res://scenes/buildings/HQ.tscn")
 				btn_go.pressed.connect(func():
+					if go_hq_overview:
+						GameState.pending_hq_tab = "overview"
 					get_tree().change_scene_to_file(d))
 				task_row.add_child(btn_go)
 
@@ -1802,11 +1811,9 @@ func _get_todo_destination(task: String) -> String:
 		return "res://scenes/buildings/HQ.tscn"
 	if "bond offer" in task.to_lower() or "bond approach" in task.to_lower():
 		return "res://scenes/buildings/HQ.tscn"
-	## Bond decision (team named its price) — route to the hub with the Decide popup
+	## Bond decision (team named its price) — HQ Pending Activity has the inline Decide popup
 	if "team wants CR" in task and "accept, counter or reject" in task:
-		if "Go to Staff" in task:
-			return "res://scenes/Staff.tscn"
-		return "res://scenes/Drivers.tscn"
+		return "res://scenes/buildings/HQ.tscn"
 	if "💰" in task and "bond" in task.to_lower():
 		return "res://scenes/buildings/HQ.tscn"
 	if "📤 Bond approach" in task:
