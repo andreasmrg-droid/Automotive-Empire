@@ -1,4 +1,11 @@
 class_name ContractEngine
+## Version: S33.3 — Two contract-flow fixes. (1) Bond approach now progresses: the initial
+##   approach to a contracted subject's team sets bond_status="offered" (+bond_round=1) so the
+##   weekly _advance_approaches bond branch fires next week and the team replies (previously it
+##   sat at approaching/pending forever). (2) Pre-signed season slip fixed: _apply_approach_result
+##   now stamps signed_season=current_season when marking pre_signed (it didn't before, so the
+##   activation gate fell back to default=current_season and the join slipped a season —
+##   signed S1 joined S3 instead of S2). Person joins at signed_season + 1.
 ## Version: S33.2 — Canonical SLOT rule + early-join fix. (1) _get_max_slots_for_role now derives
 ##   every cap from BUILDING LEVEL, not car count: Mechanic=Garage, Pit Crew=Pit Crew Arena,
 ##   Strategist=Ops Sim & Telemetry, Designer=R&D Studio, TP=HQ, CFO=1 (slots = hiring capacity;
@@ -634,6 +641,12 @@ func initiate_approach(subject_id: String, subject_type: String,
 		ap["bond_player_offer"] = bond_info["estimate"]  ## default offer = estimate
 		ap["bond_reply_week"] = gs.current_week + 1
 		ap["status"] = "approaching"
+		## S33.3 FIX: mark the bond OFFERED (default offer = estimate) so the weekly
+		## _advance_approaches bond branch (which requires bond_status=="offered") fires next
+		## week. Previously bond_status stayed "pending" from _make_approach, so the approach
+		## sat at approaching/pending forever and never progressed to the team's reply.
+		ap["bond_status"] = "offered"
+		ap["bond_round"] = 1
 		gs.add_log("📋 Approach sent to %s's team. Bond estimate: CR %s. Reply next week." % [
 			name_str, gs._fmt_int(bond_info["estimate"])])
 		gs.add_notification("Normal",
@@ -888,6 +901,12 @@ func _apply_approach_result(ap: Dictionary) -> void:
 	if start_date == "next_season":
 		## Queue for next season — don't apply yet
 		ap["type"] = "pre_signed"
+		## S33.3 FIX: stamp the season this was signed IN. Without it, activation's gate
+		## (current_season > signed_season) fell back to default=current_season, so the join
+		## slipped one extra season (signed S1 → joined S3 instead of S2). signed_season is the
+		## CURRENT season; the person joins at signed_season + 1.
+		ap["signed_season"] = gs.current_season
+		ap["status"] = "agreed"
 		gs.add_log("✅ %s pre-signed — joins Season %d." % [name_str, gs.current_season + 1])
 		gs.add_notification("Normal",
 			"%s pre-signed and will join at the start of Season %d." % [name_str, gs.current_season + 1],
