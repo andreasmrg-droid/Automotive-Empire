@@ -1,10 +1,15 @@
 class_name ContractEngine
-## Version: S33.0-DEBUG — INSTRUMENTED BUILD (debug prints ONLY, zero logic changes) on top of
-##   the LIVE committed S33.0 (HEAD 6364a30). Adds [CONTRACT-DEBUG ...] prints at 5 points to
-##   trace the start_date dual-field drift: submit-write, submit-accept, accept-all (before/after),
-##   apply-result decision, and season-rollover activation. Use to confirm the next-season-signing
-##   bug, then DISCARD this file — do not commit. The real fix is the separate S33.1 file.
-## --- S33.0 — TP Phase 2: added team-scoped _get_tp_for_championship_team()/
+## Version: S33.1 — FIX: next-season (pre-signed) contracts were unreliable — some signed
+##   immediately, some never joined. Root cause: start_date lived in TWO unsynced fields
+##   (top-level ap.start_date, read by _apply_approach_result; and ap.terms.start_date.player_offer,
+##   set by the UI dropdown + read at activation). Fixes: (1) submit syncs top-level from the
+##   dropdown term; (2) "Accept all" no longer overwrites the player's start_date choice with
+##   their_ask; (3) activation forces start_date="immediate" + _presigned bypass so the pre-signed
+##   contract actually applies and isn't blocked by a roster-full guard. Debug prints removed.
+## --- S33.0 — TP Phase 2: team-scoped _get_tp_for_championship_team()/_get_strategist_for_championship_team()
+##   (player-scoped getters now thin wrappers). Lets the optimiser detect already-assigned
+##   championship roles for AI teams.
+## --- S27.0 — Extracted from GameState.gd (P57 Phase 4)
 ##   _get_strategist_for_championship_team(); the original player-scoped getters are now thin
 ##   wrappers passing player_team.id (callers unchanged). Lets the shared optimiser detect
 ##   already-assigned championship roles for AI teams.
@@ -761,9 +766,11 @@ func submit_approach_contract_offer(neg_id: String,
 	for key in field_offers:
 		if key in ap["terms"]:
 			ap["terms"][key]["player_offer"] = field_offers[key]
+	## S33.1: the dropdown writes start_date into the TERM; keep the top-level ap.start_date
+	## in step with it, or _apply_approach_result reads the stale opened-with value and signs
+	## immediately instead of next-season.
 	if "start_date" in field_offers:
-		print("[CONTRACT-DEBUG submit-write] %s | UI dropdown sent start_date='%s' → written to term. top-level ap.start_date still='%s' (NOT updated — this is the drift)" % [
-			ap.get("subject_name","?"), field_offers.get("start_date","?"), ap.get("start_date","?")])
+		ap["start_date"] = field_offers["start_date"]
 	ap["locked_fields"] = locked_fields
 	for key in locked_fields:
 		if key in ap["terms"]:
@@ -777,9 +784,6 @@ func submit_approach_contract_offer(neg_id: String,
 
 	if outcome == "accepted":
 		ap["status"] = "agreed"
-		print("[CONTRACT-DEBUG submit-accept] %s | top-level ap.start_date='%s' | term.start_date='%s'" % [
-			ap.get("subject_name","?"), ap.get("start_date","?"),
-			ap.get("terms",{}).get("start_date",{}).get("player_offer","<none>")])
 		_apply_approach_result(ap)
 		gs.emit_signal("approach_updated")
 		return "accepted"
@@ -800,16 +804,13 @@ func submit_approach_contract_offer(neg_id: String,
 func accept_approach_terms(neg_id: String) -> void:
 	var ap = _get_approach(neg_id)
 	if ap == null or ap["status"] != "negotiating": return
-	print("[CONTRACT-DEBUG accept-all BEFORE] %s | top-level='%s' | term.player_offer='%s' | term.their_ask='%s'" % [
-		ap.get("subject_name","?"), ap.get("start_date","?"),
-		ap.get("terms",{}).get("start_date",{}).get("player_offer","<none>"),
-		ap.get("terms",{}).get("start_date",{}).get("their_ask","<none>")])
 	for key in ap["terms"]:
+		## S33.1: start_date is the player's qualitative choice (Immediate / Next-Season),
+		## never the AI's "ask" — preserve it. Overwriting it with their_ask is what made a
+		## next-season pick silently become immediate on "Accept all".
+		if key == "start_date": continue
 		ap["terms"][key]["player_offer"] = ap["terms"][key]["their_ask"]
 	ap["status"] = "agreed"
-	print("[CONTRACT-DEBUG accept-all AFTER ] %s | top-level='%s' | term.player_offer='%s'  (note: term just overwritten by their_ask)" % [
-		ap.get("subject_name","?"), ap.get("start_date","?"),
-		ap.get("terms",{}).get("start_date",{}).get("player_offer","<none>")])
 	_apply_approach_result(ap)
 	gs.emit_signal("approach_updated")
 
@@ -866,9 +867,6 @@ func _apply_approach_result(ap: Dictionary) -> void:
 	var subject_type = ap["subject_type"]
 	var start_date = ap.get("start_date", "immediate")
 	var name_str = ap["subject_name"]
-	print("[CONTRACT-DEBUG apply-result] %s | DECIDING on top-level start_date='%s' → %s" % [
-		name_str, start_date,
-		"PRE-SIGN (joins next season)" if start_date == "next_season" else "IMMEDIATE (joins now)"])
 
 	## Pay bond if there was one
 	if ap.get("bond_status", "") == "agreed" and ap.get("bond_amount_final", 0) > 0:
@@ -991,11 +989,14 @@ func _activate_presigned_contracts() -> void:
 			}
 			for key in ap["terms"]:
 				fake_neg["player_offer"][key] = ap["terms"][key]["player_offer"]
-			print("[CONTRACT-DEBUG activation] %s | copied term.start_date='%s' into re-application → _apply_negotiation_result will take the '%s' branch %s" % [
-				ap.get("subject_name","?"),
-				fake_neg["player_offer"].get("start_date","<none>"),
-				fake_neg["player_offer"].get("start_date","<none>"),
-				"(BOUNCES back to pre-signed → person NEVER joins)" if fake_neg["player_offer"].get("start_date","") == "next_season" else "(joins for real)"])
+			## S33.1 FIX: the stored term still says start_date="next_season" (that's what made
+			## this a pre-signing). Passing it through makes _apply_negotiation_result re-take
+			## the next_season branch, re-queue the approach, and return WITHOUT joining the
+			## person — the signing silently never lands. It IS next season now, so force
+			## immediate so the contract applies for real. _presigned bypasses the "roster full"
+			## immediate-block (the player already committed this slot).
+			fake_neg["player_offer"]["start_date"] = "immediate"
+			fake_neg["_presigned"] = true
 			_apply_negotiation_result(fake_neg, true)
 			ap["status"] = "activated"
 
@@ -1152,15 +1153,17 @@ func _apply_negotiation_result(neg: Dictionary, accepted: bool) -> void:
 	if not accepted: return
 	var terms = neg["player_offer"]
 	var start_date = terms.get("start_date", "immediate")
+	var is_presigned: bool = neg.get("_presigned", false)  ## S33.1: activation of a committed pre-signing
 
 	match neg["subject_type"]:
 		"driver":
 			var driver = gs.all_drivers.get(neg["subject_id"])
 			if driver == null: return
-			## Slot check — only block immediate signing, not next-season
+			## Slot check — only block immediate signing, not next-season, and never a
+			## pre-signing activation (the player already planned that slot last season).
 			var max_d = gs.get_max_drivers()
 			if driver.contract_team == "" and gs.player_team.drivers.size() >= max_d \
-					and start_date == "immediate":
+					and start_date == "immediate" and not is_presigned:
 				gs.add_notification("High", "Racing Dept full — can't sign %s immediately. Sign for next season instead." % driver.full_name())
 				return
 			## Next-season signing — mark as pre_signed, don't apply yet

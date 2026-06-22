@@ -1,5 +1,10 @@
 class_name SeasonManager
-## Version: S33.0 — TP Phase 2 hook: after the JSON seed (load_car_assignments), for Season >= 2
+## Version: S33.1 — GK feeder regeneration: replaced the destructive GK wipe (which deleted all
+##   non-player GK drivers then relied on populate_season to "repopulate" — but populate_season
+##   only SORTS, never CREATES, so GK went empty every season past S1). Now the contracted GK
+##   field persists; only stale D-GK-FA pool drivers are cleared; gs.regenerate_gk_field(510)
+##   tops up the gap with new young cadets. Fixes the empty-GK-world + dried-up promotion pyramid.
+## --- S33.0 — TP Phase 2 hook: after the JSON seed (load_car_assignments), for Season >= 2
 ##   call gs.ai_auto_assign_all_teams() so the optimiser takes over AI assignment from Season 2
 ##   onward (Season 1 stays JSON-seeded). Absorbs the season's AI roster changes too.
 ## --- S28.4 — AI teams auto-renew expiring contracts each off-season (Bug 8).
@@ -123,15 +128,23 @@ func start_new_season() -> void:
 	# ── GK: Populate groups for new season ───────────────────────────────
 	if gs.gk_discipline == null:
 		gs.gk_discipline = GKDiscipline.new()
-	## Clear old GK cadet drivers before repopulating to avoid accumulation
-	var gk_driver_ids_to_clear: Array = []
+	## S33.1 — GK FEEDER REGENERATION (replaces the old destructive wipe).
+	## The previous code deleted EVERY non-player GK driver each season and relied on
+	## populate_season() to "repopulate" — but populate_season only SORTS existing drivers into
+	## groups, it never CREATES any. Result: clear 510 → populate 0 → empty GK field every season
+	## past S1, which also dried up the promotion pyramid that feeds all other championships.
+	## Correct model: the contracted GK field PERSISTS across seasons (drivers age/progress; the
+	## lifecycle cull handles retirements separately); we just TOP UP the gap with new young
+	## cadets so GK stays full. Only remove GK free-agent pool drivers (D-GK-FA) that accumulate.
+	var gk_fa_to_clear: Array = []
 	for did in gs.all_drivers:
-		var d = gs.all_drivers[did]
-		if d.active_discipline == "GK" and d.contract_team != gs.player_team.id:
-			gk_driver_ids_to_clear.append(did)
-	for did in gk_driver_ids_to_clear:
+		if did.begins_with("D-GK-FA"):
+			gk_fa_to_clear.append(did)
+	for did in gk_fa_to_clear:
 		gs.all_drivers.erase(did)
-	print("[SeasonManager] Cleared %d GK AI drivers for season reset" % gk_driver_ids_to_clear.size())
+	var gk_generated: int = gs.regenerate_gk_field(510)
+	print("[SeasonManager] GK feeder: cleared %d stale FA, generated %d new young cadets." % [
+		gk_fa_to_clear.size(), gk_generated])
 
 	gs.gk_discipline.populate_season(
 		gs.all_drivers,

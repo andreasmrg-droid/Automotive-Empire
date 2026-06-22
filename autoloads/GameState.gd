@@ -1799,6 +1799,11 @@ func _create_starting_staff(role: String, skill_min: float, skill_max: float) ->
 func get_available_drivers() -> Array:
 	return _driver_manager.get_available_drivers()
 
+## S33.1 — top up the GK feeder field with new young cadets at season rollover (GK is the
+## only place new drivers are born; everyone else fills gaps from the existing pool).
+func regenerate_gk_field(target_size: int = 510) -> int:
+	return _driver_manager.regenerate_gk_field(target_size)
+
 func get_player_drivers() -> Array:
 	return _driver_manager.get_player_drivers()
 

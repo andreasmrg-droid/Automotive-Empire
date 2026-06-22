@@ -1,5 +1,9 @@
 class_name DriverManager
-## Version: S27.0 — Extracted from GameState.gd + StaffManager.gd (P57)
+## Version: S33.1 — Added regenerate_gk_field(): tops up the contracted GK racing field with new
+##   young cadets at season rollover (GK = the feeder/birthplace; other championships fill gaps
+##   from the existing pool). Assigns each new cadet to a GK (C-001) AI team so populate_season
+##   includes them in groups. Fixes the empty-GK-world bug.
+## --- S27.0 — Extracted from GameState.gd + StaffManager.gd (P57)
 ##   Driver generation, hiring, releasing, contract renewal, queries.
 extends RefCounted
 
@@ -282,6 +286,54 @@ func _create_driver_for_discipline(id: String, first: String, last: String,
 
 	return d
 
+
+## S33.1 — GK is the feeder/birthplace of new drivers (world model). At each season rollover the
+## GK racing field is topped up with NEW young contracted cadets to replace those who aged out /
+## progressed / retired, so GK never empties and the promotion pyramid keeps its water supply.
+## Returns the number of new cadets generated. Mirrors _create_driver_for_discipline("GK") and
+## assigns each to a real GK (C-001) AI team so populate_season() includes them in race groups
+## (it requires a non-empty contract_team and excludes D-GK-FA / filler ids).
+func regenerate_gk_field(target_size: int = 510) -> int:
+	## Collect the AI teams registered in GK (C-001), excluding the player team.
+	var gk_team_ids: Array = []
+	for team in gs.all_teams:
+		if team == null: continue
+		if team.id == gs.player_team.id: continue
+		if "C-001" in team.active_championships:
+			gk_team_ids.append(team.id)
+	if gk_team_ids.is_empty():
+		return 0   ## no GK AI teams — nothing to attach cadets to
+
+	## Count the GK racers that already exist (contracted, non-player, non-FA, non-filler).
+	var existing := 0
+	for did in gs.all_drivers:
+		var d = gs.all_drivers[did]
+		if d.active_discipline != "GK": continue
+		if did.begins_with("D-GK-FA") or did.begins_with("D-FILL"): continue
+		if d.contract_team == "" or d.contract_team.begins_with("T-FILL"): continue
+		if d.contract_team == gs.player_team.id: continue
+		existing += 1
+
+	var to_make: int = max(0, target_size - existing)
+	if to_make == 0:
+		return 0
+
+	var nats = ["British","Italian","German","French","Spanish","Finnish","Brazilian","Japanese",
+		"American","Australian","Dutch","Belgian","Mexican","Canadian","Austrian","Swedish",
+		"Norwegian","Portuguese"]
+	for i in range(to_make):
+		var nat = nats[randi() % nats.size()]
+		var sex = "Male" if randf() > 0.3 else "Female"
+		var age = randi_range(13, 17)   ## young entrants — bottom of the pyramid
+		var name_data = NameGenerator.get_full_name(nat, sex)
+		var new_id = "D-GK-GEN-S%d-%04d" % [gs.current_season, i]
+		var d = _create_driver_for_discipline(new_id, name_data["first"], name_data["last"],
+			nat, age, sex, "GK", 1)
+		## Assign to a GK AI team so the driver is a contracted racer (populate_season eligible).
+		d.contract_team = gk_team_ids[randi() % gk_team_ids.size()]
+		d.contract_seasons_remaining = 3
+		gs.all_drivers[d.id] = d
+	return to_make
 
 func _create_driver(id: String, first: String, last: String, nationality: String, age: int, sex: String, team_id: String) -> Driver:
 	var d = Driver.new()
