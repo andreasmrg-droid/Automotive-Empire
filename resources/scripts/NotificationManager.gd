@@ -1,4 +1,9 @@
 class_name NotificationManager
+## Version: S34.1 — TDL bond visibility fix. get_pending_tasks() step 7b now branches on
+##   bond_status inside the "approaching" case: "awaiting_team"→sent/await, "countered"→an
+##   ACTIONABLE "team wants CR X — accept/counter/reject" task (was falling through to a stale
+##   "reply expected next week" line, so a waiting bond decision never surfaced in the To-Do List),
+##   "offered"→your offer is with their team. This is the fix for "approach sent, no TDL, nothing".
 ## Version: S31.1 — Bug 5: cross-week dedup. add_notification now suppresses an identical
 ##   non-Critical message while it is still UNREAD (instead of only within the same week),
 ##   so standing reminders ("assign a driver") stop restacking every week. Re-fires after
@@ -269,7 +274,17 @@ func get_pending_tasks() -> Array[String]:
 				tasks.append("💰 %s wants %s — respond to their bond offer." % [
 					ap.get("approaching_team_name","AI Team"), ap["subject_name"]])
 			"approaching":
-				tasks.append("📤 Bond approach sent to %s's team — reply expected next week." % ap["subject_name"])
+				match ap.get("bond_status", ""):
+					"awaiting_team":
+						tasks.append("📤 Bond approach sent to %s's team — reply expected next week." % ap["subject_name"])
+					"countered":
+						tasks.append("💰 %s's team wants CR %s — accept, counter or reject. Go to %s." % [
+							ap["subject_name"], gs._fmt_int(int(ap.get("bond_team_ask", 0))),
+							"Drivers" if ap["subject_type"] == "driver" else "Staff"])
+					"offered":
+						tasks.append("📤 Your bond offer for %s is with their team — reply next week." % ap["subject_name"])
+					_:
+						tasks.append("📤 Bond approach for %s in progress." % ap["subject_name"])
 			"negotiating":
 				var rounds_left = ap.get("max_contract_rounds",4) - ap.get("contract_round",1)
 				if ap.get("player_turn", true):

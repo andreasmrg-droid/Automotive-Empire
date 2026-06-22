@@ -1,4 +1,8 @@
 extends Control
+## Version: S34.1 — Bond TDL routing + live refresh. (1) The new "team wants CR X" bond-decide
+##   task routes to Drivers/Staff hub (where the Decide popup lives), not HQ; marked a
+##   non-dismissable negotiation task. (2) MainHub now connects approach_updated → _update_display
+##   so the TDL refreshes the instant a bond status changes, not only on the weekly tick.
 ## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
 ##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S28.1 — TDL panel wrapped in a height-capped ScrollContainer (220px) so a long
@@ -293,6 +297,10 @@ func _ready() -> void:
 	GameState.log_updated.connect(_refresh_log)
 	GameState.notifications_updated.connect(_on_notifications_updated)
 	GameState.bankruptcy_triggered.connect(_show_bankruptcy_screen)
+	## Refresh the TDL the instant a bond/approach status changes (e.g. team names its price),
+	## not only on the weekly tick — so a waiting bond decision surfaces immediately.
+	if GameState.has_signal("approach_updated") and not GameState.approach_updated.is_connected(_update_display):
+		GameState.approach_updated.connect(_update_display)
 
 	_update_display()
 	_refresh_log()
@@ -830,7 +838,9 @@ func _refresh_log() -> void:
 
 			var is_negotiation_task = "Offer sent to" in task_text or \
 				"Negotiations open:" in task_text or "Contract Round" in task_text or \
-				"their reply received" in task_text or "awaiting their reply" in task_text
+				"their reply received" in task_text or "awaiting their reply" in task_text or \
+				"team wants CR" in task_text or "Bond approach" in task_text or \
+				"bond offer for" in task_text
 			if not is_negotiation_task:
 				var btn_x = Button.new()
 				btn_x.text = "✕"
@@ -1792,6 +1802,11 @@ func _get_todo_destination(task: String) -> String:
 		return "res://scenes/buildings/HQ.tscn"
 	if "bond offer" in task.to_lower() or "bond approach" in task.to_lower():
 		return "res://scenes/buildings/HQ.tscn"
+	## Bond decision (team named its price) — route to the hub with the Decide popup
+	if "team wants CR" in task and "accept, counter or reject" in task:
+		if "Go to Staff" in task:
+			return "res://scenes/Staff.tscn"
+		return "res://scenes/Drivers.tscn"
 	if "💰" in task and "bond" in task.to_lower():
 		return "res://scenes/buildings/HQ.tscn"
 	if "📤 Bond approach" in task:
