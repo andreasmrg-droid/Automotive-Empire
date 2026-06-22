@@ -1,4 +1,6 @@
 class_name SeasonManager
+## Version: S35.6 — _process_lifecycle_cull() calls gs.invalidate_player_staff_cache() after
+##   retirements, so the player-staff cache (GameState S35.6) refreshes if a player staff retired.
 ## Version: S35.0 — SEASON TRANSITION PIPELINE reorder (Season_Transition_Pipeline_Spec_v1).
 ##   start_new_season() is now an explicit, commented A→E ordered sequence instead of the old
 ##   tangled order. The CRITICAL fix is ordering, not new logic: Stage B (activate pre-signed
@@ -398,6 +400,8 @@ func _process_lifecycle_cull() -> void:
 	## S28.3 (Bug 8): AI teams automatically renew their own expiring contracts so the
 	## negotiation cycle "triggers automatically" for the AI world (GDD §13 / line 605).
 	_ai_auto_renew_contracts()
+	## S35.6 — a player staff member may have retired; refresh the player-staff cache.
+	gs.invalidate_player_staff_cache()
 
 
 ## S28.3 (Bug 8) — AI teams auto-renew expiring contracts for their own drivers & staff.

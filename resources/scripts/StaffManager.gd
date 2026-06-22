@@ -1,4 +1,7 @@
 class_name StaffManager
+## Version: S35.6 — get_player_staff_by_role() now reads GameState's player-staff cache instead of
+##   scanning all 5000+ staff every call (called many times per HQ render). hire/release invalidate
+##   the cache. See GameState S35.6.
 ## Version: S28.3 — Added replenish_free_agent_pool(): tops up uncontracted staff per role
 ##   each season so retirements/hirings don't drain the market (Bug 7).
 ## --- S27.0 — Extracted from GameState.gd (P57)
@@ -225,6 +228,7 @@ func hire_staff(staff_id: String) -> bool:
 			return false
 	staff.contract_team = gs.player_team.id
 	staff.contract_seasons_remaining = 5
+	gs.invalidate_player_staff_cache()  ## S35.6 — roster changed
 	# Assign crew number for Pit Crew units
 	if staff.role == "Pit Crew":
 		var existing_crews = get_player_staff_by_role("Pit Crew")
@@ -258,6 +262,7 @@ func release_staff(staff_id: String) -> void:
 	staff.assigned_car_id = ""
 	staff.contract_seasons_remaining = 0
 	staff.release_clause = 0
+	gs.invalidate_player_staff_cache()  ## S35.6 — roster changed
 	gs.add_log("👋 Released %s (%s)" % [staff.full_name(), staff.role])
 	gs.emit_signal("log_updated")
 
@@ -314,12 +319,10 @@ func _create_starting_staff(role: String, skill_min: float, skill_max: float) ->
 
 
 func get_player_staff_by_role(role: String) -> Array:
-	var result = []
-	for staff_id in gs.all_staff:
-		var staff = gs.all_staff[staff_id]
-		if staff.contract_team == gs.player_team.id and staff.role == role:
-			result.append(staff)
-	return result
+	## S35.6 — read from the cached per-role list instead of scanning all_staff every call.
+	if gs._player_staff_cache_dirty:
+		gs._rebuild_player_staff_cache()
+	return gs._player_staff_by_role.get(role, [])
 
 
 func get_team_principal() -> Staff:

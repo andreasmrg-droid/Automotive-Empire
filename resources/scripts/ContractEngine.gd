@@ -1,4 +1,6 @@
 class_name ContractEngine
+## Version: S35.6 — Staff sign-activation now calls gs.invalidate_player_staff_cache() so the
+##   player-staff cache (GameState S35.6) refreshes when a signed staff member joins.
 ## Version: S35.0 — Season Transition Pipeline support. Added effective_join_season(ap): the single
 ##   named definition of WHEN a pre-signing lands (= signed_season + 1), so the rest of the engine
 ##   reasons about an ABSOLUTE target season instead of the fragile relative string "next_season"
@@ -1343,6 +1345,7 @@ func _apply_negotiation_result(neg: Dictionary, accepted: bool) -> void:
 			gs.add_log("✅ %s (%s) signed: CR %.0f/wk, %d seasons" % [
 				staff.full_name(), staff.role, staff.weekly_salary, staff.contract_seasons_remaining])
 			gs.add_notification("Normal", "%s (%s) joined your team." % [staff.full_name(), staff.role])
+			gs.invalidate_player_staff_cache()  ## S35.6 — roster changed
 			if staff.role in ["Race Mechanic", "Team Principal", "Race Strategist"]:
 				gs._fire_assignment_proposals()
 		"sponsor":

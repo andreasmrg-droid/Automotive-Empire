@@ -1,4 +1,7 @@
 extends Control
+## Version: S35.6 — Perf: the WRA/overview TP-slot check no longer scans all 5000+ staff per
+##   championship (the HQ-WRA lag) — it reads the cached player TP list. _build_staff_grid and the
+##   finance staff-salary sum likewise read get_all_player_staff() instead of scanning all_staff.
 ## Version: S34.2 — Pending Activity is now the single home for ALL negotiation actions. Added an
 ##   inline bond decision popup (_open_bond_decision) used for BOTH the player's outgoing buyout
 ##   (decide on owner team's ask) and incoming AI approaches (set the bond for your own personnel),
@@ -424,10 +427,9 @@ func _build_staff_grid() -> VBoxContainer:
 	vbox.add_theme_constant_override("separation", 5)
 
 	var hired = []
-	for sid in GameState.all_staff:
-		var s = GameState.all_staff[sid]
-		if s.contract_team == GameState.player_team.id:
-			hired.append(s)
+	## S35.6 — read the cached player-staff list instead of scanning all 5000+ staff.
+	for s in GameState.get_all_player_staff():
+		hired.append(s)
 
 	if hired.is_empty():
 		var lbl = Label.new(); lbl.text = "No staff hired."
@@ -694,12 +696,12 @@ func _show_tp_assign_popup(tp_id: String) -> void:
 		for champ in player_champs2:
 			var reg = GameState.CHAMPIONSHIP_REGISTRY.get(champ.id, {})
 			var champ_name = reg.get("name", champ.id)
+			## S35.6 — was a nested scan of all 5000+ staff per championship (the HQ/WRA lag).
+			## Now reads the cached player TP list (a handful) and checks assignment directly.
 			var slot_taken = false
-			for sid in GameState.all_staff:
-				var s = GameState.all_staff[sid]
+			for s in GameState.get_player_staff_by_role("Team Principal"):
 				if s.id == tp_id: continue
-				if s.role == "Team Principal" and s.contract_team == GameState.player_team.id \
-						and s.assigned_championship == champ.id:
+				if s.assigned_championship == champ.id:
 					slot_taken = true; break
 			var btn = Button.new()
 			btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1013,9 +1015,9 @@ func _build_fin_expenses() -> PanelContainer:
 		var d = GameState.all_drivers.get(d_id)
 		if d: driver_sal += int(d.weekly_salary)
 	var staff_sal = 0
-	for s_id in GameState.all_staff:
-		var s = GameState.all_staff[s_id]
-		if s.contract_team == GameState.player_team.id: staff_sal += int(s.weekly_salary)
+	## S35.6 — cached player-staff list instead of scanning all 5000+ staff.
+	for s in GameState.get_all_player_staff():
+		staff_sal += int(s.weekly_salary)
 	var maintenance = 0
 	for bn in GameState.campus_buildings:
 		var b = GameState.campus_buildings[bn]

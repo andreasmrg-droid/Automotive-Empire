@@ -1,5 +1,12 @@
 extends Node
-## Version: S35.5 — Living spare-parts price. SP is now economy-priced like fuel but as a
+## Version: S35.6 — Player-staff cache (perf). all_staff holds ~5000+ entries; HQ (esp. the WRA/
+##   overview tab), StaffHub and the finance strip used to scan ALL of them — sometimes in nested
+##   loops (TP-slot check was 6 champs × 5000+ = ~30k iterations per render) — to find the player's
+##   handful of staff. Added _player_staff_by_role / _player_staff_flat caches, rebuilt lazily on a
+##   dirty flag set via invalidate_player_staff_cache() at the roster-mutation funnels (hire,
+##   release, sign-activation, load, starting-setup, lifecycle cull). get_all_player_staff() and
+##   get_player_staff_by_role() now read the cache. Fixes the HQ/WRA scene lag at its root.
+## --- S35.5 — Living spare-parts price. SP is now economy-priced like fuel but as a
 ##   manufactured-goods commodity: get_sp_cost_per_unit() = BASE(1.0) × economy_mult (TIGHT
 ##   0.6–1.5 band, cf. Parts_Sale_Price_Multiplier) × sp_market_pressure (gentle mean-reverting
 ##   supply/demand wobble, ±15% bound, far calmer than fuel — small weekly move, rare mild shock
@@ -718,6 +725,15 @@ var ai_cars: Dictionary = {}
 
 # Staff pool — all staff in the game world (hired + available)
 var all_staff: Dictionary = {}    # staff_id → Staff
+
+## S35.6 — Player-staff cache (perf). all_staff holds ~5000+ entries; HQ/StaffHub/Drivers used to
+## scan ALL of them (sometimes in nested loops) to find the player's handful, causing scene lag.
+## This cache holds ONLY the player's staff, keyed by role, rebuilt whenever the roster changes
+## (hire/release/sign-activation/load/rollover) via _rebuild_player_staff_cache(). Accessors read
+## from it instead of scanning all_staff. Kept a Dictionary{role:Array} + a flat list.
+var _player_staff_by_role: Dictionary = {}   # role(String) → Array[Staff]
+var _player_staff_flat: Array = []           # all player staff, any role
+var _player_staff_cache_dirty: bool = true   # rebuild on next read if true
 
 # Part inventory — stock of major car parts
 # Keyed by championship_id then part name
@@ -1925,6 +1941,7 @@ func _give_starting_assets(champ_id: String) -> void:
 
 	add_log("🏎 Starting assets ready for %s." % reg.get("name", champ_id))
 	add_log("💰 Remaining balance: CR %s" % _fmt_int(int(player_team.balance)))
+	invalidate_player_staff_cache()  ## S35.6 — starting roster populated
 
 ## ═══ STAFF MANAGER — delegated to StaffManager.gd (S27) ═══
 
@@ -2290,13 +2307,33 @@ func get_all_available_staff() -> Array:
 			result.append(staff)
 	return result
 
-func get_all_player_staff() -> Array:
-	var result = []
+## S35.6 — rebuild the player-staff cache from all_staff. One full scan; only runs when dirty.
+func _rebuild_player_staff_cache() -> void:
+	_player_staff_by_role.clear()
+	_player_staff_flat.clear()
+	if player_team == null:
+		_player_staff_cache_dirty = false
+		return
+	var pid = player_team.id
 	for staff_id in all_staff:
 		var staff = all_staff[staff_id]
-		if staff.contract_team == player_team.id:
-			result.append(staff)
-	return result
+		if staff.contract_team == pid:
+			_player_staff_flat.append(staff)
+			if not _player_staff_by_role.has(staff.role):
+				_player_staff_by_role[staff.role] = []
+			_player_staff_by_role[staff.role].append(staff)
+	_player_staff_cache_dirty = false
+
+## S35.6 — call after ANY change to who is on the player's roster (hire/release/sign/load/rollover).
+## Cheap: just flags the cache; the next read rebuilds. Funnel all roster mutations through this
+## so the cache can never silently go stale.
+func invalidate_player_staff_cache() -> void:
+	_player_staff_cache_dirty = true
+
+func get_all_player_staff() -> Array:
+	if _player_staff_cache_dirty:
+		_rebuild_player_staff_cache()
+	return _player_staff_flat
 func get_race_blocking_tasks() -> Array[String]:
 	var tasks: Array[String] = []
 	if active_championship == null:
@@ -3395,6 +3432,8 @@ func load_game(path: String = "user://save_game.json") -> void:
 		player_team.set_meta("rnd_bonuses", data["rnd_bonuses"])
 
 	print("[Load] Game loaded successfully — Season %d Week %d" % [current_season, current_week])
+	## S35.6 — staff/team restored; rebuild the player-staff cache from the loaded roster.
+	invalidate_player_staff_cache()
 	## P57: Initialize SeasonManager
 	_season_manager = SeasonManager.new(self)
 	## P57: Initialize FinancialEngine
