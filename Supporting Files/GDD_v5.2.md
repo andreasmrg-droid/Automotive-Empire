@@ -1,6 +1,8 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v5.1 (consolidated master) · **Engine:** Godot 4.6.3 / GDScript
+**Version:** v5.2 (consolidated master) · **Engine:** Godot 4.6.3 / GDScript
+<!-- v5.2: §12-A canonical approach flow (interest→bond→contract), release-clause vs buyout-bond
+     distinction, TP/CFO role split, join-date bond calc, immediate-transfer 1.5×+25% fee. -->
 **Last updated:** 2026-06-21 · **Repo:** https://github.com/andreasmrg-droid/Automotive-Empire.git
 
 > This is the single source of truth for the design of Automotive Empire. All prior
@@ -559,11 +561,75 @@ starts at 60 and climbs +10 each season until the next cycle (§5).
 
 ## 12. CONTRACTS, GENERATION, AGING & ACADEMY
 
-### Contract negotiation
+### Contract negotiation — overview
 Driver/Staff/Sponsor contracts negotiate on: Base Salary, Performance Bonuses, Contract
-Length, Buyout/Release Clause, Reputation & Loyalty modifier. The **CFO** (via
-`sponsor_negotiation`) handles ALL negotiations independently. When an approach target is
-**not interested**, a visible popup informs the player (not just a silent news/notification).
+Length, Release Clause, Buyout Bond. **Sponsor** deals are business deals — instant,
+CFO-handled, no TP. **Driver and racing-staff** approaches follow the ordered approach flow
+below (§12-A). When an approach target is **not interested**, a visible popup informs the
+player (not just a silent news/notification).
+
+**Two distinct protections — do not conflate them:**
+- **Release clause** = security of the **PERSON**. The owner team must pay *this amount to the
+  person* to release them early. (If an AI team poaches your driver via release clause, they
+  trigger it and the clause is paid to the person on exit.)
+- **Buyout bond** = security of the **OWNER TEAM**. Another team must pay *this amount to the
+  owner team* to sign the person away while under contract. Compensates the team for the loss.
+
+**Role split (authoritative — supersedes any "CFO handles all" text elsewhere):**
+- **TP (Team Principal)** = racing/talent side. Makes the approach, gauges interest, negotiates
+  contract terms for drivers and racing staff. A TP must be assigned before approaching a
+  contracted person.
+- **CFO** = financial side only. Sets bond-estimate accuracy and handles sponsor deals. The CFO
+  has **no** effect on interest or contract terms.
+
+### 12-A. Approach flow (ordered — THIS IS THE CANONICAL SEQUENCE)
+
+Every approach — bonded or not — runs in this exact order. Skipping or reordering steps is a bug.
+
+1. **Interest check (always first).** The TP approaches the person directly. Hidden roll:
+   `chance = talent×0.5 + 50 + TP.reputation×0.3`, clamped 1–100. Drivers use `potential`;
+   staff use `talent`. **Inter-team reputation is NOT a factor** (removed as unrealistic). No TP
+   assigned → cannot approach a contracted person. If **not interested → approach ends** with a
+   visible popup ("not the right time"). Nothing else happens.
+
+2. **Determine contract status AT THE JOIN DATE** (immediate or next-season — player's choice):
+   - **Free agent at join date** (no contract, OR contract expires before the join date) →
+     **NO bond.** Go straight to contract negotiation (step 4).
+   - **Last season of contract** → next-season signing only, **no bond**, straight to contract
+     negotiation.
+   - **Still under contract at the join date** → bond negotiation required (step 3).
+
+3. **Buyout bond negotiation with the OWNER TEAM** (only if still contracted at join date):
+   - 1 week per round, **max 3 rounds**: owner team replies accept / counter / reject.
+   - CFO sets estimate accuracy shown to player: **±8% with CFO, ±30% without**. Informational
+     only — **no hard cap** on the bond amount; the market sets it.
+   - **Bond formula (calculated AT THE JOIN DATE):**
+     `bond = weekly_salary × weeks_remaining × talent_factor`
+     where `weeks_remaining` is measured **from the season the contract STARTS** — for a
+     next-season signing, count from season start, not from now.
+   - `talent_factor`: 0–30 = ×0.8, 31–60 = ×1.0, 61–80 = ×1.3, 81–100 = ×1.8.
+   - **Immediate mid-contract transfer** (joining now, mid-contract): **1.5× bond + 25%
+     disruption fee.** Rare and expensive by design — most signings are next-season.
+   - If bond rejected / player walks → approach ends, no bond paid.
+
+4. **Contract negotiation with the PERSON** (after bond agreed, or directly for free
+   agents/last-season):
+   - **1 round per week.** Player submits offer → other side replies next week.
+   - **Per-item lock buttons** (🔓/🔒): player locks agreed terms and counters the rest. The
+     other side may **unlock** a previously agreed item if the package becomes unacceptable
+     (e.g. accepts 3-year duration but then demands higher salary for the longer commitment).
+   - **Patience:** 3 weeks of no response → negotiation expires ("Lapsed due to no response").
+   - Closing the popup on Round 1 before submitting = approach cancelled. After submitting =
+     waiting state, continues next week.
+
+5. **Bond paid ONLY on successful signing** (contract concluded), never when negotiations start.
+   If contract negotiation fails, no bond is paid. On success: bond paid to owner team, person
+   transfers at the chosen start date (immediate or pre-signed for next season).
+
+6. **HQ overview PENDING ACTIVITY panel** must surface every live item, both directions:
+   interest checks sent, bond offers in/out (Accept | Counter | Reject), contract rounds due,
+   pre-signed joins, and expiring negotiations. Incoming AI approaches for the player's own
+   personnel appear here too (player sets/accepts the bond — the team's security).
 
 ### Team/Driver/Staff generation
 The engine auto-populates championships to maintain min/optimum car numbers

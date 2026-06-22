@@ -1,4 +1,13 @@
 class_name ContractEngine
+## Version: S34.0 — Bond negotiation rebuilt to GDD §12-A. (1) The S33.3 auto-accept regression
+##   is removed: initiate_approach no longer pre-fills the player's bond offer at the estimate
+##   (which made the team auto-accept and skipped the whole negotiation). A contracted approach
+##   now goes out as bond_status="awaiting_team"; the owner team names its opening ask next week
+##   via new _generate_team_bond_ask() (premium 1.0–1.25× of estimate), routed through
+##   bond_status="countered" so the existing Accept|Counter|Reject UI handles the player's reply.
+##   (2) Free-agent-at-join-date check: a contract expiring before the join date (incl. last-season
+##   next-season signings) needs no bond. (3) Immediate-transfer disruption fee (1.5×+25%) now
+##   fires for ANY mid-contract immediate join (weeks_remaining > 0), not only > 1 season left.
 ## Version: S33.3 — Two contract-flow fixes. (1) Bond approach now progresses: the initial
 ##   approach to a contracted subject's team sets bond_status="offered" (+bond_round=1) so the
 ##   weekly _advance_approaches bond branch fires next week and the team replies (previously it
@@ -385,7 +394,7 @@ func _make_approach(subject_id: String, subject_type: String,
 		"bond_team_ask":      0.0,
 		"bond_round":         0,     ## 0=not started, 1=awaiting reply, 2=counter reply
 		"bond_reply_week":    0,
-		"bond_status":        "pending",  ## pending|offered|countered|agreed|rejected
+		"bond_status":        "pending",  ## pending|awaiting_team|offered|countered|agreed|rejected
 
 		## Contract negotiation phase
 		"start_date":         start_date,  ## "immediate" | "next_season"
@@ -478,8 +487,10 @@ func get_bond_estimate(subject_id: String, subject_type: String,
 	var lo = raw_estimate * (1.0 - accuracy)
 	var hi = raw_estimate * (1.0 + accuracy)
 
-	## Immediate mid-contract costs 1.5× + 25% disruption
-	if start_date == "immediate" and weeks_remaining > 52:
+	## Immediate transfer while still under contract = 1.5× bond + 25% disruption fee
+	## (GDD §12-A step 3). "Mid-contract" = any time remaining at an immediate join, not only
+	## more than one season. Rare and expensive by design; most signings are next-season.
+	if start_date == "immediate" and weeks_remaining > 0:
 		raw_estimate *= 1.5 * 1.25
 		lo *= 1.5 * 1.25
 		hi *= 1.5 * 1.25
@@ -627,30 +638,45 @@ func initiate_approach(subject_id: String, subject_type: String,
 
 	var name_str = _get_subject_display_name(subject_id, subject_type)
 
-	if current_team_id == "":
-		## Free agent — skip bond, go straight to contract negotiation
+	## GDD §12-A step 2: determine contract status AT THE JOIN DATE, not now. A person whose
+	## contract expires before the join date is a free agent THEN — no bond. For a next-season
+	## join, anyone in their last season (<=1 season remaining) has expired by season start.
+	var free_at_join: bool = (current_team_id == "")
+	if not free_at_join:
+		var seasons_left := 0
+		if subject_type == "driver":
+			var d = gs.all_drivers.get(subject_id)
+			if d: seasons_left = d.contract_seasons_remaining
+		else:
+			var s = gs.all_staff.get(subject_id)
+			if s: seasons_left = s.contract_seasons_remaining
+		if start_date == "next_season" and seasons_left <= 1:
+			free_at_join = true   ## last season → expired by next-season join → no bond
+
+	if free_at_join:
+		## Free agent at join date — skip bond, go straight to contract negotiation
 		ap["status"] = "negotiating"
 		ap["needs_bond"] = false
 		_start_contract_phase(ap)
-		gs.add_log("📋 Approach to free agent %s — contract negotiation begins." % name_str)
-		gs.add_notification("Normal", "%s is interested! Contract negotiation begins." % name_str)
+		var fa_note: String = "free agent" if current_team_id == "" else "contract expires before joining"
+		gs.add_log("📋 Approach to %s (%s) — no bond, contract negotiation begins." % [name_str, fa_note])
+		gs.add_notification("Normal", "%s is interested! Contract negotiation begins (no buyout needed)." % name_str)
 	else:
-		## Contracted — send bond approach to their team
+		## Contracted at join date — bond negotiation with the OWNER TEAM (GDD §12-A step 3).
+		## The team replies NEXT WEEK with its opening ask; the player then accepts / counters /
+		## rejects. We do NOT pre-fill the player's offer (that auto-accepted and skipped the
+		## whole negotiation — the S33.3 regression). bond_status "awaiting_team" means the
+		## approach has been sent and we're waiting for the team to name its price.
 		var bond_info = get_bond_estimate(subject_id, subject_type, start_date)
 		ap["bond_estimate"] = bond_info["estimate"]
-		ap["bond_player_offer"] = bond_info["estimate"]  ## default offer = estimate
 		ap["bond_reply_week"] = gs.current_week + 1
 		ap["status"] = "approaching"
-		## S33.3 FIX: mark the bond OFFERED (default offer = estimate) so the weekly
-		## _advance_approaches bond branch (which requires bond_status=="offered") fires next
-		## week. Previously bond_status stayed "pending" from _make_approach, so the approach
-		## sat at approaching/pending forever and never progressed to the team's reply.
-		ap["bond_status"] = "offered"
-		ap["bond_round"] = 1
-		gs.add_log("📋 Approach sent to %s's team. Bond estimate: CR %s. Reply next week." % [
-			name_str, gs._fmt_int(bond_info["estimate"])])
+		ap["bond_status"] = "awaiting_team"
+		ap["bond_round"] = 0
+		gs.add_log("📋 Approach sent to %s's team. CFO estimate: CR %s (±%d%%). Their team replies next week." % [
+			name_str, gs._fmt_int(bond_info["estimate"]), int(bond_info["accuracy"] * 100.0)])
 		gs.add_notification("Normal",
-			"Approach sent for %s. Their team will reply next week." % name_str,
+			"Approach sent for %s. Their team will name a buyout price next week." % name_str,
 			"drivers" if subject_type == "driver" else "staff_hub")
 
 	gs.active_approaches.append(ap)
@@ -942,8 +968,15 @@ func _advance_approaches() -> void:
 	for ap in gs.active_approaches:
 		if ap["status"] in ["agreed","failed","rejected","expired"]: continue
 
-		## ── Bond phase: waiting for team reply ──────────────────────────────
+		## ── Bond phase: owner team names its opening ask (GDD §12-A step 3) ──
 		if ap["type"] == "approach" and ap["status"] == "approaching" \
+				and ap.get("bond_status", "") == "awaiting_team" \
+				and gs.current_week >= ap["bond_reply_week"]:
+			_generate_team_bond_ask(ap)
+			changed = true
+
+		## ── Bond phase: waiting for team reply to a player offer ────────────
+		elif ap["type"] == "approach" and ap["status"] == "approaching" \
 				and ap["bond_status"] == "offered" \
 				and gs.current_week >= ap["bond_reply_week"]:
 			_process_bond_reply(ap)
@@ -1033,6 +1066,31 @@ func _activate_presigned_contracts() -> void:
 			fake_neg["_presigned"] = true
 			_apply_negotiation_result(fake_neg, true)
 			ap["status"] = "activated"
+
+## ── Owner team names its opening buyout ask (GDD §12-A step 3) ─────────────────
+## Fired the week after the player's approach. The owner team values its personnel at the
+## true bond (the estimate is the player-facing approximation), with a small premium and
+## variance, then presents that ask. We route through bond_status="countered" so the existing
+## bond-response UI (Accept | Counter | Reject) and respond_bond_counter() handle the player's
+## reply — no new UI needed. This is the team's security: the player must meet a real price.
+func _generate_team_bond_ask(ap: Dictionary) -> void:
+	var estimate: float = float(ap.get("bond_estimate", 0))
+	## Team asks at a premium over the player-visible estimate, with variance so it isn't
+	## perfectly predictable. Range ~1.0×–1.25× of the estimate.
+	var premium := 1.0 + randf() * 0.25
+	var ask := int(round(estimate * premium))
+	ap["bond_team_ask"] = ask
+	ap["bond_status"] = "countered"
+	ap["bond_round"] = 1
+	ap["bond_reply_week"] = gs.current_week + 1
+	gs.add_log("💰 %s's team will release them for CR %s. Accept, counter, or walk away." % [
+		ap["subject_name"], gs._fmt_int(ask)])
+	gs.add_notification("High",
+		"%s's team wants CR %s to let them go. Decide from %s." % [
+			ap["subject_name"], gs._fmt_int(ask),
+			"Drivers" if ap["subject_type"] == "driver" else "Staff"],
+		"drivers" if ap["subject_type"] == "driver" else "staff_hub")
+	gs.emit_signal("approach_updated")
 
 ## ── Bond reply from AI team ───────────────────────────────────────────────────
 func _process_bond_reply(ap: Dictionary) -> void:

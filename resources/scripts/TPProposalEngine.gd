@@ -1,4 +1,8 @@
 class_name TPProposalEngine
+## Version: S34.0 — TP critical message reworded: it flags only EXISTING cars that lack crew
+##   ("some of your cars lack crew and can't race — assign in Racing Department"), making clear
+##   the TP never prompts buying a car. compute_optimal_assignments already iterates only actual
+##   team_cars, so this is wording alignment to GDD §12-A intent, not a logic change.
 ## Version: S33.0 — TP Phase 2 (AI auto-assign). Added ai_auto_assign(team) and
 ##   ai_auto_assign_all_teams(): AI teams run the SAME compute_optimal_assignments
 ##   (include_tp=true) but APPLY DIRECTLY — driver/mechanic/pit set on the car, strategist/TP
@@ -351,7 +355,7 @@ func _fire_tp_proposal_notification(proposals: Array) -> void:
 	var msg: String
 	var priority: String
 	if has_critical:
-		msg = "🚫 TP: missing personnel — some cars cannot race. → Racing Department"
+		msg = "🚫 TP: some of your cars lack crew and can't race — assign in Racing Department."
 		priority = "Critical"
 	elif has_warning:
 		msg = "⚠ TP proposals: %d assignment%s (some low-adaptation). → Racing Department" % [
