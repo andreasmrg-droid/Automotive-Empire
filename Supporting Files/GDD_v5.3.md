@@ -1,9 +1,11 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v5.2 (consolidated master) · **Engine:** Godot 4.6.3 / GDScript
+**Version:** v5.3 (consolidated master) · **Engine:** Godot 4.6.3 / GDScript
+<!-- v5.3: §7.1 Season Transition Pipeline (built S35.0) — the ordered A→E rollover sequence,
+     dual-ledger promotion, B-before-E fix, GK-as-sole-generation-source, Stage-E archive write. -->
 <!-- v5.2: §12-A canonical approach flow (interest→bond→contract), release-clause vs buyout-bond
      distinction, TP/CFO role split, join-date bond calc, immediate-transfer 1.5×+25% fee. -->
-**Last updated:** 2026-06-21 · **Repo:** https://github.com/andreasmrg-droid/Automotive-Empire.git
+**Last updated:** 2026-06-22 · **Repo:** https://github.com/andreasmrg-droid/Automotive-Empire.git
 
 > This is the single source of truth for the design of Automotive Empire. All prior
 > session-handoff notes and manual "latest update" appendices have been absorbed into
@@ -11,6 +13,7 @@
 > Companion files (separate by intent, not superseded):
 > - `Brainstorm_Threads.md` — design VISION & strategy rationale (the "why / what we want").
 > - `FEATURE_AI_Championship_Sim.md` — full spec for the deferred living-world feature.
+> - `Season_Transition_Pipeline_Spec_v1.md` — detailed companion to §7.1 (the built rollover).
 > - `Master_Calculation___Formula_Document` — the authoritative formula/variable reference.
 > Where this document and the code ever disagree, the CODE is truth; update this doc to match.
 
@@ -311,6 +314,66 @@ Three paged screens navigated with Back/Next (Continue stays in the header throu
 - Currently only the player's raced championship(s) get populated standings; all others are
   empty (end-of-season screen filters to raced championships to avoid empty-data crashes).
   The "living world" fix is the deferred AI Championship Sim (§14).
+
+### 7.1 Season Transition Pipeline (built S35.0)
+
+Every season rollover runs ONE ordered sequence inside `SeasonManager.start_new_season()`. The
+pieces existed before but were interleaved in the wrong order — the integration is the design.
+Detailed companion: `Season_Transition_Pipeline_Spec_v1.md`.
+
+**The world model.** JSON is the season-1 seed (all drivers per team/car/championship + free
+agents). During a season, player and AI bank decisions (expand championships, add cars, renew,
+don't-renew, sign for next season). At rollover the next-season ledger becomes the current-season
+ledger and a fresh next-season ledger opens; recorded signings/releases execute; TPs propose the
+new roster for the player and assign directly for AI; the engine fills GK's gaps with new cadets;
+finally it culls anyone out of contract for 2 full seasons (archiving them). This loop runs every
+season.
+
+**The driver pyramid.** GK is the feeder and the ONLY birthplace of new drivers — at rollover the
+engine generates young cadets to fill GK's gaps. Every other championship fills gaps by drawing UP
+from the existing pool (the cadet→professional promotion path); they never generate their own
+drivers. If GK stops refilling, the whole pyramid's supply dries up — which is why the old
+"wipe GK, regenerate nothing" behaviour was foundational, not cosmetic.
+
+**The ordered stages (A→E):**
+
+1. **Stage A — Promote the ledger.** The next-season registration ledger becomes this season's
+   race set; the ledger is cleared for new planning. Runs first so every downstream check
+   (car-needed, delivery, Logistics, TDL) sees the correct registrations.
+2. **(Pre-B) Age & lapse.** Age drivers/staff, decrement contracts, lapse expired player
+   contracts. Runs before Stage B so a contract expiring at this rollover frees its holder before
+   signings are applied.
+3. **Stage B — Apply signings & releases.** Activate every pre-signed contract whose effective
+   join season is now (the person joins their new team) and flush queued TP/Strategist
+   assignments. **Must run before Stage E** — see the critical-rule note below.
+4. **Stage C — TP assignment.** AI teams re-allocate all 5 roles via the optimiser (Season 2+;
+   Season 1 stays JSON-seeded). Player proposals are regenerated later, after the car wipe.
+5. **Stage D — GK feeder generate-to-fill.** The contracted GK field persists across seasons; the
+   engine only clears the stale GK free-agent pool and tops up the gap with new young cadets
+   (generate `target − existing`, never a destructive wipe). Runs after rosters settle so the
+   "existing" count is accurate. New cadets are created already contracted, so Stage E never
+   touches them.
+6. **Stage E — Lifecycle cull + archive.** Age retirement + the 2-season free-agent erase, run
+   LAST so a just-released or just-activated (Stage B) person is not culled in the same tick they
+   change status. A culled free agent is recorded in `retired_personnel` (reason `left_sport`)
+   before erasure — **not** in `hall_of_fame`, which holds race-win records (a career-exit entry
+   there would corrupt the win tally).
+
+Downstream of A→E sits presentation/reset (car wipe, championship reset, notifications, R&D
+carry-over, WRA-cycle check, stale-state flush); order among those is cosmetic.
+
+**CRITICAL RULE — B before E.** Activating pre-signed signings must precede the free-agent cull.
+A driver pre-signed last season is still a free agent at the instant of rollover; if the 2-season
+cull runs first, it erases them before the activation that would join them to the team, and the
+signing silently evaporates. This ordering is the core fix of the pipeline (Stages B and D were
+already individually fixed in S33.1/33.2; S35.0 put them in the correct sequence).
+
+**Timing definition.** A pre-signing is stamped `signed_season` (the season it was struck) and
+takes effect the FOLLOWING season. `ContractEngine.effective_join_season(ap)` is the single named
+definition of that target season (`signed_season + 1`), so the pipeline reasons about an absolute
+target rather than the fragile relative string "next_season" (the string-replay was the root of
+the original "bounces back, never joins" activation bug). `signed_season` remains the only stored
+field — the helper only names the derived value, so there is no parallel state to drift.
 
 ---
 
@@ -790,8 +853,10 @@ the wildcards). Biggest risk: scope creep — keep saying "backlog."
 - **AI Championship Sim / living world:** all 23 non-GK championships must simulate for all teams
   every season (currently only GK shadow-sims). Deferred — full spec in
   `FEATURE_AI_Championship_Sim.md` (§14). Player requirement, OK to defer.
-- **TP Assignment — Phase 2 (AI):** `ai_auto_assign` incl. TP reassignment at season start / roster
-  change, using the shared optimiser (§9-I). Not yet built.
+- **TP Assignment — Phase 2 (AI):** ~~`ai_auto_assign` incl. TP reassignment at season start /
+  roster change~~ **STRUCK (resolved, S35.0):** `ai_auto_assign_all_teams()` is built and wired
+  into the Season Transition Pipeline at Stage C (§7.1) — `compute_optimal_assignments(team, cars,
+  include_tp=true)` applied directly for every AI team, Season 2+. Verified live.
 - **TP engine cleanup:** legacy `get_tp_proposals_all()` is now dead code (no internal callers,
   replaced by `compute_optimal_assignments`); remove in a focused pass.
 - **TP proposal timing:** should fire ~1 week before a race, not every racing week — still open.
@@ -808,6 +873,16 @@ the wildcards). Biggest risk: scope creep — keep saying "backlog."
 
 Historical record of what shipped; design facts above already reflect these.
 
+- **S35.0 (Season Transition Pipeline — §7.1):** reordered `start_new_season()` into the explicit
+  A→E sequence. Split `_process_off_season` into `_process_off_season_aging` (early) +
+  `_process_lifecycle_cull` (late, Stage E). **Core fix:** Stage B (activate pre-signed signings)
+  now runs BEFORE Stage E (2-season cull) — previously B ran dead-last, so a driver pre-signed last
+  season (still a free agent at rollover) could be erased before activation joined them (signing
+  silently evaporated). Added `ContractEngine.effective_join_season(ap)` (= `signed_season + 1`) so
+  timing is an absolute target, not the fragile "next_season" string. `_erase_free_agent` now
+  archives to `retired_personnel` (reason `left_sport`) before erasing — not to `hall_of_fame`
+  (race-win records). Stages B/D were already fixed (S33.1/33.2); this is the ordering + archive.
+  Verified: headless ordering proof + in-engine season-rollover test.
 - **S30–S32 (Phase 2 + TP rebuild):**
   - **Phase 2 car acquisition & delivery** (§6.0): buy vs design+build; per-car `delivery_week`;
     DNS-until-ready; cars scrapped each season; Garage in-build banner + locked part slots.
@@ -836,7 +911,8 @@ Historical record of what shipped; design facts above already reflect these.
 
 ---
 
-*End of GDD v5.1. Companion files: `Brainstorm_Threads.md` (vision/strategy),
+*End of GDD v5.3. Companion files: `Brainstorm_Threads.md` (vision/strategy),
 `FEATURE_AI_Championship_Sim.md` (deferred feature spec), `TP_Assignment_System_Spec_v2.md` (TP
-assignment design), `Master_Calculation___Formula_Document` (formula reference). Keep this document
-reconciled with the code after every session.*
+assignment design), `Season_Transition_Pipeline_Spec_v1.md` (§7.1 rollout detail),
+`Master_Calculation___Formula_Document` (formula reference). Keep this document reconciled with the
+code after every session.*
