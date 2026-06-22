@@ -1,5 +1,13 @@
 class_name RaceSimulator
-## Version: S30.1 — Phase 2 DNS-until-ready: a car that has not yet been delivered
+## Version: S35.2 — DNS notification collapse. Every pre-race DNS notification (no fuel, undelivered
+##   car, no mechanic, no driver, no pit crew) now carries a `subject` (NotificationManager S35.1)
+##   so it collapses to its current-race-week instance instead of stacking one per race week. This
+##   was the visible spam in the panel (S1 W32/34/36/38 each showing an identical "DNS: Not enough
+##   fuel" — the pre-race can_car_race() check fired a fresh Critical notification every race week
+##   with no subject). Subjects are keyed per reason and per car/championship so distinct blockers
+##   stay separate while each one collapses over time. Log lines (add_log) are unchanged — the
+##   weekly log is a deliberate history; only the panel notifications collapse.
+## --- S30.1 — Phase 2 DNS-until-ready: a car that has not yet been delivered
 ##   (car.delivered == false) DNS's the round. Enforced both in can_car_race() and as
 ##   the first reason in the simulate_race() per-car DNS loop. Because the check runs
 ##   per-round, an undelivered car simply misses early rounds and joins automatically
@@ -42,7 +50,7 @@ func can_car_race(driver_id: String) -> bool:
 	if gs.fuel_kg < fuel_needed:
 		gs.add_notification("Critical",
 			"DNS: Not enough fuel (%.1f kg). Need %.1f kg. Buy fuel at Logistics Center." % [
-				gs.fuel_kg, fuel_needed])
+				gs.fuel_kg, fuel_needed], "logistics", "dns_fuel_%s" % gs.active_championship.id)
 		gs.add_log("🚫 DNS — Insufficient fuel for race start.")
 		return false
 
@@ -53,7 +61,8 @@ func can_car_race(driver_id: String) -> bool:
 	if not car.delivered:
 		gs.add_notification("Critical",
 			"DNS: %s is still in build — arrives Week %d." % [
-				(car.car_name if car.car_name != "" else "Car %d" % car.car_number), car.delivery_week])
+				(car.car_name if car.car_name != "" else "Car %d" % car.car_number), car.delivery_week],
+			"", "dns_undelivered_%s" % car.id)
 		gs.add_log("🚫 DNS — %s not yet delivered (arrives Wk %d)." % [
 			(car.car_name if car.car_name != "" else "Car %d" % car.car_number), car.delivery_week])
 		return false
@@ -61,7 +70,8 @@ func can_car_race(driver_id: String) -> bool:
 	# DNS: no race mechanic
 	if car.mechanic_id == "":
 		gs.add_notification("Critical",
-			"DNS: %s has no Race Mechanic! Assign one in the Garage before racing." % (car.car_name if car.car_name != "" else "Car %d" % car.car_number))
+			"DNS: %s has no Race Mechanic! Assign one in the Garage before racing." % (car.car_name if car.car_name != "" else "Car %d" % car.car_number),
+			"garage", "dns_mechanic_%s" % car.id)
 		gs.add_log("🚫 DNS — No Race Mechanic on %s." % (car.car_name if car.car_name != "" else "Car %d" % car.car_number))
 		return false
 
@@ -69,7 +79,8 @@ func can_car_race(driver_id: String) -> bool:
 	if gs.get_pit_crew_required(car.championship_id):
 		if car.pit_crew_id == "" or car.pit_crew_id == "N/A":
 			gs.add_notification("Critical",
-				"DNS: %s has no Pit Crew! Assign one in the Pit Crew Arena before racing." % (car.car_name if car.car_name != "" else "Car %d" % car.car_number))
+				"DNS: %s has no Pit Crew! Assign one in the Pit Crew Arena before racing." % (car.car_name if car.car_name != "" else "Car %d" % car.car_number),
+				"", "dns_pitcrew_%s" % car.id)
 			gs.add_log("🚫 DNS — No Pit Crew on %s." % (car.car_name if car.car_name != "" else "Car %d" % car.car_number))
 			return false
 
@@ -152,14 +163,16 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 					c.championship_name, car_label, car.delivery_week])
 				gs.add_notification("High",
 					"DNS: %s not delivered until Week %d for %s." % [
-					car_label, car.delivery_week, c.championship_name], "logistics")
+					car_label, car.delivery_week, c.championship_name], "logistics",
+					"dns_undelivered_%s" % car.id)
 				car_dns = true
 
 			if car.driver_id == "":
 				gs.add_log("🚫 DNS [%s] %s — no driver assigned." % [c.championship_name, car_label])
 				gs.add_notification("Critical",
 					"DNS: %s has no driver for %s! Assign in Garage." % [
-					car_label, c.championship_name], "garage")
+					car_label, c.championship_name], "garage",
+					"dns_driver_%s" % car.id)
 				car_dns = true
 			elif car.delivered and not can_car_race(car.driver_id):
 				# Only run the full requirement gate for delivered cars — an undelivered
@@ -170,7 +183,8 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 				gs.add_log("🚫 DNS [%s] %s — no mechanic assigned." % [c.championship_name, car_label])
 				gs.add_notification("Critical",
 					"DNS: %s has no mechanic for %s! Assign in Garage." % [
-					car_label, c.championship_name], "garage")
+					car_label, c.championship_name], "garage",
+					"dns_mechanic_%s" % car.id)
 				car_dns = true
 
 			if gs.get_pit_crew_required(c.id):
@@ -178,7 +192,8 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 					gs.add_log("🚫 DNS [%s] %s — no Pit Crew assigned." % [c.championship_name, car_label])
 					gs.add_notification("Critical",
 						"DNS: %s has no Pit Crew for %s! Assign one in Pit Crew Arena." % [
-						car_label, c.championship_name])
+						car_label, c.championship_name], "",
+						"dns_pitcrew_%s" % car.id)
 					car_dns = true
 
 			if car_dns:
