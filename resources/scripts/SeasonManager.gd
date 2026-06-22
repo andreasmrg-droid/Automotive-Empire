@@ -1,5 +1,27 @@
 class_name SeasonManager
-## Version: S33.1 — GK feeder regeneration: replaced the destructive GK wipe (which deleted all
+## Version: S35.0 — SEASON TRANSITION PIPELINE reorder (Season_Transition_Pipeline_Spec_v1).
+##   start_new_season() is now an explicit, commented A→E ordered sequence instead of the old
+##   tangled order. The CRITICAL fix is ordering, not new logic: Stage B (activate pre-signed
+##   signings) now runs BEFORE Stage E (the 2-season free-agent cull). Previously B ran dead-last
+##   (after the cull inside _process_off_season), so a driver you pre-signed last season — still a
+##   free agent at rollover — could be ERASED by the 2-season decay in the same tick, BEFORE the
+##   activation that would have joined them to your team. The pre-signing silently evaporated.
+##   Stages B (S33.1/33.2) and D (S33.1 GK generate-to-fill) were already individually fixed and
+##   verified live; this session only REORDERS them into the correct sequence and adds the missing
+##   archive write (below). Pipeline order now:
+##     A  promote registration ledger        (was top — unchanged position)
+##     B  apply signings + staff assignments  (MOVED UP from end; was line ~220)
+##     C  TP assignment / AI auto-assign       (clean slot)
+##     D  GK generate-to-fill                  (after rosters settle)
+##     E  lifecycle cull + archive            (now LAST; _process_off_season split so the cull
+##                                             runs after B, not before it)
+##   Also: _erase_free_agent now ARCHIVES the departing person to gs.retired_personnel (reason
+##   "left_sport") before erasing — previously a 2-season free-agent just vanished with no record
+##   (Spec Stage-E gap). NOT written to gs.hall_of_fame: that array is race-WIN records consumed
+##   by HallOfFame.gd/Museum.gd (filtered by team_id, counted as wins) — a career-exit entry there
+##   would corrupt the win tally. retired_personnel is the correct career archive (matches the
+##   existing _retire_person schema).
+## --- S33.1 — GK feeder regeneration: replaced the destructive GK wipe (which deleted all
 ##   non-player GK drivers then relied on populate_season to "repopulate" — but populate_season
 ##   only SORTS, never CREATES, so GK went empty every season past S1). Now the contracted GK
 ##   field persists; only stale D-GK-FA pool drivers are cleared; gs.regenerate_gk_field(510)
@@ -104,13 +126,19 @@ func start_new_season() -> void:
 	gs.weekly_log.clear()
 	gs.pending_season_screen = "begin_of_season"
 
-	# ── GDD §16.3 Step 13: Next Season → Current Season ──────────────────
-	## S28.1: ACTIVATE the NextSeasonLedger. The championships the player
-	## registered+paid for last season become THIS season's race set.
-	## This must happen FIRST so every downstream check (car-needed, delivery,
-	## Logistics list, TDL) sees the correct registrations. Never blind-wiped.
+	# ═══════════════════════════════════════════════════════════════════════
+	# SEASON TRANSITION PIPELINE (Season_Transition_Pipeline_Spec_v1) — A→E.
+	# The stages run in this exact order. Two earlier-broken stages (B, D) were
+	# already fixed (S33.1/33.2) and individually verified; S35.0 is the REORDER
+	# that makes B run before E, plus the Stage-E archive write. See header.
+	# ═══════════════════════════════════════════════════════════════════════
+
+	# ── STAGE A — Promote the ledger (registrations) ────────────────────────
+	## GDD §16.3 Steps 13-14. The championships the player registered+paid for last
+	## season become THIS season's race set; then clear the ledger for new planning.
+	## Must be first so every downstream check (car-needed, delivery, Logistics, TDL)
+	## sees the correct registrations. Never blind-wiped.
 	gs.player_registered_championships = gs.next_season_registrations.duplicate()
-	# ── GDD §16.3 Step 14: clear the ledger, ready for new planning ──────
 	gs.next_season_registrations.clear()
 	if gs.player_registered_championships.is_empty():
 		gs.add_log("⚠ No championships were registered for Season %d." % gs.current_season)
@@ -120,22 +148,40 @@ func start_new_season() -> void:
 			names.append(gs.CHAMPIONSHIP_REGISTRY.get(cid, {}).get("name", cid))
 		gs.add_log("🏁 Season %d race set activated: %s" % [gs.current_season, ", ".join(names)])
 
-	# ── Step 7: Contract decrements — age drivers/staff ──────────────────
-	# ── Step 8: Expired contracts — free agent pool ──────────────────────
-	# ── Step 9: Academy — drivers turning 18 ─────────────────────────────
-	_process_off_season()
+	# ── PRE-B — Age & lapse (was the front half of _process_off_season) ─────
+	## Age drivers/staff, decrement contracts, lapse expired player contracts.
+	## Runs BEFORE Stage B so a contract expiring at this rollover frees its holder
+	## before signings are applied. The CULL half is now Stage E (late), not here.
+	_process_off_season_aging()
 
-	# ── GK: Populate groups for new season ───────────────────────────────
+	# ── STAGE B — Apply signings & releases ─────────────────────────────────
+	## Activate every pre-signed contract whose effective join season is now (joins the
+	## person to their new team), and flush queued TP/Strategist assignments. MOVED UP
+	## from the old end-of-function slot: it MUST precede Stage E, or a driver pre-signed
+	## last season — still a free agent at this instant — gets erased by the 2-season
+	## cull before this activation can join them (the silent-evaporation bug). Fixed
+	## (S33.1/33.2); this is purely the ordering correction.
+	gs._activate_presigned_contracts()
+	gs._apply_pending_staff_assignments()
+	gs.add_log("=== SEASON %d BEGINS ===" % gs.current_season)
+
+	# ── STAGE C — TP assignment (AI auto-assign) ────────────────────────────
+	## Season 1 stays JSON-seeded (load_car_assignments runs later in the presentation
+	## block). From Season 2 the optimiser re-allocates every AI team's 5 roles. Player
+	## proposals are generated at the end (after the car wipe) via generate_tp_assignment_
+	## proposals — see the presentation block. AI auto-assign is moved earlier so AI rosters
+	## are settled before GK fill and the cull read them.
+	if gs.current_season >= 2:
+		gs.ai_auto_assign_all_teams()
+
+	# ── STAGE D — GK feeder generate-to-fill ────────────────────────────────
+	## GK is the ONLY birthplace of new drivers (the pyramid's source). The contracted GK
+	## field PERSISTS across seasons; we only clear the stale D-GK-FA pool and TOP UP the
+	## gap with new young cadets (regenerate_gk_field = target − existing). Verified live:
+	## regenerate_gk_field really creates drivers via _create_driver_for_discipline. NOT a
+	## wipe (the old destructive bug). Runs after rosters settle so "existing" is accurate.
 	if gs.gk_discipline == null:
 		gs.gk_discipline = GKDiscipline.new()
-	## S33.1 — GK FEEDER REGENERATION (replaces the old destructive wipe).
-	## The previous code deleted EVERY non-player GK driver each season and relied on
-	## populate_season() to "repopulate" — but populate_season only SORTS existing drivers into
-	## groups, it never CREATES any. Result: clear 510 → populate 0 → empty GK field every season
-	## past S1, which also dried up the promotion pyramid that feeds all other championships.
-	## Correct model: the contracted GK field PERSISTS across seasons (drivers age/progress; the
-	## lifecycle cull handles retirements separately); we just TOP UP the gap with new young
-	## cadets so GK stays full. Only remove GK free-agent pool drivers (D-GK-FA) that accumulate.
 	var gk_fa_to_clear: Array = []
 	for did in gs.all_drivers:
 		if did.begins_with("D-GK-FA"):
@@ -145,7 +191,6 @@ func start_new_season() -> void:
 	var gk_generated: int = gs.regenerate_gk_field(510)
 	print("[SeasonManager] GK feeder: cleared %d stale FA, generated %d new young cadets." % [
 		gk_fa_to_clear.size(), gk_generated])
-
 	gs.gk_discipline.populate_season(
 		gs.all_drivers,
 		gs.all_staff,
@@ -155,18 +200,24 @@ func start_new_season() -> void:
 		gs.current_season,
 		gs.player_team_cars)
 
-	## (TP proposals are reset and regenerated at the end of the transition,
-	##  after cars are wiped — see S28.1 block below.)
+	# ── STAGE E — Lifecycle cull + Hall-of-Fame / archive ───────────────────
+	## Age retirement + 2-season free-agent erase, run LAST so a just-released or just-
+	## activated (Stage B) person is not culled in the same tick they change status.
+	## _erase_free_agent now archives departing free agents to retired_personnel before
+	## erasing (the Stage-E gap the spec flagged).
+	_process_lifecycle_cull()
 
-	# ── Step 5: CNC — jobs in progress destroyed, inventory cleared ──────
-	# ── Wipe ALL player cars ─────────────────────────────────────────────
+	# ═══════════════════════════════════════════════════════════════════════
+	# DOWNSTREAM PRESENTATION (not lifecycle): car reset, champ reset, notifs,
+	# R&D carry-over, WRA check, stale-state flush. Order among these is cosmetic.
+	# ═══════════════════════════════════════════════════════════════════════
+
+	# ── Step 5: CNC jobs destroyed, inventory cleared + wipe ALL player cars ─
 	gs.player_team_cars.clear()
-	## Clear car assignments on all staff — cars no longer exist
 	for staff_id in gs.all_staff:
 		var s = gs.all_staff[staff_id]
 		if s.assigned_car_id != "":
 			s.assigned_car_id = ""
-	## Wipe all installed parts (CNC and provider) and warehouse inventory
 	gs.car_installed_parts.clear()
 	gs.car_provider_parts.clear()
 	gs.cnc_parts_inventory.clear()
@@ -176,16 +227,13 @@ func start_new_season() -> void:
 	## ALL 24 championships reset and stay active — the world keeps running.
 	for champ in gs.active_championships:
 		champ.reset_for_new_season()
-
-	## Sync GK Group 0 to standings after reset
 	gs._sync_gk_group0_to_standings()
 
-	## Notify player if not registered anywhere
+	## Notify player if not registered anywhere / missing a car
 	if gs.player_registered_championships.is_empty():
 		gs.add_notification("High",
 			"⚠ No championships registered for Season %d! Use the Championships screen to register." % gs.current_season)
 	else:
-		## Check player has a car for each registered championship
 		for champ_id in gs.player_registered_championships:
 			var has_car = false
 			for car in gs.player_team_cars:
@@ -204,22 +252,11 @@ func start_new_season() -> void:
 			"Season %d [%s]: New car needed. Delivery: Week %d. Race 1: Week %d." % [
 			gs.current_season, champ.championship_name, delivery_wk, race1_wk])
 
-	## Re-register AI drivers and teams into championship standings
+	## Re-register AI drivers and teams into championship standings (Season-1 JSON seed
+	## + the absorbed AI roster changes from Stage C).
 	gs.ai_manager.load_car_assignments()
 
-	## TP Phase 2 (spec v2 §4): Season 1 is JSON-seeded (above); from Season 2 onward the
-	## optimiser takes over — re-optimise every AI team's 5-role allocation (driver/mechanic/
-	## pit-crew/strategist/TP) directly. This also absorbs the season's AI roster changes
-	## (retirements/auto-renew handled in _process_off_season above).
-	if gs.current_season >= 2:
-		gs.ai_auto_assign_all_teams()
-
-	gs.add_log("=== SEASON %d BEGINS ===" % gs.current_season)
-
-	# ── Step 10: Transfer market — activate pre-signed contracts ─────────
-	gs._activate_presigned_contracts()
-
-	# ── Step 4: R&D carry over — P2 wiped, P4 always carry ──────────────
+	# ── Step 4: R&D carry over — P2/UPG wiped, P4 always carry ───────────────
 	var expired_upg = gs.completed_upg_tasks.size()
 	gs.completed_upg_tasks.clear()
 	gs.completed_rnd_tasks = gs.completed_rnd_tasks.filter(
@@ -235,15 +272,9 @@ func start_new_season() -> void:
 	gs._rebuild_seasonal_rnd_tasks()
 	gs.add_log("🔬 R&D catalog updated for Season %d." % gs.current_season)
 
-	# ── S28.1: registrations already activated at the top from the ledger. ──
-	## Do NOT clear player_registered_championships here — that was the Season-2
-	## collapse bug. Instead, flush stale planning state from last season.
-	## Clear stale TDL items (shots 5/12 fix): per-season "unmet requirements before
-	## Season N" / "no car for X" custom + dismissed items must not survive into the
-	## new season. They are regenerated fresh for the current season as needed.
+	# ── Flush stale planning state from last season (don't re-clear registrations) ──
 	gs.custom_todo_items.clear()
 	gs.dismissed_todo_items.clear()
-	## Clear stale TP proposals (shot 14 fix) — they referenced last season's cars.
 	gs._last_tp_proposals = []
 	## Regenerate TP proposals for the new season's actual cars (if any exist yet).
 	if not gs.player_team_cars.is_empty():
@@ -261,7 +292,11 @@ func start_new_season() -> void:
 # OFF-SEASON PROCESSING — Steps 7-9 from GDD §16.3
 # ═══════════════════════════════════════════════════════════════════════════
 
-func _process_off_season() -> void:
+## S35.0 — renamed from _process_off_season: this now ONLY ages drivers/staff, decrements
+## contracts, and lapses expired player contracts (the "pre-B" early phase). The cull moved to
+## _process_lifecycle_cull (Stage E, late). Must run BEFORE Stage B signings so a contract that
+## expires at this rollover frees its holder before signings are applied.
+func _process_off_season_aging() -> void:
 	# ── Age all drivers, recover fitness, accumulate experience ───────────
 	for driver_id in gs.all_drivers:
 		var driver = gs.all_drivers[driver_id]
@@ -342,13 +377,20 @@ func _process_off_season() -> void:
 		s.assigned_championship = ""
 
 	# ── DRIVER & STAFF LIFECYCLE (GDD §4.2, §22) ─────────────────────────
-	## No driver/staff is ever deleted "just like this". Exactly two rules:
-	##   1. Age retirement — drivers: rising chance from 38, forced at 50.
-	##                       staff:   hard retire at 65.
-	##      Retirement is permanent (game over for that person) and archived.
-	##   2. Free-agent decay — drivers uncontracted for 2 full seasons are erased.
-	## New drivers are NOT respawned here — grid gaps are filled elsewhere via
-	## the normal NameGenerator path, so no D-GEN / DRV-XX fillers leak in.
+	## S35.0: the cull phase moved OUT of this function into _process_lifecycle_cull(),
+	## called as Stage E (LATE) in start_new_season — after Stage B activates pre-signed
+	## contracts. Running it here (early) erased a just-pre-signed driver (still a free agent
+	## at this point) before their activation could join them. Aging/contract-decrement above
+	## still runs early (Stage "pre-B"): a contract that expires this rollover must lapse before
+	## signings so the freed person is available. See the function below.
+
+
+## S35.0 — Stage E: the lifecycle cull, split out of _process_off_season so it runs LATE
+## (after Stage B pre-signed activation). Exactly two removal rules (GDD §4.2, §22):
+##   1. Age retirement — drivers: rising chance from 38, forced at 50; staff: hard retire at 65.
+##   2. Free-agent decay — drivers uncontracted for 2 full seasons are erased (now archived).
+## New drivers are NOT respawned here — GK generate-to-fill (Stage D) handles the pyramid source.
+func _process_lifecycle_cull() -> void:
 	_process_driver_lifecycle()
 	_process_staff_lifecycle()
 	## S28.3 (Bug 7): top up the free-agent pool after retirements so it doesn't drain.
@@ -485,6 +527,21 @@ func _erase_free_agent(person_id: String, pool: Dictionary, kind: String) -> voi
 			return
 	for champ in gs.active_championships:
 		champ.standings.erase(person_id)
+	## S35.0 — archive to the career record BEFORE erasing (Spec Stage-E gap: a 2-season
+	## free agent previously just vanished with no trace). Schema matches _retire_person's
+	## retired_personnel entries; reason="left_sport" distinguishes a quiet exit from an age
+	## retirement. NOT written to gs.hall_of_fame — that array is race-WIN records (consumed
+	## by HallOfFame.gd / Museum.gd, filtered by team_id and counted as wins); a career-exit
+	## entry there would corrupt the win tally. retired_personnel is the correct archive.
+	gs.retired_personnel.append({
+		"season": gs.current_season,
+		"name": person.full_name(),
+		"kind": kind,
+		"role": (person.role if kind == "staff" else "Driver"),
+		"age": (person.age if "age" in person else 0),
+		"was_player": false,  ## a 2-season free agent is by definition unrostered
+		"reason": "left_sport",
+	})
 	gs.add_log("📁 %s left the sport after 2 seasons without a contract." % person.full_name())
 	NameGenerator.release_name(person.full_name())
 	pool.erase(person_id)

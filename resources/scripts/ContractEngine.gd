@@ -1,4 +1,12 @@
 class_name ContractEngine
+## Version: S35.0 — Season Transition Pipeline support. Added effective_join_season(ap): the single
+##   named definition of WHEN a pre-signing lands (= signed_season + 1), so the rest of the engine
+##   reasons about an ABSOLUTE target season instead of the fragile relative string "next_season"
+##   (the string-replay was the root of the old "bounces back, never joins" Stage-B bug).
+##   _activate_presigned_contracts now gates on this helper. No new stored state: signed_season
+##   stays the single source of truth (no parallel field to drift out of sync); the helper only
+##   NAMES the derived value. Behaviour identical to S34.0; this is a clarity/contract change that
+##   the reordered SeasonManager.start_new_season (S35.0) relies on.
 ## Version: S34.0 — Bond negotiation rebuilt to GDD §12-A. (1) The S33.3 auto-accept regression
 ##   is removed: initiate_approach no longer pre-fills the player's bond offer at the estimate
 ##   (which made the team auto-accept and skipped the whole negotiation). A contracted approach
@@ -1038,16 +1046,24 @@ func _advance_approaches() -> void:
 	if changed:
 		gs.emit_signal("approach_updated")
 
+## S35.0 — The single, named definition of WHEN a pre-signing takes effect.
+## A pre-signing is stamped signed_season = the season it was struck in; the person joins
+## the FOLLOWING season. Expressing this as one helper (rather than scattering
+## "signed_season + 1" / "current_season > signed_season" inline) means the whole pipeline
+## reasons about one absolute target season — the timing-independent fact the owner asked for.
+## signed_season remains the only STORED field (no parallel state to drift); this just names it.
+func effective_join_season(ap: Dictionary) -> int:
+	return int(ap.get("signed_season", gs.current_season)) + 1
+
 func _activate_presigned_contracts() -> void:
 	for ap in gs.active_approaches:
 		if ap.get("type") == "pre_signed" and ap.get("status") == "agreed":
-			## S33.2 FIX (early-join): only activate once the season has ACTUALLY turned over.
-			## A pre-signed approach is type=pre_signed + status=agreed the moment it's struck
-			## (the caller sets status=agreed before _apply_approach_result marks it pre_signed).
-			## Without this guard, the weekly _advance_approaches call would activate it the very
-			## next tick — so a mid-season Racing-Dept/Garage level-up (opening a slot) made the
-			## pre-signed driver/staff join immediately. They must wait for next season.
-			if gs.current_season <= ap.get("signed_season", gs.current_season):
+			## S35.0: activate once we have actually reached the join season (absolute check via
+			## the named helper). Equivalent to the old (current_season <= signed_season → skip)
+			## guard, but expressed against the target season so the intent is unambiguous.
+			## This prevents a mid-season slot opening (Racing-Dept/Garage level-up) from
+			## activating a pre-signing early — they wait for their effective join season.
+			if gs.current_season < effective_join_season(ap):
 				continue
 			var fake_neg = {
 				"subject_id":   ap["subject_id"],
