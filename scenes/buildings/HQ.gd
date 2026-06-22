@@ -1,4 +1,6 @@
 extends Control
+## Version: S35.7 — Pending Activity renders a "walked_away" entry ("You have walked away from the
+##   negotiations with X") until the next week advance clears it.
 ## Version: S35.6 — Perf: the WRA/overview TP-slot check no longer scans all 5000+ staff per
 ##   championship (the HQ-WRA lag) — it reads the cached player TP list. _build_staff_grid and the
 ##   finance staff-salary sum likewise read get_all_player_staff() instead of scanning all_staff.
@@ -2368,6 +2370,11 @@ func _build_pending_activity() -> VBoxContainer:
 					desc_lbl.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
 				else:
 					continue
+			"walked_away":
+				## S35.7 — Walk Away leaves this entry until the next week advance (then it clears).
+				icon_lbl.text = "🚶"
+				desc_lbl.text = "You have walked away from the negotiations with %s." % ap["subject_name"]
+				desc_lbl.add_theme_color_override("font_color", Color(0.6, 0.5, 0.5))
 			_:
 				continue
 

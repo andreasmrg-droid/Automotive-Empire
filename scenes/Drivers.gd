@@ -1,3 +1,5 @@
+## Version: S35.7 — PERF: "Interested Only" filter invariants hoisted out of the per-driver loop
+##   + team reps pre-indexed (same lag fix as StaffHub S35.7).
 ## Version: S29.0 — Not-interested popup (issue 1: visible AcceptDialog, not just a
 ## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
 ##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
@@ -388,6 +390,22 @@ func _make_my_driver_row(driver) -> PanelContainer:
 
 func _get_sorted_all_drivers() -> Array:
 	var drivers = []
+
+	## S35.7 — PERF: hoist invariants out of the per-driver loop (same fix as StaffHub). The
+	## "Interested Only" filter recomputed tp_rep / champ_tier and scanned all_teams for each of
+	## 1000+ drivers — the button lag. Compute once; index team reps for O(1) lookup.
+	var pre_tp_rep := 0.0
+	var pre_champ_tier := 1
+	var team_rep_by_id := {}
+	if interested_only:
+		for champ in GameState.active_championships:
+			var tp = GameState._get_tp_for_championship(champ.id)
+			if tp: pre_tp_rep = max(pre_tp_rep, tp.reputation); break
+		pre_champ_tier = GameState._get_active_championship_tier()
+		for t in GameState.all_teams:
+			team_rep_by_id[t.id] = t.reputation
+	var pre_player_rep: float = GameState.player_team.reputation
+
 	for driver_id in GameState.all_drivers:
 		var driver = GameState.all_drivers[driver_id]
 		## Skip player's own drivers
@@ -395,24 +413,13 @@ func _get_sorted_all_drivers() -> Array:
 			continue
 		if free_agents_only and driver.contract_team != "":
 			continue
-		## Interested Only filter — estimate using same formula as interest check
+		## Interested Only filter (hoisted invariants + indexed team rep)
 		if interested_only:
-			var tp_rep = 0.0
-			for champ in GameState.active_championships:
-				var tp = GameState._get_tp_for_championship(champ.id)
-				if tp: tp_rep = max(tp_rep, tp.reputation); break
-			## Free agents have no team loyalty — use 0 as their rep baseline
-			var their_rep = 0.0 if driver.contract_team == "" else 50.0
-			for t in GameState.all_teams:
-				if t.id == driver.contract_team: their_rep = t.reputation; break
-			var rep_gap = GameState.player_team.reputation - their_rep
-			## Overall skill as proxy for potential (hidden attribute)
+			var their_rep: float = 0.0 if driver.contract_team == "" else team_rep_by_id.get(driver.contract_team, 50.0)
+			var rep_gap = pre_player_rep - their_rep
 			var base_chance = driver.get_overall_skill() * 0.5 + 50.0 \
-				+ clamp(rep_gap * 0.5, -25.0, 25.0) + tp_rep * 0.3
-			## Championship tier penalty: elite drivers won't join low-tier championships
-			## tier 1=entry, tier 4=top. Skill 99 in tier 1: -117 penalty → never shown
-			var champ_tier = GameState._get_active_championship_tier()
-			var tier_penalty = max(0.0, driver.get_overall_skill() - 50.0) * (4 - champ_tier) * 0.8
+				+ clamp(rep_gap * 0.5, -25.0, 25.0) + pre_tp_rep * 0.3
+			var tier_penalty = max(0.0, driver.get_overall_skill() - 50.0) * (4 - pre_champ_tier) * 0.8
 			var chance = base_chance - tier_penalty
 			if chance < 60.0:
 				continue

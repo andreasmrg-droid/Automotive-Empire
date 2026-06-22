@@ -1,4 +1,6 @@
 extends Node
+## Version: S35.7 — clear_walked_away_approaches() wrapper + called in advance_week (walk-away
+##   entries clear after one week). See ContractEngine/HQ S35.7.
 ## Version: S35.6 — Player-staff cache (perf). all_staff holds ~5000+ entries; HQ (esp. the WRA/
 ##   overview tab), StaffHub and the finance strip used to scan ALL of them — sometimes in nested
 ##   loops (TP-slot check was 6 champs × 5000+ = ~30k iterations per render) — to find the player's
@@ -2169,6 +2171,10 @@ func get_active_approaches_for_display() -> Array:
 func get_pending_contract_negotiation() -> Dictionary:
 	return _contract_engine.get_pending_contract_negotiation()
 
+## S35.7 — clear stale "you walked away" entries (called from advance_week).
+func clear_walked_away_approaches() -> void:
+	_contract_engine.clear_walked_away_approaches()
+
 func _get_subject_display_name(subject_id: String, subject_type: String) -> String:
 	return _contract_engine._get_subject_display_name(subject_id, subject_type)
 
@@ -2799,6 +2805,8 @@ func advance_week() -> void:
 
 	current_week += 1
 
+	## S35.7 — clear any "you walked away" entries from last week now that a week has passed.
+	clear_walked_away_approaches()
 	## Sponsor negotiation: fire counter notification when waiting week arrives
 	if not active_negotiation.is_empty():
 		var waiting = active_negotiation.get("waiting_week", 0)

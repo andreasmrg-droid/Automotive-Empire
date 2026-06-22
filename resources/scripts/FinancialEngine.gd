@@ -1,4 +1,6 @@
 class_name FinancialEngine
+## Version: S35.7 — PERF: get_weekly_expenses() (called on every HQ open) and the weekly salary
+##   deduction now read the cached player-staff list instead of scanning all 5000+ staff.
 ## Version: S27.0 — Extracted from GameState.gd (P57 Phase 2)
 ##   Owns all weekly financial processing: expenses, campus income, loans, CEO salary,
 ##   supply contracts, company valuation.
@@ -41,11 +43,9 @@ func apply_weekly_expenses() -> void:
 				else get_championship_driver_salary()
 		player_expenses += sal
 
-	# Staff salaries — sum all hired staff
-	for staff_id in gs.all_staff:
-		var staff = gs.all_staff[staff_id]
-		if staff.contract_team == gs.player_team.id:
-			player_expenses += staff.weekly_salary
+	# Staff salaries — sum all hired staff (S35.7: cached player-staff list)
+	for staff in gs.get_all_player_staff():
+		player_expenses += staff.weekly_salary
 
 	gs.player_team.balance -= player_expenses
 	## P&L summary logged in advance_week() after all income/expense functions run
@@ -331,10 +331,9 @@ func calculate_company_value() -> float:
 ## Shared weekly expense total (staff + drivers + building maintenance)
 func get_weekly_expenses() -> float:
 	var total = 0.0
-	for s_id in gs.all_staff:
-		var s = gs.all_staff[s_id]
-		if s.contract_team == gs.player_team.id:
-			total += s.weekly_salary
+	## S35.7 — cached player-staff list instead of scanning all 5000+ staff (called on HQ open).
+	for s in gs.get_all_player_staff():
+		total += s.weekly_salary
 	## Use per-driver negotiated salary; fall back to championship rate
 	for driver_id in gs.player_team.drivers:
 		var driver = gs.all_drivers.get(driver_id)

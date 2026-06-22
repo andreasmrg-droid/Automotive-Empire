@@ -1,4 +1,7 @@
 extends Control
+## Version: S35.7 — Close button is now a pure no-op (closes the window, leaves the negotiation
+##   untouched in HQ Pending Activity); previously it cancelled a Round-1 approach. Walk Away leaves
+##   a visible "you have walked away" entry that persists until the next week advance.
 ## Version: S33.2 — staff negotiations now include the start_date (Immediate/Next Season)
 ##   dropdown, same as drivers (FIELD_ORDER_STAFF). Prior: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
 ##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
@@ -196,9 +199,11 @@ func _rebuild_approach() -> void:
 	btn_row.add_child(btn_accept)
 
 	var btn_close = _action_btn("Close ✕", Color(0.25, 0.25, 0.30))
-	btn_close.tooltip_text = "Close without submitting — cancels if no offer made yet."
+	btn_close.tooltip_text = "Close this window. The negotiation stays open and unchanged."
 	btn_close.pressed.connect(func():
-		GameState.cancel_approach_before_submit(_ap["neg_id"])
+		## S35.7: Close means CLOSE — it must not alter the negotiation. The entry stays in HQ
+		## Pending Activity exactly as it was. (Previously called cancel_approach_before_submit,
+		## which deleted a Round-1 approach on close — wrong: that's Walk Away's job.)
 		queue_free()
 		emit_signal("closed"))
 	btn_row.add_child(btn_close)

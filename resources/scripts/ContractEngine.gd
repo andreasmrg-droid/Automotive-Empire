@@ -1,4 +1,7 @@
 class_name ContractEngine
+## Version: S35.7 — (1) walk_away_approach now leaves a "walked_away" entry (shows in HQ until the
+##   next week advance, then clear_walked_away_approaches drops it). (2) PERF: player TP/Strategist
+##   championship lookups read the player-staff cache instead of scanning all 5000+ staff.
 ## Version: S35.6 — Staff sign-activation now calls gs.invalidate_player_staff_cache() so the
 ##   player-staff cache (GameState S35.6) refreshes when a signed staff member joins.
 ## Version: S35.0 — Season Transition Pipeline support. Added effective_join_season(ap): the single
@@ -575,6 +578,13 @@ func _get_strategist_for_championship(champ_id: String):
 ## S33.0 — Team-scoped variants. Needed so the shared optimiser can detect an
 ## already-assigned championship role for ANY team (AI auto-assign), not just the player.
 func _get_tp_for_championship_team(champ_id: String, team_id: String):
+	## S35.7 — PERF: for the player's team (the hot path, called many times per HQ render), read
+	## the cached player TP list instead of scanning all 5000+ staff. AI teams still scan (rare).
+	if team_id == gs.player_team.id:
+		for s in gs.get_player_staff_by_role("Team Principal"):
+			if s.assigned_championship == champ_id:
+				return s
+		return null
 	for sid in gs.all_staff:
 		var s = gs.all_staff[sid]
 		if s.role == "Team Principal" and s.contract_team == team_id \
@@ -583,6 +593,12 @@ func _get_tp_for_championship_team(champ_id: String, team_id: String):
 	return null
 
 func _get_strategist_for_championship_team(champ_id: String, team_id: String):
+	## S35.7 — PERF: cached player-staff path (see _get_tp_for_championship_team).
+	if team_id == gs.player_team.id:
+		for s in gs.get_player_staff_by_role("Race Strategist"):
+			if s.assigned_championship == champ_id:
+				return s
+		return null
 	for sid in gs.all_staff:
 		var s = gs.all_staff[sid]
 		if s.role == "Race Strategist" and s.contract_team == team_id \
@@ -876,7 +892,12 @@ func accept_approach_terms(neg_id: String) -> void:
 func walk_away_approach(neg_id: String) -> void:
 	var ap = _get_approach(neg_id)
 	if ap == null: return
-	ap["status"] = "rejected"
+	## S35.7: Walk Away leaves a VISIBLE "you walked away" entry in HQ Pending Activity that stays
+	## until the next week advance (then it's cleared — see _clear_walked_away_approaches, called
+	## from advance_week). status="walked_away" + the week it happened so the cleanup knows when.
+	ap["status"] = "walked_away"
+	ap["walked_away_week"] = gs.current_week
+	ap["walked_away_season"] = gs.current_season
 	gs.walked_away_subjects[ap["subject_id"]] = gs.current_season + 2
 	gs.add_notification("Normal",
 		"You walked away from negotiations with %s." % ap["subject_name"])
@@ -1176,6 +1197,23 @@ func get_active_approaches_for_display() -> Array:
 	return gs.active_approaches.filter(func(ap):
 		return ap["status"] not in ["activated", "expired"] or \
 			(ap["status"] == "agreed" and ap.get("type") == "pre_signed"))
+
+## S35.7 — remove walked-away approach entries once a week has advanced past the walk-away.
+## Called from advance_week. The "you walked away" entry shows for the remainder of the current
+## week, then clears at the next advance so Pending Activity doesn't accumulate stale walk-aways.
+func clear_walked_away_approaches() -> void:
+	var kept: Array = []
+	for ap in gs.active_approaches:
+		if ap.get("status") == "walked_away":
+			## Clear it once we've moved past the week/season it happened in.
+			var same_week = ap.get("walked_away_season", -1) == gs.current_season \
+				and ap.get("walked_away_week", -1) == gs.current_week
+			if not same_week:
+				continue   ## drop it
+		kept.append(ap)
+	if kept.size() != gs.active_approaches.size():
+		gs.active_approaches = kept
+		gs.emit_signal("approach_updated")
 
 func get_pending_contract_negotiation() -> Dictionary:
 	## Returns the first approach in "negotiating" status (for popup display)

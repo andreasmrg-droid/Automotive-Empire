@@ -1,4 +1,7 @@
 extends Control
+## Version: S35.7 — PERF: "Interested Only" filter no longer recomputes TP rep / champ tier and
+##   scans all_teams for each of 5000+ staff (the button lag) — invariants hoisted out of the loop,
+##   team reps pre-indexed for O(1) lookup.
 ## Version: S33.2 — Race Strategist slot check now reads Ops Sim & Telemetry building level
 ##   (was hardcoded to 1), matching the canonical building-based slot rule and the engine.
 ## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
@@ -504,26 +507,34 @@ func _make_my_staff_row(staff) -> PanelContainer:
 func _build_available_staff_list() -> void:
 	## Show all non-player staff — free agents AND contracted (approachable)
 	var all_non_player: Array = []
+
+	## S35.7 — PERF: hoist everything that doesn't change per-candidate OUT of the loop. The
+	## "Interested Only" filter used to recompute tp_rep (looping championships), champ_tier, and
+	## scan all_teams for each of 5000+ staff — millions of ops on one button press (the lag). Now:
+	## compute the invariants once, and pre-index team reputations for O(1) lookup.
+	var pre_tp_rep := 0.0
+	var pre_champ_tier := 1
+	var team_rep_by_id := {}
+	if interested_only:
+		for champ in GameState.active_championships:
+			var tp = GameState._get_tp_for_championship(champ.id)
+			if tp: pre_tp_rep = max(pre_tp_rep, tp.reputation); break
+		pre_champ_tier = GameState._get_active_championship_tier()
+		for t in GameState.all_teams:
+			team_rep_by_id[t.id] = t.reputation
+	var pre_player_rep: float = GameState.player_team.reputation
+
 	for sid in GameState.all_staff:
 		var s = GameState.all_staff[sid]
 		if s.contract_team == GameState.player_team.id:
 			continue
-		## Interested Only filter
+		## Interested Only filter (uses the hoisted invariants + indexed team rep)
 		if interested_only:
-			var tp_rep = 0.0
-			for champ in GameState.active_championships:
-				var tp = GameState._get_tp_for_championship(champ.id)
-				if tp: tp_rep = max(tp_rep, tp.reputation); break
-			## Free agents have no team loyalty — use 0 as their rep baseline
-			var their_rep = 0.0 if s.contract_team == "" else 50.0
-			for t in GameState.all_teams:
-				if t.id == s.contract_team: their_rep = t.reputation; break
-			var rep_gap = GameState.player_team.reputation - their_rep
+			var their_rep: float = 0.0 if s.contract_team == "" else team_rep_by_id.get(s.contract_team, 50.0)
+			var rep_gap = pre_player_rep - their_rep
 			var base_chance = s.talent * 0.5 + 50.0 \
-				+ clamp(rep_gap * 0.5, -25.0, 25.0) + tp_rep * 0.3
-			## Championship tier penalty for high-talent staff
-			var champ_tier = GameState._get_active_championship_tier()
-			var tier_penalty = max(0.0, s.talent - 50.0) * (4 - champ_tier) * 0.8
+				+ clamp(rep_gap * 0.5, -25.0, 25.0) + pre_tp_rep * 0.3
+			var tier_penalty = max(0.0, s.talent - 50.0) * (4 - pre_champ_tier) * 0.8
 			var chance = base_chance - tier_penalty
 			if chance < 60.0:
 				continue
