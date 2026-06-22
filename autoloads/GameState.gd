@@ -1,5 +1,12 @@
 extends Node
-## Version: S35.3 — (1) GK elimination notice fires ONCE (player_elimination_announced flag) —
+## Version: S35.5 — Living spare-parts price. SP is now economy-priced like fuel but as a
+##   manufactured-goods commodity: get_sp_cost_per_unit() = BASE(1.0) × economy_mult (TIGHT
+##   0.6–1.5 band, cf. Parts_Sale_Price_Multiplier) × sp_market_pressure (gentle mean-reverting
+##   supply/demand wobble, ±15% bound, far calmer than fuel — small weekly move, rare mild shock
+##   on the sheet's 0.04 cadence). buy_spare_parts + CFO auto-buy now charge it; Logistics shows
+##   the live rate. sp_market_pressure is saved/loaded (default 1.0 for old saves) and updated
+##   weekly in advance_week alongside the economy. Buy-only (no SP selling/hedging by design).
+## --- S35.3 — (1) GK elimination notice fires ONCE (player_elimination_announced flag) —
 ##   was re-firing every subsequent round. (2) Economy notifications (state shift, fuel-price
 ##   shock) are CFO-gated — no CFO, no financial intelligence (the economy still moves). (3) Living
 ##   fuel price: get_fuel_cost_per_kg() = BASE(2.0) × Fuel_Price_Multiplier (economy-driven 0.5–3.0,
@@ -522,6 +529,22 @@ const BASE_FUEL_COST_PER_KG: float = 2.0
 const FUEL_PRICE_MULT_MIN: float = 0.5
 const FUEL_PRICE_MULT_MAX: float = 3.0
 
+## S35.5 — Living spare-parts pricing. SP is a manufactured industrial consumable, NOT a volatile
+## traded commodity like fuel — so it tracks the global economy cycle CLOSELY in a TIGHT band
+## (mirrors the variables sheet's Parts_Sale_Price_Multiplier range 0.6–1.5, the manufactured-goods
+## family) and carries only a GENTLE supply/demand "market pressure" wobble on top — far milder
+## than fuel's ±2% weekly / 3% shock volatility. Per-unit cost = BASE × economy_mult × market_mult.
+## BASE keeps the original CR 1/unit so existing balance holds at a normal economy (index 50 → ×1.0).
+const BASE_SP_COST_PER_UNIT: float = 1.0
+const SP_PRICE_MULT_MIN: float = 0.6   ## tight manufactured-goods band (cf. Parts_Sale_Price_Multiplier)
+const SP_PRICE_MULT_MAX: float = 1.5
+## Market-pressure bounds — a small multiplicative wobble around the economy anchor (±15% max),
+## so the economy term stays dominant. Mean-reverts toward 1.0; rare, mild shocks.
+const SP_MARKET_PRESSURE_MIN: float = 0.85
+const SP_MARKET_PRESSURE_MAX: float = 1.15
+## Current SP market-pressure factor (the slow supply/demand drift). Persisted in save.
+var sp_market_pressure: float = 1.0
+
 ## S35.3 — set true only while the player is fast-forwarding to season end (Skip to End of
 ## Season). The CFO auto-buy fires ONLY in this mode: during hands-on weekly play the player
 ## manages SP/FU themselves; when they opt out by skipping, the CFO keeps the cars race-ready.
@@ -617,6 +640,42 @@ func get_fuel_price_multiplier() -> float:
 ## The live per-kg fuel cost the player actually pays (base × economy multiplier).
 func get_fuel_cost_per_kg() -> float:
 	return BASE_FUEL_COST_PER_KG * get_fuel_price_multiplier()
+
+## ── S35.5 Living spare-parts price ────────────────────────────────────────────
+## SP economy multiplier: TIGHT manufactured-goods band (0.6–1.5), economy-DOMINANT. Maps from
+## economy_index (neutral 50 → ×1.0); recession → cheaper toward 0.6, boom → pricier toward 1.5.
+## Deliberately a much tighter swing than fuel (0.5–3.0): spare parts are industrial goods, not a
+## speculative commodity.
+func get_sp_price_multiplier() -> float:
+	var mult: float
+	if economy_index <= 50.0:
+		mult = lerp(SP_PRICE_MULT_MIN, 1.0, economy_index / 50.0)
+	else:
+		mult = lerp(1.0, SP_PRICE_MULT_MAX, (economy_index - 50.0) / 50.0)
+	return clamp(mult, SP_PRICE_MULT_MIN, SP_PRICE_MULT_MAX)
+
+## The live per-unit SP cost the player actually pays:
+##   BASE × economy_multiplier × market_pressure
+## The economy term sets the cycle level; market_pressure is the gentle supply/demand wobble
+## (mean-reverting, ±15% bound) updated weekly in _update_sp_market_pressure(). Rounded to 2 dp.
+func get_sp_cost_per_unit() -> float:
+	var raw: float = BASE_SP_COST_PER_UNIT * get_sp_price_multiplier() * sp_market_pressure
+	return max(0.1, round(raw * 100.0) / 100.0)   ## never free; 2-dp display-friendly
+
+## Weekly gentle market-pressure drift for SP — the "supply & demand" feel WITHOUT a real
+## consumption model. Mean-reverts toward 1.0, small weekly move, rare mild shock. Far calmer
+## than fuel by design (SP is more bound to the economy cycle than to speculative swings).
+func _update_sp_market_pressure() -> void:
+	## Mean-reversion pull back toward neutral 1.0 (keeps the economy term dominant over time).
+	var pull: float = (1.0 - sp_market_pressure) * 0.10
+	## Normal weekly wobble ±0.8% (vs fuel's ±2%).
+	var move: float = randf_range(-0.008, 0.008)
+	## Rare mild shock, cadence from the sheet (Random_Economic_Event_Chance_Per_Week ≈ 0.04),
+	## magnitude ±3% (vs fuel's ±5%) — a "parts shortage / surplus" blip.
+	if randf() < 0.04:
+		move += randf_range(-0.03, 0.03)
+	sp_market_pressure = clamp(sp_market_pressure + pull + move,
+		SP_MARKET_PRESSURE_MIN, SP_MARKET_PRESSURE_MAX)
 
 ## ── P32 Weekly History recording ──────────────────────────────────────────────
 ## Each entry: {week, season, value}. Capped at 52×5 = 260 entries (5 seasons).
@@ -1727,29 +1786,30 @@ func cfo_auto_buy_for_race(champ = null) -> bool:
 			add_log("💼 CFO could not afford fuel for the next race (need CR %.0f)." % fuel_cost)
 
 	## ── Spare parts: top up to one race's repair reserve (sp_per_10_pct_damage) ─
-	## SP has no economy multiplier in the current design (flat CR 1/unit via buy_spare_parts).
+	## S35.5: SP now has a living price (economy × market pressure) like fuel — use it here too.
 	var sp_reserve: int = c.sp_per_10_pct_damage
 	var sp_short: int = sp_reserve - spare_parts
 	if sp_short > 0:
-		var sp_cost: int = sp_short  ## CR 1/unit
-		if int(player_team.balance) >= sp_cost:
+		var sp_cost: float = sp_short * get_sp_cost_per_unit()
+		if player_team.balance >= sp_cost:
 			buy_spare_parts(sp_short)
 			add_log("💼 CFO auto-bought %d spare parts for the next race." % sp_short)
 			bought_anything = true
 		else:
-			add_log("💼 CFO could not afford spare parts for the next race (need CR %d)." % sp_cost)
+			add_log("💼 CFO could not afford spare parts for the next race (need CR %.0f)." % sp_cost)
 
 	return bought_anything
 
 func buy_spare_parts(units: int) -> bool:
-	var cost_per_unit = 1  # CR 1 per unit for GK Championship (120 units = CR 120/race)
-	var total_cost = units * cost_per_unit
+	## S35.5: living price (base × economy × market pressure), not the old hardcoded CR 1/unit.
+	var cost_per_unit: float = get_sp_cost_per_unit()
+	var total_cost: float = units * cost_per_unit
 	if player_team.balance < total_cost:
 		add_notification("High", "Not enough credits to buy spare parts.")
 		return false
 	player_team.balance -= total_cost
 	spare_parts += units
-	add_log("🛒 Bought %d spare parts for CR %d (stock: %d)" % [units, total_cost, spare_parts])
+	add_log("🛒 Bought %d spare parts for CR %.0f (CR %.2f/unit, stock: %d)" % [units, total_cost, cost_per_unit, spare_parts])
 	return true
 
 func buy_fuel(kg: float) -> bool:
@@ -2672,6 +2732,7 @@ func _setup_player_team() -> void:
 	economy_index = 50.0
 	_economy_momentum = 0.0
 	current_fuel_price = 1200.0
+	sp_market_pressure = 1.0   ## S35.5 — neutral SP market at game start
 	current_loan_rate = 5.0
 	active_loans.clear()
 	_loan_next_id = 1
@@ -2718,6 +2779,8 @@ func advance_week() -> void:
 
 	## Update economy state and fuel price fluctuations
 	_update_economy_and_fuel()
+	## S35.5 — weekly SP market-pressure drift (gentle supply/demand wobble on top of the economy).
+	_update_sp_market_pressure()
 
 	## Apply any pending TP/Strategist championship assignments (queued last week)
 	_apply_pending_staff_assignments()
@@ -3095,6 +3158,7 @@ func save_game() -> void:
 		"current_loan_rate":         current_loan_rate,
 		"economy_index":             economy_index,
 		"economy_momentum":          _economy_momentum,
+		"sp_market_pressure":        sp_market_pressure,
 		"active_loans":              active_loans,
 		"loan_next_id":              _loan_next_id,
 		"consecutive_win_counts":    consecutive_win_counts,
@@ -3226,6 +3290,8 @@ func load_game(path: String = "user://save_game.json") -> void:
 	if "current_loan_rate"         in data: current_loan_rate         = data["current_loan_rate"]
 	if "economy_index"             in data: economy_index             = float(data["economy_index"])
 	if "economy_momentum"          in data: _economy_momentum         = float(data["economy_momentum"])
+	## S35.5 — SP market pressure; default 1.0 (neutral) for saves predating it.
+	sp_market_pressure = float(data.get("sp_market_pressure", 1.0))
 	if "active_loans"              in data: active_loans              = data["active_loans"]
 	if "loan_next_id"              in data: _loan_next_id             = data["loan_next_id"]
 	if "consecutive_win_counts"    in data: consecutive_win_counts    = data["consecutive_win_counts"]

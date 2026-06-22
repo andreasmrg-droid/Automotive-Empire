@@ -1,4 +1,7 @@
 extends Control
+## Version: S35.5 — Spare-parts card now shows the LIVING SP price (CR X.XX/unit) and its input
+##   cost preview uses get_sp_cost_per_unit() instead of the old hardcoded × 1, matching what
+##   buy_spare_parts actually charges (same pattern as the S35.4 fuel-preview fix).
 ## Version: S35.4 — Fuel cost preview fix. The live "= CR X" preview under the fuel input was
 ##   hardcoded to (kg × 2) — it didn't match the living per-kg price that buy_fuel actually charges
 ##   (S35.3). Now uses GameState.get_fuel_cost_per_kg() so the typed-amount preview and the real
@@ -173,7 +176,7 @@ func _make_sp_card(sp_per_10: int) -> PanelContainer:
 	panel.add_child(vbox)
 
 	_card_title(vbox, "🔧 Spare Parts")
-	_card_info(vbox, "Used for post-race car repairs. %d SP repairs 10%% damage. CR 1/unit.\nCurrent stock: %d units" % [sp_per_10, GameState.spare_parts])
+	_card_info(vbox, "Used for post-race car repairs. %d SP repairs 10%% damage. CR %.2f/unit (live price).\nCurrent stock: %d units" % [sp_per_10, GameState.get_sp_cost_per_unit(), GameState.spare_parts])
 
 	var input_row = HBoxContainer.new(); input_row.add_theme_constant_override("separation", 8)
 	vbox.add_child(input_row)
@@ -187,7 +190,8 @@ func _make_sp_card(sp_per_10: int) -> PanelContainer:
 	input_row.add_child(cost_lbl)
 	sp_input.text_changed.connect(func(t):
 		var a = int(t) if t.is_valid_int() and int(t) > 0 else 0
-		cost_lbl.text = "= CR %d" % a if a > 0 else "")
+		## S35.5: live preview matches the living per-unit price buy_spare_parts charges.
+		cost_lbl.text = ("= CR %d" % int(round(a * GameState.get_sp_cost_per_unit()))) if a > 0 else "")
 
 	var preset_lbl = Label.new(); preset_lbl.text = "Quick fill:"
 	preset_lbl.add_theme_font_size_override("font_size", 24); preset_lbl.modulate = Color(0.6, 0.6, 0.6)
