@@ -1588,8 +1588,8 @@ func _maybe_generate_race_sponsor_offer(player_position: int) -> void:
 	_sponsor_manager._maybe_generate_race_sponsor_offer(player_position)
 
 
-func add_notification(priority: String, message: String, destination: String = "") -> void:
-	_notification_manager.add_notification(priority, message, destination)
+func add_notification(priority: String, message: String, destination: String = "", subject: String = "") -> void:
+	_notification_manager.add_notification(priority, message, destination, subject)
 
 func mark_all_notifications_read() -> void:
 	_notification_manager.mark_all_notifications_read()

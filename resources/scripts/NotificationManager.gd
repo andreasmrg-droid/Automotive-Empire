@@ -1,4 +1,14 @@
 class_name NotificationManager
+## Version: S35.1 — Recurring-notification collapse. add_notification() gains an optional `subject`
+##   key. A notification carrying a subject SUPERSEDES any earlier notification with the same
+##   subject (the previous instance is removed before the new one is appended), so a standing
+##   weekly reminder ("no car for SC Dev", "no fuel", "register a championship") keeps only its
+##   CURRENT-week instance instead of stacking one per advanced week. This fixes the case the S31.1
+##   identical-text dedup missed: notifications whose TEXT changes week to week (e.g. a delivery
+##   week or deadline baked into the message) are still the same subject, so identical-match never
+##   caught them. Subject supersede is text-independent. One-off notifications pass no subject and
+##   behave exactly as before. Critical still always shows AND still supersedes by subject (so a
+##   critical weekly reminder collapses too — only the latest survives, never suppressed away).
 ## Version: S34.2 — Bond-countered To-Do text now points to HQ ("…accept, counter or reject in
 ##   HQ") since all negotiation actions are handled from HQ Pending Activity.
 ## Version: S34.1 — TDL bond visibility fix. get_pending_tasks() step 7b now branches on
@@ -19,13 +29,37 @@ var gs
 func _init(game_state) -> void:
 	gs = game_state
 
-func add_notification(priority: String, message: String, destination: String = "") -> void:
-	# Bug 5: suppress noise from standing notifications re-firing every week.
+func add_notification(priority: String, message: String, destination: String = "", subject: String = "") -> void:
+	# ── S35.1: subject supersede (recurring-notification collapse) ──────────────
+	# A notification with a `subject` represents a STANDING condition that re-fires each
+	# week (no car for champ X, no fuel, no championship registered, delivery deadline).
+	# Remove any prior notification on the same subject so only the CURRENT week's instance
+	# survives — even if its text changed (a delivery week / deadline embedded in the
+	# message would defeat the identical-text dedup below). This runs for ALL priorities,
+	# including Critical, so a critical weekly reminder collapses to its latest instance
+	# rather than stacking (it is still SHOWN — supersede replaces, it does not suppress).
+	if subject != "":
+		var had_unread := false
+		gs.notifications = gs.notifications.filter(func(n):
+			if n.get("subject", "") == subject:
+				if not n.get("read", false):
+					had_unread = true
+				return false   ## drop the superseded prior instance
+			return true
+		)
+		## Keep the unread counter honest after dropping a possibly-unread prior instance.
+		if had_unread and gs.unread_notification_count > 0:
+			gs.unread_notification_count -= 1
+
+	# Bug 5 (S31.1): suppress noise from standing notifications re-firing every week.
 	# Skip if an identical (non-Critical) message is ALREADY UNREAD in the panel —
 	# no point stacking the same "assign a driver" reminder week after week. Once the
 	# player reads or dismisses it, it may fire again if the condition still holds.
 	# Critical always shows (e.g. bankruptcy risk must re-fire each week).
-	if priority != "Critical":
+	# S35.1: subject-bearing notifications already collapsed above and MUST be appended
+	# (otherwise the unread-count decrement from supersede leaves the panel empty for that
+	# subject) — so this identical-text guard only applies to no-subject standing messages.
+	if priority != "Critical" and subject == "":
 		for n in gs.notifications:
 			if n["message"] == message and not n.get("read", false):
 				return
@@ -34,6 +68,7 @@ func add_notification(priority: String, message: String, destination: String = "
 		"priority":    priority,
 		"message":     message,
 		"destination": destination,
+		"subject":     subject,
 		"week":        gs.current_week,
 		"season":      gs.current_season,
 		"read":        false,
@@ -112,19 +147,23 @@ func add_log(message: String) -> void:
 
 
 func _check_resource_notifications() -> void:
+	# S35.1: every standing weekly notification below carries a `subject` so it collapses to its
+	# current-week instance instead of stacking one per advanced week. Per-champ / per-part
+	# subjects embed the id so distinct items stay separate while each collapses over time.
+
 	# SP warnings
 	if gs.spare_parts <= 0:
-		add_notification("Critical", "No spare parts remaining! Buy more at the Logistics Center to repair your car.")
+		add_notification("Critical", "No spare parts remaining! Buy more at the Logistics Center to repair your car.", "", "res_spare_parts")
 	elif gs.active_championship != null and gs.spare_parts < gs.active_championship.sp_per_10_pct_damage:
-		add_notification("High", "Spare parts low (%d units). Not enough to repair 10%% damage." % gs.spare_parts)
+		add_notification("High", "Spare parts low (%d units). Not enough to repair 10%% damage." % gs.spare_parts, "", "res_spare_parts")
 
 	# Fuel warnings
 	if gs.active_championship != null:
 		var fuel_needed = gs.active_championship.fuel_per_car_per_race
 		if gs.fuel_kg <= 0.0:
-			add_notification("Critical", "No fuel remaining! Buy more at the Logistics Center before next race.")
+			add_notification("Critical", "No fuel remaining! Buy more at the Logistics Center before next race.", "", "res_fuel")
 		elif gs.fuel_kg < fuel_needed:
-			add_notification("High", "Fuel running low (%.1f kg). Less than 1 race worth remaining." % gs.fuel_kg)
+			add_notification("High", "Fuel running low (%.1f kg). Less than 1 race worth remaining." % gs.fuel_kg, "", "res_fuel")
 
 	# No car for running championship warning — only player's registered championships
 	for champ_id in gs.player_registered_championships:
@@ -135,14 +174,15 @@ func _check_resource_notifications() -> void:
 			var race1_week = gs.FIRST_RACE_WEEK.get(champ_id, 6)
 			if gs.current_week >= race1_week - 4:
 				add_notification("Critical",
-					"🚨 No car entered for %s! Race 1 is Week %d — buy a car at the Logistics Center or you will DNS all races." % [champ_name, race1_week])
+					"🚨 No car entered for %s! Race 1 is Week %d — buy a car at the Logistics Center or you will DNS all races." % [champ_name, race1_week],
+					"logistics", "res_no_car_%s" % champ_id)
 
 	# Bankruptcy warning
 	var weekly_expenses = 1250
 	if gs.player_team.balance < 0:
-		add_notification("Critical", "BANKRUPTCY RISK: Balance is negative (CR %.0f)!" % gs.player_team.balance)
+		add_notification("Critical", "BANKRUPTCY RISK: Balance is negative (CR %.0f)!" % gs.player_team.balance, "", "res_bankruptcy")
 	elif gs.player_team.balance < weekly_expenses * 2:
-		add_notification("High", "Low funds warning: Less than 2 weeks of expenses remaining.")
+		add_notification("High", "Low funds warning: Less than 2 weeks of expenses remaining.", "", "res_bankruptcy")
 
 
 func _check_part_inventory_notifications() -> void:
@@ -158,7 +198,8 @@ func _check_part_inventory_notifications() -> void:
 		var stock = gs.part_inventory[champ_id].get(part, 0)
 		if stock <= gs.CFO_PART_WARNING_THRESHOLD:
 			add_notification("High",
-				"💼 CFO: %s parts stock critically low (%d remaining). A part failure means DNF — buy replacements at Logistics Center." % [part, stock])
+				"💼 CFO: %s parts stock critically low (%d remaining). A part failure means DNF — buy replacements at Logistics Center." % [part, stock],
+				"", "res_part_stock_%s" % part)
 
 
 func get_pending_tasks() -> Array[String]:
