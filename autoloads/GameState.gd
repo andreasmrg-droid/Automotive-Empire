@@ -1,5 +1,13 @@
 extends Node
-## Version: S32.3 — Added peek_tp_proposals(): read-only TP proposal compute (no notification/
+## Version: S33.0 — TP Phase 2 (AI auto-assign). Added TEAM-SCOPED championship-role getters
+##   _get_tp_for_championship_team()/_get_strategist_for_championship_team() (the player-scoped
+##   versions are now thin wrappers passing player_team.id) so compute_optimal_assignments can
+##   detect already-assigned championship roles for ANY team, not just the player's. Added
+##   get_cars_for_team(team): resolves a team's cars (player → player_team_cars; AI → ai_cars
+##   filtered by the CAR-{team.id}- id prefix). Added ai_auto_assign_all_teams() entry used by
+##   SeasonManager at season rollover (S2+ only). Pairs with TPProposalEngine S33.0 +
+##   AIManager S33.0 + SeasonManager S33.0.
+## --- S32.3 — Added peek_tp_proposals(): read-only TP proposal compute (no notification/
 ##   TDL side effects) for the Racing Dept panel display. Pairs with TPProposalEngine S32.3.
 ## --- S31.0 — Bug 9 (discipline bleed): GK round notifications (elimination, round
 ##   complete, champion) now gated on the player being registered in GK — a non-GK career
@@ -2011,6 +2019,40 @@ func _get_tp_for_championship(champ_id: String):
 
 func _get_strategist_for_championship(champ_id: String):
 	return _contract_engine._get_strategist_for_championship(champ_id)
+
+## S33.0 — Team-scoped variants (used by the shared optimiser for AI auto-assign).
+func _get_tp_for_championship_team(champ_id: String, team_id: String):
+	return _contract_engine._get_tp_for_championship_team(champ_id, team_id)
+
+func _get_strategist_for_championship_team(champ_id: String, team_id: String):
+	return _contract_engine._get_strategist_for_championship_team(champ_id, team_id)
+
+## S33.0 — Resolve the cars belonging to a team. Player cars live in the flat
+## player_team_cars array; AI cars live in ai_cars keyed by championship with no team
+## back-reference, but the seed encodes ownership in the car id: "CAR-{TEAM_ID}-{CHAMP}-{idx}".
+## We match by that prefix so no Car field / save migration is needed.
+func get_cars_for_team(team) -> Array:
+	if team == null:
+		return []
+	if team.id == player_team.id:
+		return player_team_cars
+	var prefix: String = "CAR-%s-" % team.id
+	var result: Array = []
+	for cid in ai_cars:
+		for car in ai_cars[cid]:
+			if car.id.begins_with(prefix):
+				result.append(car)
+	return result
+
+## S33.0 — TP Phase 2 entry: re-optimise EVERY AI team's 5-role allocation (driver/mechanic/
+## pit-crew/strategist/TP), applied directly (no proposal UI, no player notifications). Called
+## by SeasonManager at season rollover for Season >= 2 (Season 1 stays JSON-seeded). Also the
+## hook the future Transfer Market (P51) can call per-team on a mid-season AI roster change.
+func ai_auto_assign_all_teams() -> void:
+	_tp_engine.ai_auto_assign_all_teams()
+
+func ai_auto_assign(team) -> void:
+	_tp_engine.ai_auto_assign(team)
 
 func _apply_negotiation_result(neg: Dictionary, accepted: bool) -> void:
 	_contract_engine._apply_negotiation_result(neg, accepted)

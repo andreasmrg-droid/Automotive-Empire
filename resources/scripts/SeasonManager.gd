@@ -1,5 +1,8 @@
 class_name SeasonManager
-## Version: S28.4 — AI teams auto-renew expiring contracts each off-season (Bug 8).
+## Version: S33.0 — TP Phase 2 hook: after the JSON seed (load_car_assignments), for Season >= 2
+##   call gs.ai_auto_assign_all_teams() so the optimiser takes over AI assignment from Season 2
+##   onward (Season 1 stays JSON-seeded). Absorbs the season's AI roster changes too.
+## --- S28.4 — AI teams auto-renew expiring contracts each off-season (Bug 8).
 ## --- S28.3 — Free-agent pool replenished each season after retirements (Bug 7).
 ## --- S28.1 — NextSeasonLedger activation (GDD §16.3 Steps 13-14, §23.1).
 ##   start_new_season() now ACTIVATES gs.next_season_registrations into
@@ -190,6 +193,13 @@ func start_new_season() -> void:
 
 	## Re-register AI drivers and teams into championship standings
 	gs.ai_manager.load_car_assignments()
+
+	## TP Phase 2 (spec v2 §4): Season 1 is JSON-seeded (above); from Season 2 onward the
+	## optimiser takes over — re-optimise every AI team's 5-role allocation (driver/mechanic/
+	## pit-crew/strategist/TP) directly. This also absorbs the season's AI roster changes
+	## (retirements/auto-renew handled in _process_off_season above).
+	if gs.current_season >= 2:
+		gs.ai_auto_assign_all_teams()
 
 	gs.add_log("=== SEASON %d BEGINS ===" % gs.current_season)
 

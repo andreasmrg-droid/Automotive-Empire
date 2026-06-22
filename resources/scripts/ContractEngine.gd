@@ -1,5 +1,9 @@
 class_name ContractEngine
-## Version: S27.0 — Extracted from GameState.gd (P57 Phase 4)
+## Version: S33.0 — TP Phase 2: added team-scoped _get_tp_for_championship_team()/
+##   _get_strategist_for_championship_team(); the original player-scoped getters are now thin
+##   wrappers passing player_team.id (callers unchanged). Lets the shared optimiser detect
+##   already-assigned championship roles for AI teams.
+## --- S27.0 — Extracted from GameState.gd (P57 Phase 4)
 ##   Owns all contract negotiation: approach/bond system, opening offers,
 ##   weekly negotiation rounds, sponsor negotiations, contract application.
 ##   Called by GameState via wrapper functions.
@@ -513,18 +517,27 @@ func _get_max_slots_for_role(role: String) -> int:
 		"Pit Crew":       return gs.player_team_cars.size()
 	return 1
 
+## Player-scoped wrappers (unchanged signature — existing callers keep working).
 func _get_tp_for_championship(champ_id: String):
+	return _get_tp_for_championship_team(champ_id, gs.player_team.id)
+
+func _get_strategist_for_championship(champ_id: String):
+	return _get_strategist_for_championship_team(champ_id, gs.player_team.id)
+
+## S33.0 — Team-scoped variants. Needed so the shared optimiser can detect an
+## already-assigned championship role for ANY team (AI auto-assign), not just the player.
+func _get_tp_for_championship_team(champ_id: String, team_id: String):
 	for sid in gs.all_staff:
 		var s = gs.all_staff[sid]
-		if s.role == "Team Principal" and s.contract_team == gs.player_team.id \
+		if s.role == "Team Principal" and s.contract_team == team_id \
 				and s.assigned_championship == champ_id:
 			return s
 	return null
 
-func _get_strategist_for_championship(champ_id: String):
+func _get_strategist_for_championship_team(champ_id: String, team_id: String):
 	for sid in gs.all_staff:
 		var s = gs.all_staff[sid]
-		if s.role == "Race Strategist" and s.contract_team == gs.player_team.id \
+		if s.role == "Race Strategist" and s.contract_team == team_id \
 				and s.assigned_championship == champ_id:
 			return s
 	return null

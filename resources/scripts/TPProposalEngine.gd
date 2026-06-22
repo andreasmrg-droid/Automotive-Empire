@@ -1,5 +1,13 @@
 class_name TPProposalEngine
-## Version: S32.3 — Fix stale Racing Dept panel: compute_optimal_assignments now SKIPS
+## Version: S33.0 — TP Phase 2 (AI auto-assign). Added ai_auto_assign(team) and
+##   ai_auto_assign_all_teams(): AI teams run the SAME compute_optimal_assignments
+##   (include_tp=true) but APPLY DIRECTLY — driver/mechanic/pit set on the car, strategist/TP
+##   set staff.assigned_championship directly (NOT via gs.assign_staff_to_championship, which
+##   queues + fires player-only notifications). No proposal UI, no player TDL. The optimiser's
+##   strategist/TP skip-guards now use the TEAM-SCOPED getters (_get_*_for_championship_team)
+##   so already-assigned championship roles are detected per team, not just for the player.
+##   Season 1 stays JSON-seeded; this takes over from Season 2 + on AI roster change.
+## --- S32.3 — Fix stale Racing Dept panel: compute_optimal_assignments now SKIPS
 ##   already-assigned roles. Pre-commits assigned drivers/mechanics/pit-crew (per car) and
 ##   strategists/TPs (per championship) so the optimiser neither re-proposes them nor offers
 ##   them elsewhere; each role block is guarded to skip if the car/championship already has
@@ -166,7 +174,7 @@ func compute_optimal_assignments(team, team_cars: Array, include_tp: bool) -> Ar
 		var champ_name = reg.get("name", cid)
 
 		## Strategist — NOT used in GK or Rally; skip if this championship already has one
-		if disc != "GK" and disc != "Rally" and gs._get_strategist_for_championship(cid) == null:
+		if disc != "GK" and disc != "Rally" and gs._get_strategist_for_championship_team(cid, team.id) == null:
 			var best_strat = _find_best_strategist(disc, avail_strategists, committed)
 			if best_strat != null:
 				var eff = _eff_strategist_score(best_strat, disc)
@@ -180,7 +188,7 @@ func compute_optimal_assignments(team, team_cars: Array, include_tp: bool) -> Ar
 					"🚫 [%s] — no strategist available. Hire one." % champ_name, "warning"))
 
 		## Team Principal — AI only (player manages TPs manually); skip if already assigned
-		if include_tp and gs._get_tp_for_championship(cid) == null:
+		if include_tp and gs._get_tp_for_championship_team(cid, team.id) == null:
 			var best_tp = _find_best_tp(disc, avail_tps, committed)
 			if best_tp != null:
 				var eff = _eff_tp_score(best_tp, disc)
@@ -397,7 +405,84 @@ func apply_tp_proposals(proposals: Array) -> void:
 	_tp_roster_snapshot = _take_tp_roster_snapshot()
 	gs.emit_signal("log_updated")
 
-## Returns all TP/Strategist assignment proposals for all active championships.
+## ── TP Phase 2 — AI auto-assign (spec v2 §4) ─────────────────────────────────
+## AI teams use the SAME optimiser as the player but apply DIRECTLY (no proposal UI, no
+## player notifications/TDL). Covers all 5 roles INCLUDING Team Principal. Season 1 stays
+## JSON-seeded (AIManager.load_car_assignments); this takes over from Season 2 onward and on
+## any AI roster change (called by SeasonManager at rollover; future hook for P51 transfers).
+
+## Re-optimise every AI team. Skips the player team (player keeps the manual/proposal flow).
+func ai_auto_assign_all_teams() -> void:
+	## The optimiser SKIPS already-assigned roles (S32.3 pre-commit). AI cars persist their
+	## assignments across seasons and the JSON seed re-applies them every rollover, so without
+	## clearing first the optimiser would skip everything and the AI would stay JSON-seeded
+	## forever. Clear AI assignments so Season 2+ genuinely re-allocates from the live roster.
+	_clear_ai_assignments()
+	var n := 0
+	for team in gs.all_teams:
+		if team == null: continue
+		if team.id == gs.player_team.id: continue
+		ai_auto_assign(team)
+		n += 1
+	if n > 0:
+		print("[TPProposalEngine] AI auto-assign ran for %d teams." % n)
+
+## Wipe every AI team's per-car (driver/mechanic/pit) and per-championship (strategist/TP)
+## assignments so the optimiser reallocates cleanly. Player team is never touched. Filler
+## teams (T-FILL-*) are left as-is — they aren't optimiser-managed.
+func _clear_ai_assignments() -> void:
+	var pid: String = gs.player_team.id
+	for cid in gs.ai_cars:
+		var pit_req: bool = gs.get_pit_crew_required(cid)
+		for car in gs.ai_cars[cid]:
+			if not car.id.begins_with("CAR-T-FILL"):
+				car.driver_id = ""
+				car.mechanic_id = ""
+				## GK (and any pit-not-required champ) keeps the "N/A" convention; the
+				## optimiser skips pit crew there, so leave it explicitly not-applicable.
+				car.pit_crew_id = "" if pit_req else "N/A"
+	for sid in gs.all_staff:
+		var s = gs.all_staff[sid]
+		if s.contract_team != "" and s.contract_team != pid:
+			if s.role == "Team Principal" or s.role == "Race Strategist":
+				s.assigned_championship = ""
+
+## Compute + APPLY the optimal 5-role allocation for one AI team, silently.
+func ai_auto_assign(team) -> void:
+	if team == null: return
+	var team_cars: Array = gs.get_cars_for_team(team)
+	if team_cars.is_empty(): return
+	var proposals: Array = compute_optimal_assignments(team, team_cars, true)
+	for prop in proposals:
+		var pid: String     = prop.get("person_id", "")
+		var car_id: String  = prop.get("car_id", "")
+		var champ_id: String = prop.get("champ_id", "")
+		if pid == "":
+			continue   ## "missing_*" proposals carry no person — nothing to apply
+		match prop.get("type", ""):
+			"assign_driver":
+				if car_id != "":
+					_apply_car_field(car_id, "driver_id", pid)
+			"assign_mechanic":
+				if car_id != "":
+					_apply_car_field(car_id, "mechanic_id", pid)
+			"assign_pit_crew":
+				if car_id != "":
+					_apply_car_field(car_id, "pit_crew_id", pid)
+			"assign_strategist", "assign_tp":
+				## Per-championship roles: set assigned_championship DIRECTLY (do NOT route
+				## through gs.assign_staff_to_championship — that queues for next week and
+				## fires player-facing notifications/guards meant only for the player team).
+				if champ_id != "" and pid in gs.all_staff:
+					gs.all_staff[pid].assigned_championship = champ_id
+
+## Set a field on a car owned by an AI team (ai_cars is keyed by championship).
+func _apply_car_field(car_id: String, field: String, value: String) -> void:
+	for cid in gs.ai_cars:
+		for car in gs.ai_cars[cid]:
+			if car.id == car_id:
+				car.set(field, value)
+				return
 ## GK: single TP for all 4 tiers combined (one proposal, not four).
 ## Non-GK: 1 TP + 1 Strategist per championship (where applicable).
 ## Only generates proposals if the player has a car registered to that championship.
