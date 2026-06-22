@@ -477,12 +477,47 @@ Each building level provides some of: staff hiring slots, passive income / cost 
 stat bonuses, and unlocks for R&D projects or commercial upgrades. Exact effects live in the
 Buildings sheet.
 
+### THE CANONICAL SLOTS-vs-ASSIGNMENTS RULE (S33.2 — single source of truth)
+
+Two SEPARATE concepts. The engine must never conflate them (conflating them was the root of the
+"can't negotiate when garage full" and "driver joins early on level-up" bugs).
+
+**SLOTS = hiring capacity = BUILDING LEVEL.** How many of each role you may EMPLOY. `slots =
+building.level` (e.g. Garage Lv5 = 5 Race Mechanic slots). Stable across season rollover.
+
+| Role | Slot-providing building |
+|---|---|
+| Team Principal | Headquarters (HQ) |
+| Race Mechanic | Garage |
+| Car | Garage |
+| Driver | Racing Department |
+| Cadet | Racing Department (Academy *produces* cadets, but they need a Racing Dept spot to race) |
+| Designer | R&D Design Studio |
+| Race Strategist | Ops Sim & Telemetry |
+| Pit Crew | Pit Crew Arena |
+| CFO | n/a — always exactly 1 |
+
+**ASSIGNMENTS = deployment need = CARS & CHAMPIONSHIPS.** Where employed people are deployed; a
+SEPARATE downstream check, NEVER the hiring cap:
+- Each **car** needs: 1–3 drivers (per discipline `Driver_Per_Car`), 1 Race Mechanic, 1 Pit Crew
+  (no Pit Crew for GK).
+- Each **championship** needs: 1 Team Principal, 1 Race Strategist (no Strategist for GK or Rally).
+
+**Consequence (S33.2 fix):** slot caps in `ContractEngine._get_max_slots_for_role` and
+`get_slot_projection` read building level, not `player_team_cars.size()`. So next-season
+negotiation works even at rollover when cars = 0 (building levels persist). Pre-signed contracts
+activate ONLY when the season actually turns over (`current_season > signed_season`) — a
+mid-season level-up never makes a pre-signed person join early.
+
 ### Slot-providing buildings (current)
 | Building | Slots/level | Max level | Notes |
 |---|---|---|---|
-| Garage | +1 Race Mechanic | 89 | also +1800 weekly repair profit |
+| Garage | +1 Race Mechanic (and +1 Car) | 89 | also +1800 weekly repair profit |
 | Racing Department | +1 Driver | 89 | +10% driver morale/focus |
 | Pit Crew Arena | +1 Pit Crew | 20 | −0.1s pit/level |
+| Ops Sim & Telemetry | +1 Race Strategist | — | strategist hiring capacity |
+| R&D Design Studio | +1 Designer | — | designer hiring capacity |
+| Headquarters | TP slots (get_hq_tp_slots) | — | TP hiring capacity |
 | Fitness Clinic | **0 slots** | 109 | fatigue-only (−10% fatigue); NOT a roster building |
 
 Peak personnel demand at full capacity (after SC Dev→4): ~78 cars, ~120 drivers (Rally/TC ×2,

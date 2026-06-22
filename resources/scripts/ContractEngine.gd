@@ -1,4 +1,11 @@
 class_name ContractEngine
+## Version: S33.2 — Canonical SLOT rule + early-join fix. (1) _get_max_slots_for_role now derives
+##   every cap from BUILDING LEVEL, not car count: Mechanic=Garage, Pit Crew=Pit Crew Arena,
+##   Strategist=Ops Sim & Telemetry, Designer=R&D Studio, TP=HQ, CFO=1 (slots = hiring capacity;
+##   car/championship needs are a separate assignment check). Fixes next-season negotiation being
+##   blocked at rollover (cars=0 no longer means 0 mechanic/pit slots). (2) _activate_presigned_
+##   contracts() now season-gated (current_season > signed_season) so a mid-season level-up no
+##   longer makes a pre-signed driver/staff join early; removed the redundant weekly activation.
 ## Version: S33.1 — FIX: next-season (pre-signed) contracts were unreliable — some signed
 ##   immediately, some never joined. Root cause: start_date lived in TWO unsynced fields
 ##   (top-level ap.start_date, read by _apply_approach_result; and ap.terms.start_date.player_offer,
@@ -516,15 +523,18 @@ func get_slot_projection(subject_type: String, role: String = "") -> Dictionary:
 	}
 
 func _get_max_slots_for_role(role: String) -> int:
+	## CANONICAL RULE (GDD): SLOTS come from BUILDINGS (hiring capacity), independent of cars.
+	## Assignments (car needs 1 mechanic / 1 pit crew; championship needs 1 TP / 1 strategist)
+	## are a SEPARATE downstream check — never the hiring cap. Building level = number of slots.
 	match role:
-		"Team Principal": return gs.get_hq_tp_slots()
-		"CFO":            return 1
-		"Race Mechanic":  return gs.player_team_cars.size()
-		"Race Strategist":return 1
+		"Team Principal":  return gs.get_hq_tp_slots()
+		"CFO":             return 1
+		"Race Mechanic":   return max(1, gs.campus_buildings.get("Garage", {}).get("level", 1))
+		"Race Strategist": return max(1, gs.campus_buildings.get("Ops Sim & Telemetry", {}).get("level", 1))
 		"Designer":
 			var bld = gs.campus_buildings.get("R&D Design Studio", {})
 			return max(1, bld.get("level", 1))
-		"Pit Crew":       return gs.player_team_cars.size()
+		"Pit Crew":        return max(1, gs.campus_buildings.get("Pit Crew Arena", {}).get("level", 1))
 	return 1
 
 ## Player-scoped wrappers (unchanged signature — existing callers keep working).
@@ -966,12 +976,9 @@ func _advance_approaches() -> void:
 							ap["contract_round"], ap["max_contract_rounds"], ap["subject_name"]], "hq")
 					changed = true
 
-		## ── Pre-signed: activate at season start ────────────────────────────
-		elif ap["type"] == "pre_signed" and gs.current_season > ap.get("signed_season", gs.current_season):
-			_apply_approach_result(ap)   ## now apply with immediate
-			ap["start_date"] = "immediate"
-			ap["status"] = "agreed"
-			changed = true
+		## ── Pre-signed: activation is handled by _activate_presigned_contracts() below,
+		## which is season-gated (only fires once current_season > signed_season). No per-week
+		## handling here — that previously caused double-apply / early-join. ──────────────
 
 	## Activate pre-signed contracts at season start (called from start_new_season too)
 	_activate_presigned_contracts()
@@ -982,6 +989,14 @@ func _advance_approaches() -> void:
 func _activate_presigned_contracts() -> void:
 	for ap in gs.active_approaches:
 		if ap.get("type") == "pre_signed" and ap.get("status") == "agreed":
+			## S33.2 FIX (early-join): only activate once the season has ACTUALLY turned over.
+			## A pre-signed approach is type=pre_signed + status=agreed the moment it's struck
+			## (the caller sets status=agreed before _apply_approach_result marks it pre_signed).
+			## Without this guard, the weekly _advance_approaches call would activate it the very
+			## next tick — so a mid-season Racing-Dept/Garage level-up (opening a slot) made the
+			## pre-signed driver/staff join immediately. They must wait for next season.
+			if gs.current_season <= ap.get("signed_season", gs.current_season):
+				continue
 			var fake_neg = {
 				"subject_id":   ap["subject_id"],
 				"subject_type": ap["subject_type"],

@@ -1,4 +1,6 @@
 extends Control
+## Version: S33.2 — Race Strategist slot check now reads Ops Sim & Telemetry building level
+##   (was hardcoded to 1), matching the canonical building-based slot rule and the engine.
 ## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
 ##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S29.0 — Not-interested popup (issue 1). Page-transition perf: _refresh_list
@@ -1420,11 +1422,17 @@ func _get_slot_message(role: String) -> String:
 			if GameState.get_player_staff_by_role("CFO").size() >= 1:
 				return "You already have a CFO. Release them first."
 		"Race Strategist":
-			# 1 per championship. Only required for non-GK.
+			# Slots = Ops Sim & Telemetry level (canonical rule). Assignment is 1 per
+			# non-GK/Rally championship — a separate downstream check, not the hiring cap.
 			if GameState.active_championship.discipline == "GK":
 				return "Race Strategist not required for GK championships."
-			if GameState.get_player_staff_by_role("Race Strategist").size() >= 1:
-				return "You already have a Race Strategist for this championship."
+			var ops = GameState.get_building("Ops Sim & Telemetry")
+			if ops.is_empty() or not ops.get("built", false) or ops.get("level", 0) < 1:
+				return "Build the Ops Sim & Telemetry to hire Race Strategists."
+			var max_strat = max(1, ops.get("level", 1))
+			if GameState.get_player_staff_by_role("Race Strategist").size() >= max_strat:
+				return "Strategist slots full (Ops Sim Lv%d = %d slot%s). Upgrade for more." % [
+					max_strat, max_strat, "s" if max_strat != 1 else ""]
 		"Race Mechanic":
 			# Slot limit = max cars allowed = garage level (min 1 if built)
 			# Allow hiring even during upgrade — building still operational

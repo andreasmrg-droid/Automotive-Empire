@@ -1,5 +1,6 @@
 extends Control
-## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
+## Version: S33.2 — staff negotiations now include the start_date (Immediate/Next Season)
+##   dropdown, same as drivers (FIELD_ORDER_STAFF). Prior: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
 ##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S29.0 — Open/close lag fix (issue 2): removed all four
 ##   `await get_tree().process_frame` stalls; replaced with synchronous _clear_content()
@@ -36,8 +37,8 @@ const FIELD_ORDER_DRIVER = [
 	"weekly_salary","duration_seasons","win_bonus","podium_bonus","championship_bonus","release_clause","start_date"
 ]
 const FIELD_ORDER_STAFF = [
-	"weekly_salary","duration_seasons","championship_bonus","performance_bonus","release_clause"
-	## No start_date, no lock buttons for staff negotiations
+	"weekly_salary","duration_seasons","championship_bonus","performance_bonus","release_clause","start_date"
+	## start_date enabled (S33.2): staff can be signed Immediate or Next Season, same as drivers.
 ]
 const FIELD_ORDER_SPONSOR_1 = ["weekly_payment","seasons_remaining"]
 const FIELD_ORDER_SPONSOR_2 = ["win_bonus","podium_bonus","season_bonus","seasons_remaining"]
