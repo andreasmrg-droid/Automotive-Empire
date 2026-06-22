@@ -981,6 +981,10 @@ func _on_skip_to_season_end() -> void:
 ## Returns an Array of strings for the news modal.
 func _skip_weeks_collect_news(n: int) -> Array:
 	var news: Array = []
+	## S35.3: mark that we're fast-forwarding so the CFO auto-buys race logistics during the
+	## skip (GameState.advance_week reads this flag). Always cleared in the defer below, even
+	## if the loop breaks early (season end / scene change).
+	GameState.simulating_to_season_end = true
 	for i in range(n):
 		if GameState.current_week >= GameState.max_weeks:
 			break
@@ -996,6 +1000,7 @@ func _skip_weeks_collect_news(n: int) -> Array:
 				var d = GameState.all_drivers.get(p1["driver_id"])
 				if d:
 					news.append("🏆 Wk %d: %s WON the race!" % [GameState.current_week, d.full_name()])
+	GameState.simulating_to_season_end = false
 	return news
 
 func _show_pending_tasks_dialog(tasks: Array) -> void:

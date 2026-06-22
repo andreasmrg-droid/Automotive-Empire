@@ -1,6 +1,12 @@
 extends Resource
 class_name GKDiscipline
-## Version: S28.3 — Added get_champion()/is_complete() (Bug 1: GK champion now derivable for
+## Version: S35.3 — Added player_elimination_announced flag. The "your driver was eliminated…
+##   Season over for GK" notification used to re-fire at the END OF EVERY subsequent round once
+##   the player was out (eliminated stays true forever), so a Round-1 exit produced duplicate
+##   "eliminated at Round 2 / Round 3" notices (all irrelevant — the player is already out). The
+##   flag (reset each season alongside `eliminated`) lets GameState fire the notice exactly ONCE,
+##   at the round of actual elimination. See GameState advance_week GK block.
+## --- S28.3 — Added get_champion()/is_complete() (Bug 1: GK champion now derivable for
 ##   the EndOfSeason screen). get_champion() returns the top driver of the final round.
 ## --- S24.1 — Rewritten for single GK Championship (C-001).
 ## 4 progressive rounds: R1=32 groups, R2=16 groups×20, R3=4 groups×32, Final=2 groups×30.
@@ -32,6 +38,11 @@ var player_group: int = 0
 ## Eliminated driver ids — cannot advance
 var eliminated: Dictionary = {}
 
+## S35.3 — set true once the player's GK elimination has been announced this season, so the
+## "Season over for GK" notification fires exactly once (not every subsequent round). Reset
+## each season in populate_season alongside `eliminated`.
+var player_elimination_announced: bool = false
+
 ## ── Init ──────────────────────────────────────────────────────────────────────
 
 func _init() -> void:
@@ -40,6 +51,7 @@ func _init() -> void:
 	current_round  = 0
 	player_group   = 0
 	eliminated     = {}
+	player_elimination_announced = false
 
 
 ## ── populate_season ───────────────────────────────────────────────────────────
@@ -58,6 +70,7 @@ func populate_season(
 	shadow_standings = []
 	current_round    = 0
 	eliminated       = {}
+	player_elimination_announced = false
 
 	## Collect all eligible GK drivers — exclude filler drivers (T-FILL/D-FILL)
 	var candidates: Array = []

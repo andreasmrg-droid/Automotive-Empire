@@ -213,8 +213,8 @@ func _make_fuel_card(fuel_per_race: float, cars: int) -> PanelContainer:
 	panel.add_child(vbox)
 
 	_card_title(vbox, "⛽ Fuel")
-	_card_info(vbox, "CR 2/kg. %d car%s × %.0f kg/race = %.0f kg per event.\nCurrent stock: %.1f kg" % [
-		cars, "s" if cars != 1 else "", fuel_per_race, fuel_per_race * cars, GameState.fuel_kg])
+	_card_info(vbox, "CR %.2f/kg (live price). %d car%s × %.0f kg/race = %.0f kg per event.\nCurrent stock: %.1f kg" % [
+		GameState.get_fuel_cost_per_kg(), cars, "s" if cars != 1 else "", fuel_per_race, fuel_per_race * cars, GameState.fuel_kg])
 
 	var input_row = HBoxContainer.new(); input_row.add_theme_constant_override("separation", 8)
 	vbox.add_child(input_row)

@@ -1,5 +1,13 @@
 extends Node
-## Version: S33.0 — TP Phase 2 (AI auto-assign). Added TEAM-SCOPED championship-role getters
+## Version: S35.3 — (1) GK elimination notice fires ONCE (player_elimination_announced flag) —
+##   was re-firing every subsequent round. (2) Economy notifications (state shift, fuel-price
+##   shock) are CFO-gated — no CFO, no financial intelligence (the economy still moves). (3) Living
+##   fuel price: get_fuel_cost_per_kg() = BASE(2.0) × Fuel_Price_Multiplier (economy-driven 0.5–3.0,
+##   neutral 1.0 at index 50, per the Global Variables sheet); buy_fuel now charges it (was a dead
+##   hardcoded CR 2/kg). (4) CFO auto-buy: cfo_auto_buy_for_race(champ) tops fuel+SP to EXACTLY the
+##   next race's need at the living price, only if a CFO is hired and affordable, and ONLY while
+##   simulating_to_season_end (the Skip-to-End fast-forward) — never in hands-on weekly play.
+## --- S33.0 — TP Phase 2 (AI auto-assign). Added TEAM-SCOPED championship-role getters
 ##   _get_tp_for_championship_team()/_get_strategist_for_championship_team() (the player-scoped
 ##   versions are now thin wrappers passing player_team.id) so compute_optimal_assignments can
 ##   detect already-assigned championship roles for ANY team, not just the player's. Added
@@ -506,6 +514,19 @@ var economy_index:          float  = 50.0
 var current_fuel_price:     float  = 1200.0
 var current_loan_rate:      float  = 5.0    ## % interest rate for loans (follows economy)
 
+## S35.3 — Living fuel pricing. The per-kg cost = BASE × Fuel_Price_Multiplier, where the
+## multiplier is economy-driven within the range the variables sheet defines
+## (Global Variables → Fuel_Price_Multiplier: default 1.0, min 0.5, max 3.0). BASE keeps the
+## original CR 2/kg scale so existing balance holds at a normal economy (index 50 → ×1.0).
+const BASE_FUEL_COST_PER_KG: float = 2.0
+const FUEL_PRICE_MULT_MIN: float = 0.5
+const FUEL_PRICE_MULT_MAX: float = 3.0
+
+## S35.3 — set true only while the player is fast-forwarding to season end (Skip to End of
+## Season). The CFO auto-buy fires ONLY in this mode: during hands-on weekly play the player
+## manages SP/FU themselves; when they opt out by skipping, the CFO keeps the cars race-ready.
+var simulating_to_season_end: bool = false
+
 ## Economy fluctuation internals
 var _economy_momentum:      float  = 0.0   ## carries weekly drift direction
 
@@ -548,10 +569,13 @@ func _update_economy_and_fuel() -> void:
 	current_loan_rate = clamp(4.0 + (economy_index / 100.0) * 8.0, 1.0, 12.0)
 	current_loan_rate = round(current_loan_rate * 10.0) / 10.0
 
-	## Notify on state change
+	## Notify on state change — S35.3: CFO-gated. Economy intelligence is what the player pays
+	## the CFO for (GDD §9-E: `speculation` = economy_index predictions). No CFO → the economy
+	## still moves (index/prices update below regardless), the player just gets no heads-up.
 	var new_state = global_economy_state
-	if new_state != prev_state:
-		add_notification("Normal", "📊 Economy shifted to %s (index %.0f)." % [new_state, economy_index])
+	if new_state != prev_state and get_cfo() != null:
+		add_notification("Normal", "📊 Economy shifted to %s (index %.0f)." % [new_state, economy_index],
+			"", "economy_state")
 
 	## ── Fuel price ───────────────────────────────────────────────────────────
 	## Smooth base derived from economy_index
@@ -563,15 +587,36 @@ func _update_economy_and_fuel() -> void:
 	## Normal weekly move ±1-2%
 	var fuel_move = current_fuel_price * randf_range(-0.02, 0.02)
 
-	## Shock week: ±5% (3% chance)
+	## Shock week: ±5% (3% chance). S35.3: the price ALWAYS moves; the notification is CFO-gated
+	## (no CFO → no alert, but the price shock still applies below).
 	if randf() < 0.03:
 		fuel_move += current_fuel_price * randf_range(-0.05, 0.05)
-		add_notification("Normal", "⛽ Fuel price fluctuation — global supply shift.")
+		if get_cfo() != null:
+			add_notification("Normal", "⛽ Fuel price fluctuation — global supply shift.",
+				"", "economy_fuel_shock")
 
 	current_fuel_price = clamp(
 		current_fuel_price + fuel_mean_pull + fuel_move,
 		600.0, 2000.0)
 	current_fuel_price = round(current_fuel_price / 10.0) * 10.0
+
+## ── S35.3 Living fuel price ───────────────────────────────────────────────────
+## Fuel_Price_Multiplier (Global Variables sheet): economy-driven, default 1.0, range 0.5–3.0.
+## Mapped linearly from economy_index (0–100, neutral 50). At index 50 → ×1.0 (current balance
+## preserved); recession (low index) → cheaper toward ×0.5; boom (high index) → pricier toward
+## ×3.0. This is the single source of the living price used by buy_fuel and the CFO auto-buy.
+func get_fuel_price_multiplier() -> float:
+	## index 50 is neutral. Below 50 scales down toward MIN, above 50 scales up toward MAX.
+	var mult: float
+	if economy_index <= 50.0:
+		mult = lerp(FUEL_PRICE_MULT_MIN, 1.0, economy_index / 50.0)
+	else:
+		mult = lerp(1.0, FUEL_PRICE_MULT_MAX, (economy_index - 50.0) / 50.0)
+	return clamp(mult, FUEL_PRICE_MULT_MIN, FUEL_PRICE_MULT_MAX)
+
+## The live per-kg fuel cost the player actually pays (base × economy multiplier).
+func get_fuel_cost_per_kg() -> float:
+	return BASE_FUEL_COST_PER_KG * get_fuel_price_multiplier()
 
 ## ── P32 Weekly History recording ──────────────────────────────────────────────
 ## Each entry: {week, season, value}. Capped at 52×5 = 260 entries (5 seasons).
@@ -1645,6 +1690,57 @@ func _consume_race_resources() -> void:
 func _earn_race_rp(laps: int) -> void:
 	_race_simulator.earn_race_rp(laps)
 
+## ── S35.3 CFO auto-buy ────────────────────────────────────────────────────────
+## When the player fast-forwards to season end (simulating_to_season_end), the CFO keeps the
+## cars race-ready by topping up fuel (and spare parts) to EXACTLY what the next race needs —
+## but only if a CFO is hired and only if the team can afford it. Returns true if it bought
+## anything. Never fires during hands-on weekly play (the caller gates on the flag); during
+## normal play the player manages logistics themselves.
+func cfo_auto_buy_for_race(champ = null) -> bool:
+	if get_cfo() == null:
+		return false
+	var c = champ if champ != null else active_championship
+	if c == null:
+		return false
+
+	var bought_anything := false
+
+	## Count the player's cars that will start the next race in THIS championship
+	## (a car needs a driver to race; undelivered/crewless cars DNS regardless of fuel).
+	var cars_racing := 0
+	for car in player_team_cars:
+		if car.championship_id == c.id and car.driver_id != "":
+			cars_racing += 1
+	if cars_racing == 0:
+		return false
+
+	## ── Fuel: buy EXACTLY the shortfall for the next race ──────────────────────
+	var fuel_needed: float = c.fuel_per_car_per_race * cars_racing
+	var fuel_short: float = fuel_needed - fuel_kg
+	if fuel_short > 0.0:
+		var fuel_cost: float = fuel_short * get_fuel_cost_per_kg()
+		if player_team.balance >= fuel_cost:
+			buy_fuel(fuel_short)   ## logs + deducts at the living price
+			add_log("💼 CFO auto-bought %.1f kg fuel for the next race." % fuel_short)
+			bought_anything = true
+		else:
+			add_log("💼 CFO could not afford fuel for the next race (need CR %.0f)." % fuel_cost)
+
+	## ── Spare parts: top up to one race's repair reserve (sp_per_10_pct_damage) ─
+	## SP has no economy multiplier in the current design (flat CR 1/unit via buy_spare_parts).
+	var sp_reserve: int = c.sp_per_10_pct_damage
+	var sp_short: int = sp_reserve - spare_parts
+	if sp_short > 0:
+		var sp_cost: int = sp_short  ## CR 1/unit
+		if int(player_team.balance) >= sp_cost:
+			buy_spare_parts(sp_short)
+			add_log("💼 CFO auto-bought %d spare parts for the next race." % sp_short)
+			bought_anything = true
+		else:
+			add_log("💼 CFO could not afford spare parts for the next race (need CR %d)." % sp_cost)
+
+	return bought_anything
+
 func buy_spare_parts(units: int) -> bool:
 	var cost_per_unit = 1  # CR 1 per unit for GK Championship (120 units = CR 120/race)
 	var total_cost = units * cost_per_unit
@@ -1657,14 +1753,15 @@ func buy_spare_parts(units: int) -> bool:
 	return true
 
 func buy_fuel(kg: float) -> bool:
-	var cost_per_kg = 2.0  # placeholder price
+	## S35.3: living price (base × economy multiplier), not the old hardcoded CR 2/kg.
+	var cost_per_kg = get_fuel_cost_per_kg()
 	var total_cost = kg * cost_per_kg
 	if player_team.balance < total_cost:
 		add_notification("High", "Not enough credits to buy fuel.")
 		return false
 	player_team.balance -= total_cost
 	fuel_kg += kg
-	add_log("🛒 Bought %.1f kg fuel for CR %.0f (stock: %.1f kg)" % [kg, total_cost, fuel_kg])
+	add_log("🛒 Bought %.1f kg fuel for CR %.0f (CR %.2f/kg, stock: %.1f kg)" % [kg, total_cost, cost_per_kg, fuel_kg])
 	return true
 
 ## ═══ DRIVER MANAGER — delegated to DriverManager.gd (S27) ═══
@@ -2680,6 +2777,12 @@ func advance_week() -> void:
 			## Only check requirements for player's championships
 			var is_player_champ = champ.id in player_registered_championships
 			if is_player_champ:
+				## S35.3: when fast-forwarding to season end, the CFO keeps the cars race-ready
+				## (buys exact fuel/SP shortfall, if hired + affordable) BEFORE the requirement
+				## check and simulation — so a skipped season doesn't DNS purely for un-bought
+				## logistics. No effect in hands-on weekly play (flag is false then).
+				if simulating_to_season_end:
+					cfo_auto_buy_for_race(champ)
 				_check_race_requirements_for(champ)
 			_simulate_race(next_race, champ)
 			## Sponsor race bonuses handled by apply_sponsor_race_bonuses()
@@ -2718,8 +2821,15 @@ func advance_week() -> void:
 						player_eliminated = false
 						break
 				if player_eliminated and this_gk_round < 4:
-					add_notification("High",
-						"🏁 Your driver was eliminated at the end of GK Round %d. Season over for GK." % this_gk_round)
+					## S35.3: fire the elimination notice EXACTLY ONCE. Without the flag,
+					## `player_eliminated` stays true at the end of every later round (eliminated
+					## never clears mid-season), so a Round-1 exit re-announced "Season over for
+					## GK" at Rounds 2 and 3 — irrelevant duplicates (the player is already out).
+					if not gk_discipline.player_elimination_announced:
+						gk_discipline.player_elimination_announced = true
+						add_notification("High",
+							"🏁 Your driver was eliminated at the end of GK Round %d. Season over for GK." % this_gk_round,
+							"", "gk_player_eliminated")
 				elif this_gk_round >= 4 or gk_discipline.is_complete():
 					## S28.3 (Bug 2): Round 4 is the final — no "Round 5". Announce the champion.
 					var champ = gk_discipline.get_champion()
@@ -2736,6 +2846,9 @@ func advance_week() -> void:
 
 	## After all races processed this week — show first result screen
 	if not _pending_race_results.is_empty():
+		## S35.3: a skip that hits a player race is interrupted here by the scene change, so the
+		## skip loop's post-loop flag reset never runs. Clear it here too so it can't stick true.
+		simulating_to_season_end = false
 		## Load the first result snapshot into last_race_* vars for RaceResults to read
 		_apply_pending_race_snapshot(_pending_race_results[0])
 		get_tree().change_scene_to_file("res://scenes/RaceResults.tscn")
