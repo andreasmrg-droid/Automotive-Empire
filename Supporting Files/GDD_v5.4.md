@@ -1,6 +1,9 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v5.3 (consolidated master) · **Engine:** Godot 4.6.3 / GDScript
+**Version:** v5.4 (consolidated master) · **Engine:** Godot 4.6.3 / GDScript
+<!-- v5.4: §3 living fuel price (BASE × economy Fuel_Price_Multiplier) + CFO race-logistics
+     auto-buy (skip-to-end only); §9-E CFO-gated economy notifications; §15 recurring-notification
+     collapse (subject supersede) + GK one-shot elimination notice. Built S35.1–S35.4. -->
 <!-- v5.3: §7.1 Season Transition Pipeline (built S35.0) — the ordered A→E rollover sequence,
      dual-ledger promotion, B-before-E fix, GK-as-sole-generation-source, Stage-E archive write. -->
 <!-- v5.2: §12-A canonical approach flow (interest→bond→contract), release-clause vs buyout-bond
@@ -138,6 +141,22 @@ stat (§9-E).
 **Fuel contracts & price fluctuation:** fuel price fluctuates weekly on global economy events.
 Teams can lock multi-week contracts at the current price to hedge. Base fuel consumption
 differs per championship (Cars sheet).
+
+**Living fuel price (S35.3):** the per-kg cost the player actually pays is
+`BASE (CR 2.0/kg) × Fuel_Price_Multiplier`, where the multiplier is economy-driven within the
+range the variables sheet defines (Global Variables → `Fuel_Price_Multiplier`: default 1.0, min
+0.5, max 3.0). It maps from `economy_index` (0–100, neutral 50): index 50 → ×1.0 (base scale
+preserved), recession → cheaper toward ×0.5, boom → pricier toward ×3.0. `get_fuel_cost_per_kg()`
+is the single source of this price — used by both the manual buy and the CFO auto-buy, and shown
+live in the Logistics fuel card and input preview. (Spare parts have no economy multiplier in the
+current design — flat CR 1/unit.)
+
+**CFO auto-buy (S35.3):** while the player fast-forwards to season end (Skip to End of Season),
+the CFO keeps the cars race-ready by topping up fuel and spare parts to **exactly** the next
+race's need, at the living price — but only if a CFO is hired and the team can afford it (it never
+drives the balance negative). It fires **only** during the skip, never in hands-on weekly play:
+when the player is present they manage logistics themselves; when they opt out by skipping, the
+CFO covers the boring part so a season isn't lost to un-bought fuel. See §9-E.
 
 ---
 
@@ -467,6 +486,15 @@ Weekly_Total_Expenses), `budget_planning` (expansion/contraction insights), `spe
 (economy_index predictions only — doesn't move the economy), `loan_management`
 (Max_Loan_Amount, rates, repayment).
 
+**Economy intelligence is CFO-gated (S35.3):** the economy notifications the player relies on —
+economy state shifts and fuel-price shocks — fire **only if a CFO is hired** (it's the financial
+intelligence they're paid for, per `speculation`). Without a CFO the economy still moves; the
+player just gets no heads-up.
+
+**Race-logistics auto-buy (S35.3):** during a fast-forward to season end the CFO tops up fuel and
+spare parts to exactly the next race's need at the living price (§3), if hired and affordable —
+only while skipping, never during hands-on weekly play.
+
 ### 9-F. Designer (R&D Studio only; TP does NOT multiply them)
 Per-part design quality: `engine, aero, brakes, suspension, chassis, gearbox`; plus
 `reliability` (initial blueprint reliability) and `parts_knowledge` (grows from race
@@ -781,6 +809,17 @@ the AI world fully alive.
 Extras: weekly To-Do List (5 most important tasks), persistent log (Done/Dismissed), Smart
 Snooze (1/2/4 weeks), critical banner, End-of-Season summary screen.
 
+**Recurring-notification collapse (S35.1–S35.3):** standing notifications that re-fire each
+week/race — resource warnings (no fuel, low spare parts, bankruptcy risk), pre-race DNS reasons
+(no fuel, undelivered car, no driver/mechanic/pit crew), and the GK "season over" notice — carry
+a `subject` key. A new notification supersedes any earlier one with the same subject, so the panel
+keeps only the **current** instance instead of stacking one per advanced week (the old behaviour
+made the panel boring and ignorable). This is text-independent, so a message whose text changes
+week to week (e.g. a delivery week or deadline embedded in it) still collapses. Per-car/per-champ
+subjects keep distinct items separate while each one collapses over time; the weekly log keeps the
+full history (only the panel collapses). The GK elimination notice additionally fires exactly once
+per season (a per-season flag), since a Round-1 exit otherwise re-announced at every later round.
+
 ### Resource bar visibility (design rule)
 The persistent top resource bar is visible in ALL in-game scenes EXCEPT: popups/modal
 overlays, New Game, Race Results, End of Season, Beginning of Season. (Implement as: shown by
@@ -873,6 +912,22 @@ the wildcards). Biggest risk: scope creep — keep saying "backlog."
 
 Historical record of what shipped; design facts above already reflect these.
 
+- **S35.1–S35.4 (notification cleanup + living fuel + CFO auto-buy):**
+  - **Recurring-notification collapse (§15):** `add_notification` gains a `subject` key; a new
+    notification supersedes any earlier same-subject one, so standing weekly/race reminders keep
+    only the current instance (text-independent). Tagged: resource warnings, pre-race DNS reasons,
+    economy alerts. The S31.1 identical-text dedup only caught messages whose text didn't change.
+  - **GK one-shot elimination (§15):** `player_elimination_announced` flag (reset each season) so
+    the "season over for GK" notice fires once, not at every later round after a Round-1 exit.
+  - **CFO-gated economy notifications (§9-E):** economy state shifts + fuel-price shocks fire only
+    if a CFO is hired (the economy still moves regardless).
+  - **Living fuel price (§3):** `get_fuel_cost_per_kg()` = BASE 2.0 × economy `Fuel_Price_Multiplier`
+    (0.5–3.0, neutral 1.0). `buy_fuel` now charges it (was a dead hardcoded CR 2/kg); the Logistics
+    card header and the input cost preview both show the live rate (the preview's `× 2` hardcode was
+    the S35.4 fix).
+  - **CFO race-logistics auto-buy (§3/§9-E):** `cfo_auto_buy_for_race(champ)` tops fuel + SP to the
+    next race's exact need at the living price — only if a CFO is hired + affordable, and ONLY while
+    `simulating_to_season_end` (Skip-to-End). Never negative; never during hands-on weekly play.
 - **S35.0 (Season Transition Pipeline — §7.1):** reordered `start_new_season()` into the explicit
   A→E sequence. Split `_process_off_season` into `_process_off_season_aging` (early) +
   `_process_lifecycle_cull` (late, Stage E). **Core fix:** Stage B (activate pre-signed signings)
@@ -911,7 +966,7 @@ Historical record of what shipped; design facts above already reflect these.
 
 ---
 
-*End of GDD v5.3. Companion files: `Brainstorm_Threads.md` (vision/strategy),
+*End of GDD v5.4. Companion files: `Brainstorm_Threads.md` (vision/strategy),
 `FEATURE_AI_Championship_Sim.md` (deferred feature spec), `TP_Assignment_System_Spec_v2.md` (TP
 assignment design), `Season_Transition_Pipeline_Spec_v1.md` (§7.1 rollout detail),
 `Master_Calculation___Formula_Document` (formula reference). Keep this document reconciled with the
