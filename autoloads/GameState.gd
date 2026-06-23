@@ -1,5 +1,13 @@
 extends Node
-## Version: S35.7 — clear_walked_away_approaches() wrapper + called in advance_week (walk-away
+## Version: S35.8 — Preload heavy scenes at startup. The HQ scene (large .tscn + 2600-line script)
+##   was loaded from disk on FIRST navigation, causing a one-time first-open hitch (fine after, as
+##   Godot caches the PackedScene). GameState (the first autoload) now preloads HQ.tscn +
+##   ContractNegotiation.tscn into constants at init, so they're cached before any gameplay and the
+##   first open is smooth. No circular-dependency risk (HQ uses GameState as a runtime singleton).
+##   This is the inherent first-time LOADING cost — distinct from the S35.6/S35.7 per-render scan
+##   fixes (those removed the repeated lag; this removes the one-time hitch). Load-game's object
+##   reconstruction (~6600 objects) remains an inherent one-time cost, accepted by the owner.
+## --- S35.7 — clear_walked_away_approaches() wrapper + called in advance_week (walk-away
 ##   entries clear after one week). See ContractEngine/HQ S35.7.
 ## Version: S35.6 — Player-staff cache (perf). all_staff holds ~5000+ entries; HQ (esp. the WRA/
 ##   overview tab), StaffHub and the finance strip used to scan ALL of them — sometimes in nested
@@ -1330,6 +1338,22 @@ func _ready() -> void:
 	_tp_engine = TPProposalEngine.new(self)
 	RND_TASKS = _build_rnd_tasks()
 	ai_manager = load("res://autoloads/AIManager.gd").new()
+
+	## S35.8 — Warm the heavy HQ scene so its first open doesn't hitch. HQ.tscn + its large script
+	## are loaded from disk on first navigation (Godot caches the PackedScene after). Touching the
+	## preloaded constants below forces that load to happen ONCE during GameState init (the first
+	## autoload, before any gameplay), so the first click into HQ finds it already cached — the
+	## first-open freeze is gone. Plain preload constants (resolved at compile time) avoid any
+	## threaded-request lifecycle to manage.
+	_warm_heavy_scenes()
+
+## S35.8 — reference the preloaded heavy scenes so Godot caches them up front.
+const _HQ_SCENE: PackedScene = preload("res://scenes/buildings/HQ.tscn")
+const _NEGOTIATION_SCENE: PackedScene = preload("res://scenes/ContractNegotiation.tscn")
+func _warm_heavy_scenes() -> void:
+	## Touching the constants is enough — preload already cached them at compile time. This keeps
+	## a live reference so they stay resident, and gives HQ-open code a cached PackedScene to use.
+	var _warm := [_HQ_SCENE, _NEGOTIATION_SCENE]
 
 ## ═══ R&D ENGINE — delegated to RnDEngine.gd (S27) ═══
 
