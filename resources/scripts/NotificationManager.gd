@@ -1,4 +1,7 @@
 class_name NotificationManager
+## Version: S35.11 — TDL 8b "queue manufacturing" nag now clears when a part of the blueprint
+##   exists anywhere (queued / warehouse / installed), not just when queued — needed because the
+##   WRA approval now persists after building (RnDEngine S35.11b, issue 3).
 ## Version: S35.1 — Recurring-notification collapse. add_notification() gains an optional `subject`
 ##   key. A notification carrying a subject SUPERSEDES any earlier notification with the same
 ##   subject (the previous instance is removed before the new one is appended), so a standing
@@ -354,10 +357,24 @@ func get_pending_tasks() -> Array[String]:
 				tasks.append("📐 Blueprint ready: '%s' — submit to WRA for approval." % bp.get("name", bp_id))
 				break
 
-	## 8b: WRA-approved blueprints waiting to be manufactured
+	## 8b: WRA-approved blueprints with NO part yet (not queued, not in warehouse, not
+	## installed). S35.11: the approval now persists after building (issue 3), so this must
+	## check for an actual part anywhere — otherwise it would nag forever after the first build.
 	var unqueued_approvals = gs.wra_approved_blueprints.filter(func(app):
+		var bp_id = app.blueprint_id
+		## In production queue?
 		for job in gs.cnc_production_queue:
-			if job.get("blueprint_id","") == app.blueprint_id: return false
+			if job.get("blueprint_id","") == bp_id: return false
+		## In warehouse inventory?
+		for inv_key in gs.cnc_parts_inventory:
+			var it = gs.cnc_parts_inventory[inv_key]
+			if it is Dictionary and it.get("blueprint_id","") == bp_id \
+				and it.get("quantity",0) > 0: return false
+		## Installed on any car?
+		for cid in gs.car_installed_parts:
+			for pc in gs.car_installed_parts[cid]:
+				var pd = gs.car_installed_parts[cid][pc]
+				if pd is Dictionary and pd.get("blueprint_id","") == bp_id: return false
 		return true)
 	if not unqueued_approvals.is_empty():
 		var bp = gs.known_blueprints.get(unqueued_approvals[0].blueprint_id, {})

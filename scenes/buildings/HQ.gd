@@ -1,4 +1,8 @@
 extends Control
+## Version: S35.11 — WRA tab: an approved blueprint disappears from HQ-WRA once handed off to CNC
+##   (queued/built/installed) via _blueprint_in_cnc (issue 1) — HQ shows only approvals awaiting
+##   their first CNC hand-off; the blueprint then lives in the CNC Plant (issue 3). Section
+##   renamed "APPROVED — AWAITING CNC HAND-OFF".
 ## Version: S35.10c — Added ⭐ Shortlist to the HQ nav buttons (opens the unified Shortlist screen).
 ## Version: S35.7 — Pending Activity renders a "walked_away" entry ("You have walked away from the
 ##   negotiations with X") until the next week advance clears it.
@@ -1855,7 +1859,10 @@ func _build_wra_tab(parent: VBoxContainer) -> void:
 	right.add_child(_build_wra_pending())
 
 	right.add_child(HSeparator.new())
-	right.add_child(_section_label("APPROVED — READY TO MANUFACTURE  (%d)" % GameState.wra_approved_blueprints.size()))
+	## S35.11 — count only approvals still awaiting CNC hand-off (issue 1).
+	var pending_handoff_count = GameState.wra_approved_blueprints.filter(func(app):
+		return not _blueprint_in_cnc(app.blueprint_id)).size()
+	right.add_child(_section_label("APPROVED — AWAITING CNC HAND-OFF  (%d)" % pending_handoff_count))
 	right.add_child(_build_wra_approved())
 
 	right.add_child(HSeparator.new())
@@ -1986,13 +1993,20 @@ func _build_wra_pending() -> VBoxContainer:
 func _build_wra_approved() -> VBoxContainer:
 	var vbox = VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 5)
-	if GameState.wra_approved_blueprints.is_empty():
-		var e = Label.new(); e.text = "No approved blueprints yet."
+	## S35.11 (issue 1) — once a blueprint is approved AND handed off to CNC (queued, built,
+	## or installed), it disappears from HQ-WRA: HQ's job (getting WRA approval) is done, and
+	## the blueprint now lives in the CNC Plant as a manufacturing licence (issue 3). HQ shows
+	## only approvals still awaiting their first hand-off to CNC.
+	var pending_handoff = GameState.wra_approved_blueprints.filter(func(app):
+		return not _blueprint_in_cnc(app.blueprint_id))
+	if pending_handoff.is_empty():
+		var e = Label.new(); e.text = "No approved blueprints awaiting hand-off. Approved blueprints are managed in the CNC Plant."
 		e.modulate = Color(0.45, 0.45, 0.45)
-		e.add_theme_font_size_override("font_size", 24)
+		e.add_theme_font_size_override("font_size", 22)
+		e.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		vbox.add_child(e)
 		return vbox
-	for app in GameState.wra_approved_blueprints:
+	for app in pending_handoff:
 		var bp  = GameState.known_blueprints.get(app.blueprint_id, {})
 		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(app.championship_id, {})
 		var row = HBoxContainer.new()
@@ -2015,6 +2029,20 @@ func _build_wra_approved() -> VBoxContainer:
 			get_tree().change_scene_to_file("res://scenes/buildings/CNCPlant.tscn"))
 		row.add_child(btn)
 	return vbox
+
+## S35.11 — True if a part of this blueprint exists in CNC (queued, in warehouse, or installed).
+func _blueprint_in_cnc(bp_id: String) -> bool:
+	for job in GameState.cnc_production_queue:
+		if job.get("blueprint_id","") == bp_id: return true
+	for inv_key in GameState.cnc_parts_inventory:
+		var it = GameState.cnc_parts_inventory[inv_key]
+		if it is Dictionary and it.get("blueprint_id","") == bp_id and it.get("quantity",0) > 0:
+			return true
+	for cid in GameState.car_installed_parts:
+		for pc in GameState.car_installed_parts[cid]:
+			var pd = GameState.car_installed_parts[cid][pc]
+			if pd is Dictionary and pd.get("blueprint_id","") == bp_id: return true
+	return false
 
 
 func _build_supply_contracts() -> VBoxContainer:

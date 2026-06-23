@@ -1,5 +1,12 @@
 extends Control
-## Version: S31.1 — Bug 7: manufacture cards now show the blueprint's target Season; a
+## Version: S35.11 — Fixed the body overflowing off-screen (col_d "BLUEPRINT OWNERSHIP"
+##   clipped off the right). The 4-column body had col_c/col_d at fixed custom_minimum_size
+##   (240/200) while col_a/col_b were unbounded expand-fill, and the WRA-approved card's long
+##   blueprint-name label was a single unwrapped line — together summing past the 1920 design
+##   width with no horizontal scroll. Now all four columns are expand-fill with stretch ratios
+##   (A 1.5, B 1.3, C/D 1.0) + small min floors, and the approved-card name label wraps, so
+##   width is shared proportionally and no column/label can force the body past the viewport.
+## --- S31.1 — Bug 7: manufacture cards now show the blueprint's target Season; a
 ##   future-season blueprint is shown locked with the Start Manufacturing button disabled
 ##   (reinforces the RnDEngine S31.1 season gate). New strings localized (cnc_bp_season*).
 ## --- S30.5 — Phase 2 "Build Whole Car": one-pass build section at the top of the
@@ -94,36 +101,51 @@ func _build_ui() -> void:
 		root.add_child(warn)
 		return
 
-	# ── Three-column body ──────────────────────────────────────────────────────
+	# ── Four-column body (S35.11: responsive) ──────────────────────────────────
+	## Previously col_c/col_d had fixed custom_minimum_size (240/200) while col_a/col_b were
+	## unbounded expand-fill. With no horizontal scroll on a 1920 design (aspect=expand), the
+	## two fixed columns + the action columns' unwrapped long labels summed past the viewport
+	## and clipped col_d ("BLUEPRINT OWNERSHIP") off the right edge. Now ALL four are
+	## expand-fill with stretch ratios + small min floors, so width is shared proportionally
+	## and no column can force the body wider than the screen. Labels inside wrap (see column
+	## builders) so content can't reintroduce a hidden minimum.
 	var body = HBoxContainer.new()
 	body.add_theme_constant_override("separation", 16)
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(body)
 
-	# Column A — WRA Approved Blueprints → manufacture (always shown)
+	# Column A — WRA Approved Blueprints → manufacture (action; widest)
 	var col_a = VBoxContainer.new()
 	col_a.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col_a.size_flags_stretch_ratio = 1.5
+	col_a.custom_minimum_size = Vector2(220, 0)
 	col_a.add_theme_constant_override("separation", 10)
 	body.add_child(col_a)
 	_build_wra_blueprints_column(col_a)
 
-	# Column B — Inventory + assign to car
+	# Column B — Inventory + assign to car (action; wide)
 	var col_b = VBoxContainer.new()
 	col_b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col_b.size_flags_stretch_ratio = 1.3
+	col_b.custom_minimum_size = Vector2(200, 0)
 	col_b.add_theme_constant_override("separation", 10)
 	body.add_child(col_b)
 	_build_inventory_column(col_b)
 
-	# Column C — Building info + production queue
+	# Column C — Building info + production queue (reference)
 	var col_c = VBoxContainer.new()
-	col_c.custom_minimum_size = Vector2(240, 0)
+	col_c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col_c.size_flags_stretch_ratio = 1.0
+	col_c.custom_minimum_size = Vector2(190, 0)
 	col_c.add_theme_constant_override("separation", 10)
 	body.add_child(col_c)
 	_build_info_column(col_c)
 
-	# Column D — Blueprint ownership grid
+	# Column D — Blueprint ownership grid (reference)
 	var col_d = VBoxContainer.new()
-	col_d.custom_minimum_size = Vector2(200, 0)
+	col_d.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col_d.size_flags_stretch_ratio = 1.0
+	col_d.custom_minimum_size = Vector2(180, 0)
 	col_d.add_theme_constant_override("separation", 10)
 	body.add_child(col_d)
 	_build_blueprint_ownership_column(col_d)
@@ -856,6 +878,10 @@ func _build_wra_blueprints_column(parent: VBoxContainer) -> void:
 			bp.get("name", bp_id),
 			reg.get("name", app.championship_id)]
 		ln.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		## S35.11 — wrap: the long blueprint name was a single unwrapped line, forcing col_a's
+		## minimum width to the full string and pushing the body past the viewport (clipping
+		## col_d). Wrapping lets the responsive column bound the text to its allotted share.
+		ln.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		ln.add_theme_font_size_override("font_size", 24)
 		ln.add_theme_color_override("font_color",
 			Color(0.4, 0.9, 0.4) if not already_queued else Color(0.5,0.5,0.5))

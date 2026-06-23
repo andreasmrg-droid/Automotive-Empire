@@ -1,4 +1,13 @@
 extends Control
+## Version: S35.11b — Install popup widened 440→620 + rows wrap/use acronyms so the Install
+##   button is no longer clipped off the popup edge. Empty slot shows "L0" (not "L0 — empty").
+##   Warehouse panel now ALSO reflects the Logistics warehouse (provider L0 spares from
+##   part_inventory), with a Source column, so the Garage shows ALL installable stock.
+## Version: S35.11 — Parts UX pass: part acronyms (AER/ENG/…) instead of full names (issue);
+##   empty slot shows "L0 — empty" not "EMPTY SLOT" (issue 5); persistent WAREHOUSE panel lists
+##   installable CNC parts per championship (issue 4); car header shows "⚡ Parts: +X% pace" from
+##   get_cnc_part_bonus so installs make a visible change (issue 7). Install button unchanged —
+##   it now finds stock via the S35.11 part_code keying fix (issue 6).
 ## Version: S30.6 — Phase 2 car delivery: car card shows an "In build — arrives Week X
 ##   (Y left)" banner while undelivered (car.is_in_build). Driver/mechanic/pit-crew
 ##   assignment stays AVAILABLE (pre-assign while it builds); part slots are LOCKED until
@@ -150,7 +159,7 @@ func _build_ui() -> void:
 	# ── Popup overlay ─────────────────────────────────────────────────────────
 	_popup = PanelContainer.new()
 	_popup.set_anchors_preset(Control.PRESET_CENTER)
-	_popup.custom_minimum_size = Vector2(440, 0)
+	_popup.custom_minimum_size = Vector2(620, 0)
 	_popup.visible = false
 	var ps = StyleBoxFlat.new()
 	ps.bg_color = Color(0.10,0.10,0.14,0.98)
@@ -237,6 +246,10 @@ func _show_tab(champ_id: String) -> void:
 	## Rebuild content
 	for c in _content.get_children(): c.queue_free()
 
+	## S35.11 (issue 4) — persistent warehouse panel so the player can see, without opening
+	## each slot's popup, which CNC parts are in stock and available to install for this champ.
+	_content.add_child(_build_warehouse_panel(champ_id))
+
 	var cars = GameState.player_team_cars.filter(func(c): return c.championship_id == champ_id)
 
 	if cars.is_empty():
@@ -249,6 +262,111 @@ func _show_tab(champ_id: String) -> void:
 	else:
 		for car in cars:
 			_content.add_child(_build_car_card(car))
+
+# ── Warehouse panel (S35.11, issue 4) ─────────────────────────────────────────
+## Persistent read-only summary of CNC parts in the warehouse for this championship, so the
+## player isn't blind to what they can install. Grouped by part code, showing level/qty/stats.
+func _build_warehouse_panel(champ_id: String) -> PanelContainer:
+	var panel = _make_panel(Color(0.08,0.11,0.09), Color(0.3,0.7,0.4), 2)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 6)
+	panel.add_child(vbox)
+
+	var hdr = Label.new()
+	hdr.text = "📦 WAREHOUSE — CNC parts ready to install"
+	hdr.add_theme_font_size_override("font_size", 24)
+	hdr.add_theme_color_override("font_color", Color(0.45,0.9,0.5))
+	vbox.add_child(hdr)
+
+	## Collect CNC inventory items for this championship.
+	var rows: Array = []
+	for inv_key in GameState.cnc_parts_inventory:
+		var item = GameState.cnc_parts_inventory[inv_key]
+		if not item is Dictionary: continue
+		if item.get("championship_id","") != champ_id: continue
+		if item.get("quantity",0) <= 0: continue
+		rows.append(item)
+
+	## Collect provider L0 stock (Logistics warehouse) for this championship.
+	## S35.11 — the Garage must reflect the Logistics warehouse, which holds provider L0 spares
+	## (part_inventory[champ_id][part_name]). Shown as L0 rows so the player sees ALL installable
+	## stock — CNC parts AND provider spares — in one place.
+	const PCODE_TO_NAME = {"AER":"Aero","ENG":"Engine","GRB":"Gearbox",
+		"SUS":"Suspension","BRK":"Brakes","CHS":"Chassis"}
+	var prov: Array = []
+	for pcode in PART_CODES:
+		var pname = PCODE_TO_NAME.get(pcode, pcode)
+		var qty = GameState.get_part_stock(pname, champ_id)
+		if qty > 0:
+			prov.append({"pcode": pcode, "qty": qty})
+
+	if rows.is_empty() and prov.is_empty():
+		var empty = Label.new()
+		empty.text = "No parts in stock. Manufacture parts at the CNC Plant or buy provider spares at Logistics, then install them here."
+		empty.add_theme_font_size_override("font_size", 20)
+		empty.modulate = Color(0.55,0.55,0.55)
+		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		vbox.add_child(empty)
+		return panel
+
+	var grid = GridContainer.new()
+	grid.columns = 5
+	grid.add_theme_constant_override("h_separation", 16)
+	grid.add_theme_constant_override("v_separation", 4)
+	vbox.add_child(grid)
+	for h in ["Part", "Level", "Qty", "Rel / Qual", "Source"]:
+		var lh = Label.new()
+		lh.text = h
+		lh.add_theme_font_size_override("font_size", 18)
+		lh.modulate = Color(0.5,0.5,0.5)
+		grid.add_child(lh)
+
+	for item in rows:
+		var pcode = item.get("part_code","")
+		if pcode == "":
+			pcode = GameState._part_name_to_pcode(item.get("part",""))
+		var lvl = 0
+		var bp_id = item.get("blueprint_id","")
+		if bp_id != "" and bp_id in GameState.known_blueprints:
+			lvl = GameState.known_blueprints[bp_id].get("level", 0)
+		var col = PART_COLORS.get(pcode, Color(0.7,0.7,0.7))
+		_warehouse_row(grid, pcode, col, "L%d" % lvl, item.get("quantity",0),
+			"%.0f%% / %.2f×" % [item.get("reliability",60.0), item.get("quality",1.0)], "CNC")
+
+	for p in prov:
+		var col = PART_COLORS.get(p.pcode, Color(0.7,0.7,0.7))
+		_warehouse_row(grid, p.pcode, col, "L0", p.qty, "— / —", "Provider")
+
+	return panel
+
+## S35.11 — one warehouse table row.
+func _warehouse_row(grid: GridContainer, pcode: String, col: Color, lvl_txt: String,
+		qty: int, stats: String, source: String) -> void:
+	var l_part = Label.new()
+	l_part.text = pcode
+	l_part.add_theme_font_size_override("font_size", 22)
+	l_part.add_theme_color_override("font_color", col)
+	grid.add_child(l_part)
+	var l_lvl = Label.new()
+	l_lvl.text = lvl_txt
+	l_lvl.add_theme_font_size_override("font_size", 22)
+	grid.add_child(l_lvl)
+	var l_qty = Label.new()
+	l_qty.text = "×%d" % qty
+	l_qty.add_theme_font_size_override("font_size", 22)
+	l_qty.modulate = Color(0.7,0.7,0.7)
+	grid.add_child(l_qty)
+	var l_stats = Label.new()
+	l_stats.text = stats
+	l_stats.add_theme_font_size_override("font_size", 20)
+	l_stats.modulate = Color(0.6,0.6,0.6)
+	grid.add_child(l_stats)
+	var l_src = Label.new()
+	l_src.text = source
+	l_src.add_theme_font_size_override("font_size", 18)
+	l_src.modulate = Color(0.45,0.7,0.9) if source == "CNC" else Color(0.6,0.6,0.6)
+	grid.add_child(l_src)
 
 # ── Car card ──────────────────────────────────────────────────────────────────
 func _build_car_card(car) -> PanelContainer:
@@ -276,6 +394,16 @@ func _build_car_card(car) -> PanelContainer:
 	var cc = Color(0.3,0.9,0.3) if car.condition > 60 else (Color(1.0,0.75,0.1) if car.condition > 30 else Color(1.0,0.3,0.3))
 	cond_lbl.add_theme_color_override("font_color", cc)
 	hdr.add_child(cond_lbl)
+
+	## S35.11 (issue 7) — visible CNC performance bonus from installed parts. Updates whenever
+	## a part is installed/removed (the tab rebuilds), so the player sees the effect on the car.
+	var perf = GameState.get_cnc_part_bonus(car.id)
+	var perf_lbl = Label.new()
+	perf_lbl.text = "⚡ Parts: +%.1f%% pace" % (perf * 100.0)
+	perf_lbl.add_theme_font_size_override("font_size", 24)
+	perf_lbl.add_theme_color_override("font_color",
+		Color(0.45,0.9,0.5) if perf > 0.0 else Color(0.5,0.5,0.5))
+	hdr.add_child(perf_lbl)
 
 	# ── Delivery banner (Phase 2) ─────────────────────────────────────────────
 	## While the car is in build (bought or built but not yet delivered) show when it
@@ -442,7 +570,9 @@ func _build_part_slot(car, pcode: String, is_spec: bool, part_data: Dictionary) 
 	vbox.add_child(row1)
 
 	var lbl_name = Label.new()
-	lbl_name.text = PART_NAMES.get(pcode, pcode)
+	## S35.11 — display the canonical part acronym (AER/ENG/GRB/SUS/BRK/CHS), the agreed
+	## naming convention, instead of the long full name.
+	lbl_name.text = pcode
 	lbl_name.add_theme_font_size_override("font_size", 24)
 	lbl_name.add_theme_color_override("font_color", col)
 	lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -457,10 +587,12 @@ func _build_part_slot(car, pcode: String, is_spec: bool, part_data: Dictionary) 
 
 	# Installed part info
 	if is_empty:
+		## S35.11 (issue 5) — an empty slot is Level 0 (no part), shown as "L0" for consistency
+		## with the level labels on filled slots and the "L0 (Provider)" picker entries.
 		var lbl_empty = Label.new()
-		lbl_empty.text = "⚠ EMPTY SLOT"
+		lbl_empty.text = "L0"
 		lbl_empty.add_theme_font_size_override("font_size", 22)
-		lbl_empty.add_theme_color_override("font_color", Color(1.0,0.35,0.35))
+		lbl_empty.add_theme_color_override("font_color", Color(0.55,0.55,0.55))
 		vbox.add_child(lbl_empty)
 	else:
 		var ptype  = part_data.get("type", "provider")
@@ -568,7 +700,7 @@ func _open_part_popup(car_id: String, pcode: String, champ_id: String) -> void:
 	_assigning_car_id = car_id
 	_assigning_pcode  = pcode
 	_popup_mode       = "part"
-	_popup_title.text = "Install %s" % PART_NAMES.get(pcode, pcode)
+	_popup_title.text = "Install %s" % pcode
 
 	for c in _popup_list.get_children(): c.queue_free()
 
@@ -588,18 +720,18 @@ func _open_part_popup(car_id: String, pcode: String, champ_id: String) -> void:
 			var item = GameState.cnc_parts_inventory.get(inv_key, {})
 			var bp_id = item.get("blueprint_id","")
 			var lvl = 0
-			var bp_name = item.get("part", part_name)
 			if bp_id != "" and bp_id in GameState.known_blueprints:
-				var bp = GameState.known_blueprints[bp_id]
-				lvl = bp.get("level", 0)
-				bp_name = bp.get("name", bp_name)
+				lvl = GameState.known_blueprints[bp_id].get("level", 0)
 			var qty = item.get("quantity", 0)
 			var row = HBoxContainer.new()
 			row.add_theme_constant_override("separation", 8)
 			_popup_list.add_child(row)
 			var lbl = Label.new()
-			lbl.text = "%s  L%d" % [bp_name, lvl]
+			## S35.11 — acronym + level keeps the row short so the Install button stays in view;
+			## wrap as a safety net against long names clipping the button off the popup edge.
+			lbl.text = "%s  L%d" % [pcode, lvl]
 			lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			lbl.add_theme_font_size_override("font_size", 24)
 			row.add_child(lbl)
 			var lbl_qty = Label.new()

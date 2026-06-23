@@ -1,4 +1,6 @@
 extends Control
+## Version: S35.11b — TDL routing: the R&D→WRA "submit to WRA / Blueprint ready" task now opens
+##   HQ on the WRA tab (pending_hq_tab="wra"), not Overview (issue 2). Other HQ tasks unchanged.
 ## Version: S35.11 — Top bar no longer overflows the viewport. Two parts: (1) the notification
 ##   bell text grows with the count ("🔔" → "🔔 99 🔴9"), and custom_minimum_size is only a
 ##   floor, so the growing button pushed TopBar past 1920 — pinned a fixed footprint + clip_text
@@ -859,12 +861,16 @@ func _refresh_log() -> void:
 				btn_go.add_theme_font_size_override("font_size", 20)
 				btn_go.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
 				var d = dest
-				## Negotiation/bond tasks all route to HQ → open it on the Overview (Pending
-				## Activity) panel so the player lands directly on the Open button for that item.
-				var go_hq_overview: bool = (d == "res://scenes/buildings/HQ.tscn")
+				## HQ-bound tasks: most negotiation/bond tasks open the Overview (Pending
+				## Activity) panel. S35.11 (issue 2): the R&D→WRA submit task must open the WRA
+				## tab, not Overview, so the player lands on the blueprint-submission panel.
+				var go_hq: bool = (d == "res://scenes/buildings/HQ.tscn")
+				var hq_tab := "overview"
+				if go_hq and ("submit to WRA" in task_text or "Blueprint ready" in task_text):
+					hq_tab = "wra"
 				btn_go.pressed.connect(func():
-					if go_hq_overview:
-						GameState.pending_hq_tab = "overview"
+					if go_hq:
+						GameState.pending_hq_tab = hq_tab
 					get_tree().change_scene_to_file(d))
 				task_row.add_child(btn_go)
 

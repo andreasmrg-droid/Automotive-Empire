@@ -1,4 +1,6 @@
 class_name CarManager
+## Version: S35.11 — Installed CNC parts now store `level` + R&D `value` (via _installed_part_*
+##   helpers) so get_cnc_part_bonus can scale the on-track bonus by what the part actually is.
 ## Version: S30.3 — Phase 2: add_car sets delivery state. A real in-season purchase
 ##   (silent=false) creates the car in-build (delivered=false) with delivery_week =
 ##   get_car_delivery_week(champ_id) and acquisition="bought" → DNS-until-ready. The
@@ -387,6 +389,11 @@ func install_part_on_car(car_id: String, champ_id: String, pcode: String) -> boo
 		"quality":      item.get("quality", 1.0),
 		"blueprint_id": item.get("blueprint_id", ""),
 		"part":         item.get("part", ""),
+		## S35.11 — store level + R&D performance value so get_cnc_part_bonus can scale the
+		## on-track lap bonus by what the part actually is (value already bakes in level via
+		## the P2 carry-over chain + designer lift). Pulled from the source blueprint.
+		"level":        _installed_part_level(item.get("blueprint_id", "")),
+		"value":        _installed_part_value(item.get("blueprint_id", "")),
 	}
 	var cname = car.car_name if car.car_name != "" else "Car %d" % car.car_number
 	gs.add_log("🔩 %s CNC part installed on %s. Rel:%.0f%% Qual:%.2f×" % [
@@ -394,6 +401,20 @@ func install_part_on_car(car_id: String, champ_id: String, pcode: String) -> boo
 	gs.add_notification("Normal", "%s installed on %s." % [pcode, cname])
 	gs.emit_signal("log_updated")
 	return true
+
+## S35.11 — Read a blueprint's level (for the installed-part record). Defaults to 0 if the
+## blueprint is unknown (e.g. a provider/legacy part with no blueprint_id).
+func _installed_part_level(blueprint_id: String) -> int:
+	if blueprint_id == "" or not blueprint_id in gs.known_blueprints:
+		return 0
+	return int(gs.known_blueprints[blueprint_id].get("level", 0))
+
+## S35.11 — Read a blueprint's R&D performance value (for the installed-part record). This
+## already bakes in level (via the P2 carry-over chain) and the designer lift. Defaults to 0.
+func _installed_part_value(blueprint_id: String) -> float:
+	if blueprint_id == "" or not blueprint_id in gs.known_blueprints:
+		return 0.0
+	return float(gs.known_blueprints[blueprint_id].get("value", 0.0))
 
 ## Remove a CNC part from a car and return it to inventory.
 

@@ -1,4 +1,15 @@
 class_name RnDEngine
+## Version: S35.11c — start_rnd_task now carries `season` + `level` on the active task. They were
+##   absent, so at completion the stored blueprint fell back to gs.current_season → P1/P3
+##   next-season blueprints were stamped with the CURRENT season. That broke TWO things: TDL 8a
+##   "submit to WRA" never fired for them, and the CNC season-gate never blocked them (player
+##   could build next-season parts in the current season). Now stamped correctly as next season.
+## Version: S35.11b — CNC part performance + blueprint persistence:
+##   • get_cnc_part_bonus reworked: per-part on-track bonus = value × quality (was a flat
+##     0.005/part that ignored everything AND mis-read the part dict as an int). Capped at
+##     CNC_BONUS_CAP=0.15. ⚠ FORMULA FLAGGED FOR FUTURE REVIEW (GDD §8). Reliability excluded.
+##   • CNC completion no longer deletes the WRA approval (issue 3) — a blueprint stays a
+##     manufacturing licence so the player can build spares; cleared only at rollover/WRA reset.
 ## Version: S35.11 — R&D chain season-rollover correctness:
 ##   • P1 (Design) + P3 (Reverse Engineering) now stamp design_season = current+1 and embed
 ##     S{n+1} in id AND name; P2 (Upgrade) embeds its current S{n} in the name (id already did).
@@ -403,9 +414,12 @@ func _advance_cnc_production() -> void:
 				"part_code":      pcode,
 				"championship_id": cid,
 			}
-		## Remove from wra_approved_blueprints so TDL step 8b clears
-		gs.wra_approved_blueprints = gs.wra_approved_blueprints.filter(
-			func(app): return app.get("blueprint_id","") != bp_id)
+		## S35.11 (issue 3) — DO NOT remove the blueprint from wra_approved_blueprints here.
+		## A WRA approval is a manufacturing LICENSE for the season/cycle, not a one-shot: the
+		## player must be able to build spares and replacements. It stays in the CNC "ready to
+		## manufacture" list until season rollover (P2) / WRA regulation reset (P1/P3) clears it.
+		## The TDL 8b "queue manufacturing" nag is keyed on queue/warehouse presence, not on the
+		## approval being deleted, so it still clears correctly (see NotificationManager 8b).
 		gs.add_log("✅ CNC complete: %dx %s (%s) — Rel:%.0f%% Qual:%.2f× → warehouse." % [
 			qty, part, pcode, rel, qual])
 		gs.add_notification("High",
@@ -458,18 +472,39 @@ func remove_cnc_part_from_car(car_id: String, part: String) -> bool:
 	gs.emit_signal("log_updated")
 	return true
 
-## Returns a lap-time improvement fraction (0.0–0.08) for a car based on CNC parts installed.
-
+## Returns a lap-time improvement fraction for a car based on CNC parts installed.
+## ⚠⚠⚠ S35.11 — FORMULA UNDER REVIEW (see GDD §8 flag). Andreas is uneasy about this model;
+## revisit before the Phase 5 balance pass. Current model:
+##   per part:  part_bonus = value × quality
+##     • value  = the R&D performance magnitude (already bakes in level via the P2 carry-over
+##                chain + designer lift — do NOT also multiply by level, that double-counts).
+##     • quality = the reverse-engineering penalty (1.0 own-design, ~0.75 RE). Makes the RE
+##                penalty finally matter on track.
+##   total = clamp(Σ part_bonus, 0.0, CNC_BONUS_CAP)
+## Reliability is deliberately EXCLUDED — it governs failure/DNF risk, not lap time (the two
+## boosts must stay separate). Legacy installed parts with no stored `value` fall back to a
+## small flat contribution so they aren't silently worthless.
+const CNC_BONUS_CAP := 0.15
+const CNC_LEGACY_FLAT := 0.005
 
 func get_cnc_part_bonus(car_id: String) -> float:
 	var installed = gs.car_installed_parts.get(car_id, {})
 	if installed.is_empty(): return 0.0
 	var total = 0.0
-	for part in installed:
-		var qty: int = installed[part]
-		total += 0.005
-		if qty > 1: total += (qty - 1) * 0.002
-	return clamp(total, 0.0, 0.08)
+	for pcode in installed:
+		var pd = installed[pcode]
+		if not pd is Dictionary:
+			## Legacy/malformed entry — count a small flat bonus rather than crash.
+			total += CNC_LEGACY_FLAT
+			continue
+		var value = float(pd.get("value", 0.0))
+		var quality = float(pd.get("quality", 1.0))
+		if value > 0.0:
+			total += value * quality
+		else:
+			## Provider part or a part installed before value was stored → flat fallback.
+			total += CNC_LEGACY_FLAT
+	return clamp(total, 0.0, CNC_BONUS_CAP)
 
 ## ── CNC Blueprint-based manufacturing (WRA-gated) ────────────────────────────
 
@@ -797,6 +832,12 @@ func start_rnd_task(task_id: String, designer_id: String, championship_id: Strin
 		"part":            task["part"],
 		"part_code":       task.get("part_code", _part_name_to_pcode(task["part"])),
 		"championship_id": championship_id,
+		## S35.11 — carry season + level so the blueprint stored at completion gets the correct
+		## TARGET season (P1/P3 = next season). Previously these were absent, so completion fell
+		## back to gs.current_season → blueprints stamped with the current season → TDL 8a never
+		## fired and the CNC season-gate never blocked next-season parts (built them in S1).
+		"season":          task.get("season", gs.current_season),
+		"level":           task.get("level", 1),
 		"weeks_total":     task["weeks"],
 		"weeks_remaining": task["weeks"],
 		"rp_cost":         task["rp"],
