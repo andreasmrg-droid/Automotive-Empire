@@ -1,3 +1,5 @@
+## Version: S35.9 — "Interested Only" uses the shared deterministic interest predicate (binary)
+##   + hides team-refusal-cooldown drivers; team-won't-release popup added on approach.
 ## Version: S35.7 — PERF: "Interested Only" filter invariants hoisted out of the per-driver loop
 ##   + team reps pre-indexed (same lag fix as StaffHub S35.7).
 ## Version: S29.0 — Not-interested popup (issue 1: visible AcceptDialog, not just a
@@ -391,20 +393,11 @@ func _make_my_driver_row(driver) -> PanelContainer:
 func _get_sorted_all_drivers() -> Array:
 	var drivers = []
 
-	## S35.7 — PERF: hoist invariants out of the per-driver loop (same fix as StaffHub). The
-	## "Interested Only" filter recomputed tp_rep / champ_tier and scanned all_teams for each of
-	## 1000+ drivers — the button lag. Compute once; index team reps for O(1) lookup.
-	var pre_tp_rep := 0.0
-	var pre_champ_tier := 1
-	var team_rep_by_id := {}
+	## S35.9 — shared deterministic interest predicate (matches the approach), with the context
+	## built once for the pass (perf). Binary, no percentage; also hides team-refusal-cooldown.
+	var interest_ctx := {}
 	if interested_only:
-		for champ in GameState.active_championships:
-			var tp = GameState._get_tp_for_championship(champ.id)
-			if tp: pre_tp_rep = max(pre_tp_rep, tp.reputation); break
-		pre_champ_tier = GameState._get_active_championship_tier()
-		for t in GameState.all_teams:
-			team_rep_by_id[t.id] = t.reputation
-	var pre_player_rep: float = GameState.player_team.reputation
+		interest_ctx = GameState.build_interest_context()
 
 	for driver_id in GameState.all_drivers:
 		var driver = GameState.all_drivers[driver_id]
@@ -413,15 +406,10 @@ func _get_sorted_all_drivers() -> Array:
 			continue
 		if free_agents_only and driver.contract_team != "":
 			continue
-		## Interested Only filter (hoisted invariants + indexed team rep)
 		if interested_only:
-			var their_rep: float = 0.0 if driver.contract_team == "" else team_rep_by_id.get(driver.contract_team, 50.0)
-			var rep_gap = pre_player_rep - their_rep
-			var base_chance = driver.get_overall_skill() * 0.5 + 50.0 \
-				+ clamp(rep_gap * 0.5, -25.0, 25.0) + pre_tp_rep * 0.3
-			var tier_penalty = max(0.0, driver.get_overall_skill() - 50.0) * (4 - pre_champ_tier) * 0.8
-			var chance = base_chance - tier_penalty
-			if chance < 60.0:
+			if not GameState.is_subject_interested(driver.id, "driver", driver.contract_team, interest_ctx):
+				continue
+			if not GameState.is_team_refusal_cooled_down(driver.id):
 				continue
 		drivers.append(driver)
 
@@ -893,6 +881,8 @@ func _initiate_approach(subject_id: String, subject_type: String, start_date: St
 	var err = GameState.initiate_approach(subject_id, subject_type, start_date)
 	if err == "not_interested":
 		_show_not_interested_popup(subject_id, subject_type)  ## S29.0 — visible popup, not just notification
+	elif err == "team_refused" or err == "team_refused_cooldown":
+		_show_team_refused_popup(subject_id, subject_type)  ## S35.9 — team won't release
 	elif err != "":
 		GameState.add_notification("High", err)
 	else:
@@ -902,6 +892,22 @@ func _initiate_approach(subject_id: String, subject_type: String, start_date: St
 			_show_contract_negotiation_popup(subject_id, subject_type)
 			return
 	_refresh_list()
+
+## S35.9 — Visible modal when the target's TEAM refuses to release them (distinct from the person
+## not being interested). The person wanted to come; their team said no. Triggers a 26-week cooldown.
+func _show_team_refused_popup(subject_id: String, subject_type: String) -> void:
+	var subject = GameState.all_drivers.get(subject_id) if subject_type == "driver" \
+		else GameState.all_staff.get(subject_id)
+	var name_str = subject.full_name() if subject else subject_id
+	var dialog = AcceptDialog.new()
+	dialog.title = Locale.t("ap_team_refused_title")
+	dialog.dialog_text = "%s\n\n%s" % [
+		Locale.tf("ap_team_refused_body", [name_str]), Locale.t("ap_team_refused_hint")]
+	dialog.ok_button_text = Locale.t("btn_close")
+	add_child(dialog)
+	dialog.popup_centered()
+	dialog.confirmed.connect(dialog.queue_free)
+	dialog.canceled.connect(dialog.queue_free)
 
 ## S29.0 — Visible modal shown when a target declines an approach.
 ## Previously this only fired a Normal notification (easy to miss); now a popup appears.

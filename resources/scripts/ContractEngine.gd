@@ -1,4 +1,12 @@
 class_name ContractEngine
+## Version: S35.9 — Interest model rework. PERSON interest is now DETERMINISTIC + binary
+##   (is_subject_interested) — the single source of truth shared by the "Interested Only" filter
+##   AND the approach, so they always agree (the old split: deterministic filter vs randf()
+##   approach never matched). The randomness moved to a new TEAM-RELEASE gate: a contracted
+##   person's team may refuse to release them (_team_releases_subject), triggering a 26-week
+##   per-subject cooldown (team_refused_subjects, absolute-week keyed) + a clear popup. Free agents
+##   skip the team gate. build_interest_context() lets the hub filters precompute invariants once
+##   (keeps the S35.7 perf win). Old _check_subject_interest removed.
 ## Version: S35.7 — (1) walk_away_approach now leaves a "walked_away" entry (shows in HQ until the
 ##   next week advance, then clear_walked_away_approaches drops it). (2) PERF: player TP/Strategist
 ##   championship lookups read the player-staff cache instead of scanning all 5000+ staff.
@@ -425,10 +433,21 @@ func _make_approach(subject_id: String, subject_type: String,
 	}
 
 ## ── Interest check ────────────────────────────────────────────────────────────
-## Returns true if the subject is willing to be approached.
-## Uses hidden talent + rep gap + TP reputation.
-func _check_subject_interest(subject_id: String, subject_type: String,
-		current_team_id: String) -> bool:
+## S35.9 — PERSON INTEREST is now DETERMINISTIC and binary (no dice). It answers one question:
+## does this individual personally want to join us? This is the TP's domain and the single source
+## of truth for the "Interested Only" filter AND the approach — so what the filter shows is exactly
+## what the approach honours (the old split: deterministic filter vs randf() approach, which never
+## agreed). The randomness that used to live here moves to the TEAM-RELEASE gate (a contracted
+## person's team may refuse) — see _team_releases_subject(). INTEREST_THRESHOLD is the cutoff.
+const INTEREST_THRESHOLD: float = 60.0
+
+## Raw interest score (higher = keener). Pure function of hidden talent + rep gap + TP reputation.
+## S35.9 — `ctx` lets a bulk caller (the hub filter, 1000s of calls) precompute the invariants
+## (player_rep, tp_mod, and a team_id→rep index) ONCE and pass them in, so we don't re-loop
+## championships/teams per candidate (that would reintroduce the S35.7 filter lag). When ctx is
+## empty (the single approach call) we compute them inline.
+func _subject_interest_score(subject_id: String, subject_type: String, current_team_id: String,
+		ctx: Dictionary = {}) -> float:
 	var talent = 50.0
 	if subject_type == "driver":
 		var d = gs.all_drivers.get(subject_id)
@@ -440,24 +459,103 @@ func _check_subject_interest(subject_id: String, subject_type: String,
 	var base_chance = talent * 0.5 + 50.0
 
 	## Reputation gap: subject wants to move up, not down
-	var their_team_rep = 50.0
-	for t in gs.all_teams:
-		if t.id == current_team_id:
-			their_team_rep = t.reputation if t.has_method("get_reputation") else 50.0
-			break
-	var rep_gap = gs.player_team.reputation - their_team_rep
+	var player_rep: float = ctx.get("player_rep", gs.player_team.reputation)
+	var their_team_rep := 0.0
+	if current_team_id != "":
+		if ctx.has("team_rep"):
+			their_team_rep = ctx["team_rep"].get(current_team_id, 50.0)
+		else:
+			their_team_rep = 50.0
+			for t in gs.all_teams:
+				if t.id == current_team_id:
+					their_team_rep = t.reputation
+					break
+	var rep_gap = player_rep - their_team_rep
 	var rep_mod = clamp(rep_gap * 0.5, -25.0, 25.0)
 
 	## TP modifier
-	var tp_mod = 0.0
+	var tp_mod: float = ctx.get("tp_mod", -1.0)
+	if tp_mod < 0.0:
+		tp_mod = 0.0
+		for champ in gs.active_championships:
+			var tp = _get_tp_for_championship(champ.id)
+			if tp:
+				tp_mod = max(tp_mod, tp.reputation * 0.3)
+				break
+
+	return clamp(base_chance + rep_mod + tp_mod, 1.0, 100.0)
+
+## Deterministic, binary: would this person join us? Same answer for the filter and the approach.
+func is_subject_interested(subject_id: String, subject_type: String, current_team_id: String,
+		ctx: Dictionary = {}) -> bool:
+	return _subject_interest_score(subject_id, subject_type, current_team_id, ctx) >= INTEREST_THRESHOLD
+
+## S35.9 — build the precomputed context once for a bulk filter pass (hub "Interested Only").
+func build_interest_context() -> Dictionary:
+	var tp_mod := 0.0
 	for champ in gs.active_championships:
 		var tp = _get_tp_for_championship(champ.id)
 		if tp:
 			tp_mod = max(tp_mod, tp.reputation * 0.3)
 			break
+	var team_rep := {}
+	for t in gs.all_teams:
+		team_rep[t.id] = t.reputation
+	return {"player_rep": gs.player_team.reputation, "tp_mod": tp_mod, "team_rep": team_rep}
 
-	var final_chance = clamp(base_chance + rep_mod + tp_mod, 1.0, 100.0)
-	return randf() * 100.0 < final_chance
+## S35.9 — Will this person be a FREE AGENT at the join date? (single source of truth, used by both
+## the team-release gate and the bond skip). A person in the last year of their contract approached
+## for NEXT SEASON is a free agent by season start — their current team can't refuse or charge a
+## bond. Anyone already uncontracted is trivially free at join.
+func _is_free_at_join(subject_id: String, subject_type: String, current_team_id: String, start_date: String) -> bool:
+	if current_team_id == "":
+		return true
+	var seasons_left := 0
+	if subject_type == "driver":
+		var d = gs.all_drivers.get(subject_id)
+		if d: seasons_left = d.contract_seasons_remaining
+	else:
+		var s = gs.all_staff.get(subject_id)
+		if s: seasons_left = s.contract_seasons_remaining
+	## Last season (<=1 remaining) + next-season join → expired by the time they'd join.
+	return start_date == "next_season" and seasons_left <= 1
+
+## S35.9 — TEAM-RELEASE gate. A contracted person's current team may refuse to let them go. This
+## is the CEO's domain and is where the randomness now lives (per approach). Refusal chance scales
+## inversely with how much better the player's team is (a stronger suitor is harder to refuse) and
+## with the person's value to their team. Returns true if the team WILL release. Free agents
+## (no current team) always "release" (no team to refuse).
+func _team_releases_subject(subject_id: String, subject_type: String, current_team_id: String) -> bool:
+	if current_team_id == "":
+		return true   ## free agent — no team to refuse
+	var their_team_rep = 50.0
+	for t in gs.all_teams:
+		if t.id == current_team_id:
+			their_team_rep = t.reputation
+			break
+	## Base refusal 45%. A higher player reputation than the owner lowers refusal (they can't easily
+	## say no to a bigger team); a lower player rep raises it. Bounded 10%–80% so it's never certain.
+	var rep_gap = gs.player_team.reputation - their_team_rep
+	var refuse_chance = clamp(45.0 - rep_gap * 0.6, 10.0, 80.0)
+	return randf() * 100.0 >= refuse_chance
+
+## ── Team-refusal cooldown ─────────────────────────────────────────────────────
+## S35.9 — when a team refuses to release a person, that person can't be re-approached for
+## TEAM_REFUSAL_COOLDOWN_WEEKS. Keyed by subject_id → absolute week (season*52 + week) when
+## they become approachable again. Week-granular (the season-based walked_away cooldown is too
+## coarse for a half-season block).
+const TEAM_REFUSAL_COOLDOWN_WEEKS: int = 26
+
+func _absolute_week() -> int:
+	return gs.current_season * 52 + gs.current_week
+
+func is_team_refusal_cooled_down(subject_id: String) -> bool:
+	if subject_id not in gs.team_refused_subjects:
+		return true
+	return _absolute_week() >= gs.team_refused_subjects[subject_id]
+
+func _set_team_refusal_cooldown(subject_id: String) -> void:
+	gs.team_refused_subjects[subject_id] = _absolute_week() + TEAM_REFUSAL_COOLDOWN_WEEKS
 
 ## ── Bond estimate ─────────────────────────────────────────────────────────────
 ## Returns the CFO's estimate of what the bond should cost.
@@ -641,8 +739,19 @@ func initiate_approach(subject_id: String, subject_type: String,
 		if not has_tp:
 			return "Assign a Team Principal before approaching contracted staff or drivers."
 
-	## Interest check — hidden roll
-	var interested = _check_subject_interest(subject_id, subject_type, current_team_id)
+	## S35.9 — team-refusal cooldown: if this person's team recently refused to release them,
+	## they can't be re-approached yet.
+	if not is_team_refusal_cooled_down(subject_id):
+		var weeks_left: int = gs.team_refused_subjects[subject_id] - _absolute_week()
+		var nm = _get_subject_display_name(subject_id, subject_type)
+		gs.add_notification("Normal",
+			"%s's team recently refused to release them. Try again in %d week%s." % [
+			nm, weeks_left, "s" if weeks_left != 1 else ""])
+		return "team_refused_cooldown"
+
+	## S35.9 — PERSON interest (deterministic). This matches exactly what the "Interested Only"
+	## filter shows — if the filter listed them, this passes. The TP assessed they want to come.
+	var interested = is_subject_interested(subject_id, subject_type, current_team_id)
 
 	if not interested:
 		var name_str = _get_subject_display_name(subject_id, subject_type)
@@ -658,27 +767,33 @@ func initiate_approach(subject_id: String, subject_type: String,
 		gs.add_log("📋 Approach to %s: declined (not interested)." % name_str)
 		return "not_interested"
 
+	## S35.9 — TEAM-RELEASE gate (only for people still CONTRACTED AT THE JOIN DATE). A person in
+	## the last year of their contract approached for NEXT SEASON will be a free agent by the time
+	## they'd join — their current team has no standing to refuse, so the gate must NOT fire. We use
+	## free_at_join (same rule as the bond skip below), not is_free_agent (which is "free right now").
+	var free_at_join: bool = _is_free_at_join(subject_id, subject_type, current_team_id, start_date)
+	if not free_at_join:
+		if not _team_releases_subject(subject_id, subject_type, current_team_id):
+			_set_team_refusal_cooldown(subject_id)
+			var nm = _get_subject_display_name(subject_id, subject_type)
+			var team_name = _team_display_name(current_team_id)
+			var role_str = _subject_role_label(subject_id, subject_type)
+			gs.add_notification("High",
+				"%s is not willing to release their %s. Try again in %d weeks." % [
+				team_name, role_str, TEAM_REFUSAL_COOLDOWN_WEEKS],
+				"drivers" if subject_type == "driver" else "staff_hub")
+			gs.add_log("🚫 %s refused to release %s (%s). Cooldown: %d weeks." % [
+				team_name, nm, role_str, TEAM_REFUSAL_COOLDOWN_WEEKS])
+			return "team_refused"
+
 	var ap = _make_approach(subject_id, subject_type, current_team_id, start_date)
 	ap["interest_checked"] = true
 	ap["subject_interested"] = true
 
 	var name_str = _get_subject_display_name(subject_id, subject_type)
 
-	## GDD §12-A step 2: determine contract status AT THE JOIN DATE, not now. A person whose
-	## contract expires before the join date is a free agent THEN — no bond. For a next-season
-	## join, anyone in their last season (<=1 season remaining) has expired by season start.
-	var free_at_join: bool = (current_team_id == "")
-	if not free_at_join:
-		var seasons_left := 0
-		if subject_type == "driver":
-			var d = gs.all_drivers.get(subject_id)
-			if d: seasons_left = d.contract_seasons_remaining
-		else:
-			var s = gs.all_staff.get(subject_id)
-			if s: seasons_left = s.contract_seasons_remaining
-		if start_date == "next_season" and seasons_left <= 1:
-			free_at_join = true   ## last season → expired by next-season join → no bond
-
+	## GDD §12-A step 2: free_at_join was computed above (the team-release gate uses the same rule):
+	## a person whose contract expires before the join date is a free agent THEN — no bond.
 	if free_at_join:
 		## Free agent at join date — skip bond, go straight to contract negotiation
 		ap["status"] = "negotiating"
@@ -1233,6 +1348,19 @@ func _get_subject_display_name(subject_id: String, subject_type: String) -> Stri
 			for o in gs.sponsor_offers:
 				if o.get("sponsor_id","") == subject_id: return o.get("name", subject_id)
 	return subject_id
+
+## S35.9 — display helpers for the team-refusal message.
+func _team_display_name(team_id: String) -> String:
+	for t in gs.all_teams:
+		if t.id == team_id:
+			return t.team_name if "team_name" in t else team_id
+	return "Their team"
+
+func _subject_role_label(subject_id: String, subject_type: String) -> String:
+	if subject_type == "driver":
+		return "driver"
+	var s = gs.all_staff.get(subject_id)
+	return s.role if s else "staff member"
 
 ## ── Internal helpers ─────────────────────────────────────────────────────────
 

@@ -1,4 +1,7 @@
 extends Node
+## Version: S35.9 — Interest model: added team_refused_subjects cooldown dict (save/load) and
+##   wrappers is_subject_interested / is_team_refusal_cooled_down / build_interest_context. See
+##   ContractEngine S35.9.
 ## Version: S35.8 — Preload heavy scenes at startup. The HQ scene (large .tscn + 2600-line script)
 ##   was loaded from disk on FIRST navigation, causing a one-time first-open hitch (fine after, as
 ##   Godot caches the PackedScene). GameState (the first autoload) now preloads HQ.tscn +
@@ -173,6 +176,9 @@ var _staff_id_counter: int = 0
 var active_negotiation: Dictionary = {}
 var active_approaches: Array = []
 var walked_away_subjects: Dictionary = {}
+## S35.9 — subjects whose current team refused to release them: subject_id → absolute week
+## (season*52 + week) when they can be re-approached. Set on team refusal (26-week cooldown).
+var team_refused_subjects: Dictionary = {}
 signal negotiation_updated()
 signal negotiation_concluded(accepted: bool, subject_id: String, subject_type: String)
 signal approach_updated()
@@ -2156,6 +2162,16 @@ func abandon_negotiation() -> void:
 func is_subject_available(subject_id: String) -> bool:
 	return _contract_engine.is_subject_available(subject_id)
 
+## S35.9 — deterministic interest predicate + cooldown check (used by the hub filters).
+func is_subject_interested(subject_id: String, subject_type: String, current_team_id: String, ctx: Dictionary = {}) -> bool:
+	return _contract_engine.is_subject_interested(subject_id, subject_type, current_team_id, ctx)
+
+func is_team_refusal_cooled_down(subject_id: String) -> bool:
+	return _contract_engine.is_team_refusal_cooled_down(subject_id)
+
+func build_interest_context() -> Dictionary:
+	return _contract_engine.build_interest_context()
+
 func get_bond_estimate(subject_id: String, subject_type: String, start_date: String) -> Dictionary:
 	return _contract_engine.get_bond_estimate(subject_id, subject_type, start_date)
 
@@ -3215,6 +3231,7 @@ func save_game() -> void:
 		"player_team_cars": _serialize_cars(),
 		"all_staff": _serialize_staff(),
 		"walked_away_subjects":      walked_away_subjects,
+		"team_refused_subjects":     team_refused_subjects,
 		"pending_staff_assignments": pending_staff_assignments,
 		"active_approaches":         active_approaches,
 		"reputation_legacy_bonuses": reputation_legacy_bonuses,
@@ -3347,6 +3364,7 @@ func load_game(path: String = "user://save_game.json") -> void:
 	if "car_provider_parts"   in data: car_provider_parts   = data["car_provider_parts"]
 	if "research_points"      in data: research_points      = float(data["research_points"])
 	if "walked_away_subjects"      in data: walked_away_subjects      = data["walked_away_subjects"]
+	team_refused_subjects = data.get("team_refused_subjects", {})  ## S35.9 — default for old saves
 	if "pending_staff_assignments" in data: pending_staff_assignments = data["pending_staff_assignments"]
 	if "active_approaches"         in data: active_approaches         = data["active_approaches"]
 	if "reputation_legacy_bonuses" in data: reputation_legacy_bonuses = data["reputation_legacy_bonuses"]

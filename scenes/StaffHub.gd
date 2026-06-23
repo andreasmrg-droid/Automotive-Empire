@@ -1,4 +1,7 @@
 extends Control
+## Version: S35.9 — "Interested Only" now uses the shared DETERMINISTIC interest predicate
+##   (matches the approach; binary, no percentage) + hides team-refusal-cooldown people. Added a
+##   team-won't-release popup on approach. Context built once per pass (keeps perf).
 ## Version: S35.7 — PERF: "Interested Only" filter no longer recomputes TP rep / champ tier and
 ##   scans all_teams for each of 5000+ staff (the button lag) — invariants hoisted out of the loop,
 ##   team reps pre-indexed for O(1) lookup.
@@ -508,35 +511,24 @@ func _build_available_staff_list() -> void:
 	## Show all non-player staff — free agents AND contracted (approachable)
 	var all_non_player: Array = []
 
-	## S35.7 — PERF: hoist everything that doesn't change per-candidate OUT of the loop. The
-	## "Interested Only" filter used to recompute tp_rep (looping championships), champ_tier, and
-	## scan all_teams for each of 5000+ staff — millions of ops on one button press (the lag). Now:
-	## compute the invariants once, and pre-index team reputations for O(1) lookup.
-	var pre_tp_rep := 0.0
-	var pre_champ_tier := 1
-	var team_rep_by_id := {}
+	## S35.9 — build the interest context ONCE for the whole filter pass (player rep, TP modifier,
+	## team-rep index), so the shared deterministic predicate stays cheap per candidate (preserves
+	## the S35.7 perf win — no per-staff re-looping of championships/teams).
+	var interest_ctx := {}
 	if interested_only:
-		for champ in GameState.active_championships:
-			var tp = GameState._get_tp_for_championship(champ.id)
-			if tp: pre_tp_rep = max(pre_tp_rep, tp.reputation); break
-		pre_champ_tier = GameState._get_active_championship_tier()
-		for t in GameState.all_teams:
-			team_rep_by_id[t.id] = t.reputation
-	var pre_player_rep: float = GameState.player_team.reputation
+		interest_ctx = GameState.build_interest_context()
 
 	for sid in GameState.all_staff:
 		var s = GameState.all_staff[sid]
 		if s.contract_team == GameState.player_team.id:
 			continue
-		## Interested Only filter (uses the hoisted invariants + indexed team rep)
+		## S35.9 — Interested Only uses the SHARED deterministic predicate (the same one the approach
+		## honours), so the filter is truthful: everyone shown personally wants to join. Binary, no
+		## percentage. Also hides anyone under an active team-refusal cooldown (can't be approached).
 		if interested_only:
-			var their_rep: float = 0.0 if s.contract_team == "" else team_rep_by_id.get(s.contract_team, 50.0)
-			var rep_gap = pre_player_rep - their_rep
-			var base_chance = s.talent * 0.5 + 50.0 \
-				+ clamp(rep_gap * 0.5, -25.0, 25.0) + pre_tp_rep * 0.3
-			var tier_penalty = max(0.0, s.talent - 50.0) * (4 - pre_champ_tier) * 0.8
-			var chance = base_chance - tier_penalty
-			if chance < 60.0:
+			if not GameState.is_subject_interested(s.id, "staff", s.contract_team, interest_ctx):
+				continue
+			if not GameState.is_team_refusal_cooled_down(s.id):
 				continue
 		all_non_player.append(s)
 	var filtered = _filter_and_sort(all_non_player)
@@ -1109,6 +1101,8 @@ func _initiate_approach(subject_id: String, subject_type: String, start_date: St
 	var err = GameState.initiate_approach(subject_id, subject_type, start_date)
 	if err == "not_interested":
 		_show_not_interested_popup(subject_id)  ## S29.0 — visible popup, not just notification
+	elif err == "team_refused" or err == "team_refused_cooldown":
+		_show_team_refused_popup(subject_id)  ## S35.9 — team won't release
 	elif err != "":
 		GameState.add_notification("High", err)
 	else:
@@ -1118,6 +1112,21 @@ func _initiate_approach(subject_id: String, subject_type: String, start_date: St
 			_show_contract_negotiation_popup(subject_id, subject_type)
 			return
 	_refresh_list()
+
+## S35.9 — Visible modal when the staff member's TEAM refuses to release them (distinct from the
+## person not being interested). Triggers a 26-week cooldown before re-approach.
+func _show_team_refused_popup(subject_id: String) -> void:
+	var subject = GameState.all_staff.get(subject_id)
+	var name_str = subject.full_name() if subject else subject_id
+	var dialog = AcceptDialog.new()
+	dialog.title = Locale.t("ap_team_refused_title")
+	dialog.dialog_text = "%s\n\n%s" % [
+		Locale.tf("ap_team_refused_body", [name_str]), Locale.t("ap_team_refused_hint")]
+	dialog.ok_button_text = Locale.t("btn_close")
+	add_child(dialog)
+	dialog.popup_centered()
+	dialog.confirmed.connect(dialog.queue_free)
+	dialog.canceled.connect(dialog.queue_free)
 
 ## S29.0 — Visible modal shown when staff declines an approach (was a silent notification).
 func _show_not_interested_popup(subject_id: String) -> void:

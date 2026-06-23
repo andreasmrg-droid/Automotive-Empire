@@ -1,4 +1,6 @@
 extends Node
+## Version: S35.9 — Added ap_team_refused_{title,body,hint} for the "team won't release this person"
+##   popup (interest-model rework — the team-release gate).
 ## Version: S31.1 — Added CNC blueprint season keys (cnc_bp_season, cnc_bp_season_locked)
 ##   for Bug 7/8 (show target season; lock future-season blueprints in CNCPlant).
 ## --- S30.6 — Added Garage car-delivery keys (gar_in_build_*, gar_parts_locked) for
@@ -342,6 +344,9 @@ const STRINGS: Dictionary = {
 	"ap_ni_popup_title":    { "en": "🚫 Not Interested",        },
 	"ap_ni_popup_body":     { "en": "%s is not interested in joining your team at this time.", },
 	"ap_ni_popup_hint":     { "en": "Improving your team's reputation and assigning a strong Team Principal makes targets more receptive.", },
+	"ap_team_refused_title": { "en": "🚫 Team Won't Release",     },
+	"ap_team_refused_body":  { "en": "%s would join you, but their team is not willing to release them.", },
+	"ap_team_refused_hint":  { "en": "You cannot approach them again for 26 weeks. A stronger team reputation makes rival teams more willing to let their people go.", },
 	"ap_timing_immediate":  { "en": "🚀 Immediate Transfer",    },
 	"ap_timing_next_season":{ "en": "📅 Next Season",           },
 	"ap_bond_estimate":     { "en": "Bond estimate: CR %s – %s", },
