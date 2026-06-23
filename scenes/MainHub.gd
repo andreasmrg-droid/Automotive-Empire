@@ -1,4 +1,11 @@
 extends Control
+## Version: S35.11 — Top bar no longer overflows the viewport. Two parts: (1) the notification
+##   bell text grows with the count ("🔔" → "🔔 99 🔴9"), and custom_minimum_size is only a
+##   floor, so the growing button pushed TopBar past 1920 — pinned a fixed footprint + clip_text
+##   + SHRINK_CENTER so the count can't change the bar geometry. (2) The baseline TopBar minimum
+##   was itself near 1920 (4 resource labels at 130px + bell 150 + 30px separations), clipping
+##   both edges — reduced resource-label floor 130→95, bell→120, resource-bar separation 30→16
+##   so the expand-fill resource bar absorbs slack and the bar fits with wide margin.
 ## Version: S35.10c — Added ⭐ Shortlist button to the top bar (opens the unified Shortlist screen).
 ## Version: S34.2 — All negotiation/bond To-Do items route to HQ Overview. The go-button now
 ##   sets pending_hq_tab="overview" for any HQ-bound negotiation task so HQ opens on the Pending
@@ -111,7 +118,7 @@ func _ready() -> void:
 	resource_bar = HBoxContainer.new()
 	resource_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	resource_bar.alignment = BoxContainer.ALIGNMENT_CENTER
-	resource_bar.add_theme_constant_override("separation", 30)
+	resource_bar.add_theme_constant_override("separation", 16)
 	top_bar.add_child(resource_bar)
 
 	cr_label = _make_resource_label("💰 CR", Color(0.4, 0.9, 0.4))
@@ -124,9 +131,16 @@ func _ready() -> void:
 	resource_bar.add_child(fu_label)
 
 	# Notification bell
+	## S35.11 — Fixed footprint. The text varies from "🔔" to "🔔 99 🔴9" (critical case,
+	## line ~464); custom_minimum_size is only a FLOOR, so the growing count was widening the
+	## button → pushing TopBar past the 1920 design width (the resource bar couldn't absorb it)
+	## → the whole hub overflowed off-screen when a number appeared next to the bell. Pin a
+	## width that fits the worst case and clip, so the count never changes the bar geometry.
 	notif_button = Button.new()
 	notif_button.text = "🔔 0"
-	notif_button.custom_minimum_size = Vector2(70, 35)
+	notif_button.custom_minimum_size = Vector2(120, 35)
+	notif_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	notif_button.clip_text = true
 	notif_button.pressed.connect(_on_notif_pressed)
 	top_bar.add_child(notif_button)
 
@@ -1393,7 +1407,7 @@ func _make_resource_label(_prefix: String, color: Color) -> Label:
 	var label = Label.new()
 	label.add_theme_font_size_override("font_size", 30)
 	label.add_theme_color_override("font_color", color)
-	label.custom_minimum_size = Vector2(130, 0)
+	label.custom_minimum_size = Vector2(95, 0)
 	return label
 
 
