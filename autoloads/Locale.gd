@@ -346,7 +346,7 @@ const STRINGS: Dictionary = {
 	"ap_ni_popup_hint":     { "en": "Improving your team's reputation and assigning a strong Team Principal makes targets more receptive.", },
 	"ap_team_refused_title": { "en": "🚫 Team Won't Release",     },
 	"ap_team_refused_body":  { "en": "%s would join you, but their team is not willing to release them.", },
-	"ap_team_refused_hint":  { "en": "You cannot approach them again for 26 weeks. A stronger team reputation makes rival teams more willing to let their people go.", },
+	"ap_team_refused_hint":  { "en": "You can try again in the future.", },
 	"ap_timing_immediate":  { "en": "🚀 Immediate Transfer",    },
 	"ap_timing_next_season":{ "en": "📅 Next Season",           },
 	"ap_bond_estimate":     { "en": "Bond estimate: CR %s – %s", },

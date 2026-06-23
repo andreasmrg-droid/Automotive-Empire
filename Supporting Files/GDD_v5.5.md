@@ -1,6 +1,10 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v5.4 (consolidated master) · **Engine:** Godot 4.6.3 / GDScript
+**Version:** v5.5 (consolidated master) · **Engine:** Godot 4.6.3 / GDScript
+<!-- v5.5: §12-A rewritten to the live S35.6–S35.9 model — DETERMINISTIC binary person-interest
+     (shared by filter + approach), the random TEAM-RELEASE gate + 26-week refusal cooldown, the
+     _is_free_at_join rule (last-year/next-season = no gate/bond), and the Close vs Walk-Away
+     semantics. Plus a NOTED-FOR-FUTURE AI-poaching warning (last-contract-year case only). -->
 <!-- v5.4: §3 living fuel price (BASE × economy Fuel_Price_Multiplier) + CFO race-logistics
      auto-buy (skip-to-end only); §9-E CFO-gated economy notifications; §15 recurring-notification
      collapse (subject supersede) + GK one-shot elimination notice. Built S35.1–S35.4. -->
@@ -8,7 +12,7 @@
      dual-ledger promotion, B-before-E fix, GK-as-sole-generation-source, Stage-E archive write. -->
 <!-- v5.2: §12-A canonical approach flow (interest→bond→contract), release-clause vs buyout-bond
      distinction, TP/CFO role split, join-date bond calc, immediate-transfer 1.5×+25% fee. -->
-**Last updated:** 2026-06-22 · **Repo:** https://github.com/andreasmrg-droid/Automotive-Empire.git
+**Last updated:** 2026-06-23 · **Repo:** https://github.com/andreasmrg-droid/Automotive-Empire.git
 
 > This is the single source of truth for the design of Automotive Empire. All prior
 > session-handoff notes and manual "latest update" appendices have been absorbed into
@@ -675,52 +679,77 @@ player (not just a silent news/notification).
 
 ### 12-A. Approach flow (ordered — THIS IS THE CANONICAL SEQUENCE)
 
-Every approach — bonded or not — runs in this exact order. Skipping or reordering steps is a bug.
+Every approach runs in this exact order. Skipping or reordering steps is a bug. **Two separate
+gates govern a signing: does the PERSON want to come (the TP's domain), and — if they're still
+contracted at the join date — will their TEAM let them go (the CEO/owner-team's domain).**
 
-1. **Interest check (always first).** The TP approaches the person directly. Hidden roll:
-   `chance = talent×0.5 + 50 + TP.reputation×0.3`, clamped 1–100. Drivers use `potential`;
-   staff use `talent`. **Inter-team reputation is NOT a factor** (removed as unrealistic). No TP
-   assigned → cannot approach a contracted person. If **not interested → approach ends** with a
-   visible popup ("not the right time"). Nothing else happens.
+1. **Cooldown check (first).** If this person's team recently **refused to release** them, they
+   are blocked from re-approach for **26 weeks** (per person, week-granular). A still-cooling
+   approach is rejected with "their team recently refused — try again."
 
-2. **Determine contract status AT THE JOIN DATE** (immediate or next-season — player's choice):
-   - **Free agent at join date** (no contract, OR contract expires before the join date) →
-     **NO bond.** Go straight to contract negotiation (step 4).
-   - **Last season of contract** → next-season signing only, **no bond**, straight to contract
-     negotiation.
-   - **Still under contract at the join date** → bond negotiation required (step 3).
+2. **Person interest — DETERMINISTIC and binary (the TP's domain).** Score =
+   `talent×0.5 + 50 + clamp(rep_gap×0.5, −25, +25) + TP.reputation×0.3`, where `rep_gap` =
+   player team reputation − the person's current team reputation (free agents count as rep 0).
+   Drivers use hidden `potential`; staff use `talent`. The person is interested if the score
+   **≥ 60** (`INTEREST_THRESHOLD`). **No dice** — this is the single source of truth shared by
+   the "Interested Only" filter and the approach, so what the filter shows is exactly what the
+   approach honours. No TP assigned → cannot approach a contracted person. **Not interested →
+   approach ends** with a visible popup ("not the right time"). The filter shows only the
+   genuinely-interested (100%), never a percentage.
 
-3. **Buyout bond negotiation with the OWNER TEAM** (only if still contracted at join date):
+3. **Determine contract status AT THE JOIN DATE** (immediate or next-season — player's choice):
+   - **Free at join** = no contract now, OR (next-season signing AND ≤1 season remaining, i.e.
+     their contract expires by season start). These people are free agents by the time they'd
+     join → **no team-release gate, no bond** → straight to contract negotiation (step 5).
+   - **Still contracted at the join date** → the team-release gate (step 4) applies.
+   - *(One shared rule `_is_free_at_join` decides this, used by both the gate and the bond skip.)*
+
+4. **Team-release gate — RANDOM (the owner team's domain; only if still contracted at join).**
+   The person wants to come, but their current team may refuse to release them. Refusal chance =
+   `clamp(45 − rep_gap×0.6, 10%, 80%)` — a stronger suitor is harder to refuse, but it's never
+   certain. **On refusal:** a clear popup ("[Team] is not willing to release their [role] — you
+   can try again in the future") + a **26-week cooldown** on that person (step 1). On success →
+   the bond negotiation (the team's compensation) proceeds.
+
+5. **Buyout bond negotiation with the OWNER TEAM** (only if still contracted at join date, and
+   the team agreed to release in step 4):
    - 1 week per round, **max 3 rounds**: owner team replies accept / counter / reject.
    - CFO sets estimate accuracy shown to player: **±8% with CFO, ±30% without**. Informational
-     only — **no hard cap** on the bond amount; the market sets it.
-   - **Bond formula (calculated AT THE JOIN DATE):**
-     `bond = weekly_salary × weeks_remaining × talent_factor`
-     where `weeks_remaining` is measured **from the season the contract STARTS** — for a
-     next-season signing, count from season start, not from now.
+     only — **no hard cap**; the market sets it.
+   - **Bond (calculated AT THE JOIN DATE):** `weekly_salary × weeks_remaining × talent_factor`,
+     `weeks_remaining` counted from the season the contract STARTS.
    - `talent_factor`: 0–30 = ×0.8, 31–60 = ×1.0, 61–80 = ×1.3, 81–100 = ×1.8.
-   - **Immediate mid-contract transfer** (joining now, mid-contract): **1.5× bond + 25%
-     disruption fee.** Rare and expensive by design — most signings are next-season.
+   - **Immediate mid-contract transfer:** **1.5× bond + 25% disruption fee.** Rare/expensive by
+     design — most signings are next-season.
    - If bond rejected / player walks → approach ends, no bond paid.
 
-4. **Contract negotiation with the PERSON** (after bond agreed, or directly for free
-   agents/last-season):
+6. **Contract negotiation with the PERSON** (after bond agreed, or directly for free-at-join):
    - **1 round per week.** Player submits offer → other side replies next week.
-   - **Per-item lock buttons** (🔓/🔒): player locks agreed terms and counters the rest. The
-     other side may **unlock** a previously agreed item if the package becomes unacceptable
-     (e.g. accepts 3-year duration but then demands higher salary for the longer commitment).
-   - **Patience:** 3 weeks of no response → negotiation expires ("Lapsed due to no response").
-   - Closing the popup on Round 1 before submitting = approach cancelled. After submitting =
-     waiting state, continues next week.
+   - **Per-item lock buttons** (🔓/🔒): lock agreed terms, counter the rest. The other side may
+     **unlock** a previously agreed item if the package becomes unacceptable.
+   - **Patience:** 3 weeks of no response → expires ("Lapsed due to no response").
+   - **Close** = closes the window, leaves the negotiation untouched in Pending Activity.
+     **Walk Away** = leaves a "you have walked away" entry that persists until the next week
+     advance, then clears.
 
-5. **Bond paid ONLY on successful signing** (contract concluded), never when negotiations start.
-   If contract negotiation fails, no bond is paid. On success: bond paid to owner team, person
-   transfers at the chosen start date (immediate or pre-signed for next season).
+7. **Bond paid ONLY on successful signing** (never when negotiations start). On success: bond
+   paid to owner team, person transfers at the chosen start date (immediate or pre-signed).
 
-6. **HQ overview PENDING ACTIVITY panel** must surface every live item, both directions:
-   interest checks sent, bond offers in/out (Accept | Counter | Reject), contract rounds due,
-   pre-signed joins, and expiring negotiations. Incoming AI approaches for the player's own
+8. **HQ overview PENDING ACTIVITY panel** surfaces every live item, both directions: interest
+   checks, bond offers in/out (Accept | Counter | Reject), contract rounds due, pre-signed joins,
+   walked-away entries, and expiring negotiations. Incoming AI approaches for the player's own
    personnel appear here too (player sets/accepts the bond — the team's security).
+
+**NOTED FOR FUTURE (AI poaching — design ready, NOT yet coded):** when AI teams gain the ability
+to approach the player's personnel (paired with the Transfer Market / AI world work), the player
+must be **notified specifically in the LAST-CONTRACT-YEAR case** — i.e. an AI team approaches one
+of the player's people who is in their final contract season, for next season. In that case the
+person is free at join, so the player (their current team) **cannot refuse or charge a bond** —
+the warning's purpose is to prompt the player to **re-sign them now** before losing them for free.
+This notification fires ONLY for that last-year/next-season case, NOT for every AI approach (a
+mid-contract AI approach already routes through the normal incoming-bond flow where the player has
+a say). The existing `handle_incoming_approach` hook is the wiring point; no AI currently triggers
+it.
 
 ### Team/Driver/Staff generation
 The engine auto-populates championships to maintain min/optimum car numbers
@@ -912,6 +941,18 @@ the wildcards). Biggest risk: scope creep — keep saying "backlog."
 
 Historical record of what shipped; design facts above already reflect these.
 
+- **S35.5–S35.9 (SP pricing, hub perf, negotiation semantics, interest rework):**
+  - **Living SP price (§3, S35.5):** `get_sp_cost_per_unit()` = BASE 1.0 × economy mult (tight
+    0.6–1.5 manufactured-goods band) × `sp_market_pressure` (gentle mean-reverting wobble, far
+    calmer than fuel). Buy-only. Saved/loaded.
+  - **Player-staff cache (S35.6) + hub-filter & lookup hoisting (S35.7):** removed the per-render
+    full scans of ~5000 staff (HQ/WRA lag, "Interested" button lag). Walk-Away leaves a persistent
+    entry cleared next week; Close is a no-op (S35.7).
+  - **HQ preload (S35.8):** heavy scenes preloaded at startup so first HQ open doesn't hitch.
+  - **Interest model rework (§12-A, S35.9):** deterministic binary person-interest shared by the
+    filter + approach; random team-release gate + 26-week refusal cooldown; `_is_free_at_join`
+    (last-year/next-season = no gate/bond); team-won't-release popup. The "try again in the future"
+    popup wording + the noted-for-future AI-poaching warning belong to this line.
 - **S35.1–S35.4 (notification cleanup + living fuel + CFO auto-buy):**
   - **Recurring-notification collapse (§15):** `add_notification` gains a `subject` key; a new
     notification supersedes any earlier same-subject one, so standing weekly/race reminders keep
@@ -966,7 +1007,7 @@ Historical record of what shipped; design facts above already reflect these.
 
 ---
 
-*End of GDD v5.4. Companion files: `Brainstorm_Threads.md` (vision/strategy),
+*End of GDD v5.5. Companion files: `Brainstorm_Threads.md` (vision/strategy),
 `FEATURE_AI_Championship_Sim.md` (deferred feature spec), `TP_Assignment_System_Spec_v2.md` (TP
 assignment design), `Season_Transition_Pipeline_Spec_v1.md` (§7.1 rollout detail),
 `Master_Calculation___Formula_Document` (formula reference). Keep this document reconciled with the
