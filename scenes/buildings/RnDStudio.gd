@@ -1,4 +1,10 @@
 extends Control
+## Version: S35.11c — Two R&D Studio fixes: (1) the per-card Assign row now ALWAYS renders;
+##   it used to appear only when RP+CR+free-designer were ALL satisfied, so with 0 RP (normal
+##   before the first race — RP is earned only by racing) the assign buttons vanished and the
+##   feature looked broken. Now buttons show disabled with a reason ("need N RP (have 0)").
+##   (2) The long catalog card name now wraps — unwrapped it forced the catalog column past the
+##   viewport and crushed the BLUEPRINT STATUS grid (col_d) to an invisible sliver.
 ## Version: S35.11 — (1) P1 Design catalog double-shift fix: the generator now stamps P1/P3
 ##   at design_season = current+1, so the live RND_TASKS already holds next-season blueprints.
 ##   The P1 catalog was regenerating with _build_rnd_tasks_for_season(next_season) → S{current+2}
@@ -827,6 +833,10 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 	lbl_name.text = task["name"]
 	lbl_name.add_theme_font_size_override("font_size", 26)
 	lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	## S35.11b — wrap: the long card name was unwrapped + EXPAND_FILL, forcing the catalog
+	## column wider than the viewport and crushing the BLUEPRINT STATUS grid (col_d) to a
+	## sliver. Wrapping bounds the name to the column's share.
+	lbl_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	if is_done: lbl_name.add_theme_color_override("font_color", Color(0.4, 0.82, 0.4))
 	elif not unlocked: lbl_name.modulate = Color(0.4, 0.4, 0.4)
 	row1.add_child(lbl_name)
@@ -925,20 +935,32 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 				Color(0.45, 0.88, 0.45) if pair[1] else Color(1.0, 0.35, 0.35))
 			row2.add_child(cl)
 
-		if has_free and can_rp and can_cr:
-			var btn_row = HBoxContainer.new()
-			btn_row.add_theme_constant_override("separation", 6)
-			vbox.add_child(btn_row)
-			var lbl_a = Label.new(); lbl_a.text = "Assign:"
-			lbl_a.add_theme_font_size_override("font_size", 22)
-			lbl_a.modulate = Color(0.55, 0.55, 0.55)
-			btn_row.add_child(lbl_a)
+		## S35.11b — always render the Assign row. Previously it only appeared when
+		## has_free AND can_rp AND can_cr were all true, so with 0 RP (or no free designer)
+		## the controls vanished entirely and looked broken. Now the row always shows, with
+		## buttons disabled and a clear reason when research can't start.
+		var btn_row = HBoxContainer.new()
+		btn_row.add_theme_constant_override("separation", 6)
+		vbox.add_child(btn_row)
+		var lbl_a = Label.new(); lbl_a.text = "Assign:"
+		lbl_a.add_theme_font_size_override("font_size", 22)
+		lbl_a.modulate = Color(0.55, 0.55, 0.55)
+		btn_row.add_child(lbl_a)
+
+		var blockers: Array = []
+		if not can_rp: blockers.append("need %d RP (have %d)" % [task["rp"], GameState.research_points])
+		if not can_cr: blockers.append("need CR %s" % _fmt(task["cr"]))
+		if not has_free: blockers.append("no free designer")
+		var can_start = can_rp and can_cr and has_free
+
+		if has_free:
 			for designer in free_designers:
 				var btn = Button.new()
 				btn.text = designer.full_name().split(" ")[0]
 				btn.custom_minimum_size = Vector2(72, 26)
 				btn.add_theme_font_size_override("font_size", 22)
-				btn.modulate = p_color.lightened(0.1)
+				btn.disabled = not can_start
+				btn.modulate = p_color.lightened(0.1) if can_start else Color(0.4,0.4,0.4)
 				var did = designer.id
 				var tid = task_id
 				var cid = champ_id
@@ -950,12 +972,15 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 					get_tree().change_scene_to_file("res://scenes/buildings/RnDStudio.tscn")
 				)
 				btn_row.add_child(btn)
-		elif not has_free:
-			var lbl_nd = Label.new()
-			lbl_nd.text = "⚠ No free designer available"
-			lbl_nd.add_theme_font_size_override("font_size", 20)
-			lbl_nd.modulate = Color(0.75, 0.5, 0.2)
-			vbox.add_child(lbl_nd)
+
+		if not blockers.is_empty():
+			var lbl_block = Label.new()
+			lbl_block.text = "⚠ " + ", ".join(blockers)
+			lbl_block.add_theme_font_size_override("font_size", 20)
+			lbl_block.modulate = Color(0.75, 0.5, 0.2)
+			lbl_block.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			lbl_block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			btn_row.add_child(lbl_block)
 
 	return panel
 
