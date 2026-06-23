@@ -1,5 +1,12 @@
 extends Control
-## Version: S29.12 — Localized Pillar 5 strings (p5_* keys): popup, catalog stub, and
+## Version: S35.11 — (1) P1 Design catalog double-shift fix: the generator now stamps P1/P3
+##   at design_season = current+1, so the live RND_TASKS already holds next-season blueprints.
+##   The P1 catalog was regenerating with _build_rnd_tasks_for_season(next_season) → S{current+2}
+##   → id lookup miss → NO research card/button. Now sources next_tasks from RND_TASKS directly.
+##   (P2/P3 catalogs already sourced correctly — unaffected.)
+##   (2) Localized R&D lock/hint strings (rnd_lock_*, rnd_re_hint_*) + L2 unlock-from-either-path
+##   lock message.
+## --- S29.12 — Localized Pillar 5 strings (p5_* keys): popup, catalog stub, and
 ##   name/desc via _pillar_name/_pillar_desc helpers (1–4 still use const dicts).
 ## --- S29.10 — Added Pillar 5 "COMMERCIAL CARS" button (stub): clicking shows a
 ##   coming-soon popup; reserved for the commercial car R&D system (future update).
@@ -482,10 +489,12 @@ func _build_p1_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 			by_champ[cid] = []
 		by_champ[cid].append({"id": task_id, "task": t})
 
-	## Also build next season tasks (they exist in RND_TASKS since
-	## _build_rnd_tasks_for_season generates current season only —
-	## we generate them on-the-fly here for display)
-	var next_tasks = GameState._build_rnd_tasks_for_season(next_season)
+	## S35.11 — The generator now stamps P1/P3 at design_season = current+1, so the live
+	## RND_TASKS ALREADY contains next-season blueprints (ids carry S{current+1}). The old
+	## code regenerated with _build_rnd_tasks_for_season(next_season), which double-shifted
+	## to S{current+2} and broke the id lookup → no research card/button appeared. Source
+	## directly from RND_TASKS now; no on-the-fly regeneration.
+	var next_tasks = GameState.RND_TASKS
 
 	if by_champ.is_empty():
 		parent.add_child(_lbl_empty("No blueprint tasks defined."))
