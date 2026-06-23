@@ -1,4 +1,5 @@
 extends Control
+## Version: S35.10c — Added ⭐ Shortlist button to the top bar (opens the unified Shortlist screen).
 ## Version: S34.2 — All negotiation/bond To-Do items route to HQ Overview. The go-button now
 ##   sets pending_hq_tab="overview" for any HQ-bound negotiation task so HQ opens on the Pending
 ##   Activity panel (with the Open button). Removed the earlier per-subject focus hint (bonds no
@@ -90,6 +91,14 @@ func _ready() -> void:
 	staff_btn.custom_minimum_size = Vector2(100, 35)
 	staff_btn.pressed.connect(_on_staff_pressed)
 	top_bar.add_child(staff_btn)
+
+	## S35.10c — entry to the unified Shortlist screen.
+	var shortlist_btn = Button.new()
+	shortlist_btn.text = "⭐ Shortlist"
+	shortlist_btn.custom_minimum_size = Vector2(110, 35)
+	shortlist_btn.tooltip_text = "View your shortlisted drivers & staff"
+	shortlist_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/Shortlist.tscn"))
+	top_bar.add_child(shortlist_btn)
 
 	var racing_world_btn = Button.new()
 	racing_world_btn.text = Locale.t("rw_btn_short")

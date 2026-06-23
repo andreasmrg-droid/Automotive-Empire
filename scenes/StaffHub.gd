@@ -1,4 +1,6 @@
 extends Control
+## Version: S35.10c — Added ⭐ Shortlist entry button (opens the unified Shortlist screen) and a
+##   "Free Agents Only" toggle (matches the Drivers hub) next to "Interested Only".
 ## Version: S35.10b — Alignment fix: columns are now PROPORTIONAL (stretch ratios via
 ##   size_flags_stretch_ratio) instead of fixed pixel widths, so the grid uses the FULL screen
 ##   width and no longer clips ("Age 3⋮", truncated team/role names). Header panel matches the row
@@ -33,6 +35,7 @@ var sort_field: String = "skill"
 var sort_ascending: bool = false
 var role_filter: String = "All"
 var interested_only: bool = false  ## P33: show only staff likely interested in joining
+var free_agents_only: bool = false  ## S35.10c — show only uncontracted staff (Drivers-hub parity)
 
 ## S28.2 — search + pagination state (perf fix for large staff pools)
 var search_text: String = ""
@@ -95,6 +98,13 @@ func _build_ui() -> void:
 	title.add_theme_color_override("font_color", Color.WHITE)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
+	## S35.10c — entry to the unified Shortlist screen.
+	var shortlist_btn = Button.new()
+	shortlist_btn.text = "⭐ Shortlist"
+	shortlist_btn.custom_minimum_size = Vector2(140, 40)
+	shortlist_btn.tooltip_text = "View your shortlisted drivers & staff"
+	shortlist_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/Shortlist.tscn"))
+	header.add_child(shortlist_btn)
 	var back_btn = Button.new()
 	back_btn.text = "← Back to Hub"
 	back_btn.custom_minimum_size = Vector2(150, 40)
@@ -270,6 +280,20 @@ func _rebuild_sort_bar() -> void:
 		current_page = 0
 		_refresh_list())
 	sort_row_node.add_child(btn_interested)
+
+	## S35.10c — Free Agents Only toggle (matches the Drivers hub).
+	var btn_fa = Button.new()
+	btn_fa.text = "Free Agents Only"
+	btn_fa.custom_minimum_size = Vector2(140, 26)
+	btn_fa.add_theme_font_size_override("font_size", 22)
+	btn_fa.toggle_mode = true
+	btn_fa.button_pressed = free_agents_only
+	btn_fa.tooltip_text = "Show only uncontracted (free agent) staff."
+	btn_fa.toggled.connect(func(on: bool):
+		free_agents_only = on
+		current_page = 0
+		_refresh_list())
+	sort_row_node.add_child(btn_fa)
 
 # ── Tab switching ─────────────────────────────────────────────────────────────
 
@@ -547,6 +571,9 @@ func _build_available_staff_list() -> void:
 		var s = GameState.all_staff[sid]
 		if s.contract_team == GameState.player_team.id:
 			continue
+		## S35.10c — Free Agents Only: skip contracted staff.
+		if free_agents_only and s.contract_team != "":
+			continue
 		## S35.9 — Interested Only uses the SHARED deterministic predicate (the same one the approach
 		## honours), so the filter is truthful: everyone shown personally wants to join. Binary, no
 		## percentage. Also hides anyone under an active team-refusal cooldown (can't be approached).
@@ -588,6 +615,8 @@ func _add_showing_summary() -> void:
 		parts.append(ROLE_SHORT.get(role_filter, role_filter) + "s")
 	if interested_only:
 		parts.append("interested only")
+	if free_agents_only:
+		parts.append("free agents only")
 	if search_text != "":
 		parts.append("search \"%s\"" % search_text)
 	var dir_arrow: String = "▲" if sort_ascending else "▼"

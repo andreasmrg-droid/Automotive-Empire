@@ -1,3 +1,4 @@
+## Version: S35.10c — Added ⭐ Shortlist entry button to the header (opens the unified Shortlist).
 ## Version: S35.10b — Alignment fix (matches StaffHub): proportional stretch-ratio columns using
 ##   the full screen width (no clipping); driver header is now a full-width panel matching the row
 ##   card border/margins; paged All-Drivers list shows the "Showing: …" summary too.
@@ -72,6 +73,14 @@ func _build_ui() -> void:
 	title.add_theme_color_override("font_color", Color.WHITE)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
+
+	## S35.10c — entry to the unified Shortlist screen.
+	var shortlist_btn = Button.new()
+	shortlist_btn.text = "⭐ Shortlist"
+	shortlist_btn.custom_minimum_size = Vector2(140, 40)
+	shortlist_btn.tooltip_text = "View your shortlisted drivers & staff"
+	shortlist_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/Shortlist.tscn"))
+	header.add_child(shortlist_btn)
 
 	var back_btn = Button.new()
 	back_btn.text = "← Back to Hub"

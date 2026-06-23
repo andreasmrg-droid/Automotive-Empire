@@ -1,4 +1,5 @@
 extends Control
+## Version: S35.10c — Added ⭐ Shortlist to the HQ nav buttons (opens the unified Shortlist screen).
 ## Version: S35.7 — Pending Activity renders a "walked_away" entry ("You have walked away from the
 ##   negotiations with X") until the next week advance clears it.
 ## Version: S35.6 — Perf: the WRA/overview TP-slot check no longer scans all 5000+ staff per
@@ -810,6 +811,7 @@ func _build_nav_buttons() -> VBoxContainer:
 		["🏆 Hall of Fame",   "res://scenes/HallOfFame.tscn"],
 		["🏎 Drivers",        "res://scenes/Drivers.tscn"],
 		["👤 Staff Hub",      "res://scenes/Staff.tscn"],
+		["⭐ Shortlist",      "res://scenes/Shortlist.tscn"],
 	]:
 		var btn = Button.new()
 		btn.text = btn_data[0]

@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://bu8k8ubyfedat"]
+
+[ext_resource type="Script" uid="uid://b3nf7v3wcvoqo" path="res://scenes/Shortlist.gd" id="1_560ls"]
+
+[node name="Shortlist" type="Control" unique_id=1982069476]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_560ls")
