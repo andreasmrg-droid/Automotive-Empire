@@ -1,6 +1,11 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v5.5 (consolidated master) · **Engine:** Godot 4.6.3 / GDScript
+**Version:** v5.6 (consolidated master) · **Engine:** Godot 4.6.3 / GDScript
+<!-- v5.6: §15 Personnel hubs & Shortlist (S35.10) — 24px readable rows with 100s emphasised,
+     full-width PROPORTIONAL aligned columns, Team + Contract as separate columns, active-sort
+     highlight + ▼/▲ arrow + "Showing: …" line, Staff free-agents toggle; and the unified
+     role-tabbed Shortlist screen (All + Driver + 6 staff roles) backed by is_shortlisted + the
+     GameState shortlist API, reachable from Staff/Drivers/Main Hub/HQ. -->
 <!-- v5.5: §12-A rewritten to the live S35.6–S35.9 model — DETERMINISTIC binary person-interest
      (shared by filter + approach), the random TEAM-RELEASE gate + 26-week refusal cooldown, the
      _is_free_at_join rule (last-year/next-season = no gate/bond), and the Close vs Walk-Away
@@ -861,6 +866,37 @@ default, explicitly suppressed only in those contexts.)
 - The global window stretch is `canvas_items` / `aspect=expand` so the 1920×1080 UI scales to
   any window.
 
+### Personnel hubs & the Shortlist (S35.10)
+The Drivers and Staff hubs share a deliberate UX language so once you learn one, the other reads
+the same:
+- **Readable rows.** Available-row stat values render at 24px; a maxed stat (100) is shown in a
+  brighter green so the eye finds it instantly.
+- **Aligned grid using the full width.** Columns are PROPORTIONAL (a stretch ratio per column via
+  `size_flags_stretch_ratio`), not fixed pixels — the table spans the whole screen and never clips
+  at any resolution, and the column header (in a panel matching the row card's left border +
+  margins) lines up straight down. Helper: `_add_col(parent, text, weight, color, font_size)`.
+- **Team + Contract are two separate columns** — the person's current team (or "—" for a free
+  agent) and, separately, the contract status/duration.
+- **Obvious sorting.** The active sort button is highlighted and shows a direction arrow (▼ high→
+  low, ▲ low→high); a plain-language **"Showing: …"** line states the active filter + sort (e.g.
+  "Showing: Mechanics · interested only · sorted by Pit Stops ▼") so the list state is never a
+  mystery.
+- **Filters as toggles.** Both hubs carry "Interested Only" and "Free Agents Only" toggles (the
+  Staff hub gained the free-agents toggle in S35.10 for parity with Drivers).
+
+**Shortlist (a personal UI bookmark, not gameplay-affecting).** Every driver and staff member has
+a persisted `is_shortlisted` flag (saved/loaded, default false on old saves). A ★ icon toggle
+(filled/hollow, tooltip only — no text) appears on the right of each hub row AND in the View Card
+popup; both write the same flag, so they stay in sync. A dedicated **Shortlist screen**
+(`Shortlist.tscn`/`.gd`) shows the unified list — drivers AND staff together — organised by ROLE
+TABS: **All** (everyone, with a Role column to tell them apart; sortable by the universal fields
+Overall/Age/Salary), then **Driver**, then the six staff roles. Each tab shows a count badge; the ★
+in the screen removes a person (row leaves, counts update). It's reachable from four entry points —
+the Staff hub, the Drivers hub, the Main Hub top bar, and the HQ nav list — and "Back" returns to
+the Main Hub (consistent with the other hubs). Shortlist API on GameState:
+`toggle_shortlist`, `is_shortlisted`, `get_shortlisted_by_role` ("All" / "Driver" / a staff role),
+`get_shortlist_counts`.
+
 ---
 
 ## 16. LOCALIZATION (Rule 3)
@@ -941,6 +977,19 @@ the wildcards). Biggest risk: scope creep — keep saying "backlog."
 
 Historical record of what shipped; design facts above already reflect these.
 
+- **S35.10 (Personnel hub UX overhaul + Shortlist — §15):**
+  - **Hub readability/layout:** available rows at 24px with 100s emphasised; columns switched from
+    fixed pixel widths to PROPORTIONAL stretch ratios (full-width aligned grid, no clipping, header
+    matches row card border/margins); Team + Contract split into two columns.
+  - **Sort clarity:** active sort button highlighted + ▼/▲ direction arrow; a plain-language
+    "Showing: …" summary of the active filter + sort. Staff hub gained a "Free Agents Only" toggle
+    (Drivers-hub parity).
+  - **Shortlist feature:** persisted `is_shortlisted` on Driver + Staff (saved/loaded, old-save
+    default false); ★ icon toggle on each hub row and in the View Card popup (synced); a unified
+    role-tabbed Shortlist screen (`Shortlist.tscn`/`.gd`) — **All** (mixed, with Role column +
+    universal sorts) + Driver + the 6 staff roles, count badges, ★-to-remove. Reachable from Staff
+    hub, Drivers hub, Main Hub top bar, HQ nav. GameState API: `toggle_shortlist`, `is_shortlisted`,
+    `get_shortlisted_by_role`, `get_shortlist_counts`.
 - **S35.5–S35.9 (SP pricing, hub perf, negotiation semantics, interest rework):**
   - **Living SP price (§3, S35.5):** `get_sp_cost_per_unit()` = BASE 1.0 × economy mult (tight
     0.6–1.5 manufactured-goods band) × `sp_market_pressure` (gentle mean-reverting wobble, far
@@ -1007,7 +1056,7 @@ Historical record of what shipped; design facts above already reflect these.
 
 ---
 
-*End of GDD v5.5. Companion files: `Brainstorm_Threads.md` (vision/strategy),
+*End of GDD v5.6. Companion files: `Brainstorm_Threads.md` (vision/strategy),
 `FEATURE_AI_Championship_Sim.md` (deferred feature spec), `TP_Assignment_System_Spec_v2.md` (TP
 assignment design), `Season_Transition_Pipeline_Spec_v1.md` (§7.1 rollout detail),
 `Master_Calculation___Formula_Document` (formula reference). Keep this document reconciled with the
