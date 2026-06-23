@@ -1,4 +1,7 @@
 extends Node
+## Version: S35.10 — Shortlist support: is_shortlisted serialized/deserialized for drivers + staff
+##   (default false for old saves); shortlist API toggle_shortlist / is_shortlisted /
+##   get_shortlisted_by_role / get_shortlist_counts (unified across drivers + the 6 staff roles).
 ## Version: S35.9 — Interest model: added team_refused_subjects cooldown dict (save/load) and
 ##   wrappers is_subject_interested / is_team_refusal_cooled_down / build_interest_context. See
 ##   ContractEngine S35.9.
@@ -2353,6 +2356,50 @@ func get_all_available_staff() -> Array:
 			result.append(staff)
 	return result
 
+## ── S35.10 Shortlist API ──────────────────────────────────────────────────────
+## A UI bookmark spanning BOTH drivers and staff. The Shortlist screen groups by role tab
+## ("Driver" + the 6 staff roles). Toggling is_shortlisted is the single source of truth; the
+## row star and the View Card star both call toggle and reflect the same flag.
+func toggle_shortlist(subject_id: String, subject_type: String) -> bool:
+	var obj = all_drivers.get(subject_id) if subject_type == "driver" else all_staff.get(subject_id)
+	if obj == null:
+		return false
+	obj.is_shortlisted = not obj.is_shortlisted
+	return obj.is_shortlisted
+
+func is_shortlisted(subject_id: String, subject_type: String) -> bool:
+	var obj = all_drivers.get(subject_id) if subject_type == "driver" else all_staff.get(subject_id)
+	return obj != null and obj.is_shortlisted
+
+## Shortlisted people of one role tab. role_tab == "Driver" → drivers; otherwise a staff role.
+func get_shortlisted_by_role(role_tab: String) -> Array:
+	var result = []
+	if role_tab == "Driver":
+		for did in all_drivers:
+			var d = all_drivers[did]
+			if d.is_shortlisted:
+				result.append(d)
+	else:
+		for sid in all_staff:
+			var s = all_staff[sid]
+			if s.is_shortlisted and s.role == role_tab:
+				result.append(s)
+	return result
+
+## Count of shortlisted people for each role tab (for badge counts on the tabs).
+func get_shortlist_counts() -> Dictionary:
+	var counts = {"Driver": 0}
+	for r in STAFF_ROLES:
+		counts[r] = 0
+	for did in all_drivers:
+		if all_drivers[did].is_shortlisted:
+			counts["Driver"] += 1
+	for sid in all_staff:
+		var s = all_staff[sid]
+		if s.is_shortlisted:
+			counts[s.role] = counts.get(s.role, 0) + 1
+	return counts
+
 ## S35.6 — rebuild the player-staff cache from all_staff. One full scan; only runs when dirty.
 func _rebuild_player_staff_cache() -> void:
 	_player_staff_by_role.clear()
@@ -3277,6 +3324,7 @@ func save_game() -> void:
 			"age": d.age,
 			"sex": d.sex,
 			"contract_team": d.contract_team,
+			"is_shortlisted": d.is_shortlisted,
 			"contract_seasons_remaining": d.contract_seasons_remaining,
 			"weekly_salary":      d.weekly_salary,
 			"win_bonus":          d.win_bonus,
@@ -3432,6 +3480,7 @@ func load_game(path: String = "user://save_game.json") -> void:
 		d.age = dd["age"]
 		d.sex = dd["sex"]
 		d.contract_team = dd["contract_team"]
+		d.is_shortlisted = dd.get("is_shortlisted", false)  ## S35.10 — default for old saves
 		d.contract_seasons_remaining = dd.get("contract_seasons_remaining", 0)
 		d.weekly_salary       = dd.get("weekly_salary", 0.0)
 		d.win_bonus           = dd.get("win_bonus", 0)
@@ -3559,6 +3608,7 @@ func _serialize_staff() -> Dictionary:
 			"morale": s.morale, "weekly_salary": s.weekly_salary,
 			"contract_seasons_remaining": s.contract_seasons_remaining,
 			"contract_team": s.contract_team,
+			"is_shortlisted": s.is_shortlisted,
 			"assigned_championship": s.assigned_championship,
 			"assigned_car_id": s.assigned_car_id,
 			"discipline_adaptation": s.discipline_adaptation,
@@ -3607,6 +3657,7 @@ func _deserialize_staff(data_dict: Dictionary) -> void:
 		s.weekly_salary = sd["weekly_salary"]
 		s.contract_seasons_remaining = sd["contract_seasons_remaining"]
 		s.contract_team = sd["contract_team"]
+		s.is_shortlisted = sd.get("is_shortlisted", false)  ## S35.10 — default for old saves
 		s.assigned_championship = sd["assigned_championship"]
 		s.assigned_car_id = sd["assigned_car_id"]
 		s.discipline_adaptation = sd["discipline_adaptation"]

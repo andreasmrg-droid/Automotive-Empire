@@ -1,3 +1,6 @@
+## Version: S35.10 — Hub UX pass (matches StaffHub): rows at 24px, 100s emphasized; TEAM + CONTRACT
+##   as two aligned columns (header updated); ★ shortlist star on rows + in the card popup; active-
+##   sort highlight + arrow + "Showing: …" summary.
 ## Version: S35.9 — "Interested Only" uses the shared deterministic interest predicate (binary)
 ##   + hides team-refusal-cooldown drivers; team-won't-release popup added on approach.
 ## Version: S35.7 — PERF: "Interested Only" filter invariants hoisted out of the per-driver loop
@@ -36,6 +39,7 @@ var tab_all_btn: Button
 var list_container: VBoxContainer
 var scroll: ScrollContainer
 var sort_bar: HBoxContainer
+var sort_fields_box: HBoxContainer  ## S35.10 — rebuildable field-button row (active highlight)
 var filter_bar: HBoxContainer
 
 # Card popup
@@ -113,26 +117,12 @@ func _build_ui() -> void:
 	sort_lbl.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 	sort_bar.add_child(sort_lbl)
 
-	for field in [
-		["Ovr", "overall"], ["Pace", "pace"], ["Ctrl", "wet"],
-		["Focus", "focus"], ["Craft", "craft"], ["Cons", "consistency"],
-		["Fit", "fitness"], ["Age", "age"], ["Salary", "salary"]
-	]:
-		var btn = Button.new()
-		btn.text = field[0]
-		btn.custom_minimum_size = Vector2(52, 26)
-		btn.add_theme_font_size_override("font_size", 22)
-		var f = field[1]
-		btn.pressed.connect(func():
-			if sort_field == f:
-				sort_ascending = !sort_ascending
-			else:
-				sort_field = f
-				sort_ascending = false
-			current_page = 0
-			_refresh_list()
-		)
-		sort_bar.add_child(btn)
+	## S35.10 — field buttons live in their own container so they can be rebuilt (to show the
+	## active sort highlight + direction arrow) without touching the toggle/search.
+	sort_fields_box = HBoxContainer.new()
+	sort_fields_box.add_theme_constant_override("separation", 4)
+	sort_bar.add_child(sort_fields_box)
+	_rebuild_sort_buttons()
 
 	## Spacer
 	var sp = Control.new(); sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -197,7 +187,42 @@ func _show_tab(tab: String) -> void:
 	tab_all_btn.flat = (tab != "all_drivers")
 	_refresh_list()
 
+## S35.10 — (re)build the sort field buttons, highlighting the active one + its direction arrow.
+func _rebuild_sort_buttons() -> void:
+	if sort_fields_box == null: return
+	for c in sort_fields_box.get_children(): c.queue_free()
+	for field in [
+		["Ovr", "overall"], ["Pace", "pace"], ["Ctrl", "wet"],
+		["Focus", "focus"], ["Craft", "craft"], ["Cons", "consistency"],
+		["Fit", "fitness"], ["Age", "age"], ["Salary", "salary"]
+	]:
+		var btn = Button.new()
+		var f = field[1]
+		var is_active: bool = (sort_field == f)
+		var arrow: String = ("  ▲" if sort_ascending else "  ▼") if is_active else ""
+		btn.text = field[0] + arrow
+		btn.custom_minimum_size = Vector2(52, 26)
+		btn.add_theme_font_size_override("font_size", 22)
+		if is_active:
+			var astyle = StyleBoxFlat.new()
+			astyle.bg_color = Color(0.20, 0.42, 0.65)
+			astyle.set_corner_radius_all(4)
+			astyle.set_content_margin_all(6)
+			btn.add_theme_stylebox_override("normal", astyle)
+			btn.add_theme_stylebox_override("hover", astyle)
+			btn.add_theme_color_override("font_color", Color(1, 1, 1))
+		btn.pressed.connect(func():
+			if sort_field == f:
+				sort_ascending = !sort_ascending
+			else:
+				sort_field = f
+				sort_ascending = false
+			current_page = 0
+			_refresh_list())
+		sort_fields_box.add_child(btn)
+
 func _refresh_list() -> void:
+	_rebuild_sort_buttons()  ## S35.10 — keep the active-sort highlight in sync
 	for child in list_container.get_children():
 		list_container.remove_child(child)
 		child.queue_free()
@@ -445,10 +470,43 @@ func _build_all_drivers_list(drivers: Array) -> void:
 		list_container.add_child(lbl)
 		return
 
+	_add_showing_summary()              ## S35.10 — what's applied right now, in plain words
 	list_container.add_child(_make_driver_header())
 
 	for driver in drivers:
 		list_container.add_child(_make_all_driver_row(driver))
+
+## S35.10 — plain-language line of the active filter + sort so the list state is never a mystery.
+func _add_showing_summary() -> void:
+	var parts: Array = []
+	if free_agents_only:
+		parts.append("free agents only")
+	if interested_only:
+		parts.append("interested only")
+	if search_text != "":
+		parts.append("search \"%s\"" % search_text)
+	if parts.is_empty():
+		parts.append("all drivers")
+	var dir_arrow: String = "▲" if sort_ascending else "▼"
+	parts.append("sorted by %s %s" % [_sort_field_label(), dir_arrow])
+	var lbl = Label.new()
+	lbl.text = "Showing: " + " · ".join(parts)
+	lbl.add_theme_font_size_override("font_size", 20)
+	lbl.add_theme_color_override("font_color", Color(0.65, 0.78, 0.95))
+	list_container.add_child(lbl)
+
+func _sort_field_label() -> String:
+	match sort_field:
+		"overall": return "Overall"
+		"pace": return "Pace"
+		"wet": return "Car Control"
+		"focus": return "Focus"
+		"craft": return "Craft"
+		"consistency": return "Consistency"
+		"fitness": return "Fitness"
+		"age": return "Age"
+		"salary": return "Salary"
+		_: return sort_field.capitalize()
 
 func _make_all_driver_row(driver) -> PanelContainer:
 	var is_mine = driver.contract_team == GameState.player_team.id
@@ -465,11 +523,14 @@ func _make_all_driver_row(driver) -> PanelContainer:
 
 	var name_color = Color(0.4, 0.8, 1.0) if is_mine else \
 		(Color(0.5, 0.5, 0.5) if is_taken else Color.WHITE)
-	_add_col(row1, driver.full_name(), 180, name_color, 14)
-	_add_col(row1, "Age %d" % driver.age, 55)
-	_add_col(row1, driver.nationality, 100)
-	_add_col(row1, "Ovr %.0f" % driver.get_overall_skill(), 55,
+	_add_col(row1, driver.full_name(), 200, name_color, 24)
+	_add_col(row1, "Age %d" % driver.age, 70)
+	_add_col(row1, driver.nationality, 120)
+	_add_col(row1, "Ovr %.0f" % driver.get_overall_skill(), 90,
 		_skill_color(driver.get_overall_skill()))
+
+	## S35.10 — TEAM column then CONTRACT column (aligned grid).
+	_add_col(row1, _team_name_for(driver.contract_team), 180, Color(0.8, 0.8, 0.85))
 
 	# Status — check approach state first
 	var ap_status = _get_approach_status(driver.id)
@@ -486,16 +547,15 @@ func _make_all_driver_row(driver) -> PanelContainer:
 	elif ap_status == "pre_signed":
 		status = "✅ Next Season"; status_color = Color(0.4, 0.85, 0.55)
 	elif is_taken:
-		## Show contract seasons remaining
 		var d_seasons = driver.contract_seasons_remaining
-		status = "Contracted (%ds)" % d_seasons
-		status_color = Color(1.0, 0.55, 0.2) if d_seasons <= 1 else Color(0.5, 0.5, 0.5)
+		status = "%d season%s" % [d_seasons, "s" if d_seasons != 1 else ""]
+		status_color = Color(1.0, 0.55, 0.2) if d_seasons <= 1 else Color(0.6, 0.85, 0.6)
 	else:
 		status = "Free agent"; status_color = Color(0.4, 0.9, 0.4)
-	_add_col(row1, status, 130, status_color)
+	_add_col(row1, status, 150, status_color)
 
 	# Salary estimate
-	_add_col(row1, "CR %s/yr" % _fmt_sal(_driver_salary(driver) * 52), 90, Color(0.7, 0.7, 0.7))
+	_add_col(row1, "CR %s/yr" % _fmt_sal(_driver_salary(driver) * 52), 130, Color(0.7, 0.7, 0.7))
 
 	# Stats row
 	var row2 = HBoxContainer.new()
@@ -527,6 +587,11 @@ func _make_all_driver_row(driver) -> PanelContainer:
 		btn_row.add_child(assign_btn)
 	else:
 		_add_approach_button(btn_row, d_id, "driver", driver)
+
+	## S35.10 — ★ shortlist star on the RIGHT of the action row.
+	var star_sp = Control.new(); star_sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_row.add_child(star_sp)
+	_add_shortlist_star(btn_row, d_id)
 
 	return card
 
@@ -580,6 +645,19 @@ func _show_driver_card(driver_id: String) -> void:
 	name_lbl.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(name_lbl)
+	## S35.10 — ★ shortlist toggle in the card header (synced with the row star).
+	var card_star = Button.new()
+	var star_on: bool = GameState.is_shortlisted(driver_id, "driver")
+	card_star.text = "★" if star_on else "☆"
+	card_star.custom_minimum_size = Vector2(44, 36)
+	card_star.add_theme_font_size_override("font_size", 26)
+	card_star.add_theme_color_override("font_color", Color(1.0, 0.82, 0.2) if star_on else Color(0.6, 0.6, 0.6))
+	card_star.tooltip_text = "Remove from shortlist" if star_on else "Add to shortlist"
+	card_star.pressed.connect(func():
+		GameState.toggle_shortlist(driver_id, "driver")
+		_show_driver_card(driver_id)  ## rebuild card to reflect new star state
+		_refresh_list())              ## and the row behind it
+	header.add_child(card_star)
 	var close_btn = Button.new()
 	close_btn.text = "✕"
 	close_btn.custom_minimum_size = Vector2(36, 36)
@@ -1102,13 +1180,14 @@ func _show_contract_negotiation_popup(subject_id: String, _subject_type: String)
 func _make_driver_header() -> HBoxContainer:
 	var row = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
-	for col in [["Name", 180], ["Age", 55], ["Nationality", 100],
-			["Overall", 55], ["Car", 70], ["Contract", 80]]:
+	## S35.10 — widths MUST match _make_all_driver_row's columns for the aligned grid.
+	for col in [["Name", 200], ["Age", 70], ["Nationality", 120],
+			["Overall", 90], ["Team", 180], ["Contract", 150], ["Salary", 130]]:
 		var lbl = Label.new()
 		lbl.text = col[0]
 		lbl.custom_minimum_size = Vector2(col[1], 0)
-		lbl.add_theme_font_size_override("font_size", 24)
-		lbl.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
+		lbl.add_theme_font_size_override("font_size", 20)
+		lbl.add_theme_color_override("font_color", Color(0.55, 0.55, 0.6))
 		row.add_child(lbl)
 	return row
 
@@ -1127,7 +1206,7 @@ func _make_card_panel(highlight: bool) -> PanelContainer:
 	return card
 
 func _add_col(parent: HBoxContainer, text: String, width: int,
-		color: Color = Color.WHITE, font_size: int = 13) -> void:
+		color: Color = Color.WHITE, font_size: int = 24) -> void:
 	var lbl = Label.new()
 	lbl.text = text
 	lbl.custom_minimum_size = Vector2(width, 0)
@@ -1135,6 +1214,31 @@ func _add_col(parent: HBoxContainer, text: String, width: int,
 	lbl.add_theme_color_override("font_color", color)
 	lbl.clip_text = true
 	parent.add_child(lbl)
+
+## S35.10 — team display name for a driver's contract_team, or "—" for a free agent.
+func _team_name_for(contract_team_id: String) -> String:
+	if contract_team_id == "":
+		return "—"
+	if contract_team_id == GameState.player_team.id:
+		return GameState.player_team.team_name
+	for t in GameState.all_teams:
+		if t.id == contract_team_id:
+			return t.team_name
+	return contract_team_id
+
+## S35.10 — ★ shortlist toggle (icon + tooltip), synced via is_shortlisted.
+func _add_shortlist_star(parent: HBoxContainer, subject_id: String) -> void:
+	var star = Button.new()
+	var on: bool = GameState.is_shortlisted(subject_id, "driver")
+	star.text = "★" if on else "☆"
+	star.custom_minimum_size = Vector2(40, 28)
+	star.add_theme_font_size_override("font_size", 22)
+	star.add_theme_color_override("font_color", Color(1.0, 0.82, 0.2) if on else Color(0.6, 0.6, 0.6))
+	star.tooltip_text = "Remove from shortlist" if on else "Add to shortlist"
+	star.pressed.connect(func():
+		GameState.toggle_shortlist(subject_id, "driver")
+		_refresh_list())
+	parent.add_child(star)
 
 func _add_stat_chip(parent: HBoxContainer, label: String, value: float) -> void:
 	var chip = PanelContainer.new()
@@ -1151,8 +1255,11 @@ func _add_stat_chip(parent: HBoxContainer, label: String, value: float) -> void:
 	chip.add_theme_stylebox_override("panel", style)
 	var lbl = Label.new()
 	lbl.text = "%s %.0f" % [label, value]
-	lbl.add_theme_font_size_override("font_size", 22)
+	lbl.add_theme_font_size_override("font_size", 24)
 	lbl.add_theme_color_override("font_color", _skill_color(value))
+	## S35.10 — emphasize a maxed (100) stat with a brighter green.
+	if value >= 100.0:
+		lbl.add_theme_color_override("font_color", Color(0.45, 1.0, 0.45))
 	chip.add_child(lbl)
 	parent.add_child(chip)
 

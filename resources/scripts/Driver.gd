@@ -3,6 +3,7 @@ class_name Driver
 extends Resource
 
 # Identity
+## S35.10 — added is_shortlisted (UI shortlist flag, saved/loaded).
 @export var id: String = ""
 @export var first_name: String = ""
 @export var last_name: String = ""
@@ -14,6 +15,9 @@ extends Resource
 @export var academy_team: String = ""
 @export var contract_team: String = ""
 @export var contract_seasons_remaining: int = 0
+## S35.10 — player's personal shortlist flag (★ in Drivers hub). Not gameplay-affecting; a UI
+## bookmark so the player can favourite prospects and view them in the Shortlisted tab.
+@export var is_shortlisted: bool = false
 ## Contract financial terms — set during negotiation
 @export var weekly_salary: float = 0.0
 @export var win_bonus: int = 0

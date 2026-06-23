@@ -1,4 +1,8 @@
 extends Control
+## Version: S35.10 — Hub UX pass: available rows at 24px (was 13px), 100s emphasized; TEAM and
+##   CONTRACT split into two aligned columns (+ column header); ★ shortlist star on each row and in
+##   the View Card popup (synced via is_shortlisted); active-sort highlight + ▼/▲ arrow + a
+##   "Showing: …" summary line so the applied filter/sort is always clear.
 ## Version: S35.9 — "Interested Only" now uses the shared DETERMINISTIC interest predicate
 ##   (matches the approach; binary, no percentage) + hides team-refusal-cooldown people. Added a
 ##   team-won't-release popup on approach. Context built once per pass (keeps perf).
@@ -217,10 +221,24 @@ func _rebuild_sort_bar() -> void:
 
 	for field in fields:
 		var btn = Button.new()
-		btn.text = field[0]
+		var f = field[1]
+		## S35.10 — show which sort is active + its direction (▼ high→low, ▲ low→high).
+		var is_active: bool = (sort_field == f)
+		var arrow: String = ""
+		if is_active:
+			arrow = "  ▲" if sort_ascending else "  ▼"
+		btn.text = field[0] + arrow
 		btn.custom_minimum_size = Vector2(0, 26)
 		btn.add_theme_font_size_override("font_size", 22)
-		var f = field[1]
+		if is_active:
+			## Highlight the active sort button so the player can see what's applied at a glance.
+			var astyle = StyleBoxFlat.new()
+			astyle.bg_color = Color(0.20, 0.42, 0.65)
+			astyle.set_corner_radius_all(4)
+			astyle.set_content_margin_all(6)
+			btn.add_theme_stylebox_override("normal", astyle)
+			btn.add_theme_stylebox_override("hover", astyle)
+			btn.add_theme_color_override("font_color", Color(1, 1, 1))
 		btn.pressed.connect(func():
 			if sort_field == f:
 				sort_ascending = !sort_ascending
@@ -401,8 +419,11 @@ func _get_role_stats(staff) -> Array:
 func _add_stat_chip(container: HBoxContainer, label: String, value: float) -> void:
 	var lbl = Label.new()
 	lbl.text = "%s %.0f" % [label, value]
-	lbl.add_theme_font_size_override("font_size", 22)
+	lbl.add_theme_font_size_override("font_size", 24)
 	lbl.add_theme_color_override("font_color", _skill_color(value))
+	## S35.10 — emphasize a maxed (100) stat with a brighter green so the eye finds it instantly.
+	if value >= 100.0:
+		lbl.add_theme_color_override("font_color", Color(0.45, 1.0, 0.45))
 	container.add_child(lbl)
 
 func _make_my_staff_row(staff) -> PanelContainer:
@@ -547,9 +568,89 @@ func _build_available_staff_list() -> void:
 	current_page = clamp(current_page, 0, max_page)
 	var start = current_page * PAGE_SIZE
 	var end = min(start + PAGE_SIZE, total)
+	_add_showing_summary()    ## S35.10 — plain-language "what's applied right now" line
+	_add_available_header()  ## S35.10 — aligned column labels above the rows
 	for i in range(start, end):
 		list_container.add_child(_make_available_staff_row(filtered[i]))
 	_build_page_nav(total, start, end, max_page)
+
+## S35.10 — a plain-language line telling the player exactly what filter + sort are applied, so the
+## state of the list is never a mystery. e.g. "Showing: Mechanics · interested only · sorted by Pit Stops ▼"
+func _add_showing_summary() -> void:
+	var parts: Array = []
+	if role_filter == "All":
+		parts.append("all roles")
+	else:
+		parts.append(ROLE_SHORT.get(role_filter, role_filter) + "s")
+	if interested_only:
+		parts.append("interested only")
+	if search_text != "":
+		parts.append("search \"%s\"" % search_text)
+	var dir_arrow: String = "▲" if sort_ascending else "▼"
+	parts.append("sorted by %s %s" % [_sort_field_label(), dir_arrow])
+	var lbl = Label.new()
+	lbl.text = "Showing: " + " · ".join(parts)
+	lbl.add_theme_font_size_override("font_size", 20)
+	lbl.add_theme_color_override("font_color", Color(0.65, 0.78, 0.95))
+	list_container.add_child(lbl)
+
+## Human-readable label for the active sort field.
+func _sort_field_label() -> String:
+	match sort_field:
+		"skill": return "Skill"
+		"age": return "Age"
+		"salary": return "Salary"
+		"reputation": return "Reputation"
+		"strategy": return "Strategy"
+		"practice": return "Practice"
+		"qualifying": return "Qualifying"
+		"race_pace": return "Race Pace"
+		"pit_mgmt": return "Pit Mgmt"
+		"pr": return "PR"
+		"setup": return "Car Setup"
+		"pit_stops": return "Pit Stops"
+		"car_know": return "Car Know"
+		"track_know": return "Track Know"
+		"pit_stop": return "Pit Speed"
+		"repair": return "Repair"
+		"fatigue_resistance": return "Fatigue Res"
+		"fitness": return "Fitness"
+		"finmgmt": return "Fin Mgmt"
+		"negotiation": return "Negotiation"
+		"sales": return "Sales"
+		"resource": return "Resource"
+		"aero": return "Aero"
+		"engine": return "Engine"
+		"chassis": return "Chassis"
+		"gearbox": return "Gearbox"
+		"suspension": return "Suspension"
+		"brakes": return "Brakes"
+		"parts_know": return "Parts Know"
+		"reliability": return "Reliability"
+		"quali_timing": return "Quali Timing"
+		_: return sort_field.capitalize()
+
+## S35.10 — column header for the available-staff grid. Widths MUST match _make_available_staff_row.
+func _add_available_header() -> void:
+	var hdr_panel = PanelContainer.new()
+	var hstyle = StyleBoxFlat.new()
+	hstyle.bg_color = Color(0.10, 0.10, 0.13, 0.9)
+	hstyle.content_margin_left = 8; hstyle.content_margin_right = 8
+	hstyle.content_margin_top = 4; hstyle.content_margin_bottom = 4
+	hdr_panel.add_theme_stylebox_override("panel", hstyle)
+	var hrow = HBoxContainer.new()
+	hrow.add_theme_constant_override("separation", 8)
+	hdr_panel.add_child(hrow)
+	var hc = Color(0.55, 0.55, 0.6)
+	_add_col(hrow, "Name", 200, hc, 20)
+	_add_col(hrow, "Age", 70, hc, 20)
+	_add_col(hrow, "Nationality", 120, hc, 20)
+	_add_col(hrow, "Role", 175, hc, 20)
+	_add_col(hrow, "Skill", 120, hc, 20)
+	_add_col(hrow, "Team", 180, hc, 20)
+	_add_col(hrow, "Contract", 150, hc, 20)
+	_add_col(hrow, "Salary", 130, hc, 20)
+	list_container.add_child(hdr_panel)
 
 func _make_available_staff_row(staff) -> PanelContainer:
 	var is_contracted = staff.contract_team != ""
@@ -561,15 +662,17 @@ func _make_available_staff_row(staff) -> PanelContainer:
 	var row1 = HBoxContainer.new()
 	row1.add_theme_constant_override("separation", 8)
 	vbox.add_child(row1)
-	_add_col(row1, staff.display_name(), 170, Color(0.85, 0.85, 0.85), 14)
-	_add_col(row1, "Age %d" % staff.age, 55)
-	_add_col(row1, staff.nationality, 100)
-	_add_col(row1, "%s %s" % [ROLE_ICONS.get(staff.role, ""), staff.role], 155,
+	_add_col(row1, staff.display_name(), 200, Color(0.85, 0.85, 0.85), 24)
+	_add_col(row1, "Age %d" % staff.age, 70)
+	_add_col(row1, staff.nationality, 120)
+	_add_col(row1, "%s %s" % [ROLE_ICONS.get(staff.role, ""), staff.role], 175,
 		Color(0.7, 0.85, 1.0))
-	_add_col(row1, "%s %.0f" % [staff.get_primary_skill_label(), staff.get_primary_skill()], 100,
+	_add_col(row1, "%s %.0f" % [staff.get_primary_skill_label(), staff.get_primary_skill()], 120,
 		_skill_color(staff.get_primary_skill()))
 
-	## Status column
+	## S35.10 — TEAM column (team name or "—") then CONTRACT column (duration / status), aligned.
+	_add_col(row1, _team_name_for(staff.contract_team), 180, Color(0.8, 0.8, 0.85))
+
 	var ap_status = _get_approach_status(staff.id)
 	var status_text: String
 	var status_col: Color
@@ -583,13 +686,13 @@ func _make_available_staff_row(staff) -> PanelContainer:
 		status_text = "✅ Next Season"; status_col = Color(0.4, 0.85, 0.55)
 	elif is_contracted:
 		var seasons = staff.contract_seasons_remaining
-		status_text = "Contracted (%ds)" % seasons
-		status_col = Color(1.0, 0.55, 0.2) if seasons <= 1 else Color(0.5, 0.5, 0.5)
+		status_text = "%d season%s" % [seasons, "s" if seasons != 1 else ""]
+		status_col = Color(1.0, 0.55, 0.2) if seasons <= 1 else Color(0.6, 0.85, 0.6)
 	else:
 		status_text = "Free agent"; status_col = Color(0.4, 0.9, 0.4)
-	_add_col(row1, status_text, 130, status_col)
+	_add_col(row1, status_text, 150, status_col)
 
-	_add_col(row1, "CR %s/yr" % _fmt_sal(int(staff.weekly_salary * 52)), 90, Color(0.6, 0.6, 0.6))
+	_add_col(row1, "CR %s/yr" % _fmt_sal(int(staff.weekly_salary * 52)), 130, Color(0.6, 0.6, 0.6))
 
 	var btn_row = HBoxContainer.new()
 	btn_row.add_theme_constant_override("separation", 6)
@@ -604,6 +707,11 @@ func _make_available_staff_row(staff) -> PanelContainer:
 	btn_row.add_child(view_btn)
 
 	_add_approach_button(btn_row, s_id, "staff", staff)
+
+	## S35.10 — ★ shortlist star on the RIGHT of the action row.
+	var star_sp = Control.new(); star_sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_row.add_child(star_sp)
+	_add_shortlist_star(btn_row, s_id, "staff")
 
 	## Row 2 — role-specific stat chips
 	var stats = _get_role_stats(staff)
@@ -667,6 +775,19 @@ func _show_staff_card(staff_id: String) -> void:
 	name_lbl.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(name_lbl)
+	## S35.10 — ★ shortlist toggle in the card header (synced with the row star via is_shortlisted).
+	var card_star = Button.new()
+	var star_on: bool = GameState.is_shortlisted(staff_id, "staff")
+	card_star.text = "★" if star_on else "☆"
+	card_star.custom_minimum_size = Vector2(44, 36)
+	card_star.add_theme_font_size_override("font_size", 26)
+	card_star.add_theme_color_override("font_color", Color(1.0, 0.82, 0.2) if star_on else Color(0.6, 0.6, 0.6))
+	card_star.tooltip_text = "Remove from shortlist" if star_on else "Add to shortlist"
+	card_star.pressed.connect(func():
+		GameState.toggle_shortlist(staff_id, "staff")
+		_show_staff_card(staff_id)  ## rebuild card to reflect new star state
+		_refresh_list())            ## and update the row behind it
+	header.add_child(card_star)
 	var close_btn = Button.new()
 	close_btn.text = "✕"
 	close_btn.custom_minimum_size = Vector2(36, 36)
@@ -1399,7 +1520,7 @@ func _make_card_panel(highlight: bool) -> PanelContainer:
 	return card
 
 func _add_col(parent: HBoxContainer, text: String, width: int,
-		color: Color = Color.WHITE, font_size: int = 13) -> void:
+		color: Color = Color.WHITE, font_size: int = 24) -> void:
 	var lbl = Label.new()
 	lbl.text = text
 	lbl.custom_minimum_size = Vector2(width, 0)
@@ -1407,6 +1528,32 @@ func _add_col(parent: HBoxContainer, text: String, width: int,
 	lbl.add_theme_color_override("font_color", color)
 	lbl.clip_text = true
 	parent.add_child(lbl)
+
+## S35.10 — display name of the team a person belongs to, or "—" for a free agent.
+func _team_name_for(contract_team_id: String) -> String:
+	if contract_team_id == "":
+		return "—"
+	if contract_team_id == GameState.player_team.id:
+		return GameState.player_team.team_name
+	for t in GameState.all_teams:
+		if t.id == contract_team_id:
+			return t.team_name
+	return contract_team_id
+
+## S35.10 — a ★ shortlist toggle (icon only + tooltip). Reflects is_shortlisted; clicking toggles
+## and refreshes the list so the star state updates everywhere.
+func _add_shortlist_star(parent: HBoxContainer, subject_id: String, subject_type: String) -> void:
+	var star = Button.new()
+	var on: bool = GameState.is_shortlisted(subject_id, subject_type)
+	star.text = "★" if on else "☆"
+	star.custom_minimum_size = Vector2(40, 28)
+	star.add_theme_font_size_override("font_size", 22)
+	star.add_theme_color_override("font_color", Color(1.0, 0.82, 0.2) if on else Color(0.6, 0.6, 0.6))
+	star.tooltip_text = "Remove from shortlist" if on else "Add to shortlist"
+	star.pressed.connect(func():
+		GameState.toggle_shortlist(subject_id, subject_type)
+		_refresh_list())
+	parent.add_child(star)
 
 func _card_row(parent: VBoxContainer, label: String, value: String,
 		value_color: Color = Color.WHITE) -> void:

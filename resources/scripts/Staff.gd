@@ -1,5 +1,7 @@
 class_name Staff
 extends Resource
+## Version: S35.10 — added is_shortlisted (UI shortlist flag, saved/loaded; viewable in the
+##   role-tabbed Shortlist screen).
 ## Version: S32.0 — Added get_overall_skill(): role-aware aggregate rating (mirrors
 ##   Driver.get_overall_skill()). Used to rank Team Principals for AI allocation (overseers
 ##   whose value is broad amplification). Per-role optimiser scoring still uses each role's
@@ -31,6 +33,9 @@ extends Resource
 @export var weekly_salary: float = 0.0
 @export var contract_seasons_remaining: int = 5
 @export var contract_team: String = ""
+## S35.10 — player's personal shortlist flag (★ in Staff hub). UI bookmark only, not
+## gameplay-affecting; viewable in the Shortlisted tab.
+@export var is_shortlisted: bool = false
 ## Contract bonus terms — set during negotiation
 @export var championship_bonus: int = 0
 @export var performance_bonus: int = 0
