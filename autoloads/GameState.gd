@@ -1,4 +1,6 @@
 extends Node
+## Version: S35.10d — Shortlist "All" aggregation: get_shortlisted_by_role("All") returns every
+##   shortlisted person (drivers first); get_shortlist_counts() includes an "All" total.
 ## Version: S35.10 — Shortlist support: is_shortlisted serialized/deserialized for drivers + staff
 ##   (default false for old saves); shortlist API toggle_shortlist / is_shortlisted /
 ##   get_shortlisted_by_role / get_shortlist_counts (unified across drivers + the 6 staff roles).
@@ -2374,30 +2376,40 @@ func is_shortlisted(subject_id: String, subject_type: String) -> bool:
 ## Shortlisted people of one role tab. role_tab == "Driver" → drivers; otherwise a staff role.
 func get_shortlisted_by_role(role_tab: String) -> Array:
 	var result = []
-	if role_tab == "Driver":
+	## S35.10d — "All" = every shortlisted person, drivers first then staff.
+	if role_tab == "All" or role_tab == "Driver":
 		for did in all_drivers:
 			var d = all_drivers[did]
 			if d.is_shortlisted:
 				result.append(d)
-	else:
+		if role_tab == "Driver":
+			return result
+	if role_tab == "All":
 		for sid in all_staff:
 			var s = all_staff[sid]
-			if s.is_shortlisted and s.role == role_tab:
+			if s.is_shortlisted:
 				result.append(s)
+		return result
+	for sid in all_staff:
+		var s = all_staff[sid]
+		if s.is_shortlisted and s.role == role_tab:
+			result.append(s)
 	return result
 
 ## Count of shortlisted people for each role tab (for badge counts on the tabs).
 func get_shortlist_counts() -> Dictionary:
-	var counts = {"Driver": 0}
+	var counts = {"All": 0, "Driver": 0}
 	for r in STAFF_ROLES:
 		counts[r] = 0
 	for did in all_drivers:
 		if all_drivers[did].is_shortlisted:
 			counts["Driver"] += 1
+			counts["All"] += 1
 	for sid in all_staff:
 		var s = all_staff[sid]
 		if s.is_shortlisted:
 			counts[s.role] = counts.get(s.role, 0) + 1
+			counts["All"] += 1
 	return counts
 
 ## S35.6 — rebuild the player-staff cache from all_staff. One full scan; only runs when dirty.

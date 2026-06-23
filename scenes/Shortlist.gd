@@ -1,4 +1,7 @@
 extends Control
+## Version: S35.10d — Added an "All" tab (first): one combined view of every shortlisted person
+##   (drivers + all staff), with a Role column to tell them apart and universal sort fields
+##   (Overall/Age/Salary). Row type is detected per-row. Per-role tabs unchanged.
 ## Version: S35.10c — Unified SHORTLIST screen (Stage B). One view spanning BOTH drivers and staff,
 ##   organised by ROLE TABS (Driver + the 6 staff roles). Reads the GameState shortlist API
 ##   (get_shortlisted_by_role / get_shortlist_counts, is_shortlisted, toggle_shortlist). Reuses the
@@ -7,16 +10,16 @@ extends Control
 ##   Hub and HQ. "Back" returns to Main Hub (same as the other hubs).
 
 const ROLE_ICONS := {
-	"Driver": "🏎", "Race Mechanic": "🔧", "Pit Crew": "⏱", "Team Principal": "👔",
+	"All": "📋", "Driver": "🏎", "Race Mechanic": "🔧", "Pit Crew": "⏱", "Team Principal": "👔",
 	"CFO": "💼", "Designer": "🔬", "Race Strategist": "📡"
 }
 
-## Tab order: Driver first, then the staff roles (mirrors GameState.STAFF_ROLES grouping).
-var role_tabs: Array = ["Driver", "Race Mechanic", "Pit Crew", "Team Principal",
+## Tab order: All first, then Driver, then the staff roles.
+var role_tabs: Array = ["All", "Driver", "Race Mechanic", "Pit Crew", "Team Principal",
 	"CFO", "Designer", "Race Strategist"]
 
-var current_role: String = "Driver"
-var sort_field: String = "overall"   ## drivers default; staff tabs fall back to "skill"
+var current_role: String = "All"
+var sort_field: String = "overall"   ## overall works for both drivers and staff (get_overall_skill)
 var sort_ascending: bool = false
 
 var list_container: VBoxContainer
@@ -88,7 +91,13 @@ func _rebuild_tabs() -> void:
 	for role in role_tabs:
 		var n: int = counts.get(role, 0)
 		var btn = Button.new()
-		var short_label = "Driver" if role == "Driver" else role.replace("Race ", "").replace("Team ", "")
+		var short_label: String
+		if role == "All":
+			short_label = "All"
+		elif role == "Driver":
+			short_label = "Driver"
+		else:
+			short_label = role.replace("Race ", "").replace("Team ", "")
 		btn.text = "%s %s (%d)" % [ROLE_ICONS.get(role, ""), short_label, n]
 		btn.add_theme_font_size_override("font_size", 22)
 		btn.flat = (role != current_role)
@@ -96,7 +105,7 @@ func _rebuild_tabs() -> void:
 		btn.pressed.connect(func():
 			current_role = r
 			## reset sort to a sensible default for the tab type
-			sort_field = "overall" if r == "Driver" else "skill"
+			sort_field = "overall" if (r == "Driver" or r == "All") else "skill"
 			sort_ascending = false
 			_rebuild_tabs()
 			_refresh())
@@ -107,7 +116,10 @@ func _rebuild_sort_buttons() -> void:
 	for c in sort_fields_box.get_children():
 		c.queue_free()
 	var fields: Array
-	if current_role == "Driver":
+	if current_role == "All":
+		## Mixed list — only universally-comparable fields.
+		fields = [["Overall", "overall"], ["Age", "age"], ["Salary", "salary"]]
+	elif current_role == "Driver":
 		fields = [["Ovr", "overall"], ["Pace", "pace"], ["Ctrl", "wet"], ["Focus", "focus"],
 			["Craft", "craft"], ["Cons", "consistency"], ["Fit", "fitness"], ["Age", "age"],
 			["Salary", "salary"]]
@@ -150,7 +162,13 @@ func _refresh() -> void:
 	# Showing summary
 	var dir_arrow: String = "▲" if sort_ascending else "▼"
 	var summary = Label.new()
-	var tab_name = "Drivers" if current_role == "Driver" else current_role + "s"
+	var tab_name: String
+	if current_role == "All":
+		tab_name = "everyone"
+	elif current_role == "Driver":
+		tab_name = "Drivers"
+	else:
+		tab_name = current_role + "s"
 	summary.text = "Showing: shortlisted %s · sorted by %s %s" % [tab_name, _sort_label(), dir_arrow]
 	summary.add_theme_font_size_override("font_size", 20)
 	summary.add_theme_color_override("font_color", Color(0.65, 0.78, 0.95))
@@ -158,7 +176,8 @@ func _refresh() -> void:
 
 	if people.is_empty():
 		var empty = Label.new()
-		empty.text = "No shortlisted %s yet. Tap the ★ on anyone in the Drivers or Staff hub to add them here." % tab_name.to_lower()
+		var noun = "anyone" if current_role == "All" else tab_name.to_lower()
+		empty.text = "No shortlisted %s yet. Tap the ★ on anyone in the Drivers or Staff hub to add them here." % noun
 		empty.add_theme_font_size_override("font_size", 22)
 		empty.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -187,6 +206,8 @@ func _make_header() -> PanelContainer:
 	_add_col(row, "Name", 200, hc, 20)
 	_add_col(row, "Age", 70, hc, 20)
 	_add_col(row, "Nationality", 120, hc, 20)
+	## S35.10d — show a Role column whenever the list can contain non-drivers (All + staff tabs),
+	## so the mixed "All" view tells you who's who. The pure Driver tab omits it.
 	if current_role != "Driver":
 		_add_col(row, "Role", 160, hc, 20)
 	_add_col(row, "Skill", 110, hc, 20)
@@ -197,7 +218,9 @@ func _make_header() -> PanelContainer:
 	return panel
 
 func _make_row(p) -> PanelContainer:
-	var is_driver: bool = (current_role == "Driver")
+	## S35.10d — detect type PER ROW (the All tab mixes drivers + staff). Drivers have no `role`.
+	var is_driver: bool = not ("role" in p)
+	var show_role_col: bool = (current_role != "Driver")
 	var card = PanelContainer.new()
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var style = StyleBoxFlat.new()
@@ -221,14 +244,24 @@ func _make_row(p) -> PanelContainer:
 	_add_col(row1, p.full_name(), 200, Color(0.9, 0.9, 0.9), 24)
 	_add_col(row1, "Age %d" % p.age, 70)
 	_add_col(row1, p.nationality, 120)
+
+	## Role column (shown for All + staff tabs). Drivers display "🏎 Driver".
+	if show_role_col:
+		if is_driver:
+			_add_col(row1, "%s Driver" % ROLE_ICONS.get("Driver", ""), 160, Color(0.7, 0.85, 1.0))
+		else:
+			_add_col(row1, "%s %s" % [ROLE_ICONS.get(p.role, ""), p.role], 160, Color(0.7, 0.85, 1.0))
+
+	## Skill column — Overall for drivers, primary-skill for staff.
 	var skill_val: float
+	var skill_text: String
 	if is_driver:
 		skill_val = p.get_overall_skill()
+		skill_text = "Ovr %.0f" % skill_val
 	else:
-		_add_col(row1, "%s %s" % [ROLE_ICONS.get(p.role, ""), p.role], 160, Color(0.7, 0.85, 1.0))
 		skill_val = p.get_primary_skill()
-	_add_col(row1, ("Ovr %.0f" % skill_val) if is_driver else ("%s %.0f" % [p.get_primary_skill_label(), skill_val]),
-		110, _skill_color(skill_val))
+		skill_text = "%s %.0f" % [p.get_primary_skill_label(), skill_val]
+	_add_col(row1, skill_text, 110, _skill_color(skill_val))
 
 	_add_col(row1, _team_name_for(p.contract_team), 180, Color(0.8, 0.8, 0.85))
 
