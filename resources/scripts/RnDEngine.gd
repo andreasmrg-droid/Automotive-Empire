@@ -1,5 +1,15 @@
 class_name RnDEngine
-## Version: S31.1 — Bug 8: start_cnc_job blocks manufacturing of a blueprint whose target
+## Version: S35.11 — R&D chain season-rollover correctness:
+##   • P1 (Design) + P3 (Reverse Engineering) now stamp design_season = current+1 and embed
+##     S{n+1} in id AND name; P2 (Upgrade) embeds its current S{n} in the name (id already did).
+##     Naming is load-bearing: the rollover identifies which blueprints to purge vs. activate.
+##   • P1 L2 unlocks when an L1 blueprint exists from EITHER P1 or P3 (part-level prereq via
+##     requires_l1_for / _has_l1_blueprint_for), so RE genuinely opens L2.
+##   • RE penalty is designer-scaled (formula ii, floor 0.75: 0.75 + 0.25×stat/100) and baked
+##     into `quality` ONCE; P1 L2 inherits the lineage quality (_lineage_quality_for) so the
+##     penalty rides the whole percentage chain. resolve_active_l1_blueprint() picks the
+##     better of a P1 vs P3 L1 (value×quality) as the valid build source.
+## --- S31.1 — Bug 8: start_cnc_job blocks manufacturing of a blueprint whose target
 ##   season is in the future (bp.season > current_season) — a next-season part can no longer
 ##   be built in the current season. Single choke point, so it also covers Build Whole Car.
 ## --- S28.3 — CNC production now slot-limited (get_cnc_slots from plant level): jobs
@@ -99,32 +109,45 @@ func _build_rnd_tasks_for_season(season: int) -> Dictionary:
 		var reg = gs.CHAMPIONSHIP_REGISTRY.get(cid, {})
 		var champ_name = reg.get("name", cid)
 
+		## S35.11 — Season anchoring split:
+		##   • P1 (Design) and P3 (Reverse Engineering) build NEXT season's car → stamped
+		##     design_season = season + 1, and their id/name carry that S{n+1} token.
+		##   • P2 (Upgrade) improves the CURRENT season's car → stays on `season`/`s`.
+		## The season token in the id is the part's TARGET season; with this split an S4
+		## design (for S5) and an S5 design (for S6) never collide, and the season-rollover
+		## can tell P1/P3 next-season blueprints apart from P2 current-season ones by id+name.
+		var design_season = season + 1
+		var ns = str(design_season)
+
 		for i in range(PART_NAMES_ORDER.size()):
 			var part    = PART_NAMES_ORDER[i]
 			var pcode   = PART_CODES[part]
 			var is_spec = spec_arr[i]
 
-			# P1: Blueprint Design
+			# P1: Blueprint Design — designs NEXT season's part (L1 + L2)
 			var p1b   = PART_BASE_P1[part]
-			var p1_id = "BP-%s-%s-S%s-L1" % [code, pcode, s]
-			var p1_l2 = "BP-%s-%s-S%s-L2" % [code, pcode, s]
+			var p1_id = "BP-%s-%s-S%s-L1" % [code, pcode, ns]
+			var p1_l2 = "BP-%s-%s-S%s-L2" % [code, pcode, ns]
 			tasks[p1_id] = {
-				"name": "%s — %s Blueprint" % [champ_name, part],
+				"name": "%s — %s S%s Blueprint L1" % [champ_name, part, ns],
 				"pillar":1,"part":part,"part_code":pcode,"championship_id":cid,
-				"season":season,"level":1,"blueprint_id":p1_id,
+				"season":design_season,"level":1,"blueprint_id":p1_id,
 				"weeks":max(1,int(p1b[0]*tier_mult)),"rp":int(p1b[1]*tier_mult),
 				"cr":int(p1b[2]*tier_mult),"effect":p1b[3],"value":p1b[4],
 			}
 			tasks[p1_l2] = {
-				"name": "%s — %s Blueprint L2" % [champ_name, part],
+				"name": "%s — %s S%s Blueprint L2" % [champ_name, part, ns],
 				"pillar":1,"part":part,"part_code":pcode,"championship_id":cid,
-				"season":season,"level":2,"blueprint_id":p1_l2,
+				"season":design_season,"level":2,"blueprint_id":p1_l2,
 				"weeks":max(1,int(p1b[0]*tier_mult*2.0)),"rp":int(p1b[1]*tier_mult*2.5),
 				"cr":int(p1b[2]*tier_mult*2.8),"effect":p1b[3],"value":p1b[4]*2.0,
-				"requires":p1_id,
+				## L2 unlocks when an L1 blueprint for this [champ][part][season] exists from
+				## EITHER P1 OR P3 — resolved at part level in rnd_task_unlocked(), not by a
+				## single task id. This marker tells that check which L1 lineage to look for.
+				"requires_l1_for": "%s|%s|%d" % [cid, pcode, design_season],
 			}
 
-			# P2: Upgrade — 5 levels, Open parts only
+			# P2: Upgrade — 5 levels, Open parts only. CURRENT season's car.
 			if not is_spec:
 				var p2b = PART_BASE_P2[part]
 				var prev_id = ""
@@ -132,7 +155,7 @@ func _build_rnd_tasks_for_season(season: int) -> Dictionary:
 					var lm = UPG_LEVEL_MULTS[lv - 1]
 					var upg_id = "UPG-%s-%s-S%s-L%d" % [code, pcode, s, lv]
 					var entry: Dictionary = {
-						"name": "%s — %s Upgrade L%d" % [champ_name, part, lv],
+						"name": "%s — %s S%s Upgrade L%d" % [champ_name, part, s, lv],
 						"pillar":2,"part":part,"part_code":pcode,"championship_id":cid,
 						"season":season,"level":lv,"blueprint_id":upg_id,
 						"weeks":max(1,int(p2b[0]*tier_mult*lm)),"rp":int(p2b[1]*tier_mult*lm),
@@ -143,14 +166,14 @@ func _build_rnd_tasks_for_season(season: int) -> Dictionary:
 					tasks[upg_id] = entry
 					prev_id = upg_id
 
-			# P3: Reverse Engineering — Spec parts only, always L1
+			# P3: Reverse Engineering — Spec parts only, always L1. NEXT season's part.
 			if is_spec:
 				var p3b = PART_BASE_P3[part]
-				var re_id = "RE-%s-%s-S%s-L1" % [code, pcode, s]
+				var re_id = "RE-%s-%s-S%s-L1" % [code, pcode, ns]
 				tasks[re_id] = {
-					"name": "%s — RE %s" % [champ_name, part],
+					"name": "%s — %s S%s RE L1" % [champ_name, part, ns],
 					"pillar":3,"part":part,"part_code":pcode,"championship_id":cid,
-					"season":season,"level":1,"blueprint_id":re_id,
+					"season":design_season,"level":1,"blueprint_id":re_id,
 					"weeks":max(1,int(p3b[0]*tier_mult)),"rp":int(p3b[1]*tier_mult),
 					"cr":int(p3b[2]*tier_mult),"effect":p3b[3],"value":p3b[4],
 				}
@@ -690,6 +713,13 @@ func rnd_task_unlocked(task_id: String) -> bool:
 	var req = task.get("requires", "")
 	if req != "" and not req in gs.completed_rnd_tasks:
 		return false
+	## S35.11 — P1 L2 unlocks when an L1 blueprint for this [champ][part][season] exists
+	## from EITHER P1 (Design) OR P3 (Reverse Engineering). Resolved at part level so RE
+	## genuinely opens L2 (previously L2 hard-required the P1 L1 task id, so an RE-only
+	## player could never reach L2).
+	var req_l1 = task.get("requires_l1_for", "")
+	if req_l1 != "" and not _has_l1_blueprint_for(req_l1):
+		return false
 	# Pillar 4: building level gate
 	if task.get("pillar", 0) == 4:
 		var bname  = task.get("building", "")
@@ -699,6 +729,24 @@ func rnd_task_unlocked(task_id: String) -> bool:
 			if not bld.get("built", false) or bld.get("level", 0) < min_lv:
 				return false
 	return true
+
+## S35.11 — True if a completed L1 (level==1, pillar 1 or 3) blueprint exists matching the
+## "cid|pcode|season" key. Used by rnd_task_unlocked to gate P1 L2 on either design path.
+func _has_l1_blueprint_for(key: String) -> bool:
+	var parts = key.split("|")
+	if parts.size() != 3: return false
+	var cid = parts[0]
+	var pcode = parts[1]
+	var season = int(parts[2])
+	for bp_id in gs.known_blueprints:
+		var bp = gs.known_blueprints[bp_id]
+		if bp.get("pillar", 0) not in [1, 3]: continue
+		if int(bp.get("level", 0)) != 1: continue
+		if bp.get("championship_id", "") != cid: continue
+		if bp.get("part_code", "") != pcode: continue
+		if int(bp.get("season", -1)) != season: continue
+		return true
+	return false
 
 ## Returns true if a task is already running or completed.
 
@@ -747,6 +795,7 @@ func start_rnd_task(task_id: String, designer_id: String, championship_id: Strin
 		"name":            task["name"],
 		"pillar":          task["pillar"],
 		"part":            task["part"],
+		"part_code":       task.get("part_code", _part_name_to_pcode(task["part"])),
 		"championship_id": championship_id,
 		"weeks_total":     task["weeks"],
 		"weeks_remaining": task["weeks"],
@@ -800,21 +849,47 @@ func _advance_rnd_tasks() -> void:
 		if pillar == 1 or pillar == 3:
 			if not tid in gs.completed_bp_tasks:
 				gs.completed_bp_tasks.append(tid)
+			## S35.11 — RE penalty is designer-scaled and baked into `quality` ONCE.
+			## Because every higher level is a percentage of the previous level's stats,
+			## the penalty rides the whole chain automatically — we only compute it here.
+			##   re_quality = 0.75 + 0.25 × (designer_part_stat / 100)   [floor 0.75]
+			## A strong designer pulls the reverse-engineered part back toward 1.0; a poor
+			## one sits near the 0.75 floor. Driven by the part-relevant design stat
+			## (aero/engine/…), falling back to parts_knowledge. Designers get NO discipline
+			## adaptation (GDD §9-F), so no adaptation multiplier is applied.
 			var bp_quality = 1.0
+			var bp_value = float(task.get("effect_value", 0.0))
 			if pillar == 3:
-				## RE blueprint penalty: 25% quality reduction vs own design (GDD Bugs §1)
-				bp_quality = 0.75
+				bp_quality = _compute_re_quality(task)
+			else:
+				## P1 design: inherit the lineage quality so an L2 built on an RE'd L1 keeps
+				## the penalty (and a clean own-design L1 stays at 1.0). Looks up the existing
+				## L1 blueprint for this [champ][part][season]; defaults to 1.0 if none.
+				bp_quality = _lineage_quality_for(
+					task.get("championship_id",""), task.get("part_code",""),
+					int(task.get("season", gs.current_season)))
+				## S35.11 — P2 carry-over: a P1 *L1* design starts from the highest WRA-APPROVED
+				## P2 level for this part THIS season (continuous performance build-up). The
+				## designer then lifts that base by formula ii (multiplicative, capped 0.25):
+				##   final = base × (1 + (designer_part_stat/100) × 0.25)
+				## If no approved P2 level exists (P2 level 0, or a Spec part — Spec parts have
+				## no P2 ladder), base falls back to the bare L1 design value. Spec parts are
+				## handled automatically: their approved-P2 lookup returns 0. The accumulated
+				## build-up is cleansed at the WRA 4-season regulation reset (§11). Only L1
+				## carries the P2 base; L2+ build on L1 via their own ×2.0 chain as before.
+				if int(task.get("level", 1)) == 1:
+					bp_value = _compute_p1_base_value(task)
 			gs.known_blueprints[tid] = {
 				"blueprint_id": tid, "name": task["name"],
 				"part": task.get("part",""), "part_code": task.get("part_code",""),
 				"championship_id": task.get("championship_id",""),
 				"season": task.get("season", gs.current_season),
 				"level": task.get("level", 1), "pillar": pillar,
-				"effect": task.get("effect_key",""), "value": task.get("effect_value", 0.0),
+				"effect": task.get("effect_key",""), "value": bp_value,
 				"quality": bp_quality,
 			}
-			gs.add_log("📋 Blueprint stored: %s → R&D + CNC database.%s" % [
-				tid, " [RE: 75%% quality]" if pillar == 3 else ""])
+			gs.add_log("📋 Blueprint stored: %s → R&D + CNC database. [Val %.4f, Qual %.2f×]%s" % [
+				tid, bp_value, bp_quality, " [RE]" if pillar == 3 else ""])
 		elif pillar == 2:
 			if not tid in gs.completed_upg_tasks:
 				gs.completed_upg_tasks.append(tid)
@@ -842,6 +917,114 @@ func _advance_rnd_tasks() -> void:
 		else:
 			gs.add_notification("High", "R&D complete: '%s'%s. Submit to WRA Office in HQ to manufacture." % [task["name"], champ_label], "wra_office")
 	gs.emit_signal("log_updated")
+
+## S35.11 — Maps a part name to the Designer stat that governs its design quality.
+const PART_TO_DESIGNER_STAT = {
+	"Aero":"aero","Engine":"engine","Brakes":"brakes",
+	"Suspension":"suspension","Chassis":"chassis","Gearbox":"gearbox"
+}
+
+## S35.11 — Designer-scaled reverse-engineering quality (formula ii, floor 0.75):
+##   re_quality = 0.75 + 0.25 × (designer_part_stat / 100)
+## Driven by the part-relevant design stat, fallback parts_knowledge. No discipline
+## adaptation (Designers are exempt, GDD §9-F). Returns 0.75 if the designer is missing.
+func _compute_re_quality(task: Dictionary) -> float:
+	const FLOOR := 0.75
+	if not task.get("designer_id", "") in gs.all_staff:
+		return FLOOR
+	var stat_val = _designer_part_stat(task.get("designer_id",""), task.get("part",""))
+	return clamp(FLOOR + (1.0 - FLOOR) * (stat_val / 100.0), FLOOR, 1.0)
+
+## S35.11 — Designer contribution cap for P1 L1 design (formula ii, multiplicative).
+## At designer_stat=100 a perfect designer lifts the inherited base by +25%. Named so the
+## Phase 5 balance pass can retune it in one place.
+const DESIGNER_CAP := 0.25
+
+## S35.11 — Computes a P1 *L1* design's starting `value` (the continuous performance build-up):
+##   base = highest WRA-APPROVED P2 level value for this part THIS season (0 if none / Spec)
+##   if base > 0: final = base × (1 + (designer_part_stat/100) × DESIGNER_CAP)
+##   else:        final = bare_L1_value × (1 + (designer_part_stat/100) × DESIGNER_CAP)
+## The accumulated build-up resets at the WRA regulation change (§11), which wipes P1/P3 BPs.
+func _compute_p1_base_value(task: Dictionary) -> float:
+	var cid   = task.get("championship_id", "")
+	var pcode = task.get("part_code", "")
+	var part  = task.get("part", "")
+	var bare_l1 = float(task.get("effect_value", 0.0))
+	## P2 carry-over is read at the CURRENT season (the car you upgraded this year), NOT the
+	## design's next-season target. Spec parts have no P2 ladder → returns 0 → bare L1 base.
+	var base = _highest_approved_p2_value(cid, pcode, gs.current_season)
+	if base <= 0.0:
+		base = bare_l1
+	var designer_stat = _designer_part_stat(task.get("designer_id",""), part)
+	var factor = (designer_stat / 100.0) * DESIGNER_CAP
+	return base * (1.0 + factor)
+
+## S35.11 — Highest WRA-APPROVED P2 (Upgrade) blueprint value for a part in a given season.
+## "Approved" is the gate: a researched-but-unsubmitted upgrade does not count. Each P2 level's
+## stored `value` is already cumulative-by-multiplier, so we take the max approved level's value
+## (not a sum). Returns 0.0 if no approved P2 upgrade exists for the part that season.
+func _highest_approved_p2_value(cid: String, pcode: String, season: int) -> float:
+	var best := 0.0
+	for app in gs.wra_approved_blueprints:
+		var bp_id = app.get("blueprint_id", "")
+		if not bp_id in gs.known_blueprints: continue
+		var bp = gs.known_blueprints[bp_id]
+		if bp.get("pillar", 0) != 2: continue
+		if bp.get("championship_id", "") != cid: continue
+		if bp.get("part_code", "") != pcode: continue
+		if int(bp.get("season", -1)) != season: continue
+		var v = float(bp.get("value", 0.0))
+		if v > best: best = v
+	return best
+
+## S35.11 — Part-relevant Designer design stat (aero/engine/…), fallback parts_knowledge, 0 if
+## the designer is missing. No discipline adaptation (Designers exempt, GDD §9-F).
+func _designer_part_stat(designer_id: String, part: String) -> float:
+	if not designer_id in gs.all_staff:
+		return 0.0
+	var designer = gs.all_staff[designer_id]
+	var stat_name = PART_TO_DESIGNER_STAT.get(part, "parts_knowledge")
+	var raw = designer.get(stat_name)
+	if raw == null:
+		raw = designer.get("parts_knowledge")
+	return float(raw) if raw != null else 0.0
+
+## S35.11 — Returns the quality of an EXISTING L1 blueprint for this [champ][part][season]
+## lineage, so a P1 L2 (or any higher level) inherits the penalty baked into its L1 base.
+## Prefers an own-design (P1) L1 if both a P1 and a P3 L1 exist for the part; defaults 1.0.
+func _lineage_quality_for(cid: String, pcode: String, season: int) -> float:
+	var re_q := -1.0
+	for bp_id in gs.known_blueprints:
+		var bp = gs.known_blueprints[bp_id]
+		if int(bp.get("level", 0)) != 1: continue
+		if bp.get("championship_id", "") != cid: continue
+		if bp.get("part_code", "") != pcode: continue
+		if int(bp.get("season", -1)) != season: continue
+		var pil = bp.get("pillar", 0)
+		if pil == 1:
+			return float(bp.get("quality", 1.0))   # own-design L1 wins → its quality
+		elif pil == 3:
+			re_q = float(bp.get("quality", 0.75))   # remember RE L1 in case no P1 L1
+	return re_q if re_q >= 0.0 else 1.0
+
+## S35.11 — When BOTH a P1 (Design) and a P3 (RE) L1 blueprint exist for the same part,
+## the one with the better effective stats (value × quality) is the valid build source.
+## Returns the winning blueprint_id for a given [champ][part_code][season], or "" if none.
+func resolve_active_l1_blueprint(cid: String, pcode: String, season: int) -> String:
+	var best_id := ""
+	var best_score := -1.0
+	for bp_id in gs.known_blueprints:
+		var bp = gs.known_blueprints[bp_id]
+		if bp.get("pillar", 0) not in [1, 3]: continue
+		if int(bp.get("level", 0)) != 1: continue
+		if bp.get("championship_id", "") != cid: continue
+		if bp.get("part_code", "") != pcode: continue
+		if int(bp.get("season", -1)) != season: continue
+		var score = float(bp.get("value", 0.0)) * float(bp.get("quality", 1.0))
+		if score > best_score:
+			best_score = score
+			best_id = bp_id
+	return best_id
 
 ## Applies the effect of a completed R&D task.
 ## Effects are stored as car_performance_bonuses — applied in race sim.

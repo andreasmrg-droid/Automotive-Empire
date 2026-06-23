@@ -1,4 +1,7 @@
 extends Node
+## Version: S35.11 — Added R&D lock/hint keys (rnd_lock_needs_l1, rnd_lock_requires,
+##   rnd_lock_complete_l1, rnd_re_hint_short, rnd_re_hint_long) for the P1/P3 chain rework
+##   in RnDStudio (P1 L2 unlock from either design path; localized prior hardcoded literals).
 ## Version: S35.9 — Added ap_team_refused_{title,body,hint} for the "team won't release this person"
 ##   popup (interest-model rework — the team-release gate).
 ## Version: S31.1 — Added CNC blueprint season keys (cnc_bp_season, cnc_bp_season_locked)
@@ -262,6 +265,13 @@ const STRINGS: Dictionary = {
 	"p5_popup_title":       { "en": "🚗  Commercial Cars R&D", },
 	"p5_popup_body":        { "en": "Research for the commercial car business is coming in a future update.\n\nThis pillar will let you develop and improve the road cars your company sells, feeding the commercial market system.", },
 	"p5_catalog_stub":      { "en": "Commercial Cars R&D is coming in a future update.", },
+
+	# ── R&D lock / hint strings (S35.11 — P1/P3 chain + L2 unlock) ─────────────
+	"rnd_lock_needs_l1":    { "en": "🔒 Design or reverse-engineer the L1 blueprint for this part first", },
+	"rnd_lock_requires":    { "en": "🔒 Requires: %s", },
+	"rnd_lock_complete_l1": { "en": "🔒 Complete Season %d L1 first", },
+	"rnd_re_hint_short":    { "en": "💡 Unlocks P1 Design L2 for this part", },
+	"rnd_re_hint_long":     { "en": "💡 Completing a RE task unlocks P1 Design L2 for that part, and produces a blueprint you can submit to the WRA for CNC manufacturing.", },
 
 	# Championship selection — info + budget cost summary (S29.13)
 	"ng_champ_info":        { "en": "Select the discipline you want to start in. Starting budget depends on your championship and difficulty choice. Pick a championship, then set your difficulty on the next screen.", },

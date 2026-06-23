@@ -1,4 +1,10 @@
 class_name SeasonManager
+## Version: S35.11 — Step 4 R&D rollover hardened: P2 (Upgrade) blueprints now fully purged
+##   from known_blueprints + WRA submissions + WRA approvals + CNC queue (previously only the
+##   task lists were cleared, so P2 leaked across the season boundary). P1/P3 next-season
+##   blueprints self-activate via their design_season stamp + the start_cnc_job season-gate —
+##   no explicit activation needed. Added inert FUTURE hook for outbound supply-contract
+##   activation + late-delivery penalties at season start.
 ## Version: S35.6 — _process_lifecycle_cull() calls gs.invalidate_player_staff_cache() after
 ##   retirements, so the player-staff cache (GameState S35.6) refreshes if a player staff retired.
 ## Version: S35.0 — SEASON TRANSITION PIPELINE reorder (Season_Transition_Pipeline_Spec_v1).
@@ -258,13 +264,42 @@ func start_new_season() -> void:
 	## + the absorbed AI roster changes from Stage C).
 	gs.ai_manager.load_car_assignments()
 
-	# ── Step 4: R&D carry over — P2/UPG wiped, P4 always carry ───────────────
+	# ── Step 4: R&D carry over — P2/UPG fully purged, P1/P3 next-season activate ──
+	## S35.11 — P2 (Upgrade) blueprints are CURRENT-season only. At rollover they must be
+	## purged from EVERY stage of the pipeline, not just the task lists (previously only
+	## completed_upg_tasks + UPG- tasks were cleared, so P2 blueprints leaked across the
+	## boundary via known_blueprints / WRA / CNC). P1+P3 next-season blueprints need NO
+	## explicit activation: they are stamped season = design_season (next), survive in
+	## known_blueprints, and the start_cnc_job season-gate (bp.season ≤ current_season)
+	## auto-unlocks them the instant current_season increments. cnc_parts_inventory is
+	## already wiped above (every season scraps all cars), and next-season parts can't be
+	## manufactured pre-rollover (season-gate), so no early next-season stock exists to lose.
 	var expired_upg = gs.completed_upg_tasks.size()
 	gs.completed_upg_tasks.clear()
 	gs.completed_rnd_tasks = gs.completed_rnd_tasks.filter(
 		func(tid): return not tid.begins_with("UPG-"))
-	if expired_upg > 0:
-		gs.add_log("📋 %d upgrade blueprints expired for Season %d. Upgrades reset to L1." % [expired_upg, gs.current_season])
+	## Purge P2 blueprints from R&D storage, WRA pipeline, and the CNC queue.
+	var p2_bp_ids: Array = []
+	for bp_id in gs.known_blueprints:
+		if gs.known_blueprints[bp_id].get("pillar", 0) == 2:
+			p2_bp_ids.append(bp_id)
+	for bp_id in p2_bp_ids:
+		gs.known_blueprints.erase(bp_id)
+	gs.active_wra_submissions = gs.active_wra_submissions.filter(
+		func(sub): return not sub.get("blueprint_id","") in p2_bp_ids)
+	gs.wra_approved_blueprints = gs.wra_approved_blueprints.filter(
+		func(app): return not app.get("blueprint_id","") in p2_bp_ids)
+	gs.cnc_production_queue = gs.cnc_production_queue.filter(
+		func(job): return not job.get("blueprint_id","") in p2_bp_ids)
+	if expired_upg > 0 or not p2_bp_ids.is_empty():
+		gs.add_log("📋 %d upgrade tasks + %d P2 blueprints purged (R&D/WRA/CNC) for Season %d. Upgrades reset to L1." % [
+			expired_upg, p2_bp_ids.size(), gs.current_season])
+
+	## FUTURE (S35.11 hook — inert): outbound parts/cars supply contracts activate HERE at
+	## season start. If the provider fails to deliver contracted parts/cars on time, apply a
+	## financial penalty. Wired as a no-op until the supply-contract delivery system exists.
+	## gs._activate_outbound_supply_contracts()        # activate this season's obligations
+	## gs._assess_supply_delivery_penalties()           # charge late/non-delivery penalties
 
 	## WRA regulation change check
 	if gs.current_season > gs.wra_cycle_start_season and \

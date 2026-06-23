@@ -722,7 +722,7 @@ func _build_p3_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 			parent.add_child(lbl_no)
 		else:
 			var lbl_re_hint = Label.new()
-			lbl_re_hint.text = "💡 Completing a RE task unlocks P1 Design L2 for that part, and produces a blueprint you can submit to the WRA for CNC manufacturing."
+			lbl_re_hint.text = Locale.t("rnd_re_hint_long")
 			lbl_re_hint.add_theme_font_size_override("font_size", 20)
 			lbl_re_hint.modulate = Color(0.5, 0.75, 1.0)
 			lbl_re_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -877,22 +877,26 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 		## P3 RE hint: completing RE unlocks P1 L2
 		if task.get("pillar", 0) == 3:
 			var lbl_hint = Label.new()
-			lbl_hint.text = "💡 Unlocks P1 Design L2 for this part"
+			lbl_hint.text = Locale.t("rnd_re_hint_short")
 			lbl_hint.add_theme_font_size_override("font_size", 20)
 			lbl_hint.modulate = Color(0.5, 0.75, 1.0)
 			vbox.add_child(lbl_hint)
 	elif is_active:
 		pass
 	elif not unlocked:
-		var req_id = task.get("requires", "")
-		var req = GameState.RND_TASKS.get(req_id, extra_tasks.get(req_id, {}))
-		var req_name = req.get("name", "") if not req.is_empty() else ""
 		var lbl_lock = Label.new()
-		if req_name != "":
-			lbl_lock.text = "🔒 Requires: %s" % req_name
+		var req_l1 = task.get("requires_l1_for", "")
+		var req_id = task.get("requires", "")
+		if req_l1 != "":
+			## S35.11 — P1 L2 gates on an L1 blueprint existing from EITHER P1 or P3.
+			lbl_lock.text = Locale.t("rnd_lock_needs_l1")
 		else:
-			## Next-season L1 tasks have no prerequisite — they're freely available
-			lbl_lock.text = "🔒 Complete Season %d L1 first" % GameState.current_season
+			var req = GameState.RND_TASKS.get(req_id, extra_tasks.get(req_id, {}))
+			var req_name = req.get("name", "") if not req.is_empty() else ""
+			if req_name != "":
+				lbl_lock.text = Locale.t("rnd_lock_requires") % req_name
+			else:
+				lbl_lock.text = Locale.t("rnd_lock_complete_l1") % GameState.current_season
 		lbl_lock.add_theme_font_size_override("font_size", 22)
 		lbl_lock.modulate = Color(0.5, 0.5, 0.5)
 		lbl_lock.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
