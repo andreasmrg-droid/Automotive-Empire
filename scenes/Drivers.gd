@@ -1,3 +1,6 @@
+## Version: S35.10b — Alignment fix (matches StaffHub): proportional stretch-ratio columns using
+##   the full screen width (no clipping); driver header is now a full-width panel matching the row
+##   card border/margins; paged All-Drivers list shows the "Showing: …" summary too.
 ## Version: S35.10 — Hub UX pass (matches StaffHub): rows at 24px, 100s emphasized; TEAM + CONTRACT
 ##   as two aligned columns (header updated); ★ shortlist star on rows + in the card popup; active-
 ##   sort highlight + arrow + "Showing: …" summary.
@@ -262,6 +265,7 @@ func _build_all_drivers_list_paged(drivers: Array) -> void:
 	var start = current_page * PAGE_SIZE
 	var end = min(start + PAGE_SIZE, total)
 
+	_add_showing_summary()              ## S35.10 — what filter/sort is applied, in plain words
 	list_container.add_child(_make_driver_header())
 	for i in range(start, end):
 		list_container.add_child(_make_all_driver_row(drivers[i]))
@@ -514,10 +518,12 @@ func _make_all_driver_row(driver) -> PanelContainer:
 
 	var card = _make_card_panel(is_mine)
 	var vbox = VBoxContainer.new()
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vbox.add_theme_constant_override("separation", 4)
 	card.add_child(vbox)
 
 	var row1 = HBoxContainer.new()
+	row1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row1.add_theme_constant_override("separation", 8)
 	vbox.add_child(row1)
 
@@ -1177,19 +1183,28 @@ func _show_contract_negotiation_popup(subject_id: String, _subject_type: String)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-func _make_driver_header() -> HBoxContainer:
+func _make_driver_header() -> PanelContainer:
+	## S35.10b — full-width header panel matching the row card's left border + margins, with
+	## proportional columns using the SAME weights as _make_all_driver_row, so columns align and
+	## the grid uses the whole screen width.
+	var panel = PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var hstyle = StyleBoxFlat.new()
+	hstyle.bg_color = Color(0.10, 0.10, 0.13, 0.9)
+	hstyle.border_width_left = 3
+	hstyle.border_color = Color(0.25, 0.25, 0.3)
+	hstyle.content_margin_left = 8; hstyle.content_margin_right = 8
+	hstyle.content_margin_top = 4; hstyle.content_margin_bottom = 4
+	panel.add_theme_stylebox_override("panel", hstyle)
 	var row = HBoxContainer.new()
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_theme_constant_override("separation", 8)
-	## S35.10 — widths MUST match _make_all_driver_row's columns for the aligned grid.
+	panel.add_child(row)
+	var hc = Color(0.55, 0.55, 0.6)
 	for col in [["Name", 200], ["Age", 70], ["Nationality", 120],
 			["Overall", 90], ["Team", 180], ["Contract", 150], ["Salary", 130]]:
-		var lbl = Label.new()
-		lbl.text = col[0]
-		lbl.custom_minimum_size = Vector2(col[1], 0)
-		lbl.add_theme_font_size_override("font_size", 20)
-		lbl.add_theme_color_override("font_color", Color(0.55, 0.55, 0.6))
-		row.add_child(lbl)
-	return row
+		_add_col(row, col[0], col[1], hc, 20)
+	return panel
 
 func _make_card_panel(highlight: bool) -> PanelContainer:
 	var card = PanelContainer.new()
@@ -1205,11 +1220,15 @@ func _make_card_panel(highlight: bool) -> PanelContainer:
 	card.add_theme_stylebox_override("panel", style)
 	return card
 
-func _add_col(parent: HBoxContainer, text: String, width: int,
+## S35.10b — proportional column (stretch ratio, not fixed px) — see StaffHub _add_col. Uses the
+## full row width, never clips, header uses the same weights for alignment.
+func _add_col(parent: HBoxContainer, text: String, weight: int,
 		color: Color = Color.WHITE, font_size: int = 24) -> void:
 	var lbl = Label.new()
 	lbl.text = text
-	lbl.custom_minimum_size = Vector2(width, 0)
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lbl.size_flags_stretch_ratio = float(weight)
+	lbl.custom_minimum_size = Vector2(40, 0)
 	lbl.add_theme_font_size_override("font_size", font_size)
 	lbl.add_theme_color_override("font_color", color)
 	lbl.clip_text = true

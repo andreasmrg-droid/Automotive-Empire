@@ -1,4 +1,8 @@
 extends Control
+## Version: S35.10b — Alignment fix: columns are now PROPORTIONAL (stretch ratios via
+##   size_flags_stretch_ratio) instead of fixed pixel widths, so the grid uses the FULL screen
+##   width and no longer clips ("Age 3⋮", truncated team/role names). Header panel matches the row
+##   card's left border + margins so columns line up. Rows/headers expand-fill.
 ## Version: S35.10 — Hub UX pass: available rows at 24px (was 13px), 100s emphasized; TEAM and
 ##   CONTRACT split into two aligned columns (+ column header); ★ shortlist star on each row and in
 ##   the View Card popup (synced via is_shortlisted); active-sort highlight + ▼/▲ arrow + a
@@ -630,15 +634,21 @@ func _sort_field_label() -> String:
 		"quali_timing": return "Quali Timing"
 		_: return sort_field.capitalize()
 
-## S35.10 — column header for the available-staff grid. Widths MUST match _make_available_staff_row.
+## S35.10b — column header for the available-staff grid. Uses the SAME proportional weights as
+## _make_available_staff_row so columns line up; expands to full width like the rows.
 func _add_available_header() -> void:
 	var hdr_panel = PanelContainer.new()
+	hdr_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var hstyle = StyleBoxFlat.new()
 	hstyle.bg_color = Color(0.10, 0.10, 0.13, 0.9)
+	## Match the row card's left border (3px) + content margins so header columns align with rows.
+	hstyle.border_width_left = 3
+	hstyle.border_color = Color(0.25, 0.25, 0.3)
 	hstyle.content_margin_left = 8; hstyle.content_margin_right = 8
 	hstyle.content_margin_top = 4; hstyle.content_margin_bottom = 4
 	hdr_panel.add_theme_stylebox_override("panel", hstyle)
 	var hrow = HBoxContainer.new()
+	hrow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hrow.add_theme_constant_override("separation", 8)
 	hdr_panel.add_child(hrow)
 	var hc = Color(0.55, 0.55, 0.6)
@@ -656,10 +666,12 @@ func _make_available_staff_row(staff) -> PanelContainer:
 	var is_contracted = staff.contract_team != ""
 	var card = _make_card_panel(false)
 	var vbox = VBoxContainer.new()
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vbox.add_theme_constant_override("separation", 4)
 	card.add_child(vbox)
 
 	var row1 = HBoxContainer.new()
+	row1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row1.add_theme_constant_override("separation", 8)
 	vbox.add_child(row1)
 	_add_col(row1, staff.display_name(), 200, Color(0.85, 0.85, 0.85), 24)
@@ -1519,11 +1531,17 @@ func _make_card_panel(highlight: bool) -> PanelContainer:
 	card.add_theme_stylebox_override("panel", style)
 	return card
 
-func _add_col(parent: HBoxContainer, text: String, width: int,
+## S35.10b — proportional column. `weight` is a STRETCH RATIO (not a fixed pixel width): columns
+## share the full row width in proportion to their weights, so the table uses the WHOLE screen and
+## never clips at any resolution. A small min-width floor keeps very narrow columns readable. The
+## header row uses the SAME weights, so columns stay aligned.
+func _add_col(parent: HBoxContainer, text: String, weight: int,
 		color: Color = Color.WHITE, font_size: int = 24) -> void:
 	var lbl = Label.new()
 	lbl.text = text
-	lbl.custom_minimum_size = Vector2(width, 0)
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lbl.size_flags_stretch_ratio = float(weight)
+	lbl.custom_minimum_size = Vector2(40, 0)
 	lbl.add_theme_font_size_override("font_size", font_size)
 	lbl.add_theme_color_override("font_color", color)
 	lbl.clip_text = true
