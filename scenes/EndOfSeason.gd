@@ -1,4 +1,8 @@
 extends Control
+## Version: S36.19 — GK EOS fix: the champion is the Grand Final WINNER (get_champion), which can
+##   differ from the points leader when drivers tie on points. The driver-standings list now pins
+##   the champion to P1 (ties otherwise broken by points), so the list agrees with the "Champion:"
+##   line instead of showing a different P1 (the tied-43-pts mismatch seen in S1).
 ## Version: S36.17 — Bug #28: the EOS GK card now shows the TEAM champion + team standings (flat
 ##   cumulative constructors table, CP3). The GK block previously skipped teams entirely (it
 ##   continued after driver standings), so no GK team champion appeared. Non-GK blocks already
@@ -159,13 +163,19 @@ func _build_standings() -> VBoxContainer:
 				clbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.1))
 				crow.add_child(clbl)
 				cv.add_child(crow)
-			## Final-round group standings (top 5 across final groups)
+			## Final-round (Grand Final) standings. The champion is the Grand Final WINNER, not
+			## necessarily the points leader (drivers can tie on points). Pin the champion to P1 so
+			## the list agrees with the "Champion:" line above; break remaining ties by points.
 			var gk_all = gk.get_all_standings("C-001")
 			var gk_flat: Array = []
 			for group in gk_all:
 				for e in group:
 					gk_flat.append(e)
-			gk_flat.sort_custom(func(a, b): return a["points"] > b["points"])
+			var champ_did = champ_entry.get("driver_id", "") if not champ_entry.is_empty() else ""
+			gk_flat.sort_custom(func(a, b):
+				if a["driver_id"] == champ_did: return true
+				if b["driver_id"] == champ_did: return false
+				return a["points"] > b["points"])
 			var gk_shown = 0
 			for i in range(gk_flat.size()):
 				if gk_shown >= 5: break

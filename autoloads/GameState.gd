@@ -1,4 +1,7 @@
 extends Node
+## Version: S36.18b — TEMP DEBUG build: added [GK-DEBUG] prints to the final-weekend path to
+##   diagnose why the semifinal cut isn't firing (champion showed 50 pts = semi+final, meaning the
+##   cut/reset didn't run). Remove these prints once the cause is found. Otherwise identical to S36.18.
 ## Version: S36.18 — GK final-weekend redesign + multi-event engine. (1) GENERAL: the weekly loop
 ##   now runs EVERY race a championship has this week via get_races_for_week() (was one race per
 ##   champ per week) — reusable for future Rally/Endurance multi-event weekends; single-race
@@ -3148,6 +3151,8 @@ func advance_week() -> void:
 			## race (the Grand Final, same week) is contested by the 20 survivors. The player's real
 			## semi result is already synced into GK group 0 by _simulate_race (Option B).
 			if champ.id == "C-001" and gk_discipline != null and race.get("is_semifinal", false):
+				print("[GK-DEBUG] Semi hook FIRED. gk current_round=%d (need %d). race=%s" % [
+					gk_discipline.current_round, gk_discipline.ROUNDS.size() - 1, race.get("name","?")])
 				## AI semi for the non-player final groups (so their results exist before the cut).
 				var semi_team_pts = gk_discipline.shadow_simulate_week(current_week, all_drivers)
 				for tid in semi_team_pts:
@@ -3156,6 +3161,10 @@ func advance_week() -> void:
 				gk_discipline.apply_semifinal_cut()
 				## Re-sync the player's GK standings/field to the finalists (group 0 now = final 20).
 				_sync_gk_group0_to_standings()
+				print("[GK-DEBUG] After cut: final group size=%d, c.standings size=%d" % [
+					gk_discipline.get_player_group("C-001").size(), champ.standings.size()])
+			elif champ.id == "C-001" and race.get("is_final", false):
+				print("[GK-DEBUG] GRAND FINAL race running. c.standings size=%d (should be ~20)" % champ.standings.size())
 
 	## P26: Shadow-simulate non-player GK groups this week
 	if gk_discipline != null:
