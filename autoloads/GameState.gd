@@ -1,4 +1,12 @@
 extends Node
+## Version: S36.0 — Bug #14/#2 fix: get_team_active_fans() & get_team_marketability() now derive
+##   the team's fan pool from player_registered_championships (the player's ACTUAL entries),
+##   not active_championships (the whole 21-championship world). A brand-new GK team no longer
+##   gets scored at the world's top tier (was ~891k fans → now correctly tiny). New shared helper
+##   _player_global_fan_pool() SUMS each registered championship's global fans ("more
+##   championships = more publicity"). Returns 0 fans when registered in nothing. Stale "24
+##   championships" comments corrected to 21. (Richer within-discipline pyramid + horizontal
+##   news bleed flagged for GDD — separate design pass, not implemented here.)
 ## Version: S35.13 — Added championship_tab_grid() (disciplines as rows by principle, tiers as
 ##   columns) for the 2D CNC + Studio tab grids.
 ## Version: S35.12 — Added championship_tab_order() (shared CNC + Studio tab ordering, derived
@@ -287,37 +295,39 @@ func get_global_fans(discipline: String, tier: int) -> float:
 
 	return base * tier_mult * competition_factor * star_power_factor * economy_factor * long_term
 
+## Returns the player's combined GLOBAL fan pool across the championships they are
+## ACTUALLY registered in this season. (Bug #14/#2 fix — was scanning active_championships,
+## i.e. the whole 21-championship world, so a brand-new GK team was scored at the world's
+## top tier → absurd ~891k fans. Now reads player_registered_championships only.)
+## "More championships = more publicity" → contributions are SUMMED across the player's entries.
+## NOTE (flagged for GDD): the richer within-discipline pyramid / unique-slice model and the
+## horizontal (cross-discipline) news bleed are a SEPARATE design pass, not implemented here.
+func _player_global_fan_pool() -> float:
+	var pool := 0.0
+	for cid in player_registered_championships:
+		var reg = CHAMPIONSHIP_REGISTRY.get(cid, {})
+		if reg.is_empty(): continue
+		var disc = reg.get("discipline", "GK")
+		var tier = reg.get("tier", 1)
+		pool += get_global_fans(disc, tier)
+	return pool
+
 ## Returns team active fans.
-## team_active_fans = global_fans x (reputation/100)^2 x 0.15
+## team_active_fans = global_fan_pool x (reputation/100)^2 x 0.15
 func get_team_active_fans() -> float:
-	if active_championships.is_empty(): return 0.0
-	var best_tier = 0
-	var best_disc = "GK"
-	for champ in active_championships:
-		var reg = CHAMPIONSHIP_REGISTRY.get(champ.id, {})
-		var t = reg.get("tier", 1)
-		if t > best_tier:
-			best_tier = t
-			best_disc = reg.get("discipline", "GK")
-	var global_fans = get_global_fans(best_disc, best_tier)
+	if player_registered_championships.is_empty(): return 0.0
+	var global_fans = _player_global_fan_pool()
 	var rep_ratio = player_team.reputation / 100.0
 	return global_fans * rep_ratio * rep_ratio * 0.15
 
 ## Returns team marketability (0-100) — derived, never stored.
 func get_team_marketability() -> float:
 	var rep_component = player_team.reputation * 0.6
-	## Fan share component
+	## Fan share component (Bug #14/#2 fix — was scanning active_championships, the whole
+	## world; now uses the player's REGISTERED fan pool, consistent with get_team_active_fans).
 	var fan_share_component = 0.0
-	if not active_championships.is_empty():
-		var best_tier = 0
-		var best_disc = "GK"
-		for champ in active_championships:
-			var reg = CHAMPIONSHIP_REGISTRY.get(champ.id, {})
-			var t = reg.get("tier", 1)
-			if t > best_tier:
-				best_tier = t
-				best_disc = reg.get("discipline","GK")
-		var global_fans = get_global_fans(best_disc, best_tier)
+	if not player_registered_championships.is_empty():
+		var global_fans = _player_global_fan_pool()
 		var active_fans = get_team_active_fans()
 		if global_fans > 0:
 			fan_share_component = clamp((active_fans / global_fans) * 40.0, 0.0, 20.0)
@@ -1003,7 +1013,7 @@ const CHAMPIONSHIP_REGISTRY = {
 	"C-024": {"name":"GP1",                         "discipline":"GP",    "tier":4, "min_age":18, "max_age":99, "entry_fee":31680000, "num_races":24, "rep":100},
 }
 
-## Full race calendars for all 24 championships — from Brainstorming doc Race Calendar section.
+## Full race calendars for all 21 championships — from Brainstorming doc Race Calendar section.
 ## Rally (C-005 to C-008): "laps" = total race distance km (staged rally format).
 ## Endurance (C-018 to C-020 / EPC): "laps" = hours of racing.
 ## All others: "laps" = number of racing laps, "lap_km" = km per lap.
@@ -2839,7 +2849,7 @@ func _sync_gk_group0_to_standings() -> void:
 		break  ## Only one GK championship
 
 func _setup_championship() -> void:
-	## Creates ALL 24 championships at game start — the entire racing world exists from Season 1.
+	## Creates ALL 21 championships at game start — the entire racing world exists from Season 1.
 	## The player's starting championship is tracked via player_registered_championships.
 	active_championships.clear()
 
