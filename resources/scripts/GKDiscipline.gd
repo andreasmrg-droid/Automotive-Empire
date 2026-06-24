@@ -1,5 +1,11 @@
 extends Resource
 class_name GKDiscipline
+## Version: S36.18 — GK final-weekend redesign. ROUNDS now 8/7/5/2 races; final round carries
+##   semi_qualify_per_group:10. New apply_semifinal_cut(): after the Semi-Final, keep the top 10
+##   per group across the 2 final groups and collapse them into ONE 20-driver Grand Final group
+##   (points reset). get_champion() = the Grand Final group's top driver = the race winner (the
+##   player's real Grand Final result is synced in via RaceSimulator, so a player win crowns the
+##   player). get_all_standings() clamps to the last populated round (S36.16b, re-applied).
 ## Version: S36.15 — CP3 (#28): shadow_simulate_week() now RETURNS {team_id: points_earned} for the
 ##   non-player groups so GameState can fold them into the GK flat constructors table (the GK team
 ##   champion counts all 21 races; driver champion still uses elimination). Signature change: was
@@ -16,15 +22,17 @@ class_name GKDiscipline
 ## 4 progressive rounds: R1=32 groups, R2=16 groups×20, R3=4 groups×32, Final=2 groups×30.
 ## Player auto-assigned to a Round 1 group. Eliminated drivers sit out the rest of season.
 ## Non-player groups: lightweight simulation (standings only, no lap-by-lap).
+## Race counts per round: 8 / 7 / 5 / 2 (the final round's 2 races run the SAME weekend —
+## Semi-Final then Grand Final). semi_qualify_per_group = how many advance from EACH of the 2
+## final groups into the single Grand Final field (10 each → 20-car final; winner = champion).
 
 const CHAMP_ID: String = "C-001"
 
-## Round structure
 const ROUNDS: Array = [
-	{"round": 1, "groups": 32, "max_per_group": 0,  "qualify_per_group": 10, "races": 8,  "gk_round": 1},
-	{"round": 2, "groups": 16, "max_per_group": 20, "qualify_per_group": 8,  "races": 10, "gk_round": 2},
-	{"round": 3, "groups": 4,  "max_per_group": 32, "qualify_per_group": 15, "races": 5,  "gk_round": 3},
-	{"round": 4, "groups": 2,  "max_per_group": 30, "qualify_per_group": 10, "races": 2,  "gk_round": 4},
+	{"round": 1, "groups": 32, "max_per_group": 0,  "qualify_per_group": 10, "races": 8, "gk_round": 1},
+	{"round": 2, "groups": 16, "max_per_group": 20, "qualify_per_group": 8,  "races": 7, "gk_round": 2},
+	{"round": 3, "groups": 4,  "max_per_group": 32, "qualify_per_group": 15, "races": 5, "gk_round": 3},
+	{"round": 4, "groups": 2,  "max_per_group": 30, "qualify_per_group": 10, "races": 2, "gk_round": 4, "semi_qualify_per_group": 10},
 ]
 
 ## group_drivers[round_idx][group_idx] = Array of driver_ids
@@ -264,6 +272,51 @@ func advance_round(all_drivers: Dictionary) -> void:
 	print("[GKDiscipline] Round %d: %d qualifiers in %d groups" % [current_round + 1, qualifiers.size(), next_grps])
 
 
+## ── Final weekend (race-aware, FINAL ROUND ONLY) ─────────────────────────────
+## The final weekend is 2 races in the same week, both gk_round 4:
+##   Race 1 (Semi-Final): run within the 2 final groups; top semi_qualify_per_group from EACH
+##     group advance. Race 2 (Grand Final): the survivors (single group) race; winner = champion.
+## apply_semifinal_cut() is called by GameState BETWEEN the two races: it takes the current
+## final-round standings (Semi results — player's real result already synced into group 0),
+## keeps the top N per group, and collapses them into ONE Grand Final group with fresh points.
+func apply_semifinal_cut() -> void:
+	if current_round != ROUNDS.size() - 1: return  ## final round only
+	if current_round >= shadow_standings.size(): return
+	var r_data = ROUNDS[current_round]
+	var keep_n = r_data.get("semi_qualify_per_group", 10)
+	var stand_list = shadow_standings[current_round]
+	var grp_list   = group_drivers[current_round]
+
+	## Collect top-N survivors from each group (by Semi points). Eliminate the rest.
+	var finalists: Array = []           ## driver_ids advancing to the Grand Final
+	var player_in_final = false
+	var player_ids := {}                ## set of player driver ids (from group membership)
+	for g in range(stand_list.size()):
+		var sorted_group = stand_list[g].duplicate()
+		sorted_group.sort_custom(func(a, b): return a["points"] > b["points"])
+		for i in range(sorted_group.size()):
+			var did = sorted_group[i]["driver_id"]
+			if i < keep_n:
+				finalists.append(did)
+			else:
+				eliminated[did] = true
+
+	## Build a SINGLE Grand Final group of all finalists, points reset to 0 (the Grand Final is
+	## a clean race — its result alone decides the champion).
+	var final_group: Array = []
+	var final_stand: Array = []
+	for did in finalists:
+		final_group.append(did)
+		final_stand.append({"driver_id": did, "points": 0, "wins": 0, "races": 0})
+
+	## Replace the final round's groups with the single collapsed Grand Final group.
+	group_drivers[current_round] = [final_group]
+	shadow_standings[current_round] = [final_stand]
+	## The player's driver (if it survived) is now in group 0 of the final round.
+	player_group = 0
+	print("[GKDiscipline] Semi-Final cut: %d finalists into the Grand Final" % finalists.size())
+
+
 func _get_player_driver_ids(all_drivers: Dictionary) -> Array:
 	var result: Array = []
 	for did in all_drivers:
@@ -303,11 +356,14 @@ func get_standings(champ_id: String) -> Array:
 
 
 func get_all_standings(champ_id: String) -> Array:
-	## Returns Array of Arrays — one per group in current round.
-	## Used by RacingWorld to display shadow group standings.
+	## Returns Array of Arrays — one per group in the round.
+	## Used by RacingWorld (mid-season) and EOS (season end) to display GK group standings.
 	if champ_id != CHAMP_ID: return []
-	if current_round >= shadow_standings.size(): return []
-	return shadow_standings[current_round].duplicate()
+	if shadow_standings.is_empty(): return []
+	## At season end current_round advances PAST the last round, which used to return [] →
+	## "GK season standings unavailable" on the EOS screen. Clamp to the last populated round.
+	var idx = min(current_round, shadow_standings.size() - 1)
+	return shadow_standings[idx].duplicate()
 
 func get_group_count(_champ_id: String) -> int:
 	if current_round >= ROUNDS.size(): return 0
@@ -323,15 +379,16 @@ func is_complete() -> bool:
 	return current_round >= ROUNDS.size()
 
 
-## S28.3 (Bug 1): returns the GK champion {driver_id, points} after the final round,
-## or {} if the season hasn't reached a champion yet.
-## The champion is the highest-points driver across the FINAL round's groups.
+## Returns the GK champion {driver_id, points, ...} = the WINNER of the Grand Final (the last
+## race). After apply_semifinal_cut() the final round holds a single 20-driver group; once the
+## Grand Final has run, that group's top-points driver is the race winner = champion. (The
+## player's real Grand Final result is synced into this group via RaceSimulator, so a player win
+## here crowns the player.)
 func get_champion() -> Dictionary:
-	## Final round standings live at the last populated index.
 	var final_idx = shadow_standings.size() - 1
 	if final_idx < 0:
 		return {}
-	## Only declare a champion once we've actually run the final round (index 3 / round 4).
+	## Only declare a champion once we've reached the final round.
 	if final_idx < ROUNDS.size() - 1:
 		return {}
 	var best := {}

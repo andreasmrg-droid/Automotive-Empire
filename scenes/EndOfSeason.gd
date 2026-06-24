@@ -1,4 +1,8 @@
 extends Control
+## Version: S36.17 — Bug #28: the EOS GK card now shows the TEAM champion + team standings (flat
+##   cumulative constructors table, CP3). The GK block previously skipped teams entirely (it
+##   continued after driver standings), so no GK team champion appeared. Non-GK blocks already
+##   showed teams.
 ## Version: S36.12 — Bug #33 (cluster A): removed the "Registration" button from End-of-Season.
 ##   Registration happens DURING the season (for next season, via HQ → WRA / Championship
 ##   Registration); EOS is a review screen, so only "Continue to Season N+1" remains. (The
@@ -189,6 +193,57 @@ func _build_standings() -> VBoxContainer:
 				gk_shown += 1
 			if gk_shown == 0:
 				cv.add_child(_lbl_gray("GK season standings unavailable."))
+
+			## GK team champion + standings (flat cumulative constructors table, CP3). The GK
+			## block used to skip teams entirely — now it shows them like the other championships.
+			var gk_teams = champ.get_team_standings_sorted()
+			if not gk_teams.is_empty():
+				cv.add_child(HSeparator.new())
+				var gk_team_hdr = Label.new()
+				gk_team_hdr.text = "TEAMS"
+				gk_team_hdr.add_theme_font_size_override("font_size", 20)
+				gk_team_hdr.modulate = Color(0.45, 0.45, 0.45)
+				cv.add_child(gk_team_hdr)
+				var champ_tn = "Unknown"
+				for t in GameState.all_teams:
+					if t.id == gk_teams[0]["team_id"]:
+						champ_tn = t.team_name
+						break
+				var gk_tchamp = Label.new()
+				gk_tchamp.text = "🏆 Team Champion: %s — %d pts" % [champ_tn, gk_teams[0]["points"]]
+				gk_tchamp.add_theme_font_size_override("font_size", 24)
+				gk_tchamp.add_theme_color_override("font_color", Color(1.0, 0.85, 0.1))
+				cv.add_child(gk_tchamp)
+				var gkt_shown = 0
+				for i in range(gk_teams.size()):
+					if gkt_shown >= 5: break
+					var te = gk_teams[i]
+					var tn = "Unknown"
+					var t_is_player = false
+					for t in GameState.all_teams:
+						if t.id == te["team_id"]:
+							tn = t.team_name
+							t_is_player = t.is_player_team
+							break
+					var trow = HBoxContainer.new()
+					trow.add_theme_constant_override("separation", 10)
+					var tpos = Label.new(); tpos.text = "P%d" % (i + 1)
+					tpos.custom_minimum_size = Vector2(32, 0)
+					tpos.add_theme_font_size_override("font_size", 24)
+					trow.add_child(tpos)
+					var tlbl = Label.new()
+					tlbl.text = tn + ("  ← Our Team" if t_is_player else "")
+					tlbl.add_theme_font_size_override("font_size", 24)
+					tlbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+					if t_is_player: tlbl.add_theme_color_override("font_color", Color(0.4, 1.0, 0.4))
+					trow.add_child(tlbl)
+					var tpts = Label.new(); tpts.text = "%d pts" % te["points"]
+					tpts.add_theme_font_size_override("font_size", 24)
+					tpts.modulate = Color(0.65, 0.65, 0.65)
+					trow.add_child(tpts)
+					cv.add_child(trow)
+					gkt_shown += 1
+
 			vbox.add_child(card)
 			continue  ## GK handled — skip the generic standings block below
 

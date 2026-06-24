@@ -1,3 +1,6 @@
+## Version: S36.18 — Added get_races_for_week(week): returns ALL calendar entries scheduled for a
+##   given week (usually one; multiple for same-week events like the GK final weekend, and future
+##   Rally/Endurance multi-event weekends). Enables the multi-event weekly loop in GameState.
 ## Version: S29.8 — Default championship_name "GK Regional Championship"->"GK Championship".
 ## --- S19.9 — Added drivers_champion_history and teams_champion_history for competition_factor.
 class_name Championship
@@ -98,6 +101,19 @@ func get_next_race() -> Dictionary:
 	if current_round < calendar.size():
 		return calendar[current_round]
 	return {}
+
+## Returns ALL calendar entries scheduled for `week`, starting at current_round, in calendar
+## order. Usually one race; two or more for same-week events (GK final weekend = Semi + Grand
+## Final; later: Rally multi-stage weekends, Endurance). General capability — any championship
+## can declare multiple same-week calendar entries and they all run that week, in sequence.
+## Does NOT advance current_round — the caller advances past each race it processes.
+func get_races_for_week(week: int) -> Array:
+	var races: Array = []
+	var idx = current_round
+	while idx < calendar.size() and calendar[idx]["week"] == week:
+		races.append(calendar[idx])
+		idx += 1
+	return races
 
 func is_season_finished() -> bool:
 	return current_round >= num_races

@@ -1,4 +1,12 @@
 extends Node
+## Version: S36.18 — GK final-weekend redesign + multi-event engine. (1) GENERAL: the weekly loop
+##   now runs EVERY race a championship has this week via get_races_for_week() (was one race per
+##   champ per week) — reusable for future Rally/Endurance multi-event weekends; single-race
+##   championships are unaffected. (2) GK: calendar rebuilt to 8/7/5/2 = 22 races; the final 2
+##   (Semi-Final + Grand Final) run the SAME week (46). After the Semi, apply_semifinal_cut() keeps
+##   top-10 per group → a single 20-driver Grand Final; the player's REAL semi/final results feed
+##   it (Option B). Round-advance detection scans to the LAST same-week race so the season
+##   completes. Also re-applied S36.16: no team_standings.clear() each round (CP3 table survives).
 ## Version: S36.15 — Bug #28/#31 (cluster A core, CP3): GK shadow groups now feed the GK
 ##   championship's flat team_standings (constructors) table each week, so the GK TEAM champion
 ##   counts ALL 21 races (driver champion still via the elimination system). Folds the
@@ -979,7 +987,7 @@ const CHAMPIONSHIP_REGISTRY = {
 	"C-001": {
 		"name":"GK Championship", "discipline":"GK", "tier":1,
 		"min_age":8, "max_age":17, "max_cars":9, "min_cars":1,
-		"entry_fee":10000, "num_races":21, "rep":15,
+		"entry_fee":10000, "num_races":22, "rep":15,
 		"car_type_id":"A_01",
 		"drivers_per_car":1,
 		"min_participation":352, "optimum_participation":640,
@@ -1066,7 +1074,8 @@ static func track_slug(name: String) -> String:
 	return name.to_lower().replace(" ", "_").replace("-", "_").replace("'", "").replace(",", "")
 
 const CHAMPIONSHIP_CALENDARS = {
-	"C-001": [ ## GK Championship — 21 races from Excel (weeks 6–46)
+	"C-001": [ ## GK Championship — 22 races (8/7/5/2). Final weekend = 2 races SAME week (46):
+		## Semi-Final (top 10 per group → 20 advance) then Grand Final (race winner = champion).
 		{"round":1,"gk_round":1,"name":"Chemnitz","track_id":"chemnitz","week":6,"rain":15,"laps":15,"lap_km":4.2,"audience":8900},
 		{"round":2,"gk_round":1,"name":"Le Castellet","track_id":"le_castellet","week":8,"rain":0,"laps":27,"lap_km":5.8,"audience":6500},
 		{"round":3,"gk_round":1,"name":"Le Mans","track_id":"le_mans","week":10,"rain":25,"laps":26,"lap_km":13.6,"audience":14500},
@@ -1082,12 +1091,13 @@ const CHAMPIONSHIP_CALENDARS = {
 		{"round":13,"gk_round":2,"name":"Arlington","track_id":"arlington","week":30,"rain":0,"laps":20,"lap_km":0.9,"audience":2100},
 		{"round":14,"gk_round":2,"name":"Daytona","track_id":"daytona","week":32,"rain":5,"laps":20,"lap_km":1.5,"audience":8000},
 		{"round":15,"gk_round":2,"name":"Indianapolis","track_id":"indianapolis","week":34,"rain":0,"laps":20,"lap_km":2.5,"audience":12000},
-		{"round":16,"gk_round":2,"name":"Los Angeles","track_id":"los_angeles","week":36,"rain":0,"laps":20,"lap_km":1.0,"audience":5000},
-		{"round":17,"gk_round":2,"name":"Miami","track_id":"miami","week":38,"rain":20,"laps":20,"lap_km":1.4,"audience":7000},
-		{"round":18,"gk_round":2,"name":"Spielberg","track_id":"spielberg","week":40,"rain":10,"laps":24,"lap_km":4.3,"audience":8000},
+		{"round":16,"gk_round":3,"name":"Los Angeles","track_id":"los_angeles","week":36,"rain":0,"laps":20,"lap_km":1.0,"audience":5000},
+		{"round":17,"gk_round":3,"name":"Miami","track_id":"miami","week":38,"rain":20,"laps":20,"lap_km":1.4,"audience":7000},
+		{"round":18,"gk_round":3,"name":"Spielberg","track_id":"spielberg","week":40,"rain":10,"laps":24,"lap_km":4.3,"audience":8000},
 		{"round":19,"gk_round":3,"name":"Charlotte","track_id":"charlotte","week":42,"rain":10,"laps":24,"lap_km":1.2,"audience":4800},
-		{"round":20,"gk_round":3,"is_semifinal":true,"name":"GK Semi-Final — Las Vegas","track_id":"las_vegas","week":44,"rain":5,"laps":20,"lap_km":1.8,"audience":6000},
-		{"round":21,"gk_round":4,"is_final":true,"name":"GK Grand Final — Le Mans","track_id":"le_mans","week":46,"rain":25,"laps":26,"lap_km":13.6,"audience":14500},
+		{"round":20,"gk_round":3,"name":"Silverstone","track_id":"silverstone","week":44,"rain":30,"laps":25,"lap_km":5.9,"audience":9500},
+		{"round":21,"gk_round":4,"is_semifinal":true,"name":"GK Semi-Final — Las Vegas","track_id":"las_vegas","week":46,"rain":5,"laps":20,"lap_km":1.8,"audience":6000},
+		{"round":22,"gk_round":4,"is_final":true,"name":"GK Grand Final — Le Mans","track_id":"le_mans","week":46,"rain":25,"laps":26,"lap_km":13.6,"audience":14500},
 	],
 	"C-005": [ # RALLY4
 		{"round":1,"name":"Sweden","track_id":"sweden", "week":7, "rain":100,"laps":305,"lap_km":1.0,"audience":45000},
@@ -2905,8 +2915,10 @@ func _sync_gk_group0_to_standings() -> void:
 	if gk_discipline == null: return
 	for champ in active_championships:
 		if champ.id != "C-001": continue
-		champ.standings.clear()  ## Clear old standings — fresh for this round
-		champ.team_standings.clear()  ## S28.3 (Bug): team standings must also reset each round
+		champ.standings.clear()  ## Driver standings: refreshed per round for the player's group
+		## DO NOT clear team_standings — it's the SEASON-LONG cumulative GK constructors table
+		## (CP3), accumulated across all 22 races. The old S28.3 "reset each round" was wrong: it
+		## erased the team table every round, wiping the running totals (the GK team-wipe symptom).
 		var group0 = gk_discipline.get_player_group("C-001")
 		for did in group0:
 			champ.standings[did] = 0
@@ -3112,10 +3124,12 @@ func advance_week() -> void:
 
 	# Check for races this week across ALL active championships
 	for champ in active_championships:
-		var next_race = champ.get_next_race()
-		if next_race and next_race["week"] == current_week:
-			## Only check requirements for player's championships
-			var is_player_champ = champ.id in player_registered_championships
+		## Multi-event support: run EVERY race this championship has scheduled this week, in
+		## calendar order (usually one; two for a GK final weekend; more for future Rally/Endurance
+		## weekends). Each race produces its own result (separate result screens, per design).
+		var races_this_week = champ.get_races_for_week(current_week)
+		var is_player_champ = champ.id in player_registered_championships
+		for race in races_this_week:
 			if is_player_champ:
 				## S35.3: when fast-forwarding to season end, the CFO keeps the cars race-ready
 				## (buys exact fuel/SP shortfall, if hired + affordable) BEFORE the requirement
@@ -3124,9 +3138,24 @@ func advance_week() -> void:
 				if simulating_to_season_end:
 					cfo_auto_buy_for_race(champ)
 				_check_race_requirements_for(champ)
-			_simulate_race(next_race, champ)
+			_simulate_race(race, champ)
 			## Sponsor race bonuses handled by apply_sponsor_race_bonuses()
 			champ.current_round += 1
+
+			## GK final weekend (race-aware, final round only): when the SEMI-FINAL has just run,
+			## simulate the AI groups' semi, then cut top-N-per-group into a single Grand Final
+			## group, and re-sync the player's GK race field to those finalists — so the very next
+			## race (the Grand Final, same week) is contested by the 20 survivors. The player's real
+			## semi result is already synced into GK group 0 by _simulate_race (Option B).
+			if champ.id == "C-001" and gk_discipline != null and race.get("is_semifinal", false):
+				## AI semi for the non-player final groups (so their results exist before the cut).
+				var semi_team_pts = gk_discipline.shadow_simulate_week(current_week, all_drivers)
+				for tid in semi_team_pts:
+					champ.add_team_points(tid, semi_team_pts[tid])
+				## Cut to the finalists and collapse into one Grand Final group.
+				gk_discipline.apply_semifinal_cut()
+				## Re-sync the player's GK standings/field to the finalists (group 0 now = final 20).
+				_sync_gk_group0_to_standings()
 
 	## P26: Shadow-simulate non-player GK groups this week
 	if gk_discipline != null:
@@ -3142,16 +3171,23 @@ func advance_week() -> void:
 	## GK round advancement — check if this week was the last race of a gk_round
 	if gk_discipline != null:
 		var gk_cal = CHAMPIONSHIP_CALENDARS.get("C-001", [])
-		## Find the gk_round of this week's race
+		## Find the gk_round of this week's LAST race. With multi-event weeks (the final weekend
+		## runs 2 races at the same week), we must evaluate advancement from the LAST same-week
+		## race — otherwise the first race sees the second sharing its gk_round and never advances,
+		## so the season would not complete.
 		var this_gk_round = -1
 		var next_gk_round = -1
 		for i in range(gk_cal.size()):
 			if gk_cal[i]["week"] == current_week:
 				this_gk_round = gk_cal[i].get("gk_round", -1)
-				## Check if next race has a different gk_round
-				if i + 1 < gk_cal.size():
-					next_gk_round = gk_cal[i + 1].get("gk_round", -1)
-				break
+				## Look past ALL same-week races to the next different week's race.
+				var j = i + 1
+				while j < gk_cal.size() and gk_cal[j]["week"] == current_week:
+					j += 1
+				if j < gk_cal.size():
+					next_gk_round = gk_cal[j].get("gk_round", -1)
+				## don't break early on the first match — but since all same-week races share the
+				## week, the gk_round of the last one is what matters; keep scanning to the last.
 		## If last race of a gk_round (next is different or doesn't exist)
 		if this_gk_round > 0 and next_gk_round != this_gk_round:
 			gk_discipline.advance_round(all_drivers)
