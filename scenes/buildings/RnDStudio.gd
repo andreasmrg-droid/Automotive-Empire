@@ -1,4 +1,10 @@
 extends Control
+## Version: S35.20 — (1) P4 cards now show an ALWAYS-VISIBLE requirements line listing the target
+##   building level AND the R&D Design Studio level (green if met, amber if not) — not just the
+##   single blocking reason. (2) All 100 P4 Special Project names + descs are now localized:
+##   card titles, the active-task card, and _fmt_effect resolve through Locale via _sp_name/_sp_desc
+##   (sp_{id}_name / sp_{id}_desc keys, raw-value fallback). New UI keys: rnd_req_building,
+##   rnd_req_studio.
 ## Version: S35.19 — P4 (Special Projects) locked cards now ALSO surface the R&D Design Studio
 ##   level requirement, and RnDEngine now enforces it (Required_RnD_Studio_Level was dead data).
 ##   Gate + message priority: prerequisite task → target building (build/upgrade) → Studio level.
@@ -421,7 +427,7 @@ func _build_active_task_card(task: Dictionary) -> PanelContainer:
 	lbl_p.add_theme_color_override("font_color", p_color)
 	row1.add_child(lbl_p)
 	var lbl_name = Label.new()
-	lbl_name.text = task["name"]
+	lbl_name.text = _sp_name(task.get("id", ""), task)
 	lbl_name.add_theme_font_size_override("font_size", 26)
 	lbl_name.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
 	lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -883,7 +889,7 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 	row1.add_theme_constant_override("separation", 8)
 	vbox.add_child(row1)
 	var lbl_name = Label.new()
-	lbl_name.text = task["name"]
+	lbl_name.text = _sp_name(task_id, task)
 	lbl_name.add_theme_font_size_override("font_size", 26)
 	lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	## S35.11b — wrap: the long card name was unwrapped + EXPAND_FILL, forcing the catalog
@@ -916,6 +922,36 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 		var lbl_p = Label.new(); lbl_p.text = "🔬 In progress"
 		lbl_p.add_theme_font_size_override("font_size", 20); lbl_p.modulate = Color(0.4, 0.7, 1.0)
 		row1.add_child(lbl_p)
+
+	## S35.20 — P4 requirements line: ALWAYS show the building + Studio level gates (not just the
+	## single blocking reason), so the player sees the full prerequisite up front, met or not.
+	if task.get("pillar", 0) == 4 and not is_done:
+		var req_row = HBoxContainer.new()
+		req_row.add_theme_constant_override("separation", 14)
+		vbox.add_child(req_row)
+		var bname = task.get("building", "")
+		var min_lv = int(task.get("min_building_level", 1))
+		if bname != "":
+			var bld = GameState.campus_buildings.get(bname, {})
+			var bld_lv = int(bld.get("level", 0)) if bld.get("built", false) else 0
+			var ok_b = bld_lv >= min_lv
+			var lbl_b = Label.new()
+			lbl_b.text = Locale.t("rnd_req_building") % [bname, min_lv]
+			lbl_b.add_theme_font_size_override("font_size", 20)
+			lbl_b.add_theme_color_override("font_color",
+				Color(0.45, 0.88, 0.45) if ok_b else Color(0.85, 0.6, 0.4))
+			req_row.add_child(lbl_b)
+		var min_studio = int(task.get("Required_RnD_Studio_Level", 1))
+		if min_studio > 1:
+			var studio = GameState.campus_buildings.get("R&D Design Studio", {})
+			var st_lv = int(studio.get("level", 0)) if studio.get("built", false) else 0
+			var ok_s = st_lv >= min_studio
+			var lbl_s = Label.new()
+			lbl_s.text = Locale.t("rnd_req_studio") % min_studio
+			lbl_s.add_theme_font_size_override("font_size", 20)
+			lbl_s.add_theme_color_override("font_color",
+				Color(0.45, 0.88, 0.45) if ok_s else Color(0.85, 0.6, 0.4))
+			req_row.add_child(lbl_s)
 
 	# Row 2: costs / lock / assign
 	var row2 = HBoxContainer.new()
@@ -1061,10 +1097,30 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
+## S35.20 — Resolve a Pillar 4 Special Project's localized NAME via key sp_{id}_name.
+## Falls back to the raw task["name"] for non-P4 tasks, missing keys, or empty ids (old saves).
+## Locale.t() returns the key itself when a key is missing, so we treat that as "no translation".
+func _sp_name(task_id: String, task: Dictionary) -> String:
+	if task_id != "":
+		var k = "sp_%s_name" % task_id.to_lower()
+		var t = Locale.t(k)
+		if t != k and t != "": return t
+	return task.get("name", "")
+
+## S35.20 — Resolve a Pillar 4 Special Project's localized DESC via key sp_{id}_desc.
+func _sp_desc(task_id: String, task: Dictionary) -> String:
+	if task_id != "":
+		var k = "sp_%s_desc" % task_id.to_lower()
+		var t = Locale.t(k)
+		if t != k and t != "": return t
+	return task.get("desc", "")
+
 func _fmt_effect(task: Dictionary) -> String:
 	var key   = task.get("effect", "")
 	var value = task.get("value",  0.0)
-	if task.get("desc", "") != "": return task["desc"].left(40)
+	## S35.20 — P4 desc resolved through Locale (raw fallback). Truncated for the cost-row chip.
+	var desc := _sp_desc(task.get("id", ""), task)
+	if desc != "": return desc.left(40)
 	match key:
 		"aero_perf","engine_perf","chassis_perf","gearbox_perf","brakes_perf","susp_perf":
 			return "+%.0f%% %s perf" % [value * 100.0, task.get("part","")]
