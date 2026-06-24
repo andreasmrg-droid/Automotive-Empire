@@ -1,4 +1,7 @@
 extends Control
+## Version: S35.13 — Championship tabs are now a 2D GRID (was a single horizontal scrolling
+##   strip): one ROW per discipline in principle order (GP…GK), tiers laid out horizontally
+##   within each row (pinnacle → entry). Driven by GameState.championship_tab_grid().
 ## Version: S35.12b — BLUEPRINT STATUS panel ordered by the shared principle (GP1…GK) instead of
 ##   activation order; catalog scroll min-height 400→120 so SIZE_EXPAND_FILL bounds it and the
 ##   vertical scrollbar engages (cards were running off-screen with no scrollbar).
@@ -1044,32 +1047,32 @@ func _section_header(text: String, color: Color) -> Label:
 
 func _hsep() -> HSeparator: return HSeparator.new()
 
-## S35.12 — Scrollable championship tab strip (shared GP1…GK order). Clicking a tab rebuilds
-## the Studio scoped to that championship. Used by the catalog column (Pillar 1 + others).
+## S35.13 — Championship tab GRID: one ROW per discipline (ordered by principle GP…GK),
+## tiers laid out horizontally within each row (pinnacle → entry). Clicking a tab rebuilds the
+## Studio scoped to that championship. Replaces the old single horizontal scrolling strip.
 func _build_champ_tab_strip() -> Control:
-	var scroll = ScrollContainer.new()
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.custom_minimum_size = Vector2(0, 42)
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var row = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 4)
-	scroll.add_child(row)
-	for cid in GameState.championship_tab_order():
-		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
-		var btn = Button.new()
-		btn.text = reg.get("name", cid)
-		btn.add_theme_font_size_override("font_size", 20)
-		btn.custom_minimum_size = Vector2(0, 34)
-		var is_sel = (cid == _selected_champ_id)
-		btn.disabled = is_sel
-		btn.modulate = Color(0.55, 0.8, 1.0) if is_sel else Color(0.8, 0.8, 0.8)
-		var picked = cid
-		btn.pressed.connect(func():
-			_selected_champ_id = picked
-			_rebuild_studio())
-		row.add_child(btn)
-	return scroll
+	var grid_box = VBoxContainer.new()
+	grid_box.add_theme_constant_override("separation", 3)
+	grid_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for drow in GameState.championship_tab_grid():
+		var row = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 4)
+		grid_box.add_child(row)
+		for cid in drow["champ_ids"]:
+			var reg = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
+			var btn = Button.new()
+			btn.text = reg.get("name", cid)
+			btn.add_theme_font_size_override("font_size", 18)
+			btn.custom_minimum_size = Vector2(0, 30)
+			var is_sel = (cid == _selected_champ_id)
+			btn.disabled = is_sel
+			btn.modulate = Color(0.55, 0.8, 1.0) if is_sel else Color(0.8, 0.8, 0.8)
+			var picked = cid
+			btn.pressed.connect(func():
+				_selected_champ_id = picked
+				_rebuild_studio())
+			row.add_child(btn)
+	return grid_box
 
 ## S35.12 — Rebuild the Studio in place (preserves _selected_champ_id + _selected_pillar)
 ## after a championship tab change.

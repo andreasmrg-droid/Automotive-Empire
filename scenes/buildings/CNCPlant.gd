@@ -1,4 +1,6 @@
 extends Control
+## Version: S35.13 — Championship tabs are now a 2D GRID (disciplines as rows in principle
+##   order GP…GK, tiers across each row), replacing the horizontal scrolling strip.
 ## Version: S35.12b — Columns wrapped in vertical ScrollContainers (tall content scrolls instead
 ##   of running off-screen); default championship tab = first in principle order (GP1), matching
 ##   the Studio.
@@ -619,32 +621,32 @@ func _make_scroll_column(stretch: float, min_w: int) -> Array:
 	scroll.add_child(inner)
 	return [scroll, inner]
 
-## S35.12 — Scrollable championship tab strip. Highlights the selected tab; clicking a tab
-## re-renders the screen scoped to that championship.
+## S35.13 — Championship tab GRID: one ROW per discipline (principle order GP…GK), tiers laid
+## out horizontally within each row (pinnacle → entry). Clicking a tab re-renders the screen
+## scoped to that championship. Replaces the old single horizontal scrolling strip.
 func _build_champ_tab_strip() -> Control:
-	var scroll = ScrollContainer.new()
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.custom_minimum_size = Vector2(0, 42)
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var row = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 4)
-	scroll.add_child(row)
-	for cid in GameState.championship_tab_order():
-		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
-		var btn = Button.new()
-		btn.text = reg.get("name", cid)
-		btn.add_theme_font_size_override("font_size", 20)
-		btn.custom_minimum_size = Vector2(0, 34)
-		var is_sel = (cid == _selected_champ_id)
-		btn.disabled = is_sel
-		btn.modulate = Color(0.55, 0.8, 1.0) if is_sel else Color(0.8, 0.8, 0.8)
-		var picked = cid
-		btn.pressed.connect(func():
-			_selected_champ_id = picked
-			_rebuild())
-		row.add_child(btn)
-	return scroll
+	var grid_box = VBoxContainer.new()
+	grid_box.add_theme_constant_override("separation", 3)
+	grid_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for drow in GameState.championship_tab_grid():
+		var row = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 4)
+		grid_box.add_child(row)
+		for cid in drow["champ_ids"]:
+			var reg = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
+			var btn = Button.new()
+			btn.text = reg.get("name", cid)
+			btn.add_theme_font_size_override("font_size", 18)
+			btn.custom_minimum_size = Vector2(0, 30)
+			var is_sel = (cid == _selected_champ_id)
+			btn.disabled = is_sel
+			btn.modulate = Color(0.55, 0.8, 1.0) if is_sel else Color(0.8, 0.8, 0.8)
+			var picked = cid
+			btn.pressed.connect(func():
+				_selected_champ_id = picked
+				_rebuild())
+			row.add_child(btn)
+	return grid_box
 
 ## S35.12 — Rebuild the whole screen (clears children, re-runs _build_ui) after a tab change.
 func _rebuild() -> void:

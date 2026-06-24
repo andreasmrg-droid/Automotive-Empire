@@ -1,4 +1,6 @@
 extends Node
+## Version: S35.13 — Added championship_tab_grid() (disciplines as rows by principle, tiers as
+##   columns) for the 2D CNC + Studio tab grids.
 ## Version: S35.12 — Added championship_tab_order() (shared CNC + Studio tab ordering, derived
 ##   from registry rep/tier/discipline → GP1…GK). _approved_car_blueprints() is now CURRENT-season
 ##   only (model b), so Build Whole Car gates on current-season part blueprints.
@@ -901,7 +903,23 @@ const CHAMP_CODES: Dictionary = {
 	"C-021":"GP4","C-022":"GP3","C-023":"GP2","C-024":"GP1",
 }
 
-## S35.12 — Shared championship ordering for the CNC + R&D Studio tab strips. Reads the
+## S35.13 — Championships grouped for the 2D tab GRID: an ordered list of disciplines (by the
+## same principle as championship_tab_order — top-tier rep descending, GP…GK) where each entry
+## is { "discipline": String, "champ_ids": Array }, and champ_ids run pinnacle → entry (rep desc).
+## The UI renders one ROW per discipline, tiers across the row.
+func championship_tab_grid() -> Array:
+	var ordered = championship_tab_order()   ## flat GP1…GK
+	var rows: Array = []
+	var index: Dictionary = {}   ## discipline → row index in `rows`
+	for cid in ordered:
+		var disc = CHAMPIONSHIP_REGISTRY.get(cid, {}).get("discipline", "")
+		if not disc in index:
+			index[disc] = rows.size()
+			rows.append({"discipline": disc, "champ_ids": []})
+		rows[index[disc]]["champ_ids"].append(cid)
+	return rows
+
+
 ## registry (single source of truth): disciplines ranked by their TOP-TIER reputation
 ## (= max rep across the discipline) descending; within a discipline, tiers run pinnacle →
 ## entry (rep descending). With the current registry this yields GP1,GP2,GP3,GP4, EPC…, OWC…,
