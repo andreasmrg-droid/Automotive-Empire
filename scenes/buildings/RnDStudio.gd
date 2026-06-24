@@ -1,4 +1,11 @@
 extends Control
+## Version: S35.17 — (1) Championship tab strip now renders for PILLAR 1 ONLY. P2/P3 iterate over
+##   player_team_cars and never read _selected_champ_id, so the tabs there did nothing (clicking
+##   them re-rendered to the same list) — misleading UI, removed. P4 is champ-agnostic too.
+##   (2) Refactored both scrolling columns onto a shared `_make_scroll_column(stretch, min_w)`
+##   helper mirroring CNCPlant's pattern (responsive stretch-ratio + min-width floor, clip_contents)
+##   PLUS a right-side gutter so the scrollbar always has a clear lane. Replaces the two inline
+##   ScrollContainer blocks from S35.16. col_d no longer a fixed 232px — now stretch-driven.
 ## Version: S35.16 — Scroll fixes (per Andreas screenshot): (1) the right BLUEPRINT STATUS
 ##   column (col_d) had NO ScrollContainer at all — ~20 champ grids ran off the bottom with no
 ##   way to scroll; now wrapped in its own vertical ScrollContainer. (2) col_d is now bounded
@@ -223,13 +230,12 @@ func _build_ui() -> void:
 	body.add_child(col_c)
 	_build_catalog_column(col_c)
 
-	## Blueprint ownership grid — right-most column.
-	## S35.16 — FIXED width but SIZE_EXPAND_FILL + clip vertically so the per-champ grids inside
-	## scroll WITHIN this column instead of stretching the body HBox past the viewport. Its old
-	## unbounded height was forcing body overflow, which also stopped the centre catalog scroll
-	## from engaging.
+	## Blueprint ownership grid — right-most column. Fixed-ish width lane (the status grids are a
+	## fixed-width matrix, not stretchy cards); header + legend sit here directly and the shared
+	## scroll-column inside _build_blueprint_grid_column fills the rest. clip_contents bounds it so
+	## its tall content scrolls internally rather than stretching the body HBox (S35.16 fix kept).
 	var col_d = VBoxContainer.new()
-	col_d.custom_minimum_size = Vector2(232, 0)   ## +12 over old 220 to give the scrollbar a gutter
+	col_d.custom_minimum_size = Vector2(232, 0)
 	col_d.size_flags_horizontal = Control.SIZE_FILL
 	col_d.size_flags_vertical   = Control.SIZE_EXPAND_FILL
 	col_d.clip_contents = true
@@ -486,32 +492,18 @@ func _build_catalog_column(parent: VBoxContainer) -> void:
 
 	parent.add_child(_hsep())
 
-	## Championship tab grid (2D: disciplines as rows, tiers across) — FIXED, does not scroll.
-	parent.add_child(_build_champ_tab_strip())
-	parent.add_child(_hsep())
+	## S35.17 — Championship tab grid renders for PILLAR 1 ONLY. P2/P3 iterate over the player's
+	## cars (not the selected tab) and P4 is champ-agnostic, so the strip did nothing there.
+	if _selected_pillar == 1:
+		parent.add_child(_build_champ_tab_strip())
+		parent.add_child(_hsep())
 
-	## ScrollContainer wraps ONLY the blueprint list. It fills the remaining column height
-	## (SIZE_EXPAND_FILL) below the fixed headers/tabs, so the cards scroll within it.
-	var scroll = ScrollContainer.new()
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	## ScrollContainer (shared helper) wraps ONLY the blueprint list — it fills the remaining
+	## column height below the fixed headers/tabs, so the cards scroll within it.
+	var col = _make_scroll_column(1.0, 0)
+	var scroll: ScrollContainer = col[0]
+	var inner: VBoxContainer = col[1]
 	parent.add_child(scroll)
-
-	## S35.16 — the cards inside are EXPAND_FILL (full width); without a right gutter the
-	## vertical scrollbar is drawn over them / under the next column and looks missing. A
-	## MarginContainer reserves a strip on the right for the bar.
-	var gutter = MarginContainer.new()
-	gutter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	gutter.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	gutter.add_theme_constant_override("margin_right", 12)
-	scroll.add_child(gutter)
-
-	var inner = VBoxContainer.new()
-	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	inner.add_theme_constant_override("separation", 7)
-	gutter.add_child(inner)
 
 	var free_designers = GameState.get_player_staff_by_role("Designer").filter(func(d):
 		for t in GameState.active_rnd_tasks:
@@ -1108,6 +1100,32 @@ func _rebuild_studio() -> void:
 	_build_ui()
 
 
+## S35.17 — Returns [ScrollContainer, inner VBox] for a scrolling column, mirroring CNCPlant's
+## helper of the same name: vertical scroll, expand-fill width with a stretch ratio + min-width
+## floor (responsive), clip_contents so the bar engages — PLUS a right-side gutter (MarginContainer)
+## so the scrollbar always has a clear lane and never overlaps full-width content. The returned
+## inner VBox is what callers add their content to.
+func _make_scroll_column(stretch: float, min_w: int) -> Array:
+	var scroll = ScrollContainer.new()
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_stretch_ratio = stretch
+	scroll.custom_minimum_size = Vector2(min_w, 120)
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.clip_contents = true
+	var gutter = MarginContainer.new()
+	gutter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gutter.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	gutter.add_theme_constant_override("margin_right", 12)
+	scroll.add_child(gutter)
+	var inner = VBoxContainer.new()
+	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	inner.add_theme_constant_override("separation", 8)
+	gutter.add_child(inner)
+	return [scroll, inner]
+
+
 func _make_panel(bg: Color) -> PanelContainer:
 	var panel = PanelContainer.new()
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1144,26 +1162,12 @@ func _build_blueprint_grid_column(parent: VBoxContainer) -> void:
 	legend.modulate = Color(0.5, 0.5, 0.5)
 	parent.add_child(legend)
 
-	## S35.16 — the per-championship grids (~20 champs) previously appended straight onto the
-	## column and ran off the bottom with no scrollbar. Wrap them in their own vertical
-	## ScrollContainer + right-side gutter so the bar shows and the list scrolls.
-	var scroll = ScrollContainer.new()
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	## S35.17 — wrap the per-championship grids in the shared scroll-column helper (was an inline
+	## ScrollContainer in S35.16). Right-side gutter keeps the scrollbar in a clear lane.
+	var col = _make_scroll_column(1.0, 0)
+	var scroll: ScrollContainer = col[0]
+	var content: VBoxContainer = col[1]
 	parent.add_child(scroll)
-
-	var gutter = MarginContainer.new()
-	gutter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	gutter.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	gutter.add_theme_constant_override("margin_right", 12)
-	scroll.add_child(gutter)
-
-	var content = VBoxContainer.new()
-	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	content.add_theme_constant_override("separation", 8)
-	gutter.add_child(content)
 
 	## S35.12 — order the status panel by the shared principle order (GP1…GK), same as the
 	## tab strip, instead of activation order.

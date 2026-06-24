@@ -1,4 +1,7 @@
 extends Control
+## Version: S35.17 — `_make_scroll_column` gains a right-side gutter (MarginContainer, margin_right
+##   12) so the vertical scrollbar always has a clear lane and never overlaps full-width content —
+##   matching the shared convention adopted in RnDStudio S35.17. No behavioural change to columns.
 ## Version: S35.13 — Championship tabs are now a 2D GRID (disciplines as rows in principle
 ##   order GP…GK, tiers across each row), replacing the horizontal scrolling strip.
 ## Version: S35.12b — Columns wrapped in vertical ScrollContainers (tall content scrolls instead
@@ -615,10 +618,17 @@ func _make_scroll_column(stretch: float, min_w: int) -> Array:
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.clip_contents = true
+	## S35.17 — right-side gutter so the scrollbar never overlaps full-width content (shared
+	## convention with RnDStudio).
+	var gutter = MarginContainer.new()
+	gutter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gutter.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	gutter.add_theme_constant_override("margin_right", 12)
+	scroll.add_child(gutter)
 	var inner = VBoxContainer.new()
 	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	inner.add_theme_constant_override("separation", 10)
-	scroll.add_child(inner)
+	gutter.add_child(inner)
 	return [scroll, inner]
 
 ## S35.13 — Championship tab GRID: one ROW per discipline (principle order GP…GK), tiers laid
