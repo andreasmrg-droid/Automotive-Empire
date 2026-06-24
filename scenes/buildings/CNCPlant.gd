@@ -1,4 +1,12 @@
 extends Control
+## Version: S35.12 — Tabbed multi-championship CNC + current-season (model b) rework:
+##   • Scrollable championship tab strip (all 21 champs, shared GP1…GK registry order); each
+##     screen shows ONE championship.
+##   • BLUEPRINT OWNERSHIP panel scoped to the selected champ; next-season approved parts now
+##     read "🔒 S{n} (next season)" instead of the misleading "ready to mfg".
+##   • Manufacture list shows only the selected champ's CURRENT-season approved blueprints.
+##   • Build Whole Car: always shown for the selected champ, gated on all 6 CURRENT-season part
+##     blueprints; greyed with a tooltip ("you need all 6 part blueprints") until then.
 ## Version: S35.11 — Fixed the body overflowing off-screen (col_d "BLUEPRINT OWNERSHIP"
 ##   clipped off the right). The 4-column body had col_c/col_d at fixed custom_minimum_size
 ##   (240/200) while col_a/col_b were unbounded expand-fill, and the WRA-approved card's long
@@ -89,6 +97,12 @@ func _build_ui() -> void:
 	btn_back.pressed.connect(_on_back)
 	header.add_child(btn_back)
 
+	root.add_child(_hsep())
+
+	## S35.12 — championship tab strip (scrollable; all 21 championships, ordered by the
+	## shared registry-driven order GP1…GK). Each screen now shows ONE championship at a time
+	## so a multi-championship player isn't faced with every champ stacked vertically.
+	root.add_child(_build_champ_tab_strip())
 	root.add_child(_hsep())
 
 	# ── Guard: building must be built ─────────────────────────────────────────
@@ -602,6 +616,38 @@ func _on_back() -> void:
 	get_tree().change_scene_to_file("res://scenes/Campus.tscn")
 
 ## ═══════════════════════════════════════════════════════════════════════════
+## S35.12 — Scrollable championship tab strip. Highlights the selected tab; clicking a tab
+## re-renders the screen scoped to that championship.
+func _build_champ_tab_strip() -> Control:
+	var scroll = ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.custom_minimum_size = Vector2(0, 42)
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	scroll.add_child(row)
+	for cid in GameState.championship_tab_order():
+		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
+		var btn = Button.new()
+		btn.text = reg.get("name", cid)
+		btn.add_theme_font_size_override("font_size", 20)
+		btn.custom_minimum_size = Vector2(0, 34)
+		var is_sel = (cid == _selected_champ_id)
+		btn.disabled = is_sel
+		btn.modulate = Color(0.55, 0.8, 1.0) if is_sel else Color(0.8, 0.8, 0.8)
+		var picked = cid
+		btn.pressed.connect(func():
+			_selected_champ_id = picked
+			_rebuild())
+		row.add_child(btn)
+	return scroll
+
+## S35.12 — Rebuild the whole screen (clears children, re-runs _build_ui) after a tab change.
+func _rebuild() -> void:
+	for c in get_children(): c.queue_free()
+	_build_ui()
+
 ## S17.2 — BLUEPRINT OWNERSHIP PANEL
 ## Shows which blueprints are owned, in CNC queue, or manufactured.
 ## ═══════════════════════════════════════════════════════════════════════════
@@ -610,103 +656,104 @@ func _build_blueprint_ownership_column(parent: VBoxContainer) -> void:
 	parent.add_child(_section_header("BLUEPRINT OWNERSHIP", Color(0.7, 0.8, 1.0)))
 
 	var legend = Label.new()
-	legend.text = "✅ owned  🔧 not mfg  📦 in warehouse  🔩 installed"
+	legend.text = "🔩 installed  📦 warehouse  ✅ ready to mfg (this season)  🔒 next season  🔧 owned  ⬜ none"
 	legend.add_theme_font_size_override("font_size", 18)
 	legend.modulate = Color(0.5, 0.5, 0.5)
 	legend.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	parent.add_child(legend)
 
-	var champs = GameState.active_championships
-	if champs.is_empty():
-		var lbl = Label.new()
-		lbl.text = "No active championships."
-		lbl.modulate = Color(0.5, 0.5, 0.5)
-		parent.add_child(lbl)
-		return
+	var cid = _selected_champ_id
+	var reg = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
+	var lbl_c = Label.new()
+	lbl_c.text = reg.get("name", cid)
+	lbl_c.add_theme_font_size_override("font_size", 22)
+	lbl_c.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
+	parent.add_child(lbl_c)
 
 	const PCODES = ["AER","ENG","GRB","SUS","BRK","CHS"]
 	const PCODE_TO_PART = {"AER":"Aero","ENG":"Engine","GRB":"Gearbox",
 		"SUS":"Suspension","BRK":"Brakes","CHS":"Chassis"}
 
-	for champ in champs:
-		var lbl_c = Label.new()
-		lbl_c.text = champ.championship_name
-		lbl_c.add_theme_font_size_override("font_size", 22)
-		lbl_c.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
-		parent.add_child(lbl_c)
+	## Approved blueprints for this champ, split by season relative to current.
+	## S35.12 — the CNC builds CURRENT-season blueprints only. A next-season blueprint is
+	## shown as locked with its target season, NOT "ready to mfg" (that was misleading — a
+	## next-season part can't be built until that season becomes current).
+	var ready_now: Dictionary = {}   ## pcode → true (approved AND current-season)
+	var next_season: Dictionary = {} ## pcode → target season int (approved but future)
+	for app in GameState.wra_approved_blueprints:
+		var bp_id = app.get("blueprint_id", "")
+		var bp = GameState.known_blueprints.get(bp_id, {})
+		if bp.get("championship_id", "") != cid: continue
+		var pcode = bp.get("part_code", "")
+		if pcode == "": pcode = GameState._part_name_to_pcode(bp.get("part", ""))
+		if pcode == "": continue
+		var bp_season = int(bp.get("season", GameState.current_season))
+		if bp_season <= GameState.current_season:
+			ready_now[pcode] = true
+		else:
+			if not pcode in next_season or bp_season < next_season[pcode]:
+				next_season[pcode] = bp_season
 
-		## Build lookup: which pcodes have approved blueprints
-		var approved_pcodes: Dictionary = {}  ## pcode → Array of bp_ids
-		for app in GameState.wra_approved_blueprints:
-			var bp_id = app.get("blueprint_id", "")
-			var bp = GameState.known_blueprints.get(bp_id, {})
-			if bp.get("championship_id", "") != champ.id: continue
-			var pcode = GameState._part_name_to_pcode(bp.get("part", ""))
-			if pcode == "": continue
-			if pcode not in approved_pcodes: approved_pcodes[pcode] = []
-			approved_pcodes[pcode].append(bp_id)
+	var warehouse_pcodes: Dictionary = {}
+	for inv_key in GameState.cnc_parts_inventory:
+		var item = GameState.cnc_parts_inventory[inv_key]
+		if not item is Dictionary: continue
+		if item.get("championship_id","") != cid: continue
+		if item.get("quantity",0) <= 0: continue
+		var wp = item.get("part_code","")
+		if wp == "": wp = GameState._part_name_to_pcode(item.get("part",""))
+		if wp != "": warehouse_pcodes[wp] = true
 
-		## Build lookup: which pcodes are manufactured (in warehouse)
-		var warehouse_pcodes: Dictionary = {}
-		for inv_key in GameState.cnc_parts_inventory:
-			var item = GameState.cnc_parts_inventory[inv_key]
-			if not item is Dictionary: continue
-			if item.get("championship_id","") != champ.id: continue
-			if item.get("quantity",0) <= 0: continue
-			var pcode = item.get("part_code","")
-			if pcode == "": pcode = GameState._part_name_to_pcode(item.get("part",""))
-			if pcode != "": warehouse_pcodes[pcode] = true
+	var installed_pcodes: Dictionary = {}
+	for car in GameState.player_team_cars:
+		if car.championship_id != cid: continue
+		var inst = GameState.get_installed_parts_for_car(car.id)
+		for pc in inst: installed_pcodes[pc] = true
 
-		## Build lookup: installed on cars
-		var installed_pcodes: Dictionary = {}
-		for car in GameState.player_team_cars:
-			if car.championship_id != champ.id: continue
-			var inst = GameState.get_installed_parts_for_car(car.id)
-			for pcode in inst: installed_pcodes[pcode] = true
+	for pcode in PCODES:
+		var part_name = PCODE_TO_PART.get(pcode, pcode)
+		var row = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 4)
+		parent.add_child(row)
 
-		for pcode in PCODES:
-			var part_name = PCODE_TO_PART.get(pcode, pcode)
-			var row = HBoxContainer.new()
-			row.add_theme_constant_override("separation", 4)
-			parent.add_child(row)
+		var lbl_p = Label.new()
+		lbl_p.text = pcode
+		lbl_p.add_theme_font_size_override("font_size", 20)
+		lbl_p.custom_minimum_size = Vector2(32, 0)
+		lbl_p.add_theme_color_override("font_color", PART_COLORS.get(part_name, Color(0.6,0.6,0.6)))
+		row.add_child(lbl_p)
 
-			var lbl_p = Label.new()
-			lbl_p.text = pcode
-			lbl_p.add_theme_font_size_override("font_size", 20)
-			lbl_p.custom_minimum_size = Vector2(32, 0)
-			lbl_p.add_theme_color_override("font_color", PART_COLORS.get(part_name, Color(0.6,0.6,0.6)))
-			row.add_child(lbl_p)
-
-			var status = Label.new()
-			status.add_theme_font_size_override("font_size", 22)
-			status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-			if pcode in installed_pcodes:
-				status.text = "🔩 installed"
-				status.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
-			elif pcode in warehouse_pcodes:
-				status.text = "📦 in warehouse"
-				status.add_theme_color_override("font_color", Color(0.5, 0.75, 1.0))
-			elif pcode in approved_pcodes:
-				status.text = "✅ ready to mfg"
-				status.add_theme_color_override("font_color", Color(1.0, 0.8, 0.2))
+		var status = Label.new()
+		status.add_theme_font_size_override("font_size", 22)
+		status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if pcode in installed_pcodes:
+			status.text = "🔩 installed"
+			status.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
+		elif pcode in warehouse_pcodes:
+			status.text = "📦 in warehouse"
+			status.add_theme_color_override("font_color", Color(0.5, 0.75, 1.0))
+		elif pcode in ready_now:
+			status.text = "✅ ready to mfg"
+			status.add_theme_color_override("font_color", Color(1.0, 0.8, 0.2))
+		elif pcode in next_season:
+			status.text = "🔒 S%d (next season)" % next_season[pcode]
+			status.add_theme_color_override("font_color", Color(0.55, 0.55, 0.7))
+		else:
+			var has_bp = false
+			for bp_id in GameState.known_blueprints:
+				var bp = GameState.known_blueprints[bp_id]
+				if bp.get("championship_id","") == cid \
+						and GameState._part_name_to_pcode(bp.get("part","")) == pcode:
+					has_bp = true; break
+			if has_bp:
+				status.text = "🔧 bp owned"
+				status.add_theme_color_override("font_color", Color(0.7, 0.7, 0.4))
 			else:
-				## Check known_blueprints (owned but not yet WRA approved)
-				var has_bp = false
-				for bp_id in GameState.known_blueprints:
-					var bp = GameState.known_blueprints[bp_id]
-					if bp.get("championship_id","") == champ.id \
-							and GameState._part_name_to_pcode(bp.get("part","")) == pcode:
-						has_bp = true; break
-				if has_bp:
-					status.text = "🔧 bp owned"
-					status.add_theme_color_override("font_color", Color(0.7, 0.7, 0.4))
-				else:
-					status.text = "⬜ none"
-					status.modulate = Color(0.4, 0.4, 0.4)
-			row.add_child(status)
+				status.text = "⬜ none"
+				status.modulate = Color(0.4, 0.4, 0.4)
+		row.add_child(status)
 
-		parent.add_child(_hsep())
+	parent.add_child(_hsep())
 
 ## ═══════════════════════════════════════════════════════════════════════════
 ## S15 — WRA APPROVED BLUEPRINTS COLUMN
@@ -716,30 +763,16 @@ func _build_blueprint_ownership_column(parent: VBoxContainer) -> void:
 ## championship the player has no car for yet. Enabled once all 6 blueprints are
 ## WRA-approved; queues all 6 jobs and creates the in-build Car in a single action.
 func _build_whole_car_section(parent: VBoxContainer) -> void:
-	# Championships the player is registered for but has no car in yet.
-	var candidates: Array = []
-	for cid in GameState.player_registered_championships:
-		var has_car = false
-		for car in GameState.player_team_cars:
-			if car.championship_id == cid:
-				has_car = true
-				break
-		if not has_car:
-			candidates.append(cid)
-	if candidates.is_empty():
-		return
-
+	## S35.12 — show the Build-Whole-Car card for the SELECTED championship only (tabbed UI).
+	## Always shown (not just when the player has no car) so a new season's car can be built.
 	parent.add_child(_section_header(Locale.t("cnc_bwc_header"), Color(0.3, 0.7, 1.0)))
-
 	var intro = Label.new()
 	intro.text = Locale.t("cnc_bwc_intro")
 	intro.add_theme_font_size_override("font_size", 20)
 	intro.modulate = Color(0.5, 0.5, 0.5)
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	parent.add_child(intro)
-
-	for cid in candidates:
-		parent.add_child(_build_whole_car_card(cid))
+	parent.add_child(_build_whole_car_card(_selected_champ_id))
 	parent.add_child(_hsep())
 
 func _build_whole_car_card(champ_id: String) -> PanelContainer:
@@ -758,7 +791,7 @@ func _build_whole_car_card(champ_id: String) -> PanelContainer:
 	panel.add_child(vb)
 
 	var ln = Label.new()
-	ln.text = "🏗 %s" % champ_name
+	ln.text = "🏗 Build Whole Car — %s" % champ_name
 	ln.add_theme_font_size_override("font_size", 24)
 	ln.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
 	vb.add_child(ln)
@@ -766,14 +799,16 @@ func _build_whole_car_card(champ_id: String) -> PanelContainer:
 	var status = Label.new()
 	status.add_theme_font_size_override("font_size", 20)
 	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	## S35.12 — count CURRENT-season approved part blueprints (model b). Need all 6 to build.
+	var approved = GameState._approved_car_blueprints(champ_id)
+	var have = approved.size()
 	if can_build:
 		var dwk = GameState.get_build_whole_car_delivery_week(champ_id)
 		var cost = GameState.get_build_whole_car_cost(champ_id)
 		status.text = Locale.tf("cnc_bwc_ready", [dwk, _fmt(cost)])
 		status.add_theme_color_override("font_color", Color(0.4, 0.9, 0.5))
 	else:
-		var miss = GameState.missing_car_blueprints(champ_id)
-		status.text = Locale.tf("cnc_bwc_missing", [", ".join(miss)])
+		status.text = Locale.tf("cnc_bwc_need_all6", [have])
 		status.modulate = Color(0.8, 0.6, 0.3)
 	vb.add_child(status)
 
@@ -783,7 +818,12 @@ func _build_whole_car_card(champ_id: String) -> PanelContainer:
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn.add_theme_font_size_override("font_size", 24)
 	btn.disabled = not can_build or garage_full
+	## S35.12 — greyed-out button carries a tooltip explaining why (your #2).
+	if not can_build:
+		btn.tooltip_text = Locale.t("cnc_bwc_need_all6_tip")
+		btn.modulate = Color(0.5, 0.5, 0.5)
 	if garage_full:
+		btn.tooltip_text = Locale.t("cnc_bwc_garage_full")
 		var gf = Label.new()
 		gf.text = Locale.t("cnc_bwc_garage_full")
 		gf.add_theme_font_size_override("font_size", 20)
@@ -850,7 +890,26 @@ func _build_wra_blueprints_column(parent: VBoxContainer) -> void:
 	var preselected = GameState.pending_cnc_blueprint
 	GameState.pending_cnc_blueprint = ""
 
+	## S35.12 — show only the SELECTED championship's CURRENT-season approved blueprints. The
+	## CNC builds current-season only (model b); next-season approvals appear in the BLUEPRINT
+	## OWNERSHIP panel as "🔒 next season" and become manufacturable when that season arrives.
+	var manufacturable: Array = []
 	for app in GameState.wra_approved_blueprints:
+		if app.get("championship_id","") != _selected_champ_id: continue
+		var b = GameState.known_blueprints.get(app.blueprint_id, {})
+		if int(b.get("season", GameState.current_season)) > GameState.current_season: continue
+		manufacturable.append(app)
+
+	if manufacturable.is_empty():
+		var none = Label.new()
+		none.text = "No current-season blueprints approved for this championship yet.\nNext-season blueprints will become available when that season begins."
+		none.modulate = Color(0.5, 0.5, 0.5)
+		none.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		none.add_theme_font_size_override("font_size", 22)
+		parent.add_child(none)
+		return
+
+	for app in manufacturable:
 		var bp_id = app.blueprint_id
 		var bp = GameState.known_blueprints.get(bp_id, {})
 		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(app.championship_id, {})

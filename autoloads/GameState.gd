@@ -1,4 +1,7 @@
 extends Node
+## Version: S35.12 — Added championship_tab_order() (shared CNC + Studio tab ordering, derived
+##   from registry rep/tier/discipline → GP1…GK). _approved_car_blueprints() is now CURRENT-season
+##   only (model b), so Build Whole Car gates on current-season part blueprints.
 ## Version: S35.10d — Shortlist "All" aggregation: get_shortlisted_by_role("All") returns every
 ##   shortlisted person (drivers first); get_shortlist_counts() includes an "All" total.
 ## Version: S35.10 — Shortlist support: is_shortlisted serialized/deserialized for drivers + staff
@@ -898,6 +901,35 @@ const CHAMP_CODES: Dictionary = {
 	"C-021":"GP4","C-022":"GP3","C-023":"GP2","C-024":"GP1",
 }
 
+## S35.12 — Shared championship ordering for the CNC + R&D Studio tab strips. Reads the
+## registry (single source of truth): disciplines ranked by their TOP-TIER reputation
+## (= max rep across the discipline) descending; within a discipline, tiers run pinnacle →
+## entry (rep descending). With the current registry this yields GP1,GP2,GP3,GP4, EPC…, OWC…,
+## SC…, TC…, Rally…, GK. The order is stable because the registry rep values are constants.
+func championship_tab_order() -> Array:
+	## Best (max) rep per discipline.
+	var disc_best: Dictionary = {}
+	for cid in CHAMPIONSHIP_REGISTRY:
+		var reg = CHAMPIONSHIP_REGISTRY[cid]
+		var disc = reg.get("discipline", "")
+		var rep = int(reg.get("rep", 0))
+		if not disc in disc_best or rep > disc_best[disc]:
+			disc_best[disc] = rep
+	var ids = CHAMPIONSHIP_REGISTRY.keys()
+	ids.sort_custom(func(a, b):
+		var ra = CHAMPIONSHIP_REGISTRY[a]
+		var rb = CHAMPIONSHIP_REGISTRY[b]
+		var da = ra.get("discipline", "")
+		var db = rb.get("discipline", "")
+		if da != db:
+			## Different disciplines → order by discipline's top-tier rep (desc).
+			return disc_best.get(da, 0) > disc_best.get(db, 0)
+		## Same discipline → pinnacle first (higher rep / higher tier first).
+		return int(ra.get("rep", 0)) > int(rb.get("rep", 0))
+	)
+	return ids
+
+
 ## Full championship registry — from Excel Championships sheet.
 ## entry_fee: one-time registration fee (not per race)
 ## entry_fee_per_race is the old field — kept for race prize calculations only
@@ -1423,6 +1455,10 @@ func _approved_car_blueprints(champ_id: String) -> Dictionary:
 			continue
 		var bp_id = app.get("blueprint_id", "")
 		var bp = known_blueprints.get(bp_id, {})
+		## S35.12 — CNC builds the CURRENT season only (model b). A next-season blueprint
+		## (season > current) is NOT eligible to build a car until that season becomes current.
+		if int(bp.get("season", current_season)) > current_season:
+			continue
 		var part = bp.get("part", "")
 		if part in PARTS_LIST and not result.has(part):
 			result[part] = bp_id

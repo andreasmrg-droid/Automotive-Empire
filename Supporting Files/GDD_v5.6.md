@@ -2,21 +2,21 @@
 
 **Version:** v5.6 (consolidated master) · **Engine:** Godot 4.6.3 / GDScript
 <!-- v5.6: §15 Personnel hubs & Shortlist (S35.10) — 24px readable rows with 100s emphasised,
-     full-width PROPORTIONAL aligned columns, Team + Contract as separate columns, active-sort
-     highlight + ▼/▲ arrow + "Showing: …" line, Staff free-agents toggle; and the unified
-     role-tabbed Shortlist screen (All + Driver + 6 staff roles) backed by is_shortlisted + the
-     GameState shortlist API, reachable from Staff/Drivers/Main Hub/HQ. -->
+	 full-width PROPORTIONAL aligned columns, Team + Contract as separate columns, active-sort
+	 highlight + ▼/▲ arrow + "Showing: …" line, Staff free-agents toggle; and the unified
+	 role-tabbed Shortlist screen (All + Driver + 6 staff roles) backed by is_shortlisted + the
+	 GameState shortlist API, reachable from Staff/Drivers/Main Hub/HQ. -->
 <!-- v5.5: §12-A rewritten to the live S35.6–S35.9 model — DETERMINISTIC binary person-interest
-     (shared by filter + approach), the random TEAM-RELEASE gate + 26-week refusal cooldown, the
-     _is_free_at_join rule (last-year/next-season = no gate/bond), and the Close vs Walk-Away
-     semantics. Plus a NOTED-FOR-FUTURE AI-poaching warning (last-contract-year case only). -->
+	 (shared by filter + approach), the random TEAM-RELEASE gate + 26-week refusal cooldown, the
+	 _is_free_at_join rule (last-year/next-season = no gate/bond), and the Close vs Walk-Away
+	 semantics. Plus a NOTED-FOR-FUTURE AI-poaching warning (last-contract-year case only). -->
 <!-- v5.4: §3 living fuel price (BASE × economy Fuel_Price_Multiplier) + CFO race-logistics
-     auto-buy (skip-to-end only); §9-E CFO-gated economy notifications; §15 recurring-notification
-     collapse (subject supersede) + GK one-shot elimination notice. Built S35.1–S35.4. -->
+	 auto-buy (skip-to-end only); §9-E CFO-gated economy notifications; §15 recurring-notification
+	 collapse (subject supersede) + GK one-shot elimination notice. Built S35.1–S35.4. -->
 <!-- v5.3: §7.1 Season Transition Pipeline (built S35.0) — the ordered A→E rollover sequence,
-     dual-ledger promotion, B-before-E fix, GK-as-sole-generation-source, Stage-E archive write. -->
+	 dual-ledger promotion, B-before-E fix, GK-as-sole-generation-source, Stage-E archive write. -->
 <!-- v5.2: §12-A canonical approach flow (interest→bond→contract), release-clause vs buyout-bond
-     distinction, TP/CFO role split, join-date bond calc, immediate-transfer 1.5×+25% fee. -->
+	 distinction, TP/CFO role split, join-date bond calc, immediate-transfer 1.5×+25% fee. -->
 **Last updated:** 2026-06-23 · **Repo:** https://github.com/andreasmrg-droid/Automotive-Empire.git
 
 > This is the single source of truth for the design of Automotive Empire. All prior
@@ -176,7 +176,7 @@ module. Racing success feeds commercial visibility.
 
 ```
 Weekly_Racing_Buzz = [(Points_Earned_This_Week ÷ Max_Possible_Points_This_Week) − 0.5]
-                   × Championship_Visibility_Multiplier × Discipline_Synergy_Bonus
+				   × Championship_Visibility_Multiplier × Discipline_Synergy_Bonus
 
 Weekly_Market_Share_Delta = Current_Market_Share
    × (0.008 × Reputation_Factor + 0.007 × Marketability_Factor + 0.028 × Weekly_Racing_Buzz)
@@ -186,7 +186,7 @@ If Weekly_Racing_Buzz ≤ 0 → extra natural decay of −0.0035 × Current_Mark
 New_Market_Share = clamp(Current_Market_Share + Weekly_Delta, 0.01, Max_Share_Cap)
 
 Weekly_Commercial_Car_Sales = Global_Annual_Volume × (Current_Market_Share / 52)
-                            × (1 + Weekly_Racing_Buzz × 0.12)
+							× (1 + Weekly_Racing_Buzz × 0.12)
 ```
 
 "Others %" in a segment = 100% − sum of all team market shares in that segment. Commercial
@@ -244,8 +244,8 @@ race-ready when the last part finishes. Gated on garage capacity and funds.
 
 ```
 Final_Lap_Time = Base_Lap_Time × (1 / Accel_Decel_Factor) × Cornering_Factor
-               × (1 + Fuel_Time_Penalty) × Tire_Condition_Factor × Setup_Factor
-               × Driver_Factor × (1 / Staff_Synergy_Factor)
+			   × (1 + Fuel_Time_Penalty) × Tire_Condition_Factor × Setup_Factor
+			   × Driver_Factor × (1 / Staff_Synergy_Factor)
 ```
 
 - `Setup_Factor = 1.0 − (Setup_Percentage ÷ 100) × 0.18`
@@ -262,7 +262,7 @@ Player chooses **Qualification Trim Runs** or **Race Trim Runs**.
 
 ```
 Setup_Gain_per_Lap = Base_Gain × Track_Knowledge_Factor × Mechanic_Car_Setup_Skill
-                   × Team_Principal_Practice_Bonus × Driver_Feedback_Factor
+				   × Team_Principal_Practice_Bonus × Driver_Feedback_Factor
 ```
 
 ### 6.3 Qualifying
@@ -479,7 +479,7 @@ Driver fitness degrades per lap and affects ALL driver attributes proportionally
 
 ```
 fitness_drop (per lap) = (lap_time_seconds / 90) × driving_mode_multiplier
-                       × (1 − fatigue_resistance/100)
+					   × (1 − fatigue_resistance/100)
    driving_mode_multiplier: Conserve 0.80 | Normal 1.00 | Attack 1.30
 Same recovery schedule as Pit Crew; reset to 100 each weekend.
 ```
@@ -704,8 +704,8 @@ contracted at the join date — will their TEAM let them go (the CEO/owner-team'
 
 3. **Determine contract status AT THE JOIN DATE** (immediate or next-season — player's choice):
    - **Free at join** = no contract now, OR (next-season signing AND ≤1 season remaining, i.e.
-     their contract expires by season start). These people are free agents by the time they'd
-     join → **no team-release gate, no bond** → straight to contract negotiation (step 5).
+	 their contract expires by season start). These people are free agents by the time they'd
+	 join → **no team-release gate, no bond** → straight to contract negotiation (step 5).
    - **Still contracted at the join date** → the team-release gate (step 4) applies.
    - *(One shared rule `_is_free_at_join` decides this, used by both the gate and the bond skip.)*
 
@@ -999,25 +999,25 @@ Historical record of what shipped; design facts above already reflect these.
     entry cleared next week; Close is a no-op (S35.7).
   - **HQ preload (S35.8):** heavy scenes preloaded at startup so first HQ open doesn't hitch.
   - **Interest model rework (§12-A, S35.9):** deterministic binary person-interest shared by the
-    filter + approach; random team-release gate + 26-week refusal cooldown; `_is_free_at_join`
-    (last-year/next-season = no gate/bond); team-won't-release popup. The "try again in the future"
+	filter + approach; random team-release gate + 26-week refusal cooldown; `_is_free_at_join`
+	(last-year/next-season = no gate/bond); team-won't-release popup. The "try again in the future"
     popup wording + the noted-for-future AI-poaching warning belong to this line.
 - **S35.1–S35.4 (notification cleanup + living fuel + CFO auto-buy):**
   - **Recurring-notification collapse (§15):** `add_notification` gains a `subject` key; a new
     notification supersedes any earlier same-subject one, so standing weekly/race reminders keep
     only the current instance (text-independent). Tagged: resource warnings, pre-race DNS reasons,
-    economy alerts. The S31.1 identical-text dedup only caught messages whose text didn't change.
+	economy alerts. The S31.1 identical-text dedup only caught messages whose text didn't change.
   - **GK one-shot elimination (§15):** `player_elimination_announced` flag (reset each season) so
-    the "season over for GK" notice fires once, not at every later round after a Round-1 exit.
+	the "season over for GK" notice fires once, not at every later round after a Round-1 exit.
   - **CFO-gated economy notifications (§9-E):** economy state shifts + fuel-price shocks fire only
-    if a CFO is hired (the economy still moves regardless).
+	if a CFO is hired (the economy still moves regardless).
   - **Living fuel price (§3):** `get_fuel_cost_per_kg()` = BASE 2.0 × economy `Fuel_Price_Multiplier`
-    (0.5–3.0, neutral 1.0). `buy_fuel` now charges it (was a dead hardcoded CR 2/kg); the Logistics
-    card header and the input cost preview both show the live rate (the preview's `× 2` hardcode was
+	(0.5–3.0, neutral 1.0). `buy_fuel` now charges it (was a dead hardcoded CR 2/kg); the Logistics
+	card header and the input cost preview both show the live rate (the preview's `× 2` hardcode was
     the S35.4 fix).
   - **CFO race-logistics auto-buy (§3/§9-E):** `cfo_auto_buy_for_race(champ)` tops fuel + SP to the
-    next race's exact need at the living price — only if a CFO is hired + affordable, and ONLY while
-    `simulating_to_season_end` (Skip-to-End). Never negative; never during hands-on weekly play.
+	next race's exact need at the living price — only if a CFO is hired + affordable, and ONLY while
+	`simulating_to_season_end` (Skip-to-End). Never negative; never during hands-on weekly play.
 - **S35.0 (Season Transition Pipeline — §7.1):** reordered `start_new_season()` into the explicit
   A→E sequence. Split `_process_off_season` into `_process_off_season_aging` (early) +
   `_process_lifecycle_cull` (late, Stage E). **Core fix:** Stage B (activate pre-signed signings)
@@ -1030,11 +1030,11 @@ Historical record of what shipped; design facts above already reflect these.
   Verified: headless ordering proof + in-engine season-rollover test.
 - **S30–S32 (Phase 2 + TP rebuild):**
   - **Phase 2 car acquisition & delivery** (§6.0): buy vs design+build; per-car `delivery_week`;
-    DNS-until-ready; cars scrapped each season; Garage in-build banner + locked part slots.
+	DNS-until-ready; cars scrapped each season; Garage in-build banner + locked part slots.
   - **Build Whole Car** (§6.0/§8): CNC one-pass build of all 6 parts once blueprints are WRA-approved.
   - **S31 housekeeping:** Bug 9 (GK discipline bleed — GK round notifications gated on the player
-    being registered in GK; `_regenerate_ai_team_cars` no longer hardcodes C-001); Bug 8 (next-season
-    blueprint can't be manufactured in the current season — `start_cnc_job` season gate); Bug 7 (CNC
+	being registered in GK; `_regenerate_ai_team_cars` no longer hardcodes C-001); Bug 8 (next-season
+	blueprint can't be manufactured in the current season — `start_cnc_job` season gate); Bug 7 (CNC
     shows blueprint target season + locks future cards); Bug 5 (notification cross-week dedup);
     Bug 4 (TP proposals roster-snapshot refresh on accept).
   - **TP Assignment System rebuild** (§9-I, spec v2): shared prestige-ordered optimiser for

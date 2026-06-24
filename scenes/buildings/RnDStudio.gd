@@ -1,4 +1,8 @@
 extends Control
+## Version: S35.12 — Championship tab strip (scrollable, shared GP1…GK order) in the catalog
+##   column; Pillar 1/2/3 catalogs now show only the selected championship (P4 is building-gated,
+##   champ-agnostic). Plus the L2-unlock fix moved to RnDEngine (_has_l1_blueprint_for now also
+##   matches by completed L1 task id, so a legacy mis-stamped L1 no longer locks L2).
 ## Version: S35.11c — Two R&D Studio fixes: (1) the per-card Assign row now ALWAYS renders;
 ##   it used to appear only when RP+CR+free-designer were ALL satisfied, so with 0 RP (normal
 ##   before the first race — RP is earned only by racing) the assign buttons vanished and the
@@ -70,10 +74,15 @@ const PART_SPEC = {
 const PART_NAMES = ["Aero", "Engine", "Gearbox", "Suspension", "Brakes", "Chassis"]
 
 var _selected_pillar: int = 1
+var _selected_champ_id: String = ""   ## S35.12 — active championship tab
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_selected_pillar = GameState.pending_rnd_pillar
+	## S35.12 — default the championship tab to the first in the shared order (GP1…GK).
+	if _selected_champ_id == "":
+		var order = GameState.championship_tab_order()
+		_selected_champ_id = order[0] if not order.is_empty() else "C-001"
 	_build_ui()
 
 func _build_ui() -> void:
@@ -447,6 +456,12 @@ func _build_catalog_column(parent: VBoxContainer) -> void:
 
 	parent.add_child(_hsep())
 
+	## S35.12 — championship tab strip (scrollable; all 21 champs, shared GP1…GK order). The
+	## catalog below shows only the selected championship so a multi-championship player isn't
+	## faced with every championship's tasks stacked together.
+	parent.add_child(_build_champ_tab_strip())
+	parent.add_child(_hsep())
+
 	var scroll = ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -506,8 +521,11 @@ func _build_p1_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 		parent.add_child(_lbl_empty("No blueprint tasks defined."))
 		return
 
-	## Sort by championship tier
-	var sorted_champs = by_champ.keys()
+	## S35.12 — show only the selected championship tab (multi-champ tabbed UI).
+	var sorted_champs = [_selected_champ_id] if _selected_champ_id in by_champ else []
+	if sorted_champs.is_empty():
+		parent.add_child(_lbl_empty("No blueprint tasks for this championship."))
+		return
 
 	## For each championship show current season then next season
 	for cid in sorted_champs:
@@ -579,6 +597,7 @@ func _build_p2_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 	for car in GameState.player_team_cars:
 		var cid = car.championship_id
 		if cid == "": continue
+		if cid != _selected_champ_id: continue  ## S35.12 — tabbed: selected champ only
 		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
 		var spec_arr = PART_SPEC.get(cid, [false,false,false,false,false,false])
 		var open_parts: Array = []
@@ -676,6 +695,7 @@ func _build_p3_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 	for car in GameState.player_team_cars:
 		var cid = car.championship_id
 		if cid == "": continue
+		if cid != _selected_champ_id: continue  ## S35.12 — tabbed: selected champ only
 		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
 		var spec_arr = PART_SPEC.get(cid, [true,true,true,true,true,true])
 		var inv = GameState.part_inventory.get(cid, {})
@@ -1018,6 +1038,40 @@ func _section_header(text: String, color: Color) -> Label:
 	return lbl
 
 func _hsep() -> HSeparator: return HSeparator.new()
+
+## S35.12 — Scrollable championship tab strip (shared GP1…GK order). Clicking a tab rebuilds
+## the Studio scoped to that championship. Used by the catalog column (Pillar 1 + others).
+func _build_champ_tab_strip() -> Control:
+	var scroll = ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.custom_minimum_size = Vector2(0, 42)
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	scroll.add_child(row)
+	for cid in GameState.championship_tab_order():
+		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
+		var btn = Button.new()
+		btn.text = reg.get("name", cid)
+		btn.add_theme_font_size_override("font_size", 20)
+		btn.custom_minimum_size = Vector2(0, 34)
+		var is_sel = (cid == _selected_champ_id)
+		btn.disabled = is_sel
+		btn.modulate = Color(0.55, 0.8, 1.0) if is_sel else Color(0.8, 0.8, 0.8)
+		var picked = cid
+		btn.pressed.connect(func():
+			_selected_champ_id = picked
+			_rebuild_studio())
+		row.add_child(btn)
+	return scroll
+
+## S35.12 — Rebuild the Studio in place (preserves _selected_champ_id + _selected_pillar)
+## after a championship tab change.
+func _rebuild_studio() -> void:
+	for c in get_children(): c.queue_free()
+	_build_ui()
+
 
 func _make_panel(bg: Color) -> PanelContainer:
 	var panel = PanelContainer.new()

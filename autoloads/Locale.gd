@@ -1,4 +1,6 @@
 extends Node
+## Version: S35.12 — Added cnc_bwc_need_all6 / cnc_bwc_need_all6_tip for the Build-Whole-Car
+##   current-season all-6-parts gate (greyed button tooltip).
 ## Version: S35.11 — Added R&D lock/hint keys (rnd_lock_needs_l1, rnd_lock_requires,
 ##   rnd_lock_complete_l1, rnd_re_hint_short, rnd_re_hint_long) for the P1/P3 chain rework
 ##   in RnDStudio (P1 L2 unlock from either design path; localized prior hardcoded literals).
@@ -438,6 +440,8 @@ const STRINGS: Dictionary = {
 	"cnc_bwc_ready":        { "en": "All 6 blueprints approved — arrives Wk {0}  ·  CR {1}", },
 	"cnc_bwc_missing":      { "en": "Missing approved blueprints: {0}",                  },
 	"cnc_bwc_garage_full":  { "en": "Garage full — upgrade the Garage to build more cars.", },
+	"cnc_bwc_need_all6":     { "en": "Need all 6 current-season part blueprints approved ({0}/6 ready).", },
+	"cnc_bwc_need_all6_tip": { "en": "You need all 6 part blueprints approved for this season before you can build the car.", },
 	"cnc_bwc_cant_afford":  { "en": "Need CR {0} to build all 6 parts.",                 },
 	"cnc_bwc_have_car":     { "en": "Car already present for this championship.",        },
 
