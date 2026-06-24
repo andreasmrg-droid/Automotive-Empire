@@ -1,4 +1,12 @@
 extends Control
+## Version: S35.16 — Scroll fixes (per Andreas screenshot): (1) the right BLUEPRINT STATUS
+##   column (col_d) had NO ScrollContainer at all — ~20 champ grids ran off the bottom with no
+##   way to scroll; now wrapped in its own vertical ScrollContainer. (2) col_d is now bounded
+##   (SIZE_EXPAND_FILL + clip_contents, fixed WIDTH only) so its tall content no longer stretches
+##   the body HBox past the viewport — that overflow was also why the CENTER catalog scroll never
+##   engaged. (3) Both scroll inners get a right-side GUTTER (margin) so the vertical scrollbar
+##   has room and isn't hidden under full-width content / the neighbouring column (the
+##   "horizontal width hiding the scrollbar" Andreas spotted).
 ## Version: S35.15 — Scroll moved to wrap ONLY the blueprint cards; pillar header + champ
 ##   tab grid are now fixed above it (per Andreas). The whole-column wrap was the wrong target.
 ## Version: S35.14 — (was S35.13) 2D tab grid + single ScrollContainer wrap around the whole
@@ -215,9 +223,16 @@ func _build_ui() -> void:
 	body.add_child(col_c)
 	_build_catalog_column(col_c)
 
-	## Blueprint ownership grid — right-most column
+	## Blueprint ownership grid — right-most column.
+	## S35.16 — FIXED width but SIZE_EXPAND_FILL + clip vertically so the per-champ grids inside
+	## scroll WITHIN this column instead of stretching the body HBox past the viewport. Its old
+	## unbounded height was forcing body overflow, which also stopped the centre catalog scroll
+	## from engaging.
 	var col_d = VBoxContainer.new()
-	col_d.custom_minimum_size = Vector2(220, 0)
+	col_d.custom_minimum_size = Vector2(232, 0)   ## +12 over old 220 to give the scrollbar a gutter
+	col_d.size_flags_horizontal = Control.SIZE_FILL
+	col_d.size_flags_vertical   = Control.SIZE_EXPAND_FILL
+	col_d.clip_contents = true
 	col_d.add_theme_constant_override("separation", 8)
 	body.add_child(col_d)
 	_build_blueprint_grid_column(col_d)
@@ -484,10 +499,19 @@ func _build_catalog_column(parent: VBoxContainer) -> void:
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	parent.add_child(scroll)
 
+	## S35.16 — the cards inside are EXPAND_FILL (full width); without a right gutter the
+	## vertical scrollbar is drawn over them / under the next column and looks missing. A
+	## MarginContainer reserves a strip on the right for the bar.
+	var gutter = MarginContainer.new()
+	gutter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gutter.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	gutter.add_theme_constant_override("margin_right", 12)
+	scroll.add_child(gutter)
+
 	var inner = VBoxContainer.new()
 	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	inner.add_theme_constant_override("separation", 7)
-	scroll.add_child(inner)
+	gutter.add_child(inner)
 
 	var free_designers = GameState.get_player_staff_by_role("Designer").filter(func(d):
 		for t in GameState.active_rnd_tasks:
@@ -1111,20 +1135,41 @@ func _on_back() -> void:
 ## Shows P1 (BP) and P3 (RE) status per part per championship.
 ## Legend: ✅ owned  🔬 in progress  ⏳ WRA pending  🟢 WRA approved  ⬜ not started
 func _build_blueprint_grid_column(parent: VBoxContainer) -> void:
-	parent.add_child(_section_header("BLUEPRINT STATUS", Color(0.7, 0.8, 1.0)))
+	parent.add_child(_section_header(Locale.t("rnd_blueprint_status"), Color(0.7, 0.8, 1.0)))
 
-	## Legend
+	## Legend — FIXED above the scroll.
 	var legend = Label.new()
-	legend.text = "✅ owned  🔬 active  ⏳ WRA  🟢 approved"
+	legend.text = Locale.t("rnd_blueprint_legend")
 	legend.add_theme_font_size_override("font_size", 18)
 	legend.modulate = Color(0.5, 0.5, 0.5)
 	parent.add_child(legend)
+
+	## S35.16 — the per-championship grids (~20 champs) previously appended straight onto the
+	## column and ran off the bottom with no scrollbar. Wrap them in their own vertical
+	## ScrollContainer + right-side gutter so the bar shows and the list scrolls.
+	var scroll = ScrollContainer.new()
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	parent.add_child(scroll)
+
+	var gutter = MarginContainer.new()
+	gutter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gutter.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	gutter.add_theme_constant_override("margin_right", 12)
+	scroll.add_child(gutter)
+
+	var content = VBoxContainer.new()
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.add_theme_constant_override("separation", 8)
+	gutter.add_child(content)
 
 	## S35.12 — order the status panel by the shared principle order (GP1…GK), same as the
 	## tab strip, instead of activation order.
 	var champ_ids = GameState.championship_tab_order()
 	if champ_ids.is_empty():
-		parent.add_child(_lbl_empty("No championships."))
+		content.add_child(_lbl_empty(Locale.t("rnd_no_championships")))
 		return
 
 	for cid in champ_ids:
@@ -1136,14 +1181,14 @@ func _build_blueprint_grid_column(parent: VBoxContainer) -> void:
 		lbl_champ.text = reg.get("name", cid)
 		lbl_champ.add_theme_font_size_override("font_size", 22)
 		lbl_champ.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
-		parent.add_child(lbl_champ)
+		content.add_child(lbl_champ)
 
 		## Grid: header row
 		var grid = GridContainer.new()
 		grid.columns = 8  ## part name + L1 L2 L3 L4 L5 + RE + spacer
 		grid.add_theme_constant_override("h_separation", 4)
 		grid.add_theme_constant_override("v_separation", 3)
-		parent.add_child(grid)
+		content.add_child(grid)
 
 		## Header labels
 		for hdr_text in ["", "L1","L2","L3","L4","L5","RE",""]:
@@ -1212,7 +1257,7 @@ func _build_blueprint_grid_column(parent: VBoxContainer) -> void:
 			## Empty spacer cell
 			grid.add_child(Control.new())
 
-		parent.add_child(_hsep())
+		content.add_child(_hsep())
 
 const CONST_PCODE_TO_PART = {"AER":"Aero","ENG":"Engine","GRB":"Gearbox",
 	"SUS":"Suspension","BRK":"Brakes","CHS":"Chassis"}

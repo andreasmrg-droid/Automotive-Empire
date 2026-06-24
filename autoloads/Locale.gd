@@ -1,4 +1,6 @@
 extends Node
+## Version: S35.16 — Added Blueprint Status panel keys (rnd_blueprint_status, rnd_blueprint_legend,
+##   rnd_no_championships) localized while wrapping that panel in a ScrollContainer in RnDStudio.
 ## Version: S35.12 — Added cnc_bwc_need_all6 / cnc_bwc_need_all6_tip for the Build-Whole-Car
 ##   current-season all-6-parts gate (greyed button tooltip).
 ## Version: S35.11 — Added R&D lock/hint keys (rnd_lock_needs_l1, rnd_lock_requires,
@@ -274,6 +276,9 @@ const STRINGS: Dictionary = {
 	"rnd_lock_complete_l1": { "en": "🔒 Complete Season %d L1 first", },
 	"rnd_re_hint_short":    { "en": "💡 Unlocks P1 Design L2 for this part", },
 	"rnd_re_hint_long":     { "en": "💡 Completing a RE task unlocks P1 Design L2 for that part, and produces a blueprint you can submit to the WRA for CNC manufacturing.", },
+	"rnd_blueprint_status": { "en": "BLUEPRINT STATUS", },
+	"rnd_blueprint_legend": { "en": "✅ owned  🔬 active  ⏳ WRA  🟢 approved", },
+	"rnd_no_championships": { "en": "No championships.", },
 
 	# Championship selection — info + budget cost summary (S29.13)
 	"ng_champ_info":        { "en": "Select the discipline you want to start in. Starting budget depends on your championship and difficulty choice. Pick a championship, then set your difficulty on the next screen.", },
