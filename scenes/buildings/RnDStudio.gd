@@ -1,4 +1,12 @@
 extends Control
+## Version: S35.21 — (1) P4 requirement messaging CONSOLIDATED: one "Required: 🏢 {Building} Lv X
+##   &  🔬 Studio Lv Y" line (green if met, amber if not) replaces the old two-chip row + the
+##   duplicate lock sentence; the P4 lock branch now only shows a prerequisite-TASK message (or
+##   nothing when building/studio is the only block). (2) FULL localization of the R&D Studio:
+##   ~49 new keys cover the title bar, tabs/pillar names+descs, section headers, designer/active
+##   panels, all P1–P4 catalog inline strings, WRA status, assign blockers. (3) Licensing: every
+##   user-facing "Formula" → "GP" (the label, REQUIRED tag, and SP_RACE_1 name); internal WRA-group
+##   "Formula" dictionary keys are code identifiers and were left unchanged.
 ## Version: S35.20 — (1) P4 cards now show an ALWAYS-VISIBLE requirements line listing the target
 ##   building level AND the R&D Design Studio level (green if met, amber if not) — not just the
 ##   single blocking reason. (2) All 100 P4 Special Project names + descs are now localized:
@@ -72,20 +80,6 @@ const PILLAR_COLORS = {
 	4: Color(0.15, 0.85, 0.55),
 	5: Color(0.9,  0.3,  0.55),  ## S29.10 — Commercial Cars R&D (future)
 }
-const PILLAR_NAMES = {
-	1: "DESIGN",
-	2: "UPGRADE",
-	3: "REV. ENGINEERING",
-	4: "SPECIAL PROJECTS",
-	5: "COMMERCIAL CARS",
-}
-const PILLAR_DESCS = {
-	1: "Design blueprints for any part.\nUnlocks CNC manufacturing once approved by WRA.",
-	2: "Upgrade Open parts on your owned cars.\nIn-season improvements carry to next season.",
-	3: "Reverse-engineer Spec parts you own.\nTeam must have the part in the warehouse.",
-	4: "Building-linked special projects.\nUnlocks unique team capabilities and bonuses.",
-	5: "Research for the commercial car business.\nComing in a future update.",
-}
 const PART_COLORS = {
 	"Aero":       Color(0.25, 0.65, 1.0),
 	"Engine":     Color(1.0,  0.4,  0.2),
@@ -140,7 +134,7 @@ func _build_ui() -> void:
 	root.add_child(header)
 
 	var lbl_title = Label.new()
-	lbl_title.text = "🔬  R&D DESIGN STUDIO"
+	lbl_title.text = Locale.t("rnd_title")
 	lbl_title.add_theme_font_size_override("font_size", 42)
 	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(lbl_title)
@@ -150,7 +144,7 @@ func _build_ui() -> void:
 	rp_inner.add_theme_constant_override("separation", 8)
 	rp_box.add_child(rp_inner)
 	var lbl_rp_icon = Label.new()
-	lbl_rp_icon.text = "🔵 RP"
+	lbl_rp_icon.text = Locale.t("rnd_rp")
 	lbl_rp_icon.add_theme_font_size_override("font_size", 24)
 	rp_inner.add_child(lbl_rp_icon)
 	var rp_bar = ProgressBar.new()
@@ -174,7 +168,7 @@ func _build_ui() -> void:
 	header.add_child(lbl_bal)
 
 	var btn_back = Button.new()
-	btn_back.text = "← Back"
+	btn_back.text = Locale.t("rnd_back")
 	btn_back.custom_minimum_size = Vector2(90, 34)
 	btn_back.pressed.connect(_on_back)
 	header.add_child(btn_back)
@@ -184,7 +178,7 @@ func _build_ui() -> void:
 	var bld = GameState.campus_buildings.get("R&D Design Studio", {})
 	if not bld.get("built", false):
 		var warn = Label.new()
-		warn.text = "⚠  R&D Design Studio not built."
+		warn.text = Locale.t("rnd_not_built")
 		warn.modulate = Color(1.0, 0.55, 0.2)
 		root.add_child(warn)
 		return
@@ -258,12 +252,12 @@ func _build_ui() -> void:
 
 # ─── Column A ─────────────────────────────────────────────────────────────────
 func _build_designer_column(parent: VBoxContainer) -> void:
-	parent.add_child(_section_header("DESIGNERS", Color(1.0, 0.8, 0.0)))
+	parent.add_child(_section_header(Locale.t("rnd_hdr_designers"), Color(1.0, 0.8, 0.0)))
 
 	var building = GameState.campus_buildings.get("R&D Design Studio", {})
 	var lv = building.get("level", 1)
 	var lbl_slots = Label.new()
-	lbl_slots.text = "Studio Lvl %d — %d concurrent task%s" % [lv, lv, "s" if lv != 1 else ""]
+	lbl_slots.text = (Locale.t("rnd_studio_slots_one") % lv) if lv == 1 else (Locale.t("rnd_studio_slots_many") % [lv, lv])
 	lbl_slots.add_theme_font_size_override("font_size", 22)
 	lbl_slots.modulate = Color(0.55, 0.55, 0.55)
 	parent.add_child(lbl_slots)
@@ -271,7 +265,7 @@ func _build_designer_column(parent: VBoxContainer) -> void:
 	var designers = GameState.get_player_staff_by_role("Designer")
 	if designers.is_empty():
 		var lbl = Label.new()
-		lbl.text = "No Designers hired."
+		lbl.text = Locale.t("rnd_no_designers")
 		lbl.modulate = Color(0.5, 0.5, 0.5)
 		lbl.add_theme_font_size_override("font_size", 24)
 		parent.add_child(lbl)
@@ -281,7 +275,7 @@ func _build_designer_column(parent: VBoxContainer) -> void:
 
 	# Always-visible hire button
 	var btn_hire = Button.new()
-	btn_hire.text = "👤 Hire Designer  →  Staff"
+	btn_hire.text = Locale.t("rnd_hire_designer")
 	btn_hire.custom_minimum_size = Vector2(180, 32)
 	btn_hire.add_theme_font_size_override("font_size", 24)
 	btn_hire.pressed.connect(func():
@@ -293,7 +287,7 @@ func _build_designer_column(parent: VBoxContainer) -> void:
 	parent.add_child(_hsep())
 
 	var lbl_comp = Label.new()
-	lbl_comp.text = "COMPLETED  (%d)" % GameState.completed_rnd_tasks.size()
+	lbl_comp.text = Locale.t("rnd_completed") % GameState.completed_rnd_tasks.size()
 	lbl_comp.add_theme_font_size_override("font_size", 22)
 	lbl_comp.add_theme_color_override("font_color", Color(0.5, 0.8, 0.5))
 	parent.add_child(lbl_comp)
@@ -309,7 +303,7 @@ func _build_designer_column(parent: VBoxContainer) -> void:
 		var td = GameState.RND_TASKS.get(tid, {})
 		if td.is_empty(): continue
 		var lbl_done = Label.new()
-		lbl_done.text = "✅ %s" % td.get("name", tid)
+		lbl_done.text = "✅ %s" % _sp_name(tid, td)
 		lbl_done.add_theme_font_size_override("font_size", 20)
 		lbl_done.modulate = Color(0.42, 0.72, 0.42)
 		lbl_done.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -369,13 +363,13 @@ func _build_designer_card(d) -> PanelContainer:
 		bar.custom_minimum_size = Vector2(0, 12)
 		vbox.add_child(bar)
 		var lbl_wks = Label.new()
-		lbl_wks.text = "%d weeks left" % busy_wks
+		lbl_wks.text = Locale.t("rnd_weeks_left") % busy_wks
 		lbl_wks.add_theme_font_size_override("font_size", 20)
 		lbl_wks.modulate = Color(0.55, 0.55, 0.55)
 		vbox.add_child(lbl_wks)
 	else:
 		var lbl_avail = Label.new()
-		lbl_avail.text = "Available"
+		lbl_avail.text = Locale.t("rnd_available")
 		lbl_avail.add_theme_font_size_override("font_size", 20)
 		lbl_avail.modulate = Color(0.3, 0.9, 0.4)
 		vbox.add_child(lbl_avail)
@@ -385,11 +379,11 @@ func _build_designer_card(d) -> PanelContainer:
 
 # ─── Column B: Active Tasks ───────────────────────────────────────────────────
 func _build_active_column(parent: VBoxContainer) -> void:
-	parent.add_child(_section_header("ACTIVE TASKS", Color(1.0, 0.8, 0.0)))
+	parent.add_child(_section_header(Locale.t("rnd_hdr_active"), Color(1.0, 0.8, 0.0)))
 
 	if GameState.active_rnd_tasks.is_empty():
 		var lbl = Label.new()
-		lbl.text = "No active research.\nSelect a task from the catalog →"
+		lbl.text = Locale.t("rnd_no_active")
 		lbl.modulate = Color(0.5, 0.5, 0.5)
 		lbl.add_theme_font_size_override("font_size", 24)
 		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -469,7 +463,7 @@ func _build_active_task_card(task: Dictionary) -> PanelContainer:
 	lbl_who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row2.add_child(lbl_who)
 	var btn_cancel = Button.new()
-	btn_cancel.text = "Cancel"
+	btn_cancel.text = Locale.t("rnd_cancel")
 	btn_cancel.add_theme_font_size_override("font_size", 20)
 	btn_cancel.modulate = Color(0.75, 0.35, 0.35)
 	btn_cancel.custom_minimum_size = Vector2(58, 24)
@@ -559,13 +553,13 @@ func _build_p1_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 	var next_tasks = GameState.RND_TASKS
 
 	if by_champ.is_empty():
-		parent.add_child(_lbl_empty("No blueprint tasks defined."))
+		parent.add_child(_lbl_empty(Locale.t("rnd_no_bp_defined")))
 		return
 
 	## S35.12 — show only the selected championship tab (multi-champ tabbed UI).
 	var sorted_champs = [_selected_champ_id] if _selected_champ_id in by_champ else []
 	if sorted_champs.is_empty():
-		parent.add_child(_lbl_empty("No blueprint tasks for this championship."))
+		parent.add_child(_lbl_empty(Locale.t("rnd_no_bp_champ")))
 		return
 
 	## For each championship show current season then next season
@@ -597,10 +591,10 @@ func _build_p1_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 		## ── Next season tasks ─────────────────────────────────────────
 		var next_lbl = Label.new()
 		if is_formula:
-			next_lbl.text = "▶ Next Season (S%d) — ⚠ MANDATORY for Formula" % next_season
+			next_lbl.text = Locale.t("rnd_next_season_mandatory") % next_season
 			next_lbl.add_theme_color_override("font_color", Color(1.0, 0.6, 0.2))
 		else:
-			next_lbl.text = "▶ Next Season (S%d)" % next_season
+			next_lbl.text = Locale.t("rnd_next_season") % next_season
 			next_lbl.add_theme_color_override("font_color", Color(0.55, 0.75, 1.0))
 		next_lbl.add_theme_font_size_override("font_size", 24)
 		parent.add_child(next_lbl)
@@ -631,7 +625,7 @@ func _build_p1_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 # ── P2: Open parts of owned cars only — show ONLY next available upgrade level ─
 func _build_p2_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 	if GameState.player_team_cars.is_empty():
-		parent.add_child(_lbl_empty("No cars owned. Buy a car at the Logistics Center."))
+		parent.add_child(_lbl_empty(Locale.t("rnd_no_cars")))
 		return
 
 	var any_shown = false
@@ -667,7 +661,7 @@ func _build_p2_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 		parent.add_child(lbl_car)
 
 		var lbl_open = Label.new()
-		lbl_open.text = "Open parts (upgradeable): %s" % ", ".join(open_parts)
+		lbl_open.text = Locale.t("rnd_open_parts") % ", ".join(open_parts)
 		lbl_open.add_theme_font_size_override("font_size", 22)
 		lbl_open.modulate = Color(0.4, 0.88, 0.55)
 		parent.add_child(lbl_open)
@@ -697,7 +691,7 @@ func _build_p2_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 			if next_lv > 5:
 				# All 5 levels done for this part
 				var lbl_max = Label.new()
-				lbl_max.text = "  %s — Max upgrade (L5) complete ✅" % part
+				lbl_max.text = Locale.t("rnd_max_upgrade") % part
 				lbl_max.add_theme_font_size_override("font_size", 22)
 				lbl_max.add_theme_color_override("font_color", Color(0.4, 0.82, 0.4))
 				parent.add_child(lbl_max)
@@ -722,13 +716,13 @@ func _build_p2_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 		parent.add_child(_hsep())
 
 	if not any_shown:
-		parent.add_child(_lbl_empty("No upgrade tasks available for your current cars."))
+		parent.add_child(_lbl_empty(Locale.t("rnd_no_upgrades")))
 
 
 # ── P3: Spec parts the team owns (in part_inventory) ─────────────────────────
 func _build_p3_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 	if GameState.player_team_cars.is_empty():
-		parent.add_child(_lbl_empty("No cars owned. Buy a car at the Logistics Center."))
+		parent.add_child(_lbl_empty(Locale.t("rnd_no_cars")))
 		return
 
 	var any_shown = false
@@ -776,21 +770,21 @@ func _build_p3_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 
 		if not owned_spec.is_empty():
 			var lbl_ok = Label.new()
-			lbl_ok.text = "✅ Can RE: %s" % ", ".join(owned_spec)
+			lbl_ok.text = Locale.t("rnd_can_re") % ", ".join(owned_spec)
 			lbl_ok.add_theme_font_size_override("font_size", 22)
 			lbl_ok.modulate = Color(0.4, 0.88, 0.55)
 			parent.add_child(lbl_ok)
 
 		if not missing_spec.is_empty():
 			var lbl_miss = Label.new()
-			lbl_miss.text = "🔒 Need to buy: %s" % ", ".join(missing_spec)
+			lbl_miss.text = Locale.t("rnd_need_buy") % ", ".join(missing_spec)
 			lbl_miss.add_theme_font_size_override("font_size", 22)
 			lbl_miss.modulate = Color(0.65, 0.45, 0.2)
 			parent.add_child(lbl_miss)
 
 		if owned_spec.is_empty():
 			var lbl_no = Label.new()
-			lbl_no.text = "Buy spec parts at Logistics Center to unlock RE."
+			lbl_no.text = Locale.t("rnd_buy_spec")
 			lbl_no.add_theme_font_size_override("font_size", 22)
 			lbl_no.modulate = Color(0.5, 0.5, 0.5)
 			parent.add_child(lbl_no)
@@ -819,12 +813,12 @@ func _build_p3_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 ## S29.12 — Pillar 5 name/desc come from Locale; 1–4 remain in the const dicts
 ## (pre-existing strings, not part of this localization pass).
 func _pillar_name(p: int) -> String:
-	if p == 5: return Locale.t("p5_name")
-	return PILLAR_NAMES.get(p, "")
+	## S35.21 — all pillar names localized (p_name_1..5).
+	return Locale.t("p_name_%d" % p)
 
 func _pillar_desc(p: int) -> String:
-	if p == 5: return Locale.t("p5_desc")
-	return PILLAR_DESCS.get(p, "")
+	## S35.21 — all pillar descs localized (p_desc_1..5).
+	return Locale.t("p_desc_%d" % p)
 
 # ── P5: Commercial Cars R&D (stub — future update) ────────────────────────────
 ## S29.10 — Pillar 5 is reserved for the commercial car business R&D. The button
@@ -849,7 +843,7 @@ func _build_p4_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 		parent.add_child(_build_task_card(task_id, t, free_designers, ""))
 		any = true
 	if not any:
-		parent.add_child(_lbl_empty("No special projects available yet."))
+		parent.add_child(_lbl_empty(Locale.t("rnd_no_special")))
 
 
 # ── Generic task card ──────────────────────────────────────────────────────────
@@ -912,46 +906,48 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 		row1.add_child(lbl_lv)
 
 	var lbl_part = Label.new()
-	lbl_part.text = task["part"]
+	## S35.21 — part/category badge localized via rnd_part_{value} with raw fallback.
+	var _pk = "rnd_part_%s" % str(task["part"]).to_lower().replace("&","").replace(" ","_")
+	var _pt = Locale.t(_pk)
+	lbl_part.text = _pt if (_pt != _pk and _pt != "") else task["part"]
 	lbl_part.add_theme_font_size_override("font_size", 20)
 	lbl_part.add_theme_color_override("font_color", PART_COLORS.get(task["part"], Color.WHITE))
 	row1.add_child(lbl_part)
 	if is_done:
 		var lbl_ok = Label.new(); lbl_ok.text = "✅"; row1.add_child(lbl_ok)
 	elif is_active:
-		var lbl_p = Label.new(); lbl_p.text = "🔬 In progress"
+		var lbl_p = Label.new(); lbl_p.text = Locale.t("rnd_in_progress")
 		lbl_p.add_theme_font_size_override("font_size", 20); lbl_p.modulate = Color(0.4, 0.7, 1.0)
 		row1.add_child(lbl_p)
 
-	## S35.20 — P4 requirements line: ALWAYS show the building + Studio level gates (not just the
-	## single blocking reason), so the player sees the full prerequisite up front, met or not.
+	## S35.21 — P4 requirements: ONE consolidated line ("Required: 🏢 {Building} Lv X & 🔬 Studio
+	## Lv Y") instead of the old two-chip row PLUS a duplicate lock sentence. Coloured green when
+	## every shown gate is met, amber otherwise. Shows only the part(s) that apply.
 	if task.get("pillar", 0) == 4 and not is_done:
-		var req_row = HBoxContainer.new()
-		req_row.add_theme_constant_override("separation", 14)
-		vbox.add_child(req_row)
-		var bname = task.get("building", "")
+		var bname  = task.get("building", "")
 		var min_lv = int(task.get("min_building_level", 1))
+		var min_studio = int(task.get("Required_RnD_Studio_Level", 1))
+		var segs: Array = []
+		var all_ok = true
 		if bname != "":
 			var bld = GameState.campus_buildings.get(bname, {})
 			var bld_lv = int(bld.get("level", 0)) if bld.get("built", false) else 0
-			var ok_b = bld_lv >= min_lv
-			var lbl_b = Label.new()
-			lbl_b.text = Locale.t("rnd_req_building") % [bname, min_lv]
-			lbl_b.add_theme_font_size_override("font_size", 20)
-			lbl_b.add_theme_color_override("font_color",
-				Color(0.45, 0.88, 0.45) if ok_b else Color(0.85, 0.6, 0.4))
-			req_row.add_child(lbl_b)
-		var min_studio = int(task.get("Required_RnD_Studio_Level", 1))
+			if bld_lv < min_lv: all_ok = false
+			segs.append(Locale.t("rnd_req_seg_building") % [bname, min_lv])
 		if min_studio > 1:
 			var studio = GameState.campus_buildings.get("R&D Design Studio", {})
 			var st_lv = int(studio.get("level", 0)) if studio.get("built", false) else 0
-			var ok_s = st_lv >= min_studio
-			var lbl_s = Label.new()
-			lbl_s.text = Locale.t("rnd_req_studio") % min_studio
-			lbl_s.add_theme_font_size_override("font_size", 20)
-			lbl_s.add_theme_color_override("font_color",
-				Color(0.45, 0.88, 0.45) if ok_s else Color(0.85, 0.6, 0.4))
-			req_row.add_child(lbl_s)
+			if st_lv < min_studio: all_ok = false
+			segs.append(Locale.t("rnd_req_seg_studio") % min_studio)
+		if not segs.is_empty():
+			var lbl_req = Label.new()
+			lbl_req.text = Locale.t("rnd_req_prefix") % Locale.t("rnd_req_join").join(segs)
+			lbl_req.add_theme_font_size_override("font_size", 20)
+			lbl_req.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			lbl_req.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			lbl_req.add_theme_color_override("font_color",
+				Color(0.45, 0.88, 0.45) if all_ok else Color(0.85, 0.6, 0.4))
+			vbox.add_child(lbl_req)
 
 	# Row 2: costs / lock / assign
 	var row2 = HBoxContainer.new()
@@ -963,19 +959,19 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 		var bp_id = task_id
 		if GameState.is_blueprint_approved(bp_id):
 			var lbl_wra = Label.new()
-			lbl_wra.text = "✅ WRA Approved — ready for CNC manufacturing"
+			lbl_wra.text = Locale.t("rnd_wra_approved")
 			lbl_wra.add_theme_font_size_override("font_size", 22)
 			lbl_wra.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
 			row2.add_child(lbl_wra)
 		elif GameState.is_blueprint_submitted(bp_id):
 			var lbl_wra = Label.new()
-			lbl_wra.text = "⏳ Submitted to WRA — awaiting approval"
+			lbl_wra.text = Locale.t("rnd_wra_submitted")
 			lbl_wra.add_theme_font_size_override("font_size", 22)
 			lbl_wra.modulate = Color(0.7, 0.7, 0.4)
 			row2.add_child(lbl_wra)
 		elif bp_id in GameState.known_blueprints:
 			var btn_wra = Button.new()
-			btn_wra.text = "📋 Send to WRA for Approval →"
+			btn_wra.text = Locale.t("rnd_send_wra")
 			btn_wra.custom_minimum_size = Vector2(0, 28)
 			btn_wra.add_theme_font_size_override("font_size", 22)
 			btn_wra.pressed.connect(func():
@@ -996,27 +992,16 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 		var req_l1 = task.get("requires_l1_for", "")
 		var req_id = task.get("requires", "")
 		if task.get("pillar", 0) == 4:
-			## S35.18/S35.19 — P4 projects gate on (in order) a prerequisite task → the target
-			## BUILDING level → the R&D Design Studio level (see RnDEngine.rnd_task_unlocked).
-			## Surface whichever is unmet, in that priority order, so the card states the real reason
-			## instead of the old misleading "Complete Season 1 L1 first" fallback.
-			var bname     = task.get("building", "")
-			var min_lv    = int(task.get("min_building_level", 1))
-			var min_studio = int(task.get("Required_RnD_Studio_Level", 1))
+			## S35.21 — building + Studio gates are shown by the consolidated "Required:" line above,
+			## so here we only surface a PREREQUISITE-TASK block (which that line doesn't cover). If
+			## the only thing missing is building/studio level, no separate lock sentence is needed —
+			## the amber "Required:" line already says it. Hide this label entirely in that case.
 			var req4      = GameState.RND_TASKS.get(req_id, extra_tasks.get(req_id, {}))
 			var req4_name = req4.get("name", "") if not req4.is_empty() else ""
-			var bld       = GameState.campus_buildings.get(bname, {}) if bname != "" else {}
-			var studio    = GameState.campus_buildings.get("R&D Design Studio", {})
 			if req_id != "" and not (req_id in GameState.completed_rnd_tasks) and req4_name != "":
 				lbl_lock.text = Locale.t("rnd_lock_requires") % req4_name
-			elif bname != "" and not bld.get("built", false):
-				lbl_lock.text = Locale.t("rnd_lock_building_unbuilt") % [bname, min_lv]
-			elif bname != "" and int(bld.get("level", 0)) < min_lv:
-				lbl_lock.text = Locale.t("rnd_lock_building_level") % [bname, min_lv, int(bld.get("level", 0))]
-			elif min_studio > 1 and (not studio.get("built", false) or int(studio.get("level", 0)) < min_studio):
-				lbl_lock.text = Locale.t("rnd_lock_studio_level") % [min_studio, int(studio.get("level", 0))]
 			else:
-				lbl_lock.text = Locale.t("rnd_lock_unavailable")
+				lbl_lock.text = ""   ## building/studio reason already shown by the Required: line
 		elif req_l1 != "":
 			## S35.11 — P1 L2 gates on an L1 blueprint existing from EITHER P1 or P3.
 			lbl_lock.text = Locale.t("rnd_lock_needs_l1")
@@ -1031,7 +1016,8 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 		lbl_lock.modulate = Color(0.5, 0.5, 0.5)
 		lbl_lock.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		lbl_lock.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row2.add_child(lbl_lock)
+		if lbl_lock.text != "":
+			row2.add_child(lbl_lock)
 	else:
 		for pair in [
 			["🔵 %d RP" % task["rp"],       can_rp],
@@ -1053,15 +1039,15 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 		var btn_row = HBoxContainer.new()
 		btn_row.add_theme_constant_override("separation", 6)
 		vbox.add_child(btn_row)
-		var lbl_a = Label.new(); lbl_a.text = "Assign:"
+		var lbl_a = Label.new(); lbl_a.text = Locale.t("rnd_assign")
 		lbl_a.add_theme_font_size_override("font_size", 22)
 		lbl_a.modulate = Color(0.55, 0.55, 0.55)
 		btn_row.add_child(lbl_a)
 
 		var blockers: Array = []
-		if not can_rp: blockers.append("need %d RP (have %d)" % [task["rp"], GameState.research_points])
-		if not can_cr: blockers.append("need CR %s" % _fmt(task["cr"]))
-		if not has_free: blockers.append("no free designer")
+		if not can_rp: blockers.append(Locale.t("rnd_blk_rp") % [task["rp"], GameState.research_points])
+		if not can_cr: blockers.append(Locale.t("rnd_blk_cr") % _fmt(task["cr"]))
+		if not has_free: blockers.append(Locale.t("rnd_blk_designer"))
 		var can_start = can_rp and can_cr and has_free
 
 		if has_free:

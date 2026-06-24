@@ -1,4 +1,10 @@
 extends Node
+## Version: S35.21 — Full R&D Studio localization: ~49 new keys (rnd_title, rnd_back, tabs via
+##   p_name_1..5 / p_desc_1..5, section headers, designer/active panels, P1–P4 catalog strings,
+##   WRA status, assign blockers, consolidated rnd_req_* line). Removed 6 now-dead keys
+##   (rnd_req_building/studio, rnd_lock_building_*, rnd_lock_studio_level, rnd_lock_unavailable)
+##   superseded by the consolidated requirements line. Licensing: "Formula" → "GP" in
+##   ready_blueprint_req and sp_race_1_name (user-facing only).
 ## Version: S35.20 — Localized all 100 Pillar 4 Special Projects: added 200 keys (sp_{id}_name +
 ##   sp_{id}_desc) covering every SP_* task. RnDStudio now resolves P4 card titles/descriptions
 ##   through Locale via a task_id→key helper (raw-value fallback for missing keys / non-P4 tasks).
@@ -272,8 +278,6 @@ const STRINGS: Dictionary = {
 	"creg_button":          { "en": "🏁  Championship Registration →", },
 
 	# ── R&D Pillar 5 stub (Commercial Cars) ───────────────────────────────────
-	"p5_name":              { "en": "COMMERCIAL CARS",         },
-	"p5_desc":              { "en": "Research for the commercial car business.\nComing in a future update.", },
 	"p5_popup_title":       { "en": "🚗  Commercial Cars R&D", },
 	"p5_popup_body":        { "en": "Research for the commercial car business is coming in a future update.\n\nThis pillar will let you develop and improve the road cars your company sells, feeding the commercial market system.", },
 	"p5_catalog_stub":      { "en": "Commercial Cars R&D is coming in a future update.", },
@@ -282,12 +286,6 @@ const STRINGS: Dictionary = {
 	"rnd_lock_needs_l1":    { "en": "🔒 Design or reverse-engineer the L1 blueprint for this part first", },
 	"rnd_lock_requires":    { "en": "🔒 Requires: %s", },
 	"rnd_lock_complete_l1": { "en": "🔒 Complete Season %d L1 first", },
-	"rnd_lock_building_unbuilt": { "en": "🔒 Build the %s (needs level %d) first", },
-	"rnd_lock_building_level":   { "en": "🔒 Requires %s level %d (currently %d)", },
-	"rnd_lock_studio_level":     { "en": "🔒 Requires R&D Design Studio level %d (currently %d)", },
-	"rnd_lock_unavailable":      { "en": "🔒 Not available yet", },
-	"rnd_req_building":          { "en": "🏢 %s Lv %d", },
-	"rnd_req_studio":            { "en": "🔬 Studio Lv %d", },
 	"rnd_re_hint_short":    { "en": "💡 Unlocks P1 Design L2 for this part", },
 	"rnd_re_hint_long":     { "en": "💡 Completing a RE task unlocks P1 Design L2 for that part, and produces a blueprint you can submit to the WRA for CNC manufacturing.", },
 	"rnd_blueprint_status": { "en": "BLUEPRINT STATUS", },
@@ -449,7 +447,7 @@ const STRINGS: Dictionary = {
 	"ready_no_driver":      { "en": "No driver assigned",     },
 	"ready_no_mechanic":    { "en": "No mechanic assigned",   },
 	"ready_no_pit_crew":    { "en": "No pit crew — DNS risk", },
-	"ready_blueprint_req":  { "en": "REQUIRED (Formula)",     },
+	"ready_blueprint_req":  { "en": "REQUIRED (GP)",     },
 	"ready_blueprint_ok":   { "en": "ready ✓",              },
 
 	# ── CNC BUILD WHOLE CAR (Phase 2) ─────────────────────────────────────────
@@ -644,7 +642,7 @@ const STRINGS: Dictionary = {
 	"sp_rnd_8_desc": { "en": "+4% engine power.", },
 	"sp_rnd_9_name": { "en": "Volumetric Fluid Dynamics Intake Porting", },
 	"sp_rnd_9_desc": { "en": "+8% engine fuel efficiency.", },
-	"sp_race_1_name": { "en": "Formula 4 Flat Road Tracking Optimization", },
+	"sp_race_1_name": { "en": "GP4 Flat Road Tracking Optimization", },
 	"sp_race_1_desc": { "en": "+12% track awareness.", },
 	"sp_race_2_name": { "en": "Tire Thermal Physics Contact-Patch Surface Mapping", },
 	"sp_race_2_desc": { "en": "−10% tire degradation.", },
@@ -678,6 +676,57 @@ const STRINGS: Dictionary = {
 	"sp_fac_3_desc": { "en": "+15% weekly commercial output.", },
 	"sp_fac_4_name": { "en": "Cybernetic Smart-Factory Swarm Architecture", },
 	"sp_fac_4_desc": { "en": "+30% output and pricing power.", },
+
+	## ── R&D Design Studio UI strings — S35.21 ──────────────────────────────
+	"rnd_title": { "en": "🔬  R&D DESIGN STUDIO", },
+	"rnd_rp": { "en": "🔵 RP", },
+	"rnd_back": { "en": "← Back", },
+	"rnd_not_built": { "en": "⚠  R&D Design Studio not built.", },
+	"rnd_no_designers": { "en": "No Designers hired.", },
+	"rnd_hire_designer": { "en": "👤 Hire Designer  →  Staff", },
+	"rnd_completed": { "en": "COMPLETED  (%d)", },
+	"rnd_weeks_left": { "en": "%d weeks left", },
+	"rnd_available": { "en": "Available", },
+	"rnd_no_active": { "en": "No active research.\nSelect a task from the catalog →", },
+	"rnd_cancel": { "en": "Cancel", },
+	"rnd_no_bp_defined": { "en": "No blueprint tasks defined.", },
+	"rnd_no_bp_champ": { "en": "No blueprint tasks for this championship.", },
+	"rnd_no_cars": { "en": "No cars owned. Buy a car at the Logistics Center.", },
+	"rnd_open_parts": { "en": "Open parts (upgradeable): %s", },
+	"rnd_max_upgrade": { "en": "  %s — Max upgrade (L5) complete ✅", },
+	"rnd_no_upgrades": { "en": "No upgrade tasks available for your current cars.", },
+	"rnd_can_re": { "en": "✅ Can RE: %s", },
+	"rnd_need_buy": { "en": "🔒 Need to buy: %s", },
+	"rnd_buy_spec": { "en": "Buy spec parts at Logistics Center to unlock RE.", },
+	"rnd_no_special": { "en": "No special projects available yet.", },
+	"rnd_in_progress": { "en": "🔬 In progress", },
+	"rnd_wra_approved": { "en": "✅ WRA Approved — ready for CNC manufacturing", },
+	"rnd_wra_submitted": { "en": "⏳ Submitted to WRA — awaiting approval", },
+	"rnd_send_wra": { "en": "📋 Send to WRA for Approval →", },
+	"rnd_assign": { "en": "Assign:", },
+	"rnd_hdr_designers": { "en": "DESIGNERS", },
+	"rnd_hdr_active": { "en": "ACTIVE TASKS", },
+	"rnd_next_season": { "en": "▶ Next Season (S%d)", },
+	"rnd_next_season_mandatory": { "en": "▶ Next Season (S%d) — ⚠ MANDATORY for GP", },
+	"rnd_studio_slots_one": { "en": "Studio Lvl %d — 1 concurrent task", },
+	"rnd_studio_slots_many": { "en": "Studio Lvl %d — %d concurrent tasks", },
+	"rnd_blk_rp": { "en": "need %d RP (have %d)", },
+	"rnd_blk_cr": { "en": "need CR %s", },
+	"rnd_blk_designer": { "en": "no free designer", },
+	"rnd_req_prefix": { "en": "Required: %s", },
+	"rnd_req_join": { "en": "  &  ", },
+	"rnd_req_seg_building": { "en": "🏢 %s Lv %d", },
+	"rnd_req_seg_studio": { "en": "🔬 Studio Lv %d", },
+	"p_name_1": { "en": "DESIGN", },
+	"p_name_2": { "en": "UPGRADE", },
+	"p_name_3": { "en": "REV. ENGINEERING", },
+	"p_name_4": { "en": "SPECIAL PROJECTS", },
+	"p_name_5": { "en": "COMMERCIAL CARS", },
+	"p_desc_1": { "en": "Design blueprints for any part.\nUnlocks CNC manufacturing once approved by WRA.", },
+	"p_desc_2": { "en": "Upgrade Open parts on your owned cars.\nIn-season improvements carry to next season.", },
+	"p_desc_3": { "en": "Reverse-engineer Spec parts you own.\nTeam must have the part in the warehouse.", },
+	"p_desc_4": { "en": "Building-linked special projects.\nUnlocks unique team capabilities and bonuses.", },
+	"p_desc_5": { "en": "Research for the commercial car business.\nComing in a future update.", },
 }
 
 # ── Public API ────────────────────────────────────────────────────────────────
