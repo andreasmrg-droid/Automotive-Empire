@@ -1,4 +1,9 @@
 extends Control
+## Version: S36.8 — Bug #9/#19 (cluster A): driver standings now look up each driver's position in
+##   THEIR OWN car's championship (was the singular active_championship = GK). The championship summary
+##   panel is now a PER-CHAMPIONSHIP LIST (one block per registered championship: name/discipline/
+##   round/cars) instead of showing only GK, and gained a Racing World button. Uses GameState
+##   get_championship_by_id() / player_registered_championships.
 ## Version: S32.3 — TP panel now uses GameState.peek_tp_proposals() (read-only compute, no
 ##   notification/TDL) instead of generate_tp_assignment_proposals(), which re-fired the TP
 ##   notification + TDL every time the panel was built. Pairs with the engine S32.3
@@ -295,15 +300,20 @@ func _build_driver_card(driver) -> PanelContainer:
 	car_lbl.add_theme_font_size_override("font_size", 24)
 	row2.add_child(car_lbl)
 
-	# Championship standing
-	var sorted = GameState.active_championship.get_standings_sorted()
+	# Championship standing — look up in the driver's OWN car's championship, not the
+	# singular active_championship (= GK). (Cluster A, Bug #9/#19.)
 	var pos = 0
 	var pts = 0
-	for i in range(sorted.size()):
-		if sorted[i]["driver_id"] == driver.id:
-			pos = i + 1
-			pts = sorted[i]["points"]
-			break
+	var dcar = GameState.get_car_for_driver(driver.id)
+	if dcar and dcar.championship_id != "":
+		var dchamp = GameState.get_championship_by_id(dcar.championship_id)
+		if dchamp:
+			var sorted = dchamp.get_standings_sorted()
+			for i in range(sorted.size()):
+				if sorted[i]["driver_id"] == driver.id:
+					pos = i + 1
+					pts = sorted[i]["points"]
+					break
 	var lbl_champ = Label.new()
 	lbl_champ.text = "P%d  ·  %d pts" % [pos, pts] if pos > 0 else "Not in standings"
 	lbl_champ.add_theme_font_size_override("font_size", 24)
@@ -454,19 +464,48 @@ func _build_champ_panel() -> PanelContainer:
 	vbox.add_theme_constant_override("separation", 8)
 	panel.add_child(vbox)
 
-	var champ = GameState.active_championship
+	## Per-championship list (cluster A, Bug #9/#19): the player's racing programme spans
+	## multiple series, so list every registered championship instead of the singular
+	## active_championship (= GK). (Resolved via player_registered_championships.)
+	var player_champs: Array = []
+	for cid in GameState.player_registered_championships:
+		var pc = GameState.get_championship_by_id(cid)
+		if pc:
+			player_champs.append(pc)
 
-	var rows = [
-		["Championship", champ.championship_name],
-		["Discipline",   champ.discipline],
-		["Races",        "%d rounds" % champ.num_races],
-		["Round",        "%d / %d" % [champ.current_round, champ.num_races]],
-		["Drivers",      "%d signed" % GameState.player_team.drivers.size()],
-		["Cars",         "%d built" % GameState.player_team_cars.size()],
-	]
+	var hdr = Label.new()
+	hdr.text = "🏆 Your Championships (%d)" % player_champs.size()
+	hdr.add_theme_font_size_override("font_size", 28)
+	hdr.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
+	vbox.add_child(hdr)
 
-	for row in rows:
-		vbox.add_child(_stat_row(row[0], row[1]))
+	if player_champs.is_empty():
+		var none_lbl = Label.new()
+		none_lbl.text = "No championship registrations this season. Register at HQ → World Racing Association."
+		none_lbl.add_theme_font_size_override("font_size", 24)
+		none_lbl.modulate = Color(0.6, 0.6, 0.6)
+		none_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		vbox.add_child(none_lbl)
+	else:
+		for pc in player_champs:
+			vbox.add_child(HSeparator.new())
+			var cars_in = GameState.player_team_cars.filter(
+				func(c): return c.championship_id == pc.id).size()
+			vbox.add_child(_stat_row("Championship", pc.championship_name))
+			vbox.add_child(_stat_row("Discipline", pc.discipline))
+			vbox.add_child(_stat_row("Round", "%d / %d" % [pc.current_round, pc.num_races]))
+			vbox.add_child(_stat_row("Cars", "%d built" % cars_in))
+
+	vbox.add_child(HSeparator.new())
+	## Racing World button (added per request — quick jump to the world standings/calendar).
+	var btn_rw = Button.new()
+	btn_rw.text = Locale.t("rw_btn")
+	btn_rw.custom_minimum_size = Vector2(0, 36)
+	btn_rw.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_rw.add_theme_font_size_override("font_size", 24)
+	btn_rw.pressed.connect(func():
+		get_tree().change_scene_to_file("res://scenes/RacingWorld.tscn"))
+	vbox.add_child(btn_rw)
 
 	# DNS risk warning
 	var dns_risks = 0

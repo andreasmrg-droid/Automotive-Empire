@@ -1,4 +1,10 @@
 extends Control
+## Version: S36.7 — Bug #9/#19 (cluster A): the "Race Strategist not required" gate now checks the
+##   player's ACTUAL championships (via get_player_championships) instead of active_championship
+##   (=world-[0]=GK). Strategists are shown unless every championship the player races is GK or Rally
+##   (per GDD §9-G) — fixes both the GP-player-told-not-required case and the Rally exclusion the old
+##   GK-only gate missed. The per-championship ASSIGNMENT button is DEFERRED to the staff-assignment
+##   cluster (with TP #40) and still binds to active_championship for now (marked in-code).
 ## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
 ##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S15.2 — Effects panel clarifies Strategist vs Designer slots.
@@ -103,10 +109,21 @@ func _refresh_strategists() -> void:
 	for c in _strategist_container.get_children():
 		c.queue_free()
 
-	var discipline = GameState.active_championship.discipline
-	if discipline == "GK":
+	## Display gate (cluster A, Bug #9/#19): "Strategist not required" should reflect whether the
+	## player ACTUALLY races only GK — not whether active_championship (=world-[0]) is GK. Strategists
+	## aren't used in GK or Rally (per the staff spec). If every championship the player races is
+	## GK/Rally, the strategist screen isn't relevant; otherwise show the strategists.
+	## NOTE: the per-championship ASSIGNMENT button below is deferred to the staff-assignment cluster
+	## (with TP #40) — it still binds to active_championship for now.
+	var player_champs = GameState.get_player_championships()
+	var needs_strategist = false
+	for champ in player_champs:
+		if champ.discipline != "GK" and champ.discipline != "Rally":
+			needs_strategist = true
+			break
+	if not needs_strategist:
 		var lbl = Label.new()
-		lbl.text = "Race Strategist not required for Go-Karting championships."
+		lbl.text = "Race Strategist not required for your current championships (GK / Rally)."
 		lbl.modulate = Color(0.55, 0.55, 0.55)
 		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_strategist_container.add_child(lbl)
@@ -152,6 +169,9 @@ func _build_strategist_card(strat) -> PanelContainer:
 	vbox.add_child(stats_row)
 
 	# Assignment
+	## DEFERRED (staff-assignment cluster, with TP #40): this binds the strategist to
+	## active_championship (= world-[0] = GK). Correct behaviour is per-championship assignment
+	## (the player picks which of their championships). Left as-is intentionally for that pass.
 	var champ = GameState.active_championship
 	var assigned = strat.assigned_championship == champ.id
 	var assign_row = HBoxContainer.new()
