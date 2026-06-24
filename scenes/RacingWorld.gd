@@ -1,4 +1,10 @@
 extends Control
+## Version: S37.2 — GK results now visible in the Racing World "world card" for non-GK careers.
+##   The GK championship's champ.standings only ever holds the player's group-0 snapshot (reset to
+##   0 each round by _sync_gk_group0_to_standings), so the world card showed an empty/zero leader —
+##   GK looked resultless. _build_world_card now special-cases C-001: it reads the GK champion (once
+##   decided) or an indicative mid-season front-runner from GKDiscipline's shadow standings via the
+##   new _gk_world_leader() helper, plus GK round progress. Non-GK championships are unchanged.
 ## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
 ##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S28.3 — GK "Your Group" reads GKDiscipline.get_standings() (player group only)
@@ -461,18 +467,54 @@ func _build_world_card(cid: String, champ,
 
 	if champ != null:
 		## Running this season — show leader
-		lbl_sub.text = "Round %d/%d" % [champ.current_round, champ.num_races]
-		info.add_child(lbl_sub)
-		var sorted = champ.get_standings_sorted()
-		if sorted.size() > 0:
-			var leader_d = GameState.all_drivers.get(sorted[0]["driver_id"])
-			var lbl_leader = Label.new()
-			lbl_leader.text = "Leader: %s  ·  %d pts" % [
-				leader_d.full_name() if leader_d else sorted[0]["driver_id"],
-				sorted[0]["points"]]
-			lbl_leader.add_theme_font_size_override("font_size", 22)
-			lbl_leader.modulate = Color(0.6, 0.6, 0.6)
-			info.add_child(lbl_leader)
+		if cid == "C-001" and GameState.gk_discipline != null:
+			## GK special case (S37.2): the GK championship's champ.standings only ever holds the
+			## player's group-0 snapshot (reset to 0 each round by _sync_gk_group0_to_standings),
+			## so reading it here showed an empty/zero "leader" — GK looked resultless in the world
+			## view for a non-GK career. The real GK field + champion live in GKDiscipline's shadow
+			## standings, so read those instead.
+			var gkd = GameState.gk_discipline
+			var champ_entry: Dictionary = gkd.get_champion()  ## non-empty only once decided
+			if not champ_entry.is_empty():
+				lbl_sub.text = "Season complete"
+				info.add_child(lbl_sub)
+				var champ_d = GameState.all_drivers.get(champ_entry.get("driver_id", ""))
+				var lbl_champ = Label.new()
+				lbl_champ.text = "🏆 Champion: %s  ·  %d pts" % [
+					champ_d.full_name() if champ_d else champ_entry.get("driver_id", "Unknown"),
+					champ_entry.get("points", 0)]
+				lbl_champ.add_theme_font_size_override("font_size", 22)
+				lbl_champ.modulate = Color(0.65, 0.6, 0.45)
+				info.add_child(lbl_champ)
+			else:
+				## Mid-season: show GK round progress + an indicative leader (top driver across all
+				## shadow groups in the current round). GK is elimination-based, so this is the
+				## current front-runner, not a cumulative points table.
+				lbl_sub.text = "GK Round %d/%d" % [gkd.get_current_round(), gkd.get_round_count()]
+				info.add_child(lbl_sub)
+				var gk_leader := _gk_world_leader(cid)
+				if not gk_leader.is_empty():
+					var gl_d = GameState.all_drivers.get(gk_leader.get("driver_id", ""))
+					var lbl_leader = Label.new()
+					lbl_leader.text = "Top: %s  ·  %d pts" % [
+						gl_d.full_name() if gl_d else gk_leader.get("driver_id", ""),
+						gk_leader.get("points", 0)]
+					lbl_leader.add_theme_font_size_override("font_size", 22)
+					lbl_leader.modulate = Color(0.6, 0.6, 0.6)
+					info.add_child(lbl_leader)
+		else:
+			lbl_sub.text = "Round %d/%d" % [champ.current_round, champ.num_races]
+			info.add_child(lbl_sub)
+			var sorted = champ.get_standings_sorted()
+			if sorted.size() > 0:
+				var leader_d = GameState.all_drivers.get(sorted[0]["driver_id"])
+				var lbl_leader = Label.new()
+				lbl_leader.text = "Leader: %s  ·  %d pts" % [
+					leader_d.full_name() if leader_d else sorted[0]["driver_id"],
+					sorted[0]["points"]]
+				lbl_leader.add_theme_font_size_override("font_size", 22)
+				lbl_leader.modulate = Color(0.6, 0.6, 0.6)
+				info.add_child(lbl_leader)
 	else:
 		## Not running this season
 		lbl_sub.text = "Not active this season"
@@ -489,6 +531,20 @@ func _build_world_card(cid: String, champ,
 	return panel
 
 ## ── Helpers ───────────────────────────────────────────────────────────────────
+
+## GK indicative leader for the world card: the top-points driver across ALL shadow groups in the
+## current round (GK is elimination-based, so this is the current front-runner, not a season table).
+func _gk_world_leader(cid: String) -> Dictionary:
+	var gkd = GameState.gk_discipline
+	if gkd == null: return {}
+	var groups: Array = gkd.get_all_standings(cid)
+	var best: Dictionary = {}
+	for group in groups:
+		for entry in group:
+			if best.is_empty() or entry.get("points", 0) > best.get("points", -1):
+				best = entry
+	return best.duplicate() if not best.is_empty() else {}
+
 
 func _player_in_championship(champ: Championship) -> bool:
 	## Player is "in" a championship if they have a car registered to it

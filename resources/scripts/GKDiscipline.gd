@@ -1,5 +1,7 @@
 extends Resource
 class_name GKDiscipline
+## Version: S37.2 — Added get_round_count() accessor (total GK rounds) for the Racing World world
+##   card "GK Round X / N" display. No behavioural change to the sim.
 ## Version: S37.1 — CP4 follow-up: populate_season() no longer forces every player driver into GK
 ##   group 0. It now seeds group 0 only with drivers that ACTUALLY race GK — the player must be
 ##   registered in C-001 AND the driver must be on a GK car (discipline fallback during the season-
@@ -421,6 +423,11 @@ func get_group_count(_champ_id: String) -> int:
 
 func get_current_round() -> int:
 	return current_round + 1  ## 1-indexed for display
+
+
+## Total number of GK rounds in a season (for "Round X / N" display).
+func get_round_count() -> int:
+	return ROUNDS.size()
 
 
 ## S28.3 (Bug 1): true once the final round has been completed (current_round past last).
