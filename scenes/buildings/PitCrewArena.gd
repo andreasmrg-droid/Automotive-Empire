@@ -1,4 +1,9 @@
 extends Control
+## Version: S36.13 — Bug #9/#19 (cluster A): the "Pit Crew not required" gate now checks the
+##   player's ACTUAL championships via get_player_championships() + get_pit_crew_required(), instead
+##   of scanning active_championships (the world always contains non-GK series, so the old check was
+##   always true and the message never showed for a GK-only team). Now uses the authoritative
+##   PIT_CREW_REQUIRED rule rather than a hardcoded "non-GK".
 ## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
 ##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S28.3 — Fixed crash: Pit Crew "teamwork" stat (removed) → "fatigue_resistance".
@@ -41,16 +46,18 @@ func _build_ui() -> void:
 	header.add_child(btn_back)
 	root.add_child(HSeparator.new())
 
-	# Discipline check
-	# Show pit crew if player has ANY non-GK championship
-	var has_non_gk = false
-	for champ in GameState.active_championships:
-		if champ.discipline != "GK":
-			has_non_gk = true
+	# Discipline check (cluster A, Bug #9/#19): show the "not required" message based on the
+	# player's ACTUAL championships, not active_championships (the world always contains non-GK
+	# series, so the old check was always true and the message never appeared for a GK-only team).
+	# Pit crew is required where get_pit_crew_required() is true (same rule the car list uses).
+	var needs_pit_crew = false
+	for champ in GameState.get_player_championships():
+		if GameState.get_pit_crew_required(champ.id):
+			needs_pit_crew = true
 			break
-	if not has_non_gk:
+	if not needs_pit_crew:
 		var lbl_gk = Label.new()
-		lbl_gk.text = "Pit Crew not required for Go-Karting championships.\nThis building will be active when racing in non-GK disciplines."
+		lbl_gk.text = "Pit Crew not required for your current championships.\nThis building activates when you race a championship that needs a pit crew."
 		lbl_gk.modulate = Color(0.55, 0.55, 0.55)
 		lbl_gk.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		root.add_child(lbl_gk)
