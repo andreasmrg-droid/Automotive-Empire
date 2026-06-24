@@ -1,4 +1,12 @@
 class_name RaceSimulator
+## Version: S37.0 — CP4 (closes cluster A): per-race fuel/SP/condition reads no longer go through the
+##   singular gs.active_championship (which was always GK). can_car_race() reads the CAR's
+##   championship fuel rate; _update_driver_stats_after_race() takes the raced `champ` for total_races
+##   (adaptation pacing); consume_race_resources(champ) and degrade_car_conditions(…, champ) are
+##   scoped to the raced championship's cars/rates (a GK race no longer burns fuel for / wears a
+##   parked GP car); auto_repair_cars_post_race() reads SP rate PER-CAR from each car's championship.
+##   simulate_race() already received `champ` — this threads it the rest of the way down. All new
+##   params are optional (fall back to active_championship, now itself correct) so wrappers are intact.
 ## Version: S35.2 — DNS notification collapse. Every pre-race DNS notification (no fuel, undelivered
 ##   car, no mechanic, no driver, no pit crew) now carries a `subject` (NotificationManager S35.1)
 ##   so it collapses to its current-race-week instance instead of stacking one per race week. This
@@ -44,17 +52,19 @@ func check_race_requirements_for(champ: Championship) -> void:
 ## DNS check — returns true if the car CAN race, false if DNS.
 func can_car_race(driver_id: String) -> bool:
 	var car = gs.get_car_for_driver(driver_id)
+	if car == null:
+		return false
 
-	# DNS: no fuel
-	var fuel_needed = gs.active_championship.fuel_per_car_per_race
+	# DNS: no fuel. CP4 — read the fuel rate from the CAR's championship, not the singular
+	# active_championship (which was always GK and produced wrong thresholds for non-GK cars).
+	var car_champ: Championship = gs.get_championship_by_id(car.championship_id)
+	var fuel_needed = car_champ.fuel_per_car_per_race if car_champ != null else gs.active_championship.fuel_per_car_per_race
+	var fuel_champ_id = car_champ.id if car_champ != null else gs.active_championship.id
 	if gs.fuel_kg < fuel_needed:
 		gs.add_notification("Critical",
 			"DNS: Not enough fuel (%.1f kg). Need %.1f kg. Buy fuel at Logistics Center." % [
-				gs.fuel_kg, fuel_needed], "logistics", "dns_fuel_%s" % gs.active_championship.id)
+				gs.fuel_kg, fuel_needed], "logistics", "dns_fuel_%s" % fuel_champ_id)
 		gs.add_log("🚫 DNS — Insufficient fuel for race start.")
-		return false
-
-	if car == null:
 		return false
 
 	# DNS: car not yet delivered (in build / in transit) — Phase 2
@@ -338,7 +348,7 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 		driver_times[i]["prize"] = entry_prize
 		driver_times[i]["is_player"] = driver.id in gs.player_team.drivers
 
-		_update_driver_stats_after_race(driver, standing_position, race_data["laps"], is_wet, race_drivers.size(), race_data.get("track_id", ""))
+		_update_driver_stats_after_race(driver, standing_position, race_data["laps"], is_wet, race_drivers.size(), race_data.get("track_id", ""), c)
 
 		if driver.id in pre_race_stats:
 			var pre = pre_race_stats[driver.id]
@@ -424,12 +434,12 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 			})
 
 	# ── Car degradation ──────────────────────────────────────────────────
-	degrade_car_conditions(race_data["laps"], dns_driver_ids)
+	degrade_car_conditions(race_data["laps"], dns_driver_ids, c)
 
 	# Consume fuel and earn RP — only for player's own championships
 	## Bug 13 fix: designers were earning RP from all 24 championships
 	if c.id in gs.player_registered_championships:
-		consume_race_resources()
+		consume_race_resources(c)
 		earn_race_rp(race_data["laps"])
 
 	# Season ends at week 52 regardless
@@ -463,7 +473,7 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 # POST-RACE: DRIVER STAT GROWTH
 # ═══════════════════════════════════════════════════════════════════════════
 
-func _update_driver_stats_after_race(driver: Driver, standing_position: int, laps: int, is_wet: bool, grid_size: int, track_id: String = "") -> void:
+func _update_driver_stats_after_race(driver: Driver, standing_position: int, laps: int, is_wet: bool, grid_size: int, track_id: String = "", champ: Championship = null) -> void:
 	var fitness_drop = laps * 0.4
 	driver.fitness = max(0.0, driver.fitness - fitness_drop)
 
@@ -483,7 +493,8 @@ func _update_driver_stats_after_race(driver: Driver, standing_position: int, lap
 		driver.update_track_knowledge(track_id, tk_gain)
 
 	driver.update_marketability_after_race(standing_position, grid_size, false)
-	var total_races = gs.active_championship.num_races
+	## CP4 — adaptation pacing reads THIS race's championship length, not GK's via the singular getter.
+	var total_races = champ.num_races if champ != null else gs.active_championship.num_races
 	driver.update_adaptation_after_race(gs.current_season, total_races)
 
 	var improvement = 0.1 + randf_range(0.0, 0.2)
@@ -554,12 +565,15 @@ func _update_staff_stats_after_race(_laps: int, track_id: String = "") -> void:
 # POST-RACE: RESOURCES & CAR CONDITION
 # ═══════════════════════════════════════════════════════════════════════════
 
-func consume_race_resources() -> void:
-	if gs.active_championship == null:
+func consume_race_resources(champ: Championship = null) -> void:
+	## CP4 — fuel is consumed for the cars in the championship that ACTUALLY raced (champ),
+	## not the singular active_championship (= GK). Falls back for backward compatibility.
+	var c: Championship = champ if champ != null else gs.active_championship
+	if c == null:
 		return
 	var cars_raced = 0
 	for car in gs.player_team_cars:
-		if car.championship_id != gs.active_championship.id:
+		if car.championship_id != c.id:
 			continue
 		if car.driver_id == "":
 			continue
@@ -570,12 +584,12 @@ func consume_race_resources() -> void:
 				break
 		if not was_dns:
 			cars_raced += 1
-	var fuel_used = gs.active_championship.fuel_per_car_per_race * cars_raced
+	var fuel_used = c.fuel_per_car_per_race * cars_raced
 	if fuel_used > 0.0:
 		gs.fuel_kg -= fuel_used
 		gs.fuel_kg = max(gs.fuel_kg, 0.0)
 		gs.add_log("⛽ Fuel used: %.1f kg × %d car%s (stock: %.1f kg)" % [
-			gs.active_championship.fuel_per_car_per_race, cars_raced,
+			c.fuel_per_car_per_race, cars_raced,
 			"s" if cars_raced != 1 else "", gs.fuel_kg])
 	else:
 		gs.add_log("⛽ Fuel used: 0.0 kg (no cars started)")
@@ -599,9 +613,15 @@ func earn_race_rp(laps: int) -> void:
 	gs.add_log("🔬 RP gained: %.0f (total: %.0f / %d)" % [rp_gained, gs.research_points, rp_cap])
 
 
-func degrade_car_conditions(laps: int, dns_driver_ids: Array = []) -> void:
-	var loss = gs.active_championship.condition_loss_per_lap * float(laps)
+func degrade_car_conditions(laps: int, dns_driver_ids: Array = [], champ: Championship = null) -> void:
+	## CP4 — condition loss reads the RACED championship's rate, and only that championship's
+	## cars degrade (a GK race no longer wears down a parked GP car). Falls back to the singular
+	## active_championship when no champ is supplied (backward compatibility).
+	var c: Championship = champ if champ != null else gs.active_championship
+	var loss = c.condition_loss_per_lap * float(laps)
 	for car in gs.player_team_cars:
+		if c != null and car.championship_id != c.id:
+			continue  ## not in the championship that just raced — untouched
 		if car.driver_id == "" or car.driver_id in dns_driver_ids:
 			gs.add_log("🔩 Car %d condition unchanged (DNS)" % car.car_number)
 			continue
@@ -638,7 +658,10 @@ func auto_repair_cars_post_race() -> void:
 		gs.add_log("🔧 Season's last race — no auto-repair. Cars will be serviced in the off-season.")
 		return
 
-	var sp_rate = gs.active_championship.sp_per_10_pct_damage
+	## CP4 — SP cost per repair is read PER-CAR from that car's own championship's
+	## sp_per_10_pct_damage, not the singular active_championship (= GK). Cars span multiple
+	## championships, so one global rate was wrong for every non-GK car.
+	var fallback_sp_rate = gs.active_championship.sp_per_10_pct_damage
 	var any_failed = false
 	var failed_car_names: Array = []
 
@@ -653,6 +676,9 @@ func auto_repair_cars_post_race() -> void:
 			any_failed = true
 			failed_car_names.append("Car %d (no mechanic)" % car.car_number)
 			continue
+
+		var car_champ: Championship = gs.get_championship_by_id(car.championship_id)
+		var sp_rate = car_champ.sp_per_10_pct_damage if car_champ != null else fallback_sp_rate
 
 		var sp_needed = int(ceil(damage / 10.0) * sp_rate)
 

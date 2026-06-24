@@ -1,5 +1,12 @@
 extends Resource
 class_name GKDiscipline
+## Version: S37.1 — CP4 follow-up: populate_season() no longer forces every player driver into GK
+##   group 0. It now seeds group 0 only with drivers that ACTUALLY race GK — the player must be
+##   registered in C-001 AND the driver must be on a GK car (discipline fallback during the season-
+##   rollover car-wipe window). New player_in_gk flag records whether the player races GK this
+##   season; when false, group 0 is an ordinary AI group: shadow_simulate_week() no longer skips it
+##   as "the real sim handles it", so it (and the Grand Final) are simulated by the shadow sim. This
+##   stops a non-GK (e.g. GP4) career from seeing a stray GK result screen. player_in_gk persisted.
 ## Version: S36.18 — GK final-weekend redesign. ROUNDS now 8/7/5/2 races; final round carries
 ##   semi_qualify_per_group:10. New apply_semifinal_cut(): after the Semi-Final, keep the top 10
 ##   per group across the 2 final groups and collapse them into ONE 20-driver Grand Final group
@@ -47,6 +54,12 @@ var current_round: int = 0
 ## Player's group index within current round
 var player_group: int = 0
 
+## CP4 follow-up — true only when the player ACTUALLY races GK this season (has a GK car with a
+## driver). When false, group 0 is an ordinary all-AI group: the shadow sim simulates it like any
+## other (it is NOT skipped as "the real sim handles it"), and no GK result screen is queued for
+## the player. Set in populate_season; persisted in save/load.
+var player_in_gk: bool = false
+
 ## Eliminated driver ids — cannot advance
 var eliminated: Dictionary = {}
 
@@ -62,6 +75,7 @@ func _init() -> void:
 	shadow_standings = []
 	current_round  = 0
 	player_group   = 0
+	player_in_gk   = false
 	eliminated     = {}
 	player_elimination_announced = false
 
@@ -72,10 +86,10 @@ func populate_season(
 		all_drivers:              Dictionary,
 		_all_staff:               Dictionary,
 		player_driver_ids:        Array,
-		_registered_champ_ids:    Array,
+		registered_champ_ids:     Array,
 		_calendars:               Dictionary,
 		_season:                  int,
-		_player_cars:             Array) -> void:
+		player_cars:              Array) -> void:
 
 	## Reset for new season
 	group_drivers    = []
@@ -83,6 +97,38 @@ func populate_season(
 	current_round    = 0
 	eliminated       = {}
 	player_elimination_announced = false
+	player_in_gk     = false
+
+	## CP4 follow-up — only place player drivers into a GK group if the player ACTUALLY races GK.
+	## Previously ALL player_driver_ids were forced into group 0 regardless of the player's
+	## discipline, so a GP4 (or any non-GK) career still had its drivers seeded into GK group 0.
+	## That made the GK championship's standings contain a player driver, which in turn made
+	## RaceSimulator queue a GK result screen for a non-GK player (the "GK is still there" symptom).
+	##
+	## A player driver belongs in a GK group only when the player is registered in GK (C-001) AND
+	## that driver actually races GK. "Races GK" is read from the car assignment when cars exist
+	## (the authoritative signal), with a discipline fallback for the season-rollover window where
+	## the previous season's cars have been / are about to be wiped (populate runs around the car
+	## reset). If the player isn't registered in GK, the set is empty and the player never enters GK.
+	var gk_player_driver_ids: Array = []
+	if "C-001" in registered_champ_ids:
+		var gk_assigned_driver_ids: Array = []
+		for car in player_cars:
+			if car.championship_id == "C-001" and car.driver_id != "":
+				gk_assigned_driver_ids.append(car.driver_id)
+		var have_gk_car = not gk_assigned_driver_ids.is_empty()
+		for pid in player_driver_ids:
+			if have_gk_car:
+				## Cars present: trust the explicit GK car assignment.
+				if pid in gk_assigned_driver_ids:
+					gk_player_driver_ids.append(pid)
+			else:
+				## No GK car yet (rollover window): fall back to the driver's active discipline so a
+				## GK career isn't dropped from its own groups just because cars haven't been rebought.
+				var d = all_drivers.get(pid)
+				if d != null and d.active_discipline == "GK":
+					gk_player_driver_ids.append(pid)
+	player_in_gk = not gk_player_driver_ids.is_empty()
 
 	## Collect all eligible GK drivers — exclude filler drivers (T-FILL/D-FILL)
 	var candidates: Array = []
@@ -115,14 +161,14 @@ func populate_season(
 		grp_list.append([])
 		stand_list.append([])
 
-	## Player drivers go into group 0 first
+	## Player drivers go into group 0 first (only those that actually race GK — see filter above).
 	var flat: Array = candidates.map(func(c): return c["driver_id"])
-	for pid in player_driver_ids:
+	for pid in gk_player_driver_ids:
 		flat.erase(pid)
 
 	## Fill group 0 with player + some AI
 	var g0_target = base + (1 if 0 < extras else 0)
-	for pid in player_driver_ids:
+	for pid in gk_player_driver_ids:
 		grp_list[0].append(pid)
 		stand_list[0].append({"driver_id": pid, "points": 0, "wins": 0, "races": 0})
 
@@ -168,7 +214,10 @@ func shadow_simulate_week(week: int, all_drivers: Dictionary) -> Dictionary:
 	var stand_list = shadow_standings[current_round]
 
 	for g in range(grp_list.size()):
-		if g == player_group: continue  ## Skip player's group — real sim handles it
+		## Skip the player's group ONLY when the player actually races GK — then the real race sim
+		## handles group 0. When the player is NOT in GK, group 0 is an ordinary AI group and must
+		## be simulated here, or it would go unraced all season.
+		if player_in_gk and g == player_group: continue
 		if grp_list[g].is_empty(): continue
 
 		## Score each driver and shuffle slightly for randomness
@@ -422,6 +471,7 @@ func serialize() -> Dictionary:
 	return {
 		"current_round":   current_round,
 		"player_group":    player_group,
+		"player_in_gk":    player_in_gk,
 		"group_drivers":   group_drivers,
 		"shadow_standings":shadow_standings,
 		"eliminated":      eliminated,
@@ -431,6 +481,7 @@ func serialize() -> Dictionary:
 func deserialize(data: Dictionary) -> void:
 	current_round    = data.get("current_round",   0)
 	player_group     = data.get("player_group",    0)
+	player_in_gk     = data.get("player_in_gk",    false)
 	group_drivers    = data.get("group_drivers",   [])
 	shadow_standings = data.get("shadow_standings",[])
 	eliminated       = data.get("eliminated",      {})

@@ -1,4 +1,10 @@
 class_name DriverManager
+## Version: S37.0 — CP4 (closes cluster A): stopped writing newly-signed drivers into the singular
+##   active_championship.standings (= GK). hire_driver() no longer registers any standings entry — a
+##   driver with no car belongs to no championship and is added to the CORRECT one when assigned to a
+##   car (CarManager.assign_driver_to_car), per Rule #6. _find_and_sign_starting_driver() now
+##   registers the starter into THEIR car's championship (player_team_cars[0].championship_id, set at
+##   setup) instead of GK, so a non-GK starter (e.g. GP4) appears in the right table from race 1.
 ## Version: S33.1 — Added regenerate_gk_field(): tops up the contracted GK racing field with new
 ##   young cadets at season rollover (GK = the feeder/birthplace; other championships fill gaps
 ##   from the existing pool). Assigns each new cadet to a GK (C-001) AI team so populate_season
@@ -49,7 +55,10 @@ func hire_driver(driver_id: String) -> bool:
 	driver.contract_team = gs.player_team.id
 	driver.contract_seasons_remaining = 5
 	gs.player_team.drivers.append(driver_id)
-	gs.active_championship.standings[driver_id] = 0
+	## CP4 — do NOT write into active_championship.standings (= GK) here. A freshly-hired driver
+	## has no car yet, so they belong to no championship. They are added to the CORRECT
+	## championship's standings when assigned to a car (CarManager.assign_driver_to_car). Writing
+	## GK here was the source of non-GK drivers polluting the GK table.
 	gs.add_log("✅ Signed %s — contract: 5 seasons. Assign them to a car in the Drivers screen." % driver.full_name())
 	gs.add_notification("Normal", "%s signed. Build a car in the Garage, then assign them." % driver.full_name())
 	gs._fire_assignment_proposals()
@@ -128,8 +137,15 @@ func _find_and_sign_starting_driver(discipline: String, champ_id: String) -> Dri
 	pick.podium_bonus  = int(sal * 52 * 0.1)
 	pick.release_clause = int(pick.weekly_salary * 8)  ## 8 weeks salary as default clause
 	gs.player_team.drivers.append(pick.id)
-	if gs.active_championship != null:
-		gs.active_championship.standings[pick.id] = 0
+	## CP4 — register the starting driver into THEIR car's championship standings, not the singular
+	## active_championship (= GK). Setup assigns this driver to player_team_cars[0] directly (it
+	## bypasses CarManager.assign_driver_to_car), so we mirror that registration here using the
+	## car's actual championship. Without this, a GP4 starter never appeared in the GP4 table.
+	if not gs.player_team_cars.is_empty():
+		var start_champ_id = gs.player_team_cars[0].championship_id
+		var start_champ = gs.get_championship_by_id(start_champ_id)
+		if start_champ != null:
+			start_champ.standings[pick.id] = 0
 	return pick
 
 ## ═══ CAR MANAGER — delegated to CarManager.gd (S27) ═══

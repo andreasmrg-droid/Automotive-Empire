@@ -1,4 +1,10 @@
 class_name CarManager
+## Version: S37.0 — CP4 (closes cluster A): manual repair_car() reads the SP-per-10%-damage rate from
+##   THIS car's championship (get_championship_by_id(car.championship_id)) instead of the singular
+##   gs.active_championship (= GK). Cars span multiple championships, so a single global rate was
+##   wrong for every non-GK car. assign_driver_to_car() was already correct (it registers the driver
+##   into the car's championship standings) — that is now the SINGLE registration point cluster-A
+##   relies on, after DriverManager/ContractEngine stopped writing GK at sign time.
 ## Version: S35.11 — Installed CNC parts now store `level` + R&D `value` (via _installed_part_*
 ##   helpers) so get_cnc_part_bonus can scale the on-track bonus by what the part actually is.
 ## Version: S30.3 — Phase 2: add_car sets delivery state. A real in-season purchase
@@ -333,7 +339,9 @@ func repair_car(driver_id: String, repair_pct: float) -> bool:
 	if actual_repair <= 0.0:
 		gs.add_notification("Normal", "Car is already at full condition.")
 		return false
-	var sp_rate = gs.active_championship.sp_per_10_pct_damage
+	## CP4 — SP cost read from THIS car's championship, not the singular active_championship (= GK).
+	var car_champ: Championship = gs.get_championship_by_id(car.championship_id)
+	var sp_rate = car_champ.sp_per_10_pct_damage if car_champ != null else gs.active_championship.sp_per_10_pct_damage
 	var sp_cost = int(ceil(actual_repair / 10.0) * sp_rate)
 	if gs.spare_parts < sp_cost:
 		gs.add_notification("High",

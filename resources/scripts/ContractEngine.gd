@@ -1,4 +1,9 @@
 class_name ContractEngine
+## Version: S37.0 — CP4 (closes cluster A): immediate driver signing no longer writes the new driver
+##   into active_championship.standings (= GK). A just-signed driver has no car, so they join the
+##   correct championship's standings at car assignment (CarManager.assign_driver_to_car), per Rule
+##   #6 (cars race; drivers are assigned to cars). The "Assign them to a car in the Garage"
+##   notification already directs the player there. Mirrors the same fix in DriverManager.
 ## Version: S35.9 — Interest model rework. PERSON interest is now DETERMINISTIC + binary
 ##   (is_subject_interested) — the single source of truth shared by the "Interested Only" filter
 ##   AND the approach, so they always agree (the old split: deterministic filter vs randf()
@@ -1467,8 +1472,9 @@ func _apply_negotiation_result(neg: Dictionary, accepted: bool) -> void:
 			driver.release_clause      = terms.get("release_clause", 0)
 			if not neg["subject_id"] in gs.player_team.drivers:
 				gs.player_team.drivers.append(neg["subject_id"])
-				if gs.active_championship:
-					gs.active_championship.standings[neg["subject_id"]] = 0
+				## CP4 — no active_championship.standings (= GK) write here. A newly-signed driver
+				## has no car; they join the CORRECT championship's standings when assigned to a car
+				## (CarManager.assign_driver_to_car). The notification below tells the player to do so.
 			gs.add_log("✅ %s signed: CR %.0f/wk, %d seasons, Win:CR %s, Podium:CR %s" % [
 				driver.full_name(), driver.weekly_salary, driver.contract_seasons_remaining,
 				gs._fmt_int(driver.win_bonus), gs._fmt_int(driver.podium_bonus)])

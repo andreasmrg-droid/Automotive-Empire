@@ -1,4 +1,23 @@
 extends Node
+## Version: S37.1 — CP4 follow-up: fixed "GK is still there" for non-GK careers. Root cause was in
+##   GKDiscipline.populate_season(), which forced ALL player drivers into GK group 0 regardless of
+##   discipline — so a GP4 player still had a driver in GK's standings, and the weekly loop both
+##   ran the player's "GK race" AND queued a GK result screen. Now: (1) GKDiscipline only seeds GK
+##   group 0 with drivers that actually race GK (new player_in_gk flag); (2) the weekly loop skips
+##   the real _simulate_race for C-001 when the player isn't in GK (the shadow sim covers group 0,
+##   avoiding double-sim and the stray result screen); (3) the GK final weekend still resolves for
+##   non-GK careers — the semifinal hook runs, and the collapsed Grand Final group is shadow-simmed
+##   so the GK champion is decided by a real race. player_in_gk is persisted in save/load.
+## Version: S37.0 — CP4 (closes cluster A): the singular active_championship getter now returns the
+##   player's ACTUAL racing championship (first player_registered_championships entry → first owned
+##   car's championship → legacy active_championships[0] → safe dummy) instead of always
+##   active_championships[0] (= GK). This was the root of the "picked GP4 but saw GK races/results"
+##   symptom: every legacy single-championship read (fuel/SP/condition, standings init, hiring gates)
+##   silently resolved to GK. Paired edits this session: RaceSimulator threads the raced `champ`
+##   through per-race fuel/SP/condition reads; DriverManager/ContractEngine stop writing newly-signed
+##   drivers into GK standings (they join the correct championship at car assignment, per Rule #6 —
+##   cars race, drivers are assigned to cars); CarManager reads SP rate per-car from each car's
+##   championship. UI (active_championships plural / get_player_championships) is unaffected.
 ## Version: S36.20 — Fixed TWO GK final-weekend/scoring bugs surfaced by playtesting. (1) NO
 ##   ELIMINATION: the two calendar-copy loops (setup + load paths) rebuilt each race entry copying
 ##   only 7 keys, STRIPPING gk_round/is_semifinal/is_final. So the running calendar had no
@@ -465,11 +484,36 @@ var all_teams: Array = []
 var all_drivers: Dictionary = {}
 
 # The active championship
-## Computed property — returns the first active championship, or a safe
-## dummy Championship object if none are active (off-season with no registrations).
-## This prevents null-access crashes in all building scenes and weekly processing.
+## Computed property — returns the player's ACTUAL racing championship (CP4, closes cluster A).
+## Previously returned active_championships[0], which is ALWAYS GK (C-001) because the world
+## always runs GK. That produced the "picked GP4 but saw GK races/results" symptom across every
+## legacy single-championship call site (fuel/SP/condition reads, standings init, hiring gates).
+##
+## Resolution order (most-specific first):
+##   1. The first championship the player is REGISTERED to race this season
+##      (player_registered_championships — the authoritative "what I actually race" list).
+##   2. The first championship the player owns a delivered/assigned car for (covers the brief
+##      window during setup before registrations are activated, and car-only edge cases).
+##   3. Any active championship (legacy fallback — keeps off-season-with-world-running safe).
+##   4. A safe dummy Championship (off-season, nothing registered) to prevent null-access crashes
+##      in building scenes and weekly processing.
+## NOTE: this is still a SINGULAR convenience accessor for legacy single-champ sites. UI that must
+## show ALL the player's entries uses get_player_championships(); the world loop uses
+## active_championships directly. Neither is affected by this change.
 var active_championship: Championship:
 	get:
+		# 1. The player's actual registered racing championship.
+		for cid in player_registered_championships:
+			var rc = get_championship_by_id(cid)
+			if rc != null:
+				return rc
+		# 2. The championship of the first car the player owns (setup / car-only window).
+		for car in player_team_cars:
+			if car.championship_id != "":
+				var cc = get_championship_by_id(car.championship_id)
+				if cc != null:
+					return cc
+		# 3. Legacy fallback — any running championship (keeps off-season-with-world safe).
 		if active_championships.size() > 0:
 			return active_championships[0]
 		# Return a safe dummy to prevent null crashes during off-season
@@ -3146,15 +3190,25 @@ func advance_week() -> void:
 		var races_this_week = champ.get_races_for_week(current_week)
 		var is_player_champ = champ.id in player_registered_championships
 		for race in races_this_week:
-			if is_player_champ:
-				## S35.3: when fast-forwarding to season end, the CFO keeps the cars race-ready
-				## (buys exact fuel/SP shortfall, if hired + affordable) BEFORE the requirement
-				## check and simulation — so a skipped season doesn't DNS purely for un-bought
-				## logistics. No effect in hands-on weekly play (flag is false then).
-				if simulating_to_season_end:
-					cfo_auto_buy_for_race(champ)
-				_check_race_requirements_for(champ)
-			_simulate_race(race, champ)
+			## CP4 follow-up — GK special case: the player's REAL GK race is run via _simulate_race
+			## ONLY when the player actually races GK (group 0 = the player's group). When the player
+			## is NOT in GK, group 0 is an ordinary AI group covered by the shadow sim below, so the
+			## real sim is skipped for C-001 to avoid (a) double-simulating group 0 and (b) queuing a
+			## GK result screen for a non-GK player (the reported "GK is still there" symptom). The GK
+			## world still advances: the semifinal hook (below) and the shadow-sim / round-advance
+			## blocks after this loop drive every GK group, including group 0.
+			var gk_skip_real_sim = (champ.id == "C-001" and gk_discipline != null
+				and not gk_discipline.player_in_gk)
+			if not gk_skip_real_sim:
+				if is_player_champ:
+					## S35.3: when fast-forwarding to season end, the CFO keeps the cars race-ready
+					## (buys exact fuel/SP shortfall, if hired + affordable) BEFORE the requirement
+					## check and simulation — so a skipped season doesn't DNS purely for un-bought
+					## logistics. No effect in hands-on weekly play (flag is false then).
+					if simulating_to_season_end:
+						cfo_auto_buy_for_race(champ)
+					_check_race_requirements_for(champ)
+				_simulate_race(race, champ)
 			## Sponsor race bonuses handled by apply_sponsor_race_bonuses()
 			champ.current_round += 1
 
@@ -3162,7 +3216,8 @@ func advance_week() -> void:
 			## simulate the AI groups' semi, then cut top-N-per-group into a single Grand Final
 			## group, and re-sync the player's GK race field to those finalists — so the very next
 			## race (the Grand Final, same week) is contested by the 20 survivors. The player's real
-			## semi result is already synced into GK group 0 by _simulate_race (Option B).
+			## semi result is already synced into GK group 0 by _simulate_race (Option B). This runs
+			## regardless of whether the player is in GK — the GK world's final weekend must resolve.
 			if champ.id == "C-001" and gk_discipline != null and race.get("is_semifinal", false):
 				## AI semi for the non-player final groups (so their results exist before the cut).
 				var semi_team_pts = gk_discipline.shadow_simulate_week(current_week, all_drivers)
@@ -3172,6 +3227,14 @@ func advance_week() -> void:
 				gk_discipline.apply_semifinal_cut()
 				## Re-sync the player's GK standings/field to the finalists (group 0 now = final 20).
 				_sync_gk_group0_to_standings()
+				## CP4 follow-up — when the player is NOT in GK, the real sim doesn't run the Grand
+				## Final (group 0). Simulate the collapsed final group here so the GK champion is
+				## decided by an actual race rather than the reset (all-zero) standings order. When the
+				## player IS in GK, the Grand Final runs via _simulate_race below as before.
+				if not gk_discipline.player_in_gk:
+					var final_team_pts = gk_discipline.shadow_simulate_week(current_week, all_drivers)
+					for tid in final_team_pts:
+						champ.add_team_points(tid, final_team_pts[tid])
 
 	## P26: Shadow-simulate non-player GK groups — ONLY on weeks GK actually races.
 	## Previously this ran every single week, so the AI groups scored a full points-award even on
@@ -3226,10 +3289,11 @@ func advance_week() -> void:
 			gk_discipline.advance_round(all_drivers)
 			_sync_gk_group0_to_standings()
 			var new_round = gk_discipline.get_current_round()
-			## Bug 9: only surface GK round notifications to the player if they are
-			## actually registered in GK. The shadow world still advances above, but a
-			## non-GK career (e.g. Rally) must not receive GK elimination/round messages.
-			var player_in_gk = "C-001" in player_registered_championships
+			## Bug 9 / CP4 follow-up: only surface GK round notifications to the player if they
+			## ACTUALLY race GK this season (registered AND fielding a GK driver) — not merely
+			## registered. The shadow world still advances above; a non-GK career (e.g. Rally/GP4)
+			## must not receive GK elimination/round messages.
+			var player_in_gk = gk_discipline.player_in_gk
 			if player_in_gk:
 				var player_eliminated = true
 				for did in player_team.drivers:
