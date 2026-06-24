@@ -1,4 +1,7 @@
 extends Control
+## Version: S36.9 — Removed the Racing World button from the championship panel (redundant — the
+##   header already has one). Wrapped the right column in a ScrollContainer so the now-multi-entry
+##   championship list (up to 21) plus TP-proposals and effects panels can't overflow the screen.
 ## Version: S36.8 — Bug #9/#19 (cluster A): driver standings now look up each driver's position in
 ##   THEIR OWN car's championship (was the singular active_championship = GK). The championship summary
 ##   panel is now a PER-CHAMPIONSHIP LIST (one block per registered championship: name/discipline/
@@ -143,11 +146,17 @@ func _build_ui() -> void:
 	_drivers_container.add_theme_constant_override("separation", 10)
 	scroll_vbox.add_child(_drivers_container)
 
-	# ── Right: championship status + effects ──────────────────────────────────
+	# ── Right: championship status + effects (scrollable — the championship list can
+	# now hold up to 21 entries, so the column must scroll to avoid overflow) ──────
+	var right_scroll = ScrollContainer.new()
+	right_scroll.custom_minimum_size = Vector2(300, 0)
+	right_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	columns.add_child(right_scroll)
+
 	var right = VBoxContainer.new()
 	right.add_theme_constant_override("separation", 14)
-	right.custom_minimum_size = Vector2(280, 0)
-	columns.add_child(right)
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_scroll.add_child(right)
 
 	right.add_child(_section_label("CHAMPIONSHIP ENTRY"))
 	right.add_child(_build_champ_panel())
@@ -495,17 +504,6 @@ func _build_champ_panel() -> PanelContainer:
 			vbox.add_child(_stat_row("Discipline", pc.discipline))
 			vbox.add_child(_stat_row("Round", "%d / %d" % [pc.current_round, pc.num_races]))
 			vbox.add_child(_stat_row("Cars", "%d built" % cars_in))
-
-	vbox.add_child(HSeparator.new())
-	## Racing World button (added per request — quick jump to the world standings/calendar).
-	var btn_rw = Button.new()
-	btn_rw.text = Locale.t("rw_btn")
-	btn_rw.custom_minimum_size = Vector2(0, 36)
-	btn_rw.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	btn_rw.add_theme_font_size_override("font_size", 24)
-	btn_rw.pressed.connect(func():
-		get_tree().change_scene_to_file("res://scenes/RacingWorld.tscn"))
-	vbox.add_child(btn_rw)
 
 	# DNS risk warning
 	var dns_risks = 0

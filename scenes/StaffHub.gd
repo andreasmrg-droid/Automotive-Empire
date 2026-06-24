@@ -1,4 +1,9 @@
 extends Control
+## Version: S36.10 — Bug (cluster A): the "Assign to championship" popup now lists only the player's
+##   REGISTERED championships (via get_player_championships), not all 21 world championships. Also
+##   fixed the tiny My-Staff name font (14 → 24) to match the Available list and be readable.
+##   (NOTE: _has_assigned_tp() still scans all championships — deferred to the TP/staff-assignment
+##   cluster. The Ops Sim assign button bug is also in that cluster; this popup is the working path.)
 ## Version: S35.10c — Added ⭐ Shortlist entry button (opens the unified Shortlist screen) and a
 ##   "Free Agents Only" toggle (matches the Drivers hub) next to "Interested Only".
 ## Version: S35.10b — Alignment fix: columns are now PROPORTIONAL (stretch ratios via
@@ -464,7 +469,7 @@ func _make_my_staff_row(staff) -> PanelContainer:
 	var row1 = HBoxContainer.new()
 	row1.add_theme_constant_override("separation", 8)
 	vbox.add_child(row1)
-	_add_col(row1, staff.display_name(), 170, Color(0.9, 0.9, 0.9), 14)
+	_add_col(row1, staff.display_name(), 170, Color(0.9, 0.9, 0.9), 24)
 	_add_col(row1, "Age %d" % staff.age, 55)
 	_add_col(row1, staff.nationality, 100)
 	_add_col(row1, "%s %.0f" % [staff.get_primary_skill_label(), staff.get_primary_skill()], 100,
@@ -1080,8 +1085,10 @@ func _show_assign_popup(staff_id: String) -> void:
 
 		## Strategist not needed for GK or Rally disciplines
 		const NO_STRATEGIST = ["GK", "Rally"]
+		## Only the player's REGISTERED championships (bug — popup was listing all 21 world
+		## championships; you can only assign staff to series you actually race).
 		var eligible_champs = []
-		for champ in GameState.active_championships:
+		for champ in GameState.get_player_championships():
 			var reg = GameState.CHAMPIONSHIP_REGISTRY.get(champ.id, {})
 			var disc = reg.get("discipline", "")
 			if staff.role == "Race Strategist" and disc in NO_STRATEGIST:

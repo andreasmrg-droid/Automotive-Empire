@@ -1,3 +1,5 @@
+## Version: S36.10 — Fixed the tiny My-Drivers name font (14 → 24) to match the available-drivers
+##   list and be readable (same inconsistency as StaffHub).
 ## Version: S35.10c — Added ⭐ Shortlist entry button to the header (opens the unified Shortlist).
 ## Version: S35.10b — Alignment fix (matches StaffHub): proportional stretch-ratio columns using
 ##   the full screen width (no clipping); driver header is now a full-width panel matching the row
@@ -343,7 +345,7 @@ func _make_my_driver_row(driver) -> PanelContainer:
 	row1.add_theme_constant_override("separation", 8)
 	vbox.add_child(row1)
 
-	_add_col(row1, driver.full_name(), 180, Color(0.4, 0.8, 1.0), 14)
+	_add_col(row1, driver.full_name(), 180, Color(0.4, 0.8, 1.0), 24)
 	_add_col(row1, "Age %d" % driver.age, 55)
 	_add_col(row1, driver.nationality, 100)
 	_add_col(row1, "Ovr %.0f" % driver.get_overall_skill(), 55,
