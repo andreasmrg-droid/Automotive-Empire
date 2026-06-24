@@ -1,4 +1,12 @@
 extends Control
+## Version: S36.1 — Bug #9/#19/#44/#48 (cluster A): removed single-championship relics that read
+##   the singular active_championship (= active_championships[0] = always GK). New _player_championships()
+##   helper returns the player's actual championships (owned cars + registered). Header SP/FU warning
+##   colours now flag if the shared pool is short for ANY of the player's championships (worst case),
+##   not just GK's need. Stocks tab gains a PER-CHAMPIONSHIP needs breakdown (fuel/SP per race event)
+##   above the single shared-pool buy cards. Quick-fill presets changed to round 10/100/1000 values
+##   (also removed their dependence on GK's per-race figure). Resources bar (CR/SP/FU) unchanged — it
+##   correctly shows the summed pool totals. (Localization deferred to the final pass — no Locale.t() added.)
 ## Version: S35.5 — Spare-parts card now shows the LIVING SP price (CR X.XX/unit) and its input
 ##   cost preview uses get_sp_cost_per_unit() instead of the old hardcoded × 1, matching what
 ##   buy_spare_parts actually charges (same pattern as the S35.4 fuel-preview fix).
@@ -115,11 +123,36 @@ func _build_ui() -> void:
 
 	_switch_tab(0)
 
+## Returns the Championship objects the player is actually involved in this season:
+## every championship they own a car for + every one they're registered in.
+## (Bug #9/#19/#44/#48 — replaces reads of the singular active_championship, which always
+## returned active_championships[0] = GK regardless of what the player entered.)
+func _player_championships() -> Array:
+	var cids: Array = []
+	for car in GameState.player_team_cars:
+		if car.championship_id != "" and not car.championship_id in cids:
+			cids.append(car.championship_id)
+	for cid in GameState.player_registered_championships:
+		if not cid in cids:
+			cids.append(cid)
+	var champs: Array = []
+	for champ in GameState.active_championships:
+		if champ.id in cids:
+			champs.append(champ)
+	return champs
+
 func _refresh_header_labels() -> void:
 	if not is_instance_valid(_lbl_cr): return
 	var cr_col = Color(0.4,0.9,0.4) if GameState.player_team.balance >= 0 else Color(1.0,0.3,0.3)
-	var sp_warn = GameState.spare_parts < GameState.active_championship.sp_per_10_pct_damage
-	var fu_warn = GameState.fuel_kg < GameState.active_championship.fuel_per_car_per_race
+	## SP/FU are POOLED totals shared across every championship the player races. Warn (red)
+	## if the pool is short for ANY of the player's championships' per-race need (worst case).
+	var sp_warn = false
+	var fu_warn = false
+	for champ in _player_championships():
+		if GameState.spare_parts < champ.sp_per_10_pct_damage:
+			sp_warn = true
+		if GameState.fuel_kg < champ.fuel_per_car_per_race:
+			fu_warn = true
 	_lbl_cr.text = "💰 CR %s" % _fmt(GameState.player_team.balance)
 	_lbl_cr.add_theme_color_override("font_color", cr_col)
 	_lbl_sp.text = "🔧 SP %d" % GameState.spare_parts
@@ -158,25 +191,59 @@ func _switch_tab(idx: int) -> void:
 # TAB 0: STOCKS & CONSUMABLES
 # ═══════════════════════════════════════════════════════════════════════════
 func _build_tab_stocks(parent: VBoxContainer) -> void:
+	## ── Per-championship needs breakdown (Bug #9/#19 — was showing only GK's per-race
+	## need via the singular active_championship). SP and fuel are a SHARED pool; each
+	## championship draws on it at its own rate, so we list every championship the player
+	## races and what one race event there costs from the pool.
+	var champs = _player_championships()
+	if not champs.is_empty():
+		var needs_panel = _card_panel()
+		needs_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var nv = VBoxContainer.new(); nv.add_theme_constant_override("separation", 8)
+		needs_panel.add_child(nv)
+		_card_title(nv, "📋 Per-Championship Needs (per race event)")
+		var hdr = Label.new()
+		hdr.text = "Fuel & spare parts are a shared stockpile. Each championship below draws on it at its own rate."
+		hdr.add_theme_font_size_override("font_size", 22); hdr.modulate = Color(0.6, 0.7, 0.8)
+		hdr.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		nv.add_child(hdr)
+		nv.add_child(HSeparator.new())
+		for champ in champs:
+			var reg = GameState.CHAMPIONSHIP_REGISTRY.get(champ.id, {})
+			var cars_in_champ = GameState.player_team_cars.filter(
+				func(c): return c.championship_id == champ.id).size()
+			var crow = HBoxContainer.new(); crow.add_theme_constant_override("separation", 12)
+			nv.add_child(crow)
+			var lbl_cn = Label.new()
+			lbl_cn.text = reg.get("name", champ.id)
+			lbl_cn.add_theme_font_size_override("font_size", 24)
+			lbl_cn.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+			lbl_cn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			crow.add_child(lbl_cn)
+			var lbl_need = Label.new()
+			var fuel_event = champ.fuel_per_car_per_race * max(cars_in_champ, 1)
+			lbl_need.text = "⛽ %.0f kg/car (%.0f kg total)   ·   🔧 %d SP/10%% damage" % [
+				champ.fuel_per_car_per_race, fuel_event, champ.sp_per_10_pct_damage]
+			lbl_need.add_theme_font_size_override("font_size", 24)
+			lbl_need.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
+			crow.add_child(lbl_need)
+		parent.add_child(needs_panel)
+
+	## ── Purchase cards: single buy interface into the shared SP / fuel pool ──────────
 	var row = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 24)
 	parent.add_child(row)
+	row.add_child(_make_sp_card())
+	row.add_child(_make_fuel_card())
 
-	var cars = GameState.player_team.drivers.size()
-	var fuel_per_race = GameState.active_championship.fuel_per_car_per_race
-	var sp_per_10     = GameState.active_championship.sp_per_10_pct_damage
-
-	row.add_child(_make_sp_card(sp_per_10))
-	row.add_child(_make_fuel_card(fuel_per_race, cars))
-
-func _make_sp_card(sp_per_10: int) -> PanelContainer:
+func _make_sp_card() -> PanelContainer:
 	var panel = _card_panel()
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var vbox = VBoxContainer.new(); vbox.add_theme_constant_override("separation", 10)
 	panel.add_child(vbox)
 
 	_card_title(vbox, "🔧 Spare Parts")
-	_card_info(vbox, "Used for post-race car repairs. %d SP repairs 10%% damage. CR %.2f/unit (live price).\nCurrent stock: %d units" % [sp_per_10, GameState.get_sp_cost_per_unit(), GameState.spare_parts])
+	_card_info(vbox, "Used for post-race car repairs. CR %.2f/unit (live price).\nCurrent stock: %d units" % [GameState.get_sp_cost_per_unit(), GameState.spare_parts])
 
 	var input_row = HBoxContainer.new(); input_row.add_theme_constant_override("separation", 8)
 	vbox.add_child(input_row)
@@ -198,9 +265,9 @@ func _make_sp_card(sp_per_10: int) -> PanelContainer:
 	vbox.add_child(preset_lbl)
 	var preset_row = HBoxContainer.new(); preset_row.add_theme_constant_override("separation", 8)
 	vbox.add_child(preset_row)
-	for pair in [["1 Repair\n%d SP" % sp_per_10, sp_per_10],
-				 ["3 Repairs\n%d SP" % (sp_per_10*3), sp_per_10*3],
-				 ["Season\n6000 SP", 6000]]:
+	for pair in [["10 SP", 10],
+				 ["100 SP", 100],
+				 ["1000 SP", 1000]]:
 		var b = _preset_btn(pair[0])
 		var qty = pair[1]
 		b.pressed.connect(func(): sp_input.text = str(qty))
@@ -215,15 +282,15 @@ func _make_sp_card(sp_per_10: int) -> PanelContainer:
 	vbox.add_child(buy_btn)
 	return panel
 
-func _make_fuel_card(fuel_per_race: float, cars: int) -> PanelContainer:
+func _make_fuel_card() -> PanelContainer:
 	var panel = _card_panel()
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var vbox = VBoxContainer.new(); vbox.add_theme_constant_override("separation", 10)
 	panel.add_child(vbox)
 
 	_card_title(vbox, "⛽ Fuel")
-	_card_info(vbox, "CR %.2f/kg (live price). %d car%s × %.0f kg/race = %.0f kg per event.\nCurrent stock: %.1f kg" % [
-		GameState.get_fuel_cost_per_kg(), cars, "s" if cars != 1 else "", fuel_per_race, fuel_per_race * cars, GameState.fuel_kg])
+	_card_info(vbox, "CR %.2f/kg (live price). Per-race needs vary by championship — see the breakdown above.\nCurrent stock: %.1f kg" % [
+		GameState.get_fuel_cost_per_kg(), GameState.fuel_kg])
 
 	var input_row = HBoxContainer.new(); input_row.add_theme_constant_override("separation", 8)
 	vbox.add_child(input_row)
@@ -246,10 +313,9 @@ func _make_fuel_card(fuel_per_race: float, cars: int) -> PanelContainer:
 	vbox.add_child(preset_lbl)
 	var preset_row = HBoxContainer.new(); preset_row.add_theme_constant_override("separation", 8)
 	vbox.add_child(preset_row)
-	var race_qty = int(ceil(fuel_per_race * max(cars, 1)))
-	for pair in [["1 Race\n%d kg" % race_qty, race_qty],
-				 ["3 Races\n%d kg" % (race_qty*3), race_qty*3],
-				 ["Season\n%d kg" % (race_qty*6), race_qty*6]]:
+	for pair in [["10 kg", 10],
+				 ["100 kg", 100],
+				 ["1000 kg", 1000]]:
 		var b = _preset_btn(pair[0])
 		var qty = pair[1]
 		b.pressed.connect(func(): fuel_input.text = str(qty))
