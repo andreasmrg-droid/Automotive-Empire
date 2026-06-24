@@ -1,4 +1,8 @@
 extends Control
+## Version: S35.15 — Scroll moved to wrap ONLY the blueprint cards; pillar header + champ
+##   tab grid are now fixed above it (per Andreas). The whole-column wrap was the wrong target.
+## Version: S35.14 — (was S35.13) 2D tab grid + single ScrollContainer wrap around the whole
+##   catalog column so it scrolls. If you see this version's print, the grid+scroll build is live.
 ## Version: S35.13 — Championship tabs are now a 2D GRID (was a single horizontal scrolling
 ##   strip): one ROW per discipline in principle order (GP…GK), tiers laid out horizontally
 ##   within each row (pinnacle → entry). Driven by GameState.championship_tab_grid().
@@ -83,6 +87,7 @@ var _selected_pillar: int = 1
 var _selected_champ_id: String = ""   ## S35.12 — active championship tab
 
 func _ready() -> void:
+	print(">>> RnDStudio S35.15 LOADED (scroll wraps blueprints only) <<<")
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_selected_pillar = GameState.pending_rnd_pillar
 	## S35.12 — default the championship tab to the first in the shared order (GP1…GK).
@@ -205,6 +210,7 @@ func _build_ui() -> void:
 	var col_c = VBoxContainer.new()
 	col_c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col_c.size_flags_vertical   = Control.SIZE_EXPAND_FILL
+	col_c.clip_contents = true   ## S35.13 — bound the column so its scroll actually scrolls
 	col_c.add_theme_constant_override("separation", 8)
 	body.add_child(col_c)
 	_build_catalog_column(col_c)
@@ -445,6 +451,9 @@ func _build_active_task_card(task: Dictionary) -> PanelContainer:
 
 # ─── Column C: Catalog ────────────────────────────────────────────────────────
 func _build_catalog_column(parent: VBoxContainer) -> void:
+	## S35.14 — headers + championship tab grid are FIXED at the top of the column; only the
+	## blueprint cards below scroll. (Per Andreas: the ScrollContainer belongs around the
+	## blueprints, not the whole column / not the championship tabs.)
 	var p_color = PILLAR_COLORS[_selected_pillar]
 
 	var lbl_hdr = Label.new()
@@ -462,22 +471,17 @@ func _build_catalog_column(parent: VBoxContainer) -> void:
 
 	parent.add_child(_hsep())
 
-	## S35.12 — championship tab strip (scrollable; all 21 champs, shared GP1…GK order). The
-	## catalog below shows only the selected championship so a multi-championship player isn't
-	## faced with every championship's tasks stacked together.
+	## Championship tab grid (2D: disciplines as rows, tiers across) — FIXED, does not scroll.
 	parent.add_child(_build_champ_tab_strip())
 	parent.add_child(_hsep())
 
+	## ScrollContainer wraps ONLY the blueprint list. It fills the remaining column height
+	## (SIZE_EXPAND_FILL) below the fixed headers/tabs, so the cards scroll within it.
 	var scroll = ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	## S35.12 — small min height (was 400). A large minimum, combined with the added tab strip +
-	## headers above it, pushed the scroll's bottom past the viewport so it grew to fit content
-	## instead of scrolling (cards ran off-screen, no scrollbar). With a small floor, SIZE_EXPAND_FILL
-	## bounds the scroll to the remaining column height and the vertical scrollbar engages.
-	scroll.custom_minimum_size = Vector2(0, 120)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	scroll.clip_contents = true
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	parent.add_child(scroll)
 
 	var inner = VBoxContainer.new()
@@ -497,6 +501,7 @@ func _build_catalog_column(parent: VBoxContainer) -> void:
 		3: _build_p3_catalog(inner, free_designers)
 		4: _build_p4_catalog(inner, free_designers)
 		5: inner.add_child(_lbl_empty(Locale.t("p5_catalog_stub")))
+
 
 
 # ── P1: All blueprints for all parts, all championships ───────────────────────
@@ -605,7 +610,6 @@ func _build_p2_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 	for car in GameState.player_team_cars:
 		var cid = car.championship_id
 		if cid == "": continue
-		if cid != _selected_champ_id: continue  ## S35.12 — tabbed: selected champ only
 		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
 		var spec_arr = PART_SPEC.get(cid, [false,false,false,false,false,false])
 		var open_parts: Array = []
@@ -703,7 +707,6 @@ func _build_p3_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 	for car in GameState.player_team_cars:
 		var cid = car.championship_id
 		if cid == "": continue
-		if cid != _selected_champ_id: continue  ## S35.12 — tabbed: selected champ only
 		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
 		var spec_arr = PART_SPEC.get(cid, [true,true,true,true,true,true])
 		var inv = GameState.part_inventory.get(cid, {})

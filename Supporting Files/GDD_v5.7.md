@@ -1,6 +1,12 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v5.6 (consolidated master) · **Engine:** Godot 4.6.3 / GDScript
+**Version:** v5.7 (consolidated master) · **Engine:** Godot 4.6.3 / GDScript
+<!-- v5.7: §5.1 CNC on-track part performance bonus (value×quality, cap 0.15) WITH a future-
+	 review flag; §5.2 WRA approval = persistent manufacturing licence (+ HQ hand-off rule);
+	 §8.1 2-D championship tab GRID (disciplines vertical by top-tier-rep principle, tiers
+	 horizontal) for CNC + Studio; §8.2 current-season build rule + Build-Whole-Car all-6 gate;
+	 §8.3 Garage warehouse reflects Logistics provider stock; §8.4 RP earned only by racing
+	 (design note, under review). Built across S35.11–S35.13. -->
 <!-- v5.6: §15 Personnel hubs & Shortlist (S35.10) — 24px readable rows with 100s emphasised,
 	 full-width PROPORTIONAL aligned columns, Team + Contract as separate columns, active-sort
 	 highlight + ▼/▲ arrow + "Showing: …" line, Staff free-agents toggle; and the unified
@@ -17,7 +23,7 @@
 	 dual-ledger promotion, B-before-E fix, GK-as-sole-generation-source, Stage-E archive write. -->
 <!-- v5.2: §12-A canonical approach flow (interest→bond→contract), release-clause vs buyout-bond
 	 distinction, TP/CFO role split, join-date bond calc, immediate-transfer 1.5×+25% fee. -->
-**Last updated:** 2026-06-23 · **Repo:** https://github.com/andreasmrg-droid/Automotive-Empire.git
+**Last updated:** 2026-06-24 · **Repo:** https://github.com/andreasmrg-droid/Automotive-Empire.git
 
 > This is the single source of truth for the design of Automotive Empire. All prior
 > session-handoff notes and manual "latest update" appendices have been absorbed into
@@ -209,6 +215,39 @@ Final_Reliability = Base_Reliability + (Extra_Credits_Invested ÷ 12,000)
 
 Designer stats set a blueprint's *initial* reliability before CNC; the CNC process itself is
 separate from Designer skill (§9-F).
+
+### 5.1 On-track part performance bonus (S35.11)
+
+Installed CNC parts give the car a lap-time bonus, computed in `RnDEngine.get_cnc_part_bonus`:
+
+```
+per installed part:  part_bonus = value × quality
+   value   = the R&D performance magnitude (already bakes in level via the P2 carry-over
+             chain + designer lift — do NOT multiply by level again, that double-counts)
+   quality = the reverse-engineering penalty (1.0 own-design, ~0.75 RE) — makes the RE
+             penalty matter on track
+total bonus = clamp(Σ part_bonus, 0.0, CNC_BONUS_CAP=0.15)
+applied in-race as:  lap_time /= (1.0 + total_bonus)
+```
+
+Reliability is **excluded** from this bonus — it governs DNF/failure risk, not lap time; the two
+must stay separate. Legacy/provider parts with no stored `value` fall back to a small flat
+contribution (`CNC_LEGACY_FLAT = 0.005`) so they aren't silently worthless. The Garage car
+header shows the live total as "⚡ Parts: +X% pace". Installed parts store `level` + `value`
+(`CarManager`) so the formula has the data to read.
+
+> ⚠ **FORMULA FLAGGED FOR FUTURE REVIEW.** This `value × quality` model is provisional —
+> Andreas is uneasy about it. Revisit and re-derive before the Phase 5 balance pass. Do not
+> treat the cap, the legacy fallback, or the multiplicative form as settled.
+
+### 5.2 A WRA approval is a manufacturing licence (S35.11)
+
+Once a blueprint is WRA-approved, manufacturing it does **not** consume the approval. The
+approval persists so the player can build spares/replacements; it is cleared only at season
+rollover (P2 upgrades) or the 4-season WRA regulation reset (P1/P3 designs, §11). In the HQ
+WRA tab an approved blueprint disappears once it has been **handed off to CNC** (queued, built,
+or installed) — HQ's job (getting approval) is done and the blueprint now lives in the CNC
+Plant. The CNC "ready to manufacture" / Build-Whole-Car gates remain current-season only (§8).
 
 ---
 
@@ -426,6 +465,55 @@ The R&D Studio is organised into **5 pillars** (tab bar):
 
 General R&D develops blueprints and upgrades; specialized R&D (Pillar 4) is tied to buildings
 and their max levels.
+
+### 8.1 Championship tab GRID — CNC Plant & R&D Studio (S35.12–S35.13)
+
+Both the CNC Plant and the R&D Studio (Pillar 1 catalog) scope their content to **one
+championship at a time**, selected from a **2-D tab grid**:
+
+- **Vertical = disciplines**, ordered by the "highest-reputation principle": each discipline is
+  ranked by its **top-tier** championship reputation, descending.
+- **Horizontal = tiers** within a discipline, pinnacle → entry.
+
+With the current registry this yields, top to bottom:
+`GP (GP1 GP2 GP3 GP4) → EPC (Hyper League, League, Series) → OWC (Pro, Dev, Next Gen) →
+SC (Cup, Challenge, Truck, Dev) → TC (Elite, Sport) → Rally (Premier, R2, R3, R4) → GK`.
+
+The order is derived at runtime from the registry (`GameState.championship_tab_order()` flat,
+`championship_tab_grid()` grouped) — a single source of truth. The `rep` values are constants,
+so the order is stable; editing a `rep` would reorder the tabs automatically. (Real-world note:
+the data places OWC slightly above SC — the IndyCar-vs-NASCAR prestige reading — and that is
+intentional and kept.)
+
+### 8.2 Build Whole Car & current-season rule (S35.12)
+
+The CNC builds **current-season** parts and cars only (model "b": a blueprint is buildable when
+its target `season == current_season`; next-season designs sit visible-but-locked until that
+season arrives). `_approved_car_blueprints` filters to current season, so:
+
+- The CNC "BLUEPRINT OWNERSHIP" panel marks next-season approved parts as "🔒 S{n} (next
+  season)" rather than "ready to mfg".
+- **Build Whole Car** is shown per selected championship and is enabled only when all **6**
+  current-season part blueprints are WRA-approved; otherwise the button is greyed with the
+  tooltip "you need all 6 part blueprints". The slot-queue + delivery model (§6.0) is unchanged:
+  all 6 jobs queue, N run in parallel (N = CNC slots), the car is delivered when the last
+  finishes.
+
+### 8.3 Garage warehouse reflects Logistics stock (S35.11)
+
+The Garage's persistent WAREHOUSE panel lists **all installable stock** for the selected
+championship — both manufactured CNC parts (`cnc_parts_inventory`) and provider L0 spares from
+the Logistics warehouse (`part_inventory`, via `get_part_stock`) — with a Source column
+(CNC / Provider). Empty part slots read "L0".
+
+### 8.4 Research Points (RP) — earned only by racing  *(design note — under review)*
+
+RP is currently earned in exactly one place: after a race (`RaceSimulator`). There is **no**
+baseline weekly RP income from the Studio or idle designers. Consequence: a team cannot research
+anything until it has raced at least once (RP starts at 0). The catalog now always shows the
+Assign row with disabled buttons + a reason ("need N RP (have 0)") so this gate is legible
+rather than appearing broken. **Open question:** whether to add a small baseline weekly RP from
+the R&D facility / designers so development can happen between races. Not yet decided.
 
 ---
 
