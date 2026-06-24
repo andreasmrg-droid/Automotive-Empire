@@ -1,6 +1,15 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v5.8 (consolidated master) · **Engine:** Godot 4.6.3 / GDScript
+**Version:** v5.9 (consolidated master) · **Engine:** Godot 4.6.3 / GDScript
+<!-- v5.9: §1 GK Championship final-weekend redesign (S36.18–S36.20), now confirmed in playtest.
+	 GK is 22 races / 4 rounds (8/7/5/2); points RESET each round; the final weekend is two races
+	 the SAME week — Semi-Final then Grand Final; the Semi cuts top-10-per-group into a single
+	 20-driver Grand Final; the GRAND FINAL WINNER = World Champion (last race decides, champion
+	 total = 25 pts, NOT cumulative); team champion = flat cumulative table across all 22 races.
+	 General multi-event-per-week engine (get_races_for_week) introduced (reusable for Rally/
+	 Endurance). Two scoring bugs fixed S36.20: (1) calendar-copy loops were stripping
+	 gk_round/is_semifinal/is_final → no Semi detected → no elimination (Grand Final ran 30 drivers);
+	 (2) shadow sim ran every week regardless of GK racing → AI points ~doubled. Both fixed. -->
 <!-- v5.8: §8 R&D Studio polish (S35.16–S35.21) — catalog + Blueprint Status SCROLL fixes (shared
 	 _make_scroll_column helper + right-side scrollbar gutter, mirrored in CNC Plant); championship
 	 tab strip now PILLAR-1-ONLY (P2/P3 iterate the player's cars, P4 is champ-agnostic — the tabs
@@ -114,10 +123,25 @@ CHAMPIONSHIP_REGISTRY should carry the full Min/Max/Driver_Per_Car table (not ju
 Logistics displays correct caps; `get_max_cars()` reads the player's Garage car-slot cap and
 is a SEPARATE mechanic from the per-championship cap.
 
-**GK Championship** is a single progressive championship of **21 rounds** across 4 stages
-(Round 1: 32 groups; Round 2: 16 groups of 20; Round 3: 4 groups of 32; Final: 2 groups of
-30, winner crowned World Champion). Note: `num_races` is a DISPLAY value; race-length logic
-reads the actual calendar (`calendar.size()`).
+**GK Championship** is a single progressive elimination championship of **22 races** across 4
+rounds (Round 1: 32 groups, 8 races; Round 2: 16 groups of 20, 7 races; Round 3: 4 groups of
+32, 5 races; Round 4 / Final weekend: 2 groups of 30, 2 races). **Points reset to 0 at the
+start of each round** — every round is its own fresh mini-competition, so totals never carry
+across rounds. The **final weekend is two races in the SAME calendar week**: a **Semi-Final**
+(`is_semifinal`) followed by a **Grand Final** (`is_final`). After the Semi-Final, the **top 10
+from EACH of the 2 final groups** advance (`apply_semifinal_cut()`), collapsing into a **single
+20-driver Grand Final** with points reset to 0. The **Grand Final WINNER is the World Champion**
+— the last race alone decides the title (NOT cumulative points); the champion's total is
+therefore the single-race win (25 pts). The player's REAL raced Semi/Grand Final results feed
+the elimination system (Option B), so a player win crowns the player. The **team champion** is
+decided separately by a flat cumulative constructors table counting ALL 22 races (driver champion
+via elimination, team champion via cumulative). The two final-weekend flags
+(`gk_round`/`is_semifinal`/`is_final`) MUST be preserved through any calendar copy — dropping them
+silently disables the cut (fixed S36.20). The shadow simulation that scores non-player groups runs
+ONLY on weeks GK actually races (not every week — that bug doubled AI points, fixed S36.20). The
+general multi-event-per-week engine (`get_races_for_week()`) that powers the two-race final weekend
+is reusable for future Rally multi-stage / Endurance weekends. Note: `num_races` (22) is a DISPLAY
+value; race-length logic reads the actual calendar (`calendar.size()`).
 
 ---
 

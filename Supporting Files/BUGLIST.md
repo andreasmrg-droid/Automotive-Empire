@@ -1,6 +1,6 @@
 # Automotive Empire — Bug & Issue Tracker
 
-**Version:** v1.0 · **Created:** 2026-06-24 · **Engine:** Godot 4.6.3 / GDScript
+**Version:** v1.1 · **Created:** 2026-06-24 · **Updated:** 2026-06-24 (S36.20) · **Engine:** Godot 4.6.3 / GDScript
 **Repo:** https://github.com/andreasmrg-droid/Automotive-Empire.git
 
 > Companion to the GDD (the design source of truth). This file is the **work queue** — known
@@ -51,10 +51,33 @@ championship rather than only the ones actually entered. Worth fixing as a singl
   registration button from that screen.
 
 ### Standings / living world wipes
-- 🔴 **#31** — After the last GK round, all driver + team standings wiped in Main Hub AND Racing
-  World. **(S1 — destroys season results)**
-- 🔵 **#28** — In GK rounds 3 & 4 teams earn no points; need a champion *team* not just driver.
-  Decision leaning: do NOT reset team points — carry intact through round 4. **(design + bug)**
+- ✅ **#31** — After the last GK round, all driver + team standings wiped in Main Hub AND Racing
+  World. **(S1 — destroys season results)** — **FIXED S36.14:** save/load now persists ALL
+  championships' standings keyed by id; standings survive round transitions and season end.
+- ✅ **#28** — In GK rounds 3 & 4 teams earn no points; need a champion *team* not just driver.
+  **FIXED S36.15 + GK final-weekend redesign (S36.18–S36.20):** the GK **team champion** is now
+  decided by a flat cumulative constructors table counting ALL 22 races (folded in via
+  `shadow_simulate_week` + the player's real-race team points), while the **driver champion** comes
+  from the elimination ladder. Final decision differed from the old "carry team points through
+  round 4" lean: driver points RESET each round (each round is a fresh mini-competition); the team
+  table is the separate cumulative tally.
+
+### GK final-weekend redesign (S36.18–S36.20) — elimination + scoring
+*New format confirmed in playtest: 22 races / 4 rounds (8/7/5/2); the final weekend is two races
+the SAME week — Semi-Final then Grand Final; the Semi cuts top-10-per-group into a single 20-driver
+Grand Final; the GRAND FINAL WINNER = World Champion (last race decides; champion total = 25 pts).*
+- ✅ **#52** — GK Grand Final ran with **30 drivers** (no elimination) and the champion showed
+  inflated points (50 = semi+final). **Root cause:** two calendar-copy loops in `GameState.gd`
+  rebuilt each race entry copying only 7 keys, STRIPPING `gk_round`/`is_semifinal`/`is_final`, so
+  the running calendar had no Semi-Final flag → the final-weekend cut hook never fired. **FIXED
+  S36.20:** both copies preserve the flags; the Semi now cuts to exactly 20 finalists and the
+  Grand Final winner (25 pts) is crowned. **(S1 — broke the championship format)**
+- ✅ **#53** — Early-round GK points inflated (group leaders at 100–162 mid-season; "winning
+  everything"). **Root cause:** the P26 shadow sim called `shadow_simulate_week()` EVERY week
+  regardless of whether GK raced, so AI groups scored ~2× the player's race count. **FIXED
+  S36.20:** shadow sim now runs only on weeks GK actually races (scanning the static calendar by
+  week, since `current_round` is already advanced by then), and skips the Semi-Final week (already
+  shadow-simmed inside the hook). **(S2 — wrong behaviour, playable)**
 
 ### Contract / assignment state corruption
 - 🔴 **#35** — Extended a driver's contract, but next season he vanished from the Drivers screen
