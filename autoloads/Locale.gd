@@ -1,4 +1,8 @@
 extends Node
+## Version: S35.19 — Added rnd_lock_studio_level (P4 R&D Design Studio level gate) plus the
+##   never-committed S35.18 P4 building-gate keys (rnd_lock_building_unbuilt, rnd_lock_building_level,
+##   rnd_lock_unavailable). P4 Special Projects now show the real required-building/Studio reason
+##   instead of the misleading "Complete Season 1 L1 first".
 ## Version: S35.16 — Added Blueprint Status panel keys (rnd_blueprint_status, rnd_blueprint_legend,
 ##   rnd_no_championships) localized while wrapping that panel in a ScrollContainer in RnDStudio.
 ## Version: S35.12 — Added cnc_bwc_need_all6 / cnc_bwc_need_all6_tip for the Build-Whole-Car
@@ -274,6 +278,10 @@ const STRINGS: Dictionary = {
 	"rnd_lock_needs_l1":    { "en": "🔒 Design or reverse-engineer the L1 blueprint for this part first", },
 	"rnd_lock_requires":    { "en": "🔒 Requires: %s", },
 	"rnd_lock_complete_l1": { "en": "🔒 Complete Season %d L1 first", },
+	"rnd_lock_building_unbuilt": { "en": "🔒 Build the %s (needs level %d) first", },
+	"rnd_lock_building_level":   { "en": "🔒 Requires %s level %d (currently %d)", },
+	"rnd_lock_studio_level":     { "en": "🔒 Requires R&D Design Studio level %d (currently %d)", },
+	"rnd_lock_unavailable":      { "en": "🔒 Not available yet", },
 	"rnd_re_hint_short":    { "en": "💡 Unlocks P1 Design L2 for this part", },
 	"rnd_re_hint_long":     { "en": "💡 Completing a RE task unlocks P1 Design L2 for that part, and produces a blueprint you can submit to the WRA for CNC manufacturing.", },
 	"rnd_blueprint_status": { "en": "BLUEPRINT STATUS", },

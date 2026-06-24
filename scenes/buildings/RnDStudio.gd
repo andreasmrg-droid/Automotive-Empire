@@ -1,4 +1,10 @@
 extends Control
+## Version: S35.19 — P4 (Special Projects) locked cards now ALSO surface the R&D Design Studio
+##   level requirement, and RnDEngine now enforces it (Required_RnD_Studio_Level was dead data).
+##   Gate + message priority: prerequisite task → target building (build/upgrade) → Studio level.
+##   New Locale key: rnd_lock_studio_level. (Combines the never-pushed S35.18 P4 building-message
+##   work — rnd_lock_building_unbuilt / rnd_lock_building_level / rnd_lock_unavailable — onto repo
+##   S35.17, since S35.18 was authored but not committed.)
 ## Version: S35.17 — (1) Championship tab strip now renders for PILLAR 1 ONLY. P2/P3 iterate over
 ##   player_team_cars and never read _selected_champ_id, so the tabs there did nothing (clicking
 ##   them re-rendered to the same list) — misleading UI, removed. P4 is champ-agnostic too.
@@ -953,7 +959,29 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 		var lbl_lock = Label.new()
 		var req_l1 = task.get("requires_l1_for", "")
 		var req_id = task.get("requires", "")
-		if req_l1 != "":
+		if task.get("pillar", 0) == 4:
+			## S35.18/S35.19 — P4 projects gate on (in order) a prerequisite task → the target
+			## BUILDING level → the R&D Design Studio level (see RnDEngine.rnd_task_unlocked).
+			## Surface whichever is unmet, in that priority order, so the card states the real reason
+			## instead of the old misleading "Complete Season 1 L1 first" fallback.
+			var bname     = task.get("building", "")
+			var min_lv    = int(task.get("min_building_level", 1))
+			var min_studio = int(task.get("Required_RnD_Studio_Level", 1))
+			var req4      = GameState.RND_TASKS.get(req_id, extra_tasks.get(req_id, {}))
+			var req4_name = req4.get("name", "") if not req4.is_empty() else ""
+			var bld       = GameState.campus_buildings.get(bname, {}) if bname != "" else {}
+			var studio    = GameState.campus_buildings.get("R&D Design Studio", {})
+			if req_id != "" and not (req_id in GameState.completed_rnd_tasks) and req4_name != "":
+				lbl_lock.text = Locale.t("rnd_lock_requires") % req4_name
+			elif bname != "" and not bld.get("built", false):
+				lbl_lock.text = Locale.t("rnd_lock_building_unbuilt") % [bname, min_lv]
+			elif bname != "" and int(bld.get("level", 0)) < min_lv:
+				lbl_lock.text = Locale.t("rnd_lock_building_level") % [bname, min_lv, int(bld.get("level", 0))]
+			elif min_studio > 1 and (not studio.get("built", false) or int(studio.get("level", 0)) < min_studio):
+				lbl_lock.text = Locale.t("rnd_lock_studio_level") % [min_studio, int(studio.get("level", 0))]
+			else:
+				lbl_lock.text = Locale.t("rnd_lock_unavailable")
+		elif req_l1 != "":
 			## S35.11 — P1 L2 gates on an L1 blueprint existing from EITHER P1 or P3.
 			lbl_lock.text = Locale.t("rnd_lock_needs_l1")
 		else:

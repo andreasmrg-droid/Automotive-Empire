@@ -1,4 +1,8 @@
 class_name RnDEngine
+## Version: S35.19 — P4 unlock now ALSO enforces Required_RnD_Studio_Level (the R&D Design Studio
+##   building level). The data carried this on every Special Project but it was never checked; now
+##   a project needs both its target building AND the Studio at/above the required level. Gate
+##   order: prerequisite task → target building → Studio level.
 ## Version: S35.11c — start_rnd_task now carries `season` + `level` on the active task. They were
 ##   absent, so at completion the stored blueprint fell back to gs.current_season → P1/P3
 ##   next-season blueprints were stamped with the CURRENT season. That broke TWO things: TDL 8a
@@ -755,13 +759,20 @@ func rnd_task_unlocked(task_id: String) -> bool:
 	var req_l1 = task.get("requires_l1_for", "")
 	if req_l1 != "" and not _has_l1_blueprint_for(req_l1):
 		return false
-	# Pillar 4: building level gate
+	# Pillar 4: building level gate + R&D Design Studio level gate
 	if task.get("pillar", 0) == 4:
 		var bname  = task.get("building", "")
 		var min_lv = task.get("min_building_level", 1)
 		if bname != "":
 			var bld = gs.campus_buildings.get(bname, {})
 			if not bld.get("built", false) or bld.get("level", 0) < min_lv:
+				return false
+		## S35.19 — also gate on R&D Design Studio level. The data carried
+		## Required_RnD_Studio_Level on every P4 task but it was never enforced; now it is.
+		var min_studio = int(task.get("Required_RnD_Studio_Level", 1))
+		if min_studio > 1:
+			var studio = gs.campus_buildings.get("R&D Design Studio", {})
+			if not studio.get("built", false) or int(studio.get("level", 0)) < min_studio:
 				return false
 	return true
 
