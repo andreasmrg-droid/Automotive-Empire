@@ -1,4 +1,7 @@
 extends Control
+## Version: S35.12b — BLUEPRINT STATUS panel ordered by the shared principle (GP1…GK) instead of
+##   activation order; catalog scroll min-height 400→120 so SIZE_EXPAND_FILL bounds it and the
+##   vertical scrollbar engages (cards were running off-screen with no scrollbar).
 ## Version: S35.12 — Championship tab strip (scrollable, shared GP1…GK order) in the catalog
 ##   column; Pillar 1/2/3 catalogs now show only the selected championship (P4 is building-gated,
 ##   champ-agnostic). Plus the L2-unlock fix moved to RnDEngine (_has_l1_blueprint_for now also
@@ -465,11 +468,13 @@ func _build_catalog_column(parent: VBoxContainer) -> void:
 	var scroll = ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	## S29.9 (#6) — guarantee a usable height so the catalog (esp. Pillar 4's 100
-	## special projects) can't collapse to a few rows; the vertical scrollbar then
-	## reliably reaches every project.
-	scroll.custom_minimum_size = Vector2(0, 400)
+	## S35.12 — small min height (was 400). A large minimum, combined with the added tab strip +
+	## headers above it, pushed the scroll's bottom past the viewport so it grew to fit content
+	## instead of scrolling (cards ran off-screen, no scrollbar). With a small floor, SIZE_EXPAND_FILL
+	## bounds the scroll to the remaining column height and the vertical scrollbar engages.
+	scroll.custom_minimum_size = Vector2(0, 120)
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.clip_contents = true
 	parent.add_child(scroll)
 
 	var inner = VBoxContainer.new()
@@ -1109,17 +1114,20 @@ func _build_blueprint_grid_column(parent: VBoxContainer) -> void:
 	legend.modulate = Color(0.5, 0.5, 0.5)
 	parent.add_child(legend)
 
-	var champs = GameState.active_championships
-	if champs.is_empty():
-		parent.add_child(_lbl_empty("No active championships."))
+	## S35.12 — order the status panel by the shared principle order (GP1…GK), same as the
+	## tab strip, instead of activation order.
+	var champ_ids = GameState.championship_tab_order()
+	if champ_ids.is_empty():
+		parent.add_child(_lbl_empty("No championships."))
 		return
 
-	for champ in champs:
-		var grid_data = GameState.get_blueprint_grid(champ.id)
+	for cid in champ_ids:
+		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
+		var grid_data = GameState.get_blueprint_grid(cid)
 
 		## Championship header
 		var lbl_champ = Label.new()
-		lbl_champ.text = champ.championship_name
+		lbl_champ.text = reg.get("name", cid)
 		lbl_champ.add_theme_font_size_override("font_size", 22)
 		lbl_champ.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
 		parent.add_child(lbl_champ)
@@ -1165,11 +1173,11 @@ func _build_blueprint_grid_column(parent: VBoxContainer) -> void:
 				var owned_levels: Array = pd.get("bp_levels", [])
 				if lvl in owned_levels:
 					cell.text = "✅"
-				elif _is_level_wra_approved(pcode, lvl, champ.id):
+				elif _is_level_wra_approved(pcode, lvl, cid):
 					cell.text = "🟢"
-				elif _is_level_wra_pending(pcode, lvl, champ.id):
+				elif _is_level_wra_pending(pcode, lvl, cid):
 					cell.text = "⏳"
-				elif _is_level_in_progress(pcode, lvl, champ.id):
+				elif _is_level_in_progress(pcode, lvl, cid):
 					cell.text = "🔬"
 				else:
 					cell.text = "⬜"
@@ -1184,11 +1192,11 @@ func _build_blueprint_grid_column(parent: VBoxContainer) -> void:
 			var re_done: bool = pd.get("re", false)
 			if re_done:
 				re_cell.text = "✅"
-			elif _is_re_wra_approved(pcode, champ.id):
+			elif _is_re_wra_approved(pcode, cid):
 				re_cell.text = "🟢"
-			elif _is_re_wra_pending(pcode, champ.id):
+			elif _is_re_wra_pending(pcode, cid):
 				re_cell.text = "⏳"
-			elif _is_re_in_progress(pcode, champ.id):
+			elif _is_re_in_progress(pcode, cid):
 				re_cell.text = "🔬"
 			else:
 				re_cell.text = "⬜"

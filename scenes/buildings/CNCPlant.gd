@@ -1,4 +1,7 @@
 extends Control
+## Version: S35.12b — Columns wrapped in vertical ScrollContainers (tall content scrolls instead
+##   of running off-screen); default championship tab = first in principle order (GP1), matching
+##   the Studio.
 ## Version: S35.12 — Tabbed multi-championship CNC + current-season (model b) rework:
 ##   • Scrollable championship tab strip (all 21 champs, shared GP1…GK registry order); each
 ##     screen shows ONE championship.
@@ -47,15 +50,11 @@ var _selected_champ_id: String = ""
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# Default to first active championship that has a player car
-	for car in GameState.player_team_cars:
-		if car.championship_id != "":
-			_selected_champ_id = car.championship_id
-			break
-	if _selected_champ_id == "" and GameState.active_championships.size() > 0:
-		_selected_champ_id = GameState.active_championships[0].id
+	## S35.12 — default the championship tab to the first in the shared principle order (GP1…GK),
+	## consistent with the R&D Studio, rather than activation order.
 	if _selected_champ_id == "":
-		_selected_champ_id = "C-001"
+		var order = GameState.championship_tab_order()
+		_selected_champ_id = order[0] if not order.is_empty() else "C-001"
 	_build_ui()
 
 func _build_ui() -> void:
@@ -128,41 +127,28 @@ func _build_ui() -> void:
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(body)
 
+	## S35.12 — each column is now a vertical ScrollContainer wrapping its content VBox, so a
+	## column with many cards (e.g. several manufacture cards) scrolls within the viewport
+	## instead of running off the bottom of the screen.
 	# Column A — WRA Approved Blueprints → manufacture (action; widest)
-	var col_a = VBoxContainer.new()
-	col_a.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	col_a.size_flags_stretch_ratio = 1.5
-	col_a.custom_minimum_size = Vector2(220, 0)
-	col_a.add_theme_constant_override("separation", 10)
-	body.add_child(col_a)
-	_build_wra_blueprints_column(col_a)
+	var col_a = _make_scroll_column(1.5, 220)
+	body.add_child(col_a[0])
+	_build_wra_blueprints_column(col_a[1])
 
 	# Column B — Inventory + assign to car (action; wide)
-	var col_b = VBoxContainer.new()
-	col_b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	col_b.size_flags_stretch_ratio = 1.3
-	col_b.custom_minimum_size = Vector2(200, 0)
-	col_b.add_theme_constant_override("separation", 10)
-	body.add_child(col_b)
-	_build_inventory_column(col_b)
+	var col_b = _make_scroll_column(1.3, 200)
+	body.add_child(col_b[0])
+	_build_inventory_column(col_b[1])
 
 	# Column C — Building info + production queue (reference)
-	var col_c = VBoxContainer.new()
-	col_c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	col_c.size_flags_stretch_ratio = 1.0
-	col_c.custom_minimum_size = Vector2(190, 0)
-	col_c.add_theme_constant_override("separation", 10)
-	body.add_child(col_c)
-	_build_info_column(col_c)
+	var col_c = _make_scroll_column(1.0, 190)
+	body.add_child(col_c[0])
+	_build_info_column(col_c[1])
 
 	# Column D — Blueprint ownership grid (reference)
-	var col_d = VBoxContainer.new()
-	col_d.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	col_d.size_flags_stretch_ratio = 1.0
-	col_d.custom_minimum_size = Vector2(180, 0)
-	col_d.add_theme_constant_override("separation", 10)
-	body.add_child(col_d)
-	_build_blueprint_ownership_column(col_d)
+	var col_d = _make_scroll_column(1.0, 180)
+	body.add_child(col_d[0])
+	_build_blueprint_ownership_column(col_d[1])
 
 
 func _build_queue_card(job: Dictionary, idx: int = 0, slots: int = 1) -> PanelContainer:
@@ -616,6 +602,23 @@ func _on_back() -> void:
 	get_tree().change_scene_to_file("res://scenes/Campus.tscn")
 
 ## ═══════════════════════════════════════════════════════════════════════════
+## S35.12 — Returns [ScrollContainer, inner VBox] for a body column: vertical scroll, expand-fill
+## width with a stretch ratio + min-width floor (responsive columns), so tall content scrolls.
+func _make_scroll_column(stretch: float, min_w: int) -> Array:
+	var scroll = ScrollContainer.new()
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_stretch_ratio = stretch
+	scroll.custom_minimum_size = Vector2(min_w, 120)
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.clip_contents = true
+	var inner = VBoxContainer.new()
+	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	inner.add_theme_constant_override("separation", 10)
+	scroll.add_child(inner)
+	return [scroll, inner]
+
 ## S35.12 — Scrollable championship tab strip. Highlights the selected tab; clicking a tab
 ## re-renders the screen scoped to that championship.
 func _build_champ_tab_strip() -> Control:
