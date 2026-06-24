@@ -1,4 +1,8 @@
 extends Node
+## Version: S36.2 — Per-championship logistics data fix: added CHAMP_LOGISTICS side-table
+##   (real fuel "per weekend per car" + Spares_per_Race +10% damage buffer, from the Variables
+##   Map "Championships" sheet) and assigned it in _setup_championship(), replacing the hardcoded
+##   uniform 15 kg / 100 SP that made every championship show identical needs (Logistics screenshot).
 ## Version: S36.0 — Bug #14/#2 fix: get_team_active_fans() & get_team_marketability() now derive
 ##   the team's fan pool from player_registered_championships (the player's ACTUAL entries),
 ##   not active_championships (the whole 21-championship world). A brand-new GK team no longer
@@ -1011,6 +1015,35 @@ const CHAMPIONSHIP_REGISTRY = {
 	"C-022": {"name":"GP3",                         "discipline":"GP",    "tier":2, "min_age":16, "max_age":99, "entry_fee":1250000,  "num_races":10, "rep":63},
 	"C-023": {"name":"GP2",                         "discipline":"GP",    "tier":3, "min_age":17, "max_age":99, "entry_fee":4410000,  "num_races":14, "rep":74},
 	"C-024": {"name":"GP1",                         "discipline":"GP",    "tier":4, "min_age":18, "max_age":99, "entry_fee":31680000, "num_races":24, "rep":100},
+}
+
+## Per-championship logistics needs — sourced from the Master Championship Variables Map
+## ("Championships" sheet). Replaces the old hardcoded uniform 15 kg / 100 SP that made every
+## championship look identical (Bug — see Logistics screenshot S36.x).
+##   fuel = "Fuel per Weekend" (kg per car, covers the whole race weekend incl. practice/quali).
+##   sp   = "Spares_per_Race" + 10% damage buffer (rounded), stored as sp_per_10_pct_damage.
+const CHAMP_LOGISTICS = {
+	"C-001": {"fuel": 20.0,  "sp": 110},    ## GK
+	"C-005": {"fuel": 85.0,  "sp": 418},    ## RALLY4
+	"C-006": {"fuel": 110.0, "sp": 495},    ## RALLY3
+	"C-007": {"fuel": 135.0, "sp": 638},    ## RALLY2
+	"C-008": {"fuel": 160.0, "sp": 935},    ## Premier Rally
+	"C-009": {"fuel": 210.0, "sp": 715},    ## TC Sport
+	"C-010": {"fuel": 240.0, "sp": 1012},   ## TC Elite
+	"C-011": {"fuel": 260.0, "sp": 572},    ## OWC Next Gen
+	"C-012": {"fuel": 290.0, "sp": 748},    ## OWC Development
+	"C-013": {"fuel": 340.0, "sp": 1375},   ## OWC Pro
+	"C-014": {"fuel": 360.0, "sp": 572},    ## SC Dev
+	"C-015": {"fuel": 390.0, "sp": 792},    ## SC Truck
+	"C-016": {"fuel": 410.0, "sp": 1012},   ## SC Challenge
+	"C-017": {"fuel": 420.0, "sp": 1375},   ## SC Cup
+	"C-018": {"fuel": 480.0, "sp": 638},    ## EPC Series
+	"C-019": {"fuel": 520.0, "sp": 858},    ## EPC League
+	"C-020": {"fuel": 580.0, "sp": 1375},   ## EPC Hyper
+	"C-021": {"fuel": 180.0, "sp": 418},    ## GP4
+	"C-022": {"fuel": 240.0, "sp": 638},    ## GP3
+	"C-023": {"fuel": 280.0, "sp": 858},    ## GP2
+	"C-024": {"fuel": 320.0, "sp": 1815},   ## GP1
 }
 
 ## Full race calendars for all 21 championships — from Brainstorming doc Race Calendar section.
@@ -2902,8 +2935,9 @@ func _setup_championship() -> void:
 		champ.prize_2nd = float(pm[1])
 		champ.prize_3rd = float(pm[2])
 
-		champ.sp_per_10_pct_damage   = 100
-		champ.fuel_per_car_per_race  = 15.0
+		var logi = CHAMP_LOGISTICS.get(cid, {"fuel": 15.0, "sp": 100})
+		champ.sp_per_10_pct_damage   = int(logi["sp"])
+		champ.fuel_per_car_per_race  = float(logi["fuel"])
 		champ.condition_loss_per_lap = 0.5
 		champ.condition_loss_per_stage    = 0.0
 		champ.repair_time_per_1pct        = 0.0

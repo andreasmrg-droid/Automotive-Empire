@@ -1,4 +1,8 @@
 extends Control
+## Version: S36.3 — Logistics presets reworked: SP quick-fill now 100/1000/10000, and ALL quick-fill
+##   buttons (SP + fuel) are now CUMULATIVE — each press ADDS its value to the typed amount (100,
+##   200, 300…) instead of overwriting. Per-championship needs breakdown now shows the real
+##   differentiated fuel/SP values (backed by GameState S36.2 CHAMP_LOGISTICS) instead of uniform.
 ## Version: S36.1 — Bug #9/#19/#44/#48 (cluster A): removed single-championship relics that read
 ##   the singular active_championship (= active_championships[0] = always GK). New _player_championships()
 ##   helper returns the player's actual championships (owned cars + registered). Header SP/FU warning
@@ -265,12 +269,16 @@ func _make_sp_card() -> PanelContainer:
 	vbox.add_child(preset_lbl)
 	var preset_row = HBoxContainer.new(); preset_row.add_theme_constant_override("separation", 8)
 	vbox.add_child(preset_row)
-	for pair in [["10 SP", 10],
-				 ["100 SP", 100],
-				 ["1000 SP", 1000]]:
+	for pair in [["+100", 100],
+				 ["+1000", 1000],
+				 ["+10000", 10000]]:
 		var b = _preset_btn(pair[0])
 		var qty = pair[1]
-		b.pressed.connect(func(): sp_input.text = str(qty))
+		## Cumulative: each press ADDS its value to whatever is already typed.
+		b.pressed.connect(func():
+			var cur = int(sp_input.text) if sp_input.text.is_valid_int() else 0
+			sp_input.text = str(cur + qty)
+			sp_input.text_changed.emit(sp_input.text))
 		preset_row.add_child(b)
 
 	var buy_btn = Button.new()
@@ -313,12 +321,16 @@ func _make_fuel_card() -> PanelContainer:
 	vbox.add_child(preset_lbl)
 	var preset_row = HBoxContainer.new(); preset_row.add_theme_constant_override("separation", 8)
 	vbox.add_child(preset_row)
-	for pair in [["10 kg", 10],
-				 ["100 kg", 100],
-				 ["1000 kg", 1000]]:
+	for pair in [["+10", 10],
+				 ["+100", 100],
+				 ["+1000", 1000]]:
 		var b = _preset_btn(pair[0])
 		var qty = pair[1]
-		b.pressed.connect(func(): fuel_input.text = str(qty))
+		## Cumulative: each press ADDS its value to whatever is already typed.
+		b.pressed.connect(func():
+			var cur = int(fuel_input.text) if fuel_input.text.is_valid_int() else 0
+			fuel_input.text = str(cur + qty)
+			fuel_input.text_changed.emit(fuel_input.text))
 		preset_row.add_child(b)
 
 	var buy_btn = Button.new()
