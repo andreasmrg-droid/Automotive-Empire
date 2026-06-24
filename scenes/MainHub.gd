@@ -1,4 +1,10 @@
 extends Control
+## Version: S36.4 — Bug #9/#19 (cluster A): Main Hub no longer reads the singular active_championship
+##   (= GK). Driver-stats now look up each driver's championship position in THEIR OWN car's
+##   championship (a Rally driver was wrongly shown "Not registered" because GK's standings were
+##   searched). The resource-bar SP/FU warning colours (both summary blocks) now use the worst-case
+##   need across the player's registered championships, not GK's. Uses new GameState helpers
+##   get_championship_by_id() / get_player_championships().
 ## Version: S35.11b — TDL routing: the R&D→WRA "submit to WRA / Blueprint ready" task now opens
 ##   HQ on the WRA tab (pending_hq_tab="wra"), not Overview (issue 2). Other HQ tasks unchanged.
 ## Version: S35.11 — Top bar no longer overflows the viewport. Two parts: (1) the notification
@@ -465,9 +471,15 @@ func _update_display() -> void:
 	sp_label.text = "🔧 SP  %d" % GameState.spare_parts
 	fu_label.text = "⛽ FU  %.0f kg" % GameState.fuel_kg
 
-	# SP/FU warning colors — use championship thresholds
-	var sp_threshold = GameState.active_championship.sp_per_10_pct_damage if GameState.active_championship else 120
-	var fu_threshold = GameState.active_championship.fuel_per_car_per_race if GameState.active_championship else 15.0
+	# SP/FU warning colors — worst-case need across the player's championships (shared pool).
+	# (Bug #9/#19 — was using GK's threshold via the singular active_championship.)
+	var sp_threshold = 0
+	var fu_threshold = 0.0
+	for champ in GameState.get_player_championships():
+		sp_threshold = max(sp_threshold, champ.sp_per_10_pct_damage)
+		fu_threshold = max(fu_threshold, champ.fuel_per_car_per_race)
+	if sp_threshold == 0: sp_threshold = 120
+	if fu_threshold == 0.0: fu_threshold = 15.0
 	sp_label.add_theme_color_override("font_color",
 		Color(1.0, 0.3, 0.3) if GameState.spare_parts < sp_threshold else Color(1.0, 0.8, 0.4))
 	fu_label.add_theme_color_override("font_color",
@@ -759,7 +771,6 @@ func _refresh_driver_stats() -> void:
 		return
 
 	var lines = []
-	var sorted = GameState.active_championship.get_standings_sorted()
 
 	for idx in range(GameState.player_team.drivers.size()):
 		var driver_id = GameState.player_team.drivers[idx]
@@ -767,15 +778,22 @@ func _refresh_driver_stats() -> void:
 		if not driver:
 			continue
 
+		var car = GameState.get_car_for_driver(driver_id)
+		## Bug #9/#19 (cluster A): look up the driver's standing in THEIR OWN car's
+		## championship, not the global active_championship (= GK). A Rally driver was
+		## showing "Not registered" because we searched GK's standings.
 		var player_position = 0
 		var player_points = 0
-		for i in range(sorted.size()):
-			if sorted[i]["driver_id"] == driver_id:
-				player_position = i + 1
-				player_points = sorted[i]["points"]
-				break
+		if car and car.championship_id != "":
+			var champ = GameState.get_championship_by_id(car.championship_id)
+			if champ:
+				var sorted = champ.get_standings_sorted()
+				for i in range(sorted.size()):
+					if sorted[i]["driver_id"] == driver_id:
+						player_position = i + 1
+						player_points = sorted[i]["points"]
+						break
 
-		var car = GameState.get_car_for_driver(driver_id)
 		var active_adapt = driver.get_active_adaptation()
 
 		if idx > 0:
@@ -1594,8 +1612,14 @@ func _refresh_cars() -> void:
 	cars_box.add_child(HSeparator.new())
 
 	# ── Resource summary ─────────────────────────────────────
-	var sp_threshold = GameState.active_championship.sp_per_10_pct_damage
-	var fu_threshold = GameState.active_championship.fuel_per_car_per_race
+	# Worst-case need across the player's championships (shared pool). (Bug #9/#19 — was GK only.)
+	var sp_threshold = 0
+	var fu_threshold = 0.0
+	for champ in GameState.get_player_championships():
+		sp_threshold = max(sp_threshold, champ.sp_per_10_pct_damage)
+		fu_threshold = max(fu_threshold, champ.fuel_per_car_per_race)
+	if sp_threshold == 0: sp_threshold = 120
+	if fu_threshold == 0.0: fu_threshold = 15.0
 	var sp_icon = "🟢" if GameState.spare_parts >= sp_threshold else ("🟠" if GameState.spare_parts >= sp_threshold / 2.0 else "🔴")
 	var fu_icon = "🟢" if GameState.fuel_kg >= fu_threshold else "🔴"
 	var res_label = Label.new()

@@ -2173,6 +2173,31 @@ func get_car_for_driver(driver_id: String) -> Car:
 func get_car_by_id(car_id: String) -> Car:
 	return _car_manager.get_car_by_id(car_id)
 
+## Returns the Championship object for a given ID, or null. (Cluster A shared helper — replaces
+## the repeated "for champ in active_championships: if champ.id == cid" loop scattered across screens.)
+func get_championship_by_id(champ_id: String) -> Championship:
+	for champ in active_championships:
+		if champ.id == champ_id:
+			return champ
+	return null
+
+## Returns the Championship objects the player is actually involved in this season:
+## every championship they own a car for + every one they're registered in. (Cluster A —
+## the correct multi-championship replacement for the singular active_championship in UI.)
+func get_player_championships() -> Array:
+	var cids: Array = []
+	for car in player_team_cars:
+		if car.championship_id != "" and not car.championship_id in cids:
+			cids.append(car.championship_id)
+	for cid in player_registered_championships:
+		if not cid in cids:
+			cids.append(cid)
+	var champs: Array = []
+	for champ in active_championships:
+		if champ.id in cids:
+			champs.append(champ)
+	return champs
+
 func get_car_condition(driver_id: String) -> float:
 	return _car_manager.get_car_condition(driver_id)
 

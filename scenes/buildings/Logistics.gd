@@ -1,4 +1,6 @@
 extends Control
+## Version: S36.5 — Refactor: _player_championships() now delegates to the shared
+##   GameState.get_player_championships() (S36.4) instead of duplicating the logic locally.
 ## Version: S36.3 — Logistics presets reworked: SP quick-fill now 100/1000/10000, and ALL quick-fill
 ##   buttons (SP + fuel) are now CUMULATIVE — each press ADDS its value to the typed amount (100,
 ##   200, 300…) instead of overwriting. Per-championship needs breakdown now shows the real
@@ -127,23 +129,10 @@ func _build_ui() -> void:
 
 	_switch_tab(0)
 
-## Returns the Championship objects the player is actually involved in this season:
-## every championship they own a car for + every one they're registered in.
-## (Bug #9/#19/#44/#48 — replaces reads of the singular active_championship, which always
-## returned active_championships[0] = GK regardless of what the player entered.)
+## Delegates to the shared GameState helper (S36.4) — kept as a thin local alias so the rest of
+## this screen reads cleanly. (Was a duplicate implementation; now single source of truth.)
 func _player_championships() -> Array:
-	var cids: Array = []
-	for car in GameState.player_team_cars:
-		if car.championship_id != "" and not car.championship_id in cids:
-			cids.append(car.championship_id)
-	for cid in GameState.player_registered_championships:
-		if not cid in cids:
-			cids.append(cid)
-	var champs: Array = []
-	for champ in GameState.active_championships:
-		if champ.id in cids:
-			champs.append(champ)
-	return champs
+	return GameState.get_player_championships()
 
 func _refresh_header_labels() -> void:
 	if not is_instance_valid(_lbl_cr): return
