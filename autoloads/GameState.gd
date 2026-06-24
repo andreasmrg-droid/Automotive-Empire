@@ -1,4 +1,8 @@
 extends Node
+## Version: S36.15 — Bug #28/#31 (cluster A core, CP3): GK shadow groups now feed the GK
+##   championship's flat team_standings (constructors) table each week, so the GK TEAM champion
+##   counts ALL 21 races (driver champion still via the elimination system). Folds the
+##   {team_id: points} returned by gk_discipline.shadow_simulate_week() into C-001 team_standings.
 ## Version: S36.14 — Bug #31 (cluster A core, checkpoint 1): save/load now persists EVERY
 ##   championship's standings, keyed by id (_serialize_all_championship_standings /
 ##   _deserialize_all_championship_standings), instead of only the singular active_championship
@@ -3126,7 +3130,14 @@ func advance_week() -> void:
 
 	## P26: Shadow-simulate non-player GK groups this week
 	if gk_discipline != null:
-		gk_discipline.shadow_simulate_week(current_week, all_drivers)
+		var gk_team_points = gk_discipline.shadow_simulate_week(current_week, all_drivers)
+		## CP3: fold the shadow groups' team points into GK's flat constructors table, so the GK
+		## team champion counts ALL 21 races (player group already fed via _simulate_race).
+		if not gk_team_points.is_empty():
+			var gk_champ = get_championship_by_id("C-001")
+			if gk_champ != null:
+				for tid in gk_team_points:
+					gk_champ.add_team_points(tid, gk_team_points[tid])
 
 	## GK round advancement — check if this week was the last race of a gk_round
 	if gk_discipline != null:

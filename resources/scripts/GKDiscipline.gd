@@ -1,5 +1,9 @@
 extends Resource
 class_name GKDiscipline
+## Version: S36.15 — CP3 (#28): shadow_simulate_week() now RETURNS {team_id: points_earned} for the
+##   non-player groups so GameState can fold them into the GK flat constructors table (the GK team
+##   champion counts all 21 races; driver champion still uses elimination). Signature change: was
+##   void, now returns Dictionary.
 ## Version: S35.3 — Added player_elimination_announced flag. The "your driver was eliminated…
 ##   Season over for GK" notification used to re-fire at the END OF EVERY subsequent round once
 ##   the player was out (eliminated stays true forever), so a Round-1 exit produced duplicate
@@ -144,8 +148,14 @@ func populate_season(
 
 ## ── Shadow simulate (non-player groups) ──────────────────────────────────────
 
-func shadow_simulate_week(week: int, all_drivers: Dictionary) -> void:
-	if current_round >= group_drivers.size(): return
+func shadow_simulate_week(week: int, all_drivers: Dictionary) -> Dictionary:
+	## Returns {team_id: points_earned_this_week} for the non-player shadow groups, so the caller
+	## (GameState) can fold them into the GK championship's flat team_standings table. CP3: the GK
+	## TEAM champion is decided by a straightforward cumulative table across ALL 21 races (driver
+	## champion still uses the elimination system). The player's own group feeds team points via
+	## the normal _simulate_race path; this covers every other group.
+	var team_points: Dictionary = {}
+	if current_round >= group_drivers.size(): return team_points
 	var grp_list   = group_drivers[current_round]
 	var stand_list = shadow_standings[current_round]
 
@@ -167,12 +177,18 @@ func shadow_simulate_week(week: int, all_drivers: Dictionary) -> void:
 		for i in range(scored.size()):
 			var did = scored[i]["driver_id"]
 			var p   = pts[i] if i < pts.size() else 0
+			## CP3: accrue team points for this driver's team (flat GK constructors table).
+			if p > 0 and did in all_drivers:
+				var tid = all_drivers[did].contract_team
+				if tid != "":
+					team_points[tid] = team_points.get(tid, 0) + p
 			for entry in stand_list[g]:
 				if entry["driver_id"] == did:
 					entry["points"] += p
 					entry["races"]  += 1
 					if i == 0: entry["wins"] += 1
 					break
+	return team_points
 
 
 ## ── Round advancement ─────────────────────────────────────────────────────────

@@ -1,4 +1,9 @@
 class_name SeasonManager
+## Version: S36.15 — Bug #28/#31 (cluster A core, CP2): end_season() now crowns a driver AND team
+##   champion for EVERY championship in the world (was only active_championship = GK). Non-GK use
+##   standings; GK uses the elimination system for the driver champion and the flat cumulative
+##   team table for the team champion. Each writes to that championship's drivers_/teams_champion_
+##   history. (History Book — a future season-records feature in HQ Overview — will consume this.)
 ## Version: S35.11 — Step 4 R&D rollover hardened: P2 (Upgrade) blueprints now fully purged
 ##   from known_blueprints + WRA submissions + WRA approvals + CNC queue (previously only the
 ##   task lists were cleared, so P2 leaked across the season boundary). P1/P3 next-season
@@ -86,33 +91,41 @@ func _init(game_state) -> void:
 func end_season() -> void:
 	gs.add_log("=== SEASON %d COMPLETE ===" % gs.current_season)
 
-	# ── 1. Award champion titles, archive to History ─────────────────────
-	# Log driver standings top 3 and award drivers championship
-	var sorted_drivers = gs.active_championship.get_standings_sorted()
-	gs.add_log("DRIVERS CHAMPIONSHIP:")
-	for i in range(min(3, sorted_drivers.size())):
-		var entry = sorted_drivers[i]
-		var driver = gs.all_drivers.get(entry["driver_id"])
-		if driver:
-			gs.add_log("P%d: %s — %d pts" % [i + 1, driver.full_name(), entry["points"]])
-	## Award drivers championship to winner
-	if sorted_drivers.size() > 0:
-		gs._award_drivers_championship(sorted_drivers[0]["driver_id"], gs.active_championship)
+	# ── 1. Award champion titles for EVERY championship, archive to History ──────
+	# (#28/#31: the weekly loop simulates all championships, so all of them have standings.
+	# Previously only active_championship (= GK) was crowned; now every championship gets a
+	# driver + team champion. GK is special-cased: driver champion via the elimination system,
+	# team champion via the flat cumulative team table (CP3).)
+	for champ in gs.active_championships:
+		if champ.id == "C-001" and gs.gk_discipline != null:
+			## GK driver champion — elimination system.
+			var gk_champ_entry = gs.gk_discipline.get_champion()
+			if not gk_champ_entry.is_empty():
+				var gk_did = gk_champ_entry.get("driver_id", "")
+				if gk_did != "":
+					var gd = gs.all_drivers.get(gk_did)
+					gs.add_log("🏆 %s — GK Champion: %s" % [
+						champ.championship_name, gd.full_name() if gd else gk_did])
+					gs._award_drivers_championship(gk_did, champ)
+			## GK team champion — flat cumulative team table.
+			var gk_teams = champ.get_team_standings_sorted()
+			if gk_teams.size() > 0:
+				gs._award_teams_championship(gk_teams[0]["team_id"], champ)
+			continue
 
-	# Log team standings top 3 and award constructors championship
-	var sorted_teams = gs.active_championship.get_team_standings_sorted()
-	gs.add_log("TEAMS CHAMPIONSHIP:")
-	for i in range(min(3, sorted_teams.size())):
-		var entry = sorted_teams[i]
-		var team_name = "Unknown"
-		for team in gs.all_teams:
-			if team.id == entry["team_id"]:
-				team_name = team.team_name
-				break
-		gs.add_log("P%d: %s — %d pts" % [i + 1, team_name, entry["points"]])
-	## Award constructors championship to winner
-	if sorted_teams.size() > 0:
-		gs._award_teams_championship(sorted_teams[0]["team_id"], gs.active_championship)
+		## All other championships — driver + team champion from standings.
+		var sorted_drivers = champ.get_standings_sorted()
+		if sorted_drivers.size() > 0:
+			var win_d = gs.all_drivers.get(sorted_drivers[0]["driver_id"])
+			gs.add_log("🏆 %s — Champion: %s (%d pts)" % [
+				champ.championship_name,
+				win_d.full_name() if win_d else sorted_drivers[0]["driver_id"],
+				sorted_drivers[0]["points"]])
+			gs._award_drivers_championship(sorted_drivers[0]["driver_id"], champ)
+
+		var sorted_teams = champ.get_team_standings_sorted()
+		if sorted_teams.size() > 0:
+			gs._award_teams_championship(sorted_teams[0]["team_id"], champ)
 
 	## Apply reputation inertia — rep moves toward earned value slowly
 	gs._apply_reputation_inertia()
