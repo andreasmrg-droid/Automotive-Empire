@@ -1,7 +1,13 @@
 extends Node
-## Version: S36.18b — TEMP DEBUG build: added [GK-DEBUG] prints to the final-weekend path to
-##   diagnose why the semifinal cut isn't firing (champion showed 50 pts = semi+final, meaning the
-##   cut/reset didn't run). Remove these prints once the cause is found. Otherwise identical to S36.18.
+## Version: S36.20 — Fixed TWO GK final-weekend/scoring bugs surfaced by playtesting. (1) NO
+##   ELIMINATION: the two calendar-copy loops (setup + load paths) rebuilt each race entry copying
+##   only 7 keys, STRIPPING gk_round/is_semifinal/is_final. So the running calendar had no
+##   is_semifinal flag → the final-weekend hook never fired → the Grand Final ran on a full
+##   30-driver group (no cut). Both copies now preserve those flags. (2) POINTS INFLATION: the P26
+##   shadow-sim ran shadow_simulate_week() EVERY week regardless of whether GK raced, so AI groups
+##   scored ~2× the player's race count (group leaders at 100-162 by mid-season). Now it runs only
+##   on weeks GK actually races, and skips the Semi-Final week (already shadow-simmed in the hook).
+##   Also removed the S36.18b [GK-DEBUG] prints.
 ## Version: S36.18 — GK final-weekend redesign + multi-event engine. (1) GENERAL: the weekly loop
 ##   now runs EVERY race a championship has this week via get_races_for_week() (was one race per
 ##   champ per week) — reusable for future Rally/Endurance multi-event weekends; single-race
@@ -2996,11 +3002,18 @@ func _setup_championship() -> void:
 		champ.pit_stop_repair_pct         = 0.0
 		champ.calendar = []
 		for race in CHAMPIONSHIP_CALENDARS.get(cid, CHAMPIONSHIP_CALENDARS.get("C-001", [])):
-			champ.calendar.append({
+			var entry = {
 				"round": race["round"], "name": race["name"], "week": race["week"],
 				"rain_probability": race["rain"], "laps": race["laps"],
 				"lap_km": race.get("lap_km", 1.0), "audience": race["audience"],
-			})
+			}
+			## Preserve GK round/elimination flags (gk_round, is_semifinal, is_final) — the
+			## final-weekend cut logic reads these off the calendar entry. Dropping them (the old
+			## bug) meant the Semi-Final was never detected, so no elimination ran.
+			if race.has("gk_round"): entry["gk_round"] = race["gk_round"]
+			if race.has("is_semifinal"): entry["is_semifinal"] = race["is_semifinal"]
+			if race.has("is_final"): entry["is_final"] = race["is_final"]
+			champ.calendar.append(entry)
 		active_championships.append(champ)
 
 	print("[GameState] %d championships created" % active_championships.size())
@@ -3151,8 +3164,6 @@ func advance_week() -> void:
 			## race (the Grand Final, same week) is contested by the 20 survivors. The player's real
 			## semi result is already synced into GK group 0 by _simulate_race (Option B).
 			if champ.id == "C-001" and gk_discipline != null and race.get("is_semifinal", false):
-				print("[GK-DEBUG] Semi hook FIRED. gk current_round=%d (need %d). race=%s" % [
-					gk_discipline.current_round, gk_discipline.ROUNDS.size() - 1, race.get("name","?")])
 				## AI semi for the non-player final groups (so their results exist before the cut).
 				var semi_team_pts = gk_discipline.shadow_simulate_week(current_week, all_drivers)
 				for tid in semi_team_pts:
@@ -3161,21 +3172,34 @@ func advance_week() -> void:
 				gk_discipline.apply_semifinal_cut()
 				## Re-sync the player's GK standings/field to the finalists (group 0 now = final 20).
 				_sync_gk_group0_to_standings()
-				print("[GK-DEBUG] After cut: final group size=%d, c.standings size=%d" % [
-					gk_discipline.get_player_group("C-001").size(), champ.standings.size()])
-			elif champ.id == "C-001" and race.get("is_final", false):
-				print("[GK-DEBUG] GRAND FINAL race running. c.standings size=%d (should be ~20)" % champ.standings.size())
 
-	## P26: Shadow-simulate non-player GK groups this week
+	## P26: Shadow-simulate non-player GK groups — ONLY on weeks GK actually races.
+	## Previously this ran every single week, so the AI groups scored a full points-award even on
+	## weeks with no GK race (roughly double the player's race count), inflating early-round
+	## standings (group leaders at 100+). Now it mirrors the real race cadence: run only when GK
+	## has a race this week, and skip the Semi-Final week — that week's AI shadow sim is already
+	## handled inside the final-weekend hook above (before the cut), so running it again here would
+	## double-count it.
 	if gk_discipline != null:
-		var gk_team_points = gk_discipline.shadow_simulate_week(current_week, all_drivers)
-		## CP3: fold the shadow groups' team points into GK's flat constructors table, so the GK
-		## team champion counts ALL 21 races (player group already fed via _simulate_race).
-		if not gk_team_points.is_empty():
-			var gk_champ = get_championship_by_id("C-001")
-			if gk_champ != null:
-				for tid in gk_team_points:
-					gk_champ.add_team_points(tid, gk_team_points[tid])
+		## Determine whether GK has a race this week by scanning its STATIC calendar by week.
+		## (We can't use champ.get_races_for_week here — the race loop above already advanced
+		## champ.current_round past this week's races, so that would always come back empty.)
+		var gk_cal_wk = CHAMPIONSHIP_CALENDARS.get("C-001", [])
+		var gk_raced = false
+		var is_semi_week = false
+		for r in gk_cal_wk:
+			if r["week"] == current_week:
+				gk_raced = true
+				if r.get("is_semifinal", false): is_semi_week = true
+		if gk_raced and not is_semi_week:
+			var gk_team_points = gk_discipline.shadow_simulate_week(current_week, all_drivers)
+			## CP3: fold the shadow groups' team points into GK's flat constructors table, so the GK
+			## team champion counts ALL races (player group already fed via _simulate_race).
+			if not gk_team_points.is_empty():
+				var gk_champ = get_championship_by_id("C-001")
+				if gk_champ != null:
+					for tid in gk_team_points:
+						gk_champ.add_team_points(tid, gk_team_points[tid])
 
 	## GK round advancement — check if this week was the last race of a gk_round
 	if gk_discipline != null:
@@ -3352,7 +3376,7 @@ func _create_championship(champ_id: String) -> Championship:
 	var cal = CHAMPIONSHIP_CALENDARS.get(champ_id, [])
 	champ.calendar = []
 	for race in cal:
-		champ.calendar.append({
+		var entry = {
 			"round": race["round"],
 			"name": race["name"],
 			"week": race["week"],
@@ -3360,7 +3384,12 @@ func _create_championship(champ_id: String) -> Championship:
 			"laps": race["laps"],
 			"lap_km": race.get("lap_km", 1.0),
 			"audience": race["audience"],
-		})
+		}
+		## Preserve GK round/elimination flags so the final-weekend cut can detect the Semi-Final.
+		if race.has("gk_round"): entry["gk_round"] = race["gk_round"]
+		if race.has("is_semifinal"): entry["is_semifinal"] = race["is_semifinal"]
+		if race.has("is_final"): entry["is_final"] = race["is_final"]
+		champ.calendar.append(entry)
 	champ.num_races = champ.calendar.size()
 	return champ
 
