@@ -1,6 +1,14 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v5.7 (consolidated master) · **Engine:** Godot 4.6.3 / GDScript
+**Version:** v5.8 (consolidated master) · **Engine:** Godot 4.6.3 / GDScript
+<!-- v5.8: §8 R&D Studio polish (S35.16–S35.21) — catalog + Blueprint Status SCROLL fixes (shared
+	 _make_scroll_column helper + right-side scrollbar gutter, mirrored in CNC Plant); championship
+	 tab strip now PILLAR-1-ONLY (P2/P3 iterate the player's cars, P4 is champ-agnostic — the tabs
+	 did nothing there); §8.4 P4 now gates on the target BUILDING level AND the R&D Design Studio
+	 level (Required_RnD_Studio_Level was dead data, now enforced) with a single consolidated
+	 "Required: 🏢 Building Lv X & 🔬 Studio Lv Y" line; §16 FULL R&D Studio localization incl. all
+	 100 Special Project names/descs; licensing — user-facing "Formula" → "GP" (internal WRA-group
+	 keys unchanged). NOTE: a companion BUGLIST.md now tracks 51 open defects (see §21). -->
 <!-- v5.7: §5.1 CNC on-track part performance bonus (value×quality, cap 0.15) WITH a future-
 	 review flag; §5.2 WRA approval = persistent manufacturing licence (+ HQ hand-off rule);
 	 §8.1 2-D championship tab GRID (disciplines vertical by top-tier-rep principle, tiers
@@ -33,6 +41,7 @@
 > - `FEATURE_AI_Championship_Sim.md` — full spec for the deferred living-world feature.
 > - `Season_Transition_Pipeline_Spec_v1.md` — detailed companion to §7.1 (the built rollover).
 > - `Master_Calculation___Formula_Document` — the authoritative formula/variable reference.
+> - `BUGLIST.md` — the live defect/work queue (51 open items as of v5.8; see §21).
 > Where this document and the code ever disagree, the CODE is truth; update this doc to match.
 
 ---
@@ -508,12 +517,37 @@ the Logistics warehouse (`part_inventory`, via `get_part_stock`) — with a Sour
 
 ### 8.4 Research Points (RP) — earned only by racing  *(design note — under review)*
 
-RP is currently earned in exactly one place: after a race (`RaceSimulator`). There is **no**
-baseline weekly RP income from the Studio or idle designers. Consequence: a team cannot research
-anything until it has raced at least once (RP starts at 0). The catalog now always shows the
-Assign row with disabled buttons + a reason ("need N RP (have 0)") so this gate is legible
+RP is currently earned in exactly one place: after a race (`RaceSimulator.earn_race_rp`). There is
+**no** baseline weekly RP income from the Studio or idle designers. Consequence: a team cannot
+research anything until it has raced at least once (RP starts at 0). The catalog now always shows
+the Assign row with disabled buttons + a reason ("need N RP (have 0)") so this gate is legible
 rather than appearing broken. **Open question:** whether to add a small baseline weekly RP from
 the R&D facility / designers so development can happen between races. Not yet decided.
+
+### 8.5 R&D Studio — Pillar 4 gating, requirement display & UI (S35.16–S35.21)
+
+**Pillar 4 (Special Projects) gating.** Each Special Project (100 total) gates, in priority order,
+on (1) any prerequisite task, (2) the target **building** at/above `min_building_level`, and (3)
+the **R&D Design Studio** at/above `Required_RnD_Studio_Level`. The Studio-level requirement was
+present in the data from the start but unenforced until S35.19 — it now blocks like the building
+gate (`RnDEngine.rnd_task_unlocked`). Enforcing it locks more projects earlier than before; factor
+this into the Phase 5 balance pass.
+
+**Consolidated requirement line.** Every P4 card shows a single line — "Required: 🏢 {Building}
+Lv X  &  🔬 Studio Lv Y" — coloured green when all shown gates are met, amber otherwise. This
+replaced the earlier split design (a separate two-chip requirements row plus a redundant lock
+sentence that repeated the same thing). The lock area now only carries a *prerequisite-task*
+message; when building/studio level is the sole blocker the amber Required line already says it.
+
+**Championship tabs are Pillar-1-only.** The championship tab strip renders only on Pillar 1
+(Design). Pillars 2 (Upgrade) and 3 (Reverse Engineering) iterate over the player's owned cars and
+never read the selected championship, and Pillar 4 is champ-agnostic — so the tabs did nothing on
+those pillars and were removed there.
+
+**Scrolling.** The catalog (centre) and Blueprint Status (right) columns each scroll via a shared
+`_make_scroll_column(stretch, min_w)` helper mirroring the CNC Plant's, with a right-side
+`MarginContainer` gutter so the vertical scrollbar always has a clear lane (it was previously drawn
+under full-width content and appeared missing). The same gutter convention was applied to CNC Plant.
 
 ---
 
@@ -998,9 +1032,22 @@ updated `Locale.gd` alongside. **Session-start check:** scan that every `Locale.
 referenced under `scenes/` exists in `Locale.gd` (a stacked merge once dropped 16 keys and
 showed raw key text in-game).
 
-**Outstanding localization DEBT (deferred, by choice):** many PRE-EXISTING hardcoded strings
-remain (NewGame title/subtitle/hints, load-picker labels, R&D Pillars 1–4 names/descriptions,
-etc.). A full localization sweep is its own future session — do not half-do it inline.
+**R&D Studio — fully localized (S35.20–S35.21).** The entire R&D Design Studio is now localized:
+title bar, tab/pillar names + descriptions, section headers, designer & active-task panels, all
+P1–P4 catalog strings, WRA status, assign blockers, the consolidated P4 requirement line, AND all
+100 Pillar 4 Special Project names + descriptions (keys `sp_{id}_name` / `sp_{id}_desc`, resolved
+via `RnDStudio._sp_name` / `_sp_desc` with a raw-value fallback for missing keys / old saves).
+
+**Licensing rule — "Formula" → "GP".** No user-facing string may say "Formula" (licensing). Use
+"GP". Fixed so far in the R&D Studio + `Locale.gd` (the next-season label, the REQUIRED tag, the
+SP_RACE_1 name). **Still outstanding:** NewGame screen and HQ-WRA still show "Formula" (BUGLIST
+#21). NOTE: internal `"Formula"` WRA-group dictionary keys (`["C-021"…]`, CYCLE_LEN, the reverse
+map) are CODE IDENTIFIERS, never shown to the player — do NOT rename them.
+
+**Outstanding localization DEBT (deferred, by choice):** PRE-EXISTING hardcoded strings remain
+elsewhere (NewGame title/subtitle/hints, load-picker labels, and the P1/P2/P3 per-blueprint TASK
+TITLES, which are string-interpolated rather than keyed — e.g. "GK Championship — Aero S2
+Blueprint"). A full cross-scene sweep is its own future session — do not half-do it inline.
 
 ---
 
@@ -1064,6 +1111,23 @@ the wildcards). Biggest risk: scope creep — keep saying "backlog."
 ## 20. IMPLEMENTATION CHANGELOG (recent — newest first)
 
 Historical record of what shipped; design facts above already reflect these.
+
+- **S35.16–S35.21 (R&D Studio polish + P4 gating + localization — §8.5/§16):**
+  - **Scroll fixes (S35.16–S35.17):** the centre catalog and right Blueprint Status columns weren't
+    scrolling (Status had no ScrollContainer at all; the catalog's bar was hidden under full-width
+    content). Fixed via a shared `_make_scroll_column(stretch, min_w)` helper + a right-side
+    `MarginContainer` gutter giving the scrollbar a clear lane; the gutter convention was also
+    applied to CNC Plant's matching helper.
+  - **Pillar-1-only tabs (S35.17):** the championship tab strip now renders on Pillar 1 only — P2/P3
+    iterate the player's cars and P4 is champ-agnostic, so the tabs did nothing there.
+  - **P4 building + Studio gate (S35.18–S35.19):** P4 lock messages now state the real reason
+    (build/upgrade the target building); AND `Required_RnD_Studio_Level` is now ENFORCED in
+    `RnDEngine.rnd_task_unlocked` (was dead data). Gate order: prerequisite → building → Studio.
+  - **Consolidated requirement line (S35.21):** one "Required: 🏢 Building Lv X & 🔬 Studio Lv Y"
+    line (green/amber) replaced the old two-chip row + duplicate lock sentence.
+  - **Localization (S35.20–S35.21):** the whole R&D Studio + all 100 Special Project names/descs
+    localized (sp_{id}_name / sp_{id}_desc + ~49 UI keys; dead keys removed). Licensing: user-facing
+    "Formula" → "GP" in the Studio + Locale (NewGame/HQ still pending — BUGLIST #21).
 
 - **S35.10 (Personnel hub UX overhaul + Shortlist — §15):**
   - **Hub readability/layout:** available rows at 24px with 100s emphasised; columns switched from
@@ -1144,8 +1208,28 @@ Historical record of what shipped; design facts above already reflect these.
 
 ---
 
-*End of GDD v5.6. Companion files: `Brainstorm_Threads.md` (vision/strategy),
+## 21. KNOWN DEFECTS — see `BUGLIST.md`
+
+The live defect/work queue lives in the companion file **`BUGLIST.md`** (kept separate so this
+design document stays the durable source of truth and isn't cluttered with transient bugs). As of
+v5.8 it holds **51 open items**, organised by severity (S1 state-corrupting → S3 cosmetic) and by
+system. The highest-leverage clusters flagged there:
+
+- **Championship-registration cluster (#9, #19, #44, #48, #33)** — player treated as registered in
+  ALL championships rather than only those entered; likely one root cause, many symptoms.
+- **Standings wipe (#31) + GK team points (#28)** — end-of-season results destroyed; see §13/§14.
+- **Roster desync (#35) + contract loop (#6, #10)** — Season Transition Pipeline area (§7.1).
+- **Interest/reputation model (#2, #4) + CFO data (#1)** — economy correctness (§9, §12).
+- **Garage slots & assignment (#37–#41, #45–#47)** — multi-driver champ slots, repair, TP reassign.
+- **Notification cluster** and several **design revamps** (#17 Main Hub, #32 Racing World, #34
+  Beginning-of-Season, #30 building text) scheduled as design work, not point fixes.
+
+When a fix ships, update the relevant section above AND mark the item ✅ in `BUGLIST.md`.
+
+---
+
+*End of GDD v5.8. Companion files: `Brainstorm_Threads.md` (vision/strategy),
 `FEATURE_AI_Championship_Sim.md` (deferred feature spec), `TP_Assignment_System_Spec_v2.md` (TP
 assignment design), `Season_Transition_Pipeline_Spec_v1.md` (§7.1 rollout detail),
-`Master_Calculation___Formula_Document` (formula reference). Keep this document reconciled with the
-code after every session.*
+`Master_Calculation___Formula_Document` (formula reference), `BUGLIST.md` (defect/work queue).
+Keep this document reconciled with the code after every session.*
