@@ -1,4 +1,10 @@
 extends Node
+## Version: S36.14 — Bug #31 (cluster A core, checkpoint 1): save/load now persists EVERY
+##   championship's standings, keyed by id (_serialize_all_championship_standings /
+##   _deserialize_all_championship_standings), instead of only the singular active_championship
+##   (= GK). The weekly loop simulates all championships, so all 20+ accrue standings — persisting
+##   one dropped the rest on save (= the "standings wiped" symptom #31). SAVE-BREAKING: old single-
+##   "championship" saves are not migrated (per design decision — start a fresh game).
 ## Version: S36.2 — Per-championship logistics data fix: added CHAMP_LOGISTICS side-table
 ##   (real fuel "per weekend per car" + Spares_per_Race +10% damage buffer, from the Variables
 ##   Map "Championships" sheet) and assigned it in _setup_championship(), replacing the hardcoded
@@ -3391,11 +3397,10 @@ func save_game() -> void:
 		"team_color_secondary": team_color_secondary.to_html(),
 		"all_teams": [],
 		"all_drivers": {},
-		"championship": {
-			"current_round": active_championship.current_round,
-			"standings": active_championship.standings,
-			"team_standings": active_championship.team_standings,
-		},
+		## Save standings for EVERY championship (keyed by id), not just the singular
+		## active_championship (= GK). The weekly race loop simulates all championships, so all
+		## of them accrue standings — persisting only one dropped the other 20 on save (Bug #31).
+		"championships": _serialize_all_championship_standings(),
 		"campus_buildings": campus_buildings,
 		"part_inventory": part_inventory,
 		"active_rnd_tasks":     active_rnd_tasks,
@@ -3576,11 +3581,9 @@ func load_game(path: String = "user://save_game.json") -> void:
 		gk_discipline.deserialize(data["gk_discipline"])
 	if "custom_todo_items" in data: custom_todo_items = data["custom_todo_items"]
 
-	# Restore championship
+	# Restore championship standings (all championships, keyed by id — see _serialize_all_…).
 	_setup_championship()
-	active_championship.current_round = data["championship"]["current_round"]
-	active_championship.standings = data["championship"]["standings"]
-	active_championship.team_standings = data["championship"]["team_standings"]
+	_deserialize_all_championship_standings(data.get("championships", {}))
 
 	# Restore teams
 	all_teams = []
@@ -3685,6 +3688,32 @@ func load_game(path: String = "user://save_game.json") -> void:
 ## ═══════════════════════════════════════════════════════════════════════════
 ## SERIALIZATION HELPERS
 ## ═══════════════════════════════════════════════════════════════════════════
+
+## ═══════════════════════════════════════════════════════════════════════════
+
+## Serialize standings for ALL championships, keyed by championship id. (Fix #31 — the weekly
+## loop simulates every championship, so every championship accrues standings; we must persist
+## them all, not just the singular active_championship.)
+func _serialize_all_championship_standings() -> Dictionary:
+	var out: Dictionary = {}
+	for champ in active_championships:
+		out[champ.id] = {
+			"current_round": champ.current_round,
+			"standings": champ.standings,
+			"team_standings": champ.team_standings,
+		}
+	return out
+
+## Restore standings into each championship by id. Championships are freshly created by
+## _setup_championship() before this runs, so any id missing from the save simply keeps its
+## empty starting standings.
+func _deserialize_all_championship_standings(saved: Dictionary) -> void:
+	for champ in active_championships:
+		var entry = saved.get(champ.id, {})
+		if entry.is_empty(): continue
+		champ.current_round = entry.get("current_round", 0)
+		champ.standings = entry.get("standings", {})
+		champ.team_standings = entry.get("team_standings", {})
 
 func _serialize_cars() -> Array:
 	var result = []
