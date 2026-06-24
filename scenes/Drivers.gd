@@ -1,3 +1,6 @@
+## Version: S36.11 — Bug #9/#19 (cluster A): the driver card's championship position now looks up
+##   the driver's OWN car's championship (via get_championship_by_id) instead of the singular
+##   active_championship (= GK), so a non-GK driver shows their real standing.
 ## Version: S36.10 — Fixed the tiny My-Drivers name font (14 → 24) to match the available-drivers
 ##   list and be readable (same inconsistency as StaffHub).
 ## Version: S35.10c — Added ⭐ Shortlist entry button to the header (opens the unified Shortlist).
@@ -689,20 +692,24 @@ func _show_driver_card(driver_id: String) -> void:
 	_card_row(vbox, "Discipline", "%s  (Adapt: %.1f)" % [
 		driver.active_discipline, driver.get_active_adaptation()])
 
-	# Championship position
-	var sorted = GameState.active_championship.get_standings_sorted()
+	# Championship position — in the driver's OWN car's championship, not the singular
+	# active_championship (= GK). (Cluster A, Bug #9/#19.)
+	var car = GameState.get_car_for_driver(driver_id)
 	var pos = 0
 	var pts = 0
-	for i in range(sorted.size()):
-		if sorted[i]["driver_id"] == driver_id:
-			pos = i + 1
-			pts = sorted[i]["points"]
-			break
+	if car and car.championship_id != "":
+		var dchamp = GameState.get_championship_by_id(car.championship_id)
+		if dchamp:
+			var sorted = dchamp.get_standings_sorted()
+			for i in range(sorted.size()):
+				if sorted[i]["driver_id"] == driver_id:
+					pos = i + 1
+					pts = sorted[i]["points"]
+					break
 	if pos > 0:
 		_card_row(vbox, "Championship", "P%d — %d pts" % [pos, pts])
 
 	# Contract
-	var car = GameState.get_car_for_driver(driver_id)
 	_card_row(vbox, "Contract",
 		"%d seasons remaining  |  Car: %s" % [
 			driver.contract_seasons_remaining,

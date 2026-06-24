@@ -1,4 +1,8 @@
 extends Control
+## Version: S36.12 — Bug #33 (cluster A): removed the "Registration" button from End-of-Season.
+##   Registration happens DURING the season (for next season, via HQ → WRA / Championship
+##   Registration); EOS is a review screen, so only "Continue to Season N+1" remains. (The
+##   raced-championships-only standings filter was already correct from S28.3/S28.4.)
 ## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
 ##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S28.4 — EOS only shows championships the player actually raced (fixes empty GK
@@ -83,11 +87,9 @@ func _build_ui() -> void:
 	lbl_next.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	footer.add_child(lbl_next)
 
-	var btn_reg = _action_btn("🏆 Registration →", Color(0.14, 0.32, 0.56))
-	btn_reg.pressed.connect(func():
-		get_tree().change_scene_to_file("res://scenes/ChampionshipSelect.tscn"))
-	footer.add_child(btn_reg)
-
+	## #33: registration button removed from EOS — registration happens DURING the season
+	## (for next season, via HQ → WRA / Championship Registration), not at season end. EOS is
+	## a review screen. Only the "Continue" action remains.
 	var btn_cont = _action_btn("▶  Continue to Season %d" % (GameState.current_season + 1),
 		Color(0.14, 0.48, 0.18))
 	btn_cont.add_theme_font_size_override("font_size", 30)
