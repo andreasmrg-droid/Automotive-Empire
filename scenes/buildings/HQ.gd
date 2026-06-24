@@ -1,4 +1,11 @@
 extends Control
+## Version: S36.6 — Bug #19/#45 (cluster A): HQ now speaks in REGISTRATIONS, not car ownership.
+##   The Overview championship list and the TP-assignment slot panel were built from
+##   player_team_cars (championships you own a car for), so a registered-but-carless player saw
+##   "no active championships" while the WRA panel said they were racing — the #19 contradiction.
+##   Both now read player_registered_championships (the set activated from last season's ledger),
+##   resolved via GameState.get_championship_by_id(). Empty-state wording → "no registration".
+##   Car ownership is still checked ONLY in the per-championship DNS requirement card (correct).
 ## Version: S35.11 — WRA tab: an approved blueprint disappears from HQ-WRA once handed off to CNC
 ##   (queued/built/installed) via _blueprint_in_cnc (issue 1) — HQ shows only approvals awaiting
 ##   their first CNC hand-off; the blueprint then lives in the CNC Plant (issue 3). Section
@@ -330,20 +337,19 @@ func _build_champs_strip() -> VBoxContainer:
 	var vbox = VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 8)
 
-	## Only show championships where the player has a car
-	var player_champ_ids: Array = []
-	for car in GameState.player_team_cars:
-		if not car.championship_id in player_champ_ids:
-			player_champ_ids.append(car.championship_id)
-
+	## HQ is the bureaucracy screen — it speaks in REGISTRATIONS, not car ownership.
+	## (Bug #19: Overview was built from owned cars, so a registered-but-carless player saw
+	## "no active championships" while the WRA panel said they were racing. Now both read
+	## player_registered_championships — the set activated from last season's ledger.)
 	var player_champs: Array = []
-	for champ in GameState.active_championships:
-		if champ.id in player_champ_ids:
+	for cid in GameState.player_registered_championships:
+		var champ = GameState.get_championship_by_id(cid)
+		if champ:
 			player_champs.append(champ)
 
 	if player_champs.is_empty():
 		var lbl = Label.new()
-		lbl.text = "No active championships. Register via World Racing Association tab."
+		lbl.text = "No championship registrations this season. Register via the World Racing Association tab."
 		lbl.modulate = Color(0.5, 0.5, 0.5)
 		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		lbl.add_theme_font_size_override("font_size", 24)
@@ -686,17 +692,17 @@ func _show_tp_assign_popup(tp_id: String) -> void:
 	vb.add_child(hdr)
 	vb.add_child(HSeparator.new())
 
-	## TP assignment: only show player's championships (has a car)
-	var player_champ_ids2: Array = []
-	for car in GameState.player_team_cars:
-		if not car.championship_id in player_champ_ids2:
-			player_champ_ids2.append(car.championship_id)
-	var player_champs2 = GameState.active_championships.filter(
-		func(c): return c.id in player_champ_ids2)
+	## TP assignment follows REGISTRATIONS (bureaucracy), not car ownership. (Bug #19/#45 —
+	## a registered championship needs a TP whether or not the car is bought yet.)
+	var player_champs2: Array = []
+	for cid in GameState.player_registered_championships:
+		var champ = GameState.get_championship_by_id(cid)
+		if champ:
+			player_champs2.append(champ)
 
 	if player_champs2.is_empty():
 		var e = Label.new()
-		e.text = "No active championships."
+		e.text = "No championship registrations."
 		e.modulate = Color(0.5, 0.5, 0.5)
 		vb.add_child(e)
 	else:
