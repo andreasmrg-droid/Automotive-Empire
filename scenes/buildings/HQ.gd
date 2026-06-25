@@ -1,3 +1,4 @@
+## Version: S37.25 — popup-position: TP-assign popup CENTERED (symmetric ±210, was -250..0).
 extends Control
 ## Version: S37.10 — Type-3 sponsor card updated for the ANNUAL commitment model: shows
 ##   "CR X/season × N seasons (total CR Y)" and a clause explaining the per-season payment +
@@ -659,15 +660,16 @@ func _show_tp_assign_popup(tp_id: String) -> void:
 	add_child(dim)
 
 	_tp_popup = PanelContainer.new()
-	_tp_popup.custom_minimum_size = Vector2(300, 0)
+	_tp_popup.custom_minimum_size = Vector2(420, 0)
+	## Centered: symmetric ±210 offsets around screen center (was -250..0, off-centre).
 	_tp_popup.set_anchor(SIDE_LEFT,   0.5)
 	_tp_popup.set_anchor(SIDE_RIGHT,  0.5)
-	_tp_popup.set_anchor(SIDE_TOP,    0.15)
-	_tp_popup.set_anchor(SIDE_BOTTOM, 0.15)
-	_tp_popup.offset_left   = -250
-	_tp_popup.offset_right  = 0
-	_tp_popup.offset_top    = 0
-	_tp_popup.offset_bottom = 0
+	_tp_popup.set_anchor(SIDE_TOP,    0.5)
+	_tp_popup.set_anchor(SIDE_BOTTOM, 0.5)
+	_tp_popup.offset_left   = -210
+	_tp_popup.offset_right  = 210
+	_tp_popup.offset_top    = -260
+	_tp_popup.offset_bottom = 260
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.10, 0.12, 0.17)
 	style.border_width_left = 2; style.border_width_right = 2

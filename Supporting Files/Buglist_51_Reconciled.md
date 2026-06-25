@@ -102,3 +102,6 @@ Mechanical, no re-fix risk: **#18** (starting-driver balance), **#41** (age-requ
 - Only `GDDv5.9.md` remains in Supporting Files (duplicate underscore version removed) — flag resolved.
 - `BUGLIST.md` (cluster-based) + this file (numbered) coexist; consider folding into one tracker.
 - GDD version headers in code are now at **S37.8** — the GDD snapshot should be bumped to capture Cluster A close-out, the repair UX, and the notification framework.
+
+### S37.25 — popup-position sweep (all card popups centered)
+RacingDept driver card was still right-anchored (clipping nationality/eff/contract) → now centered (640, ±320) + _card_row clip. Right column overflow fixed: ScrollContainer horizontal_scroll_mode DISABLED + inner VBox clamped to 360 so champ panels stay inside. Swept every scene: Drivers, StaffHub (×2), RacingDept driver card, ContractNegotiation card, HQ TP-assign popup → all centered. HQ loan popups + MainHub menu/notif already centered; AcceptDialog popups auto-center.

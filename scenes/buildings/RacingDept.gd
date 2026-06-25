@@ -1,4 +1,7 @@
 ## Version: S37.24 — layout: driver-row fonts reduced (30→26/26→24/24→22) for a lighter left
+## Version: S37.25 — popup-position: RacingDept driver card CENTERED (was right-anchored/clipping)
+##   + _card_row clip; right column constrained (horizontal_scroll_mode DISABLED + VBox clamped to
+##   360) so championship panels no longer overflow the right screen edge.
 ##   column; right column widened 340→360; _stat_row/_section_label clip+ellipsis (S37.23) keep
 ##   championship names / TP-panel text inside the column.
 extends Control
@@ -158,11 +161,18 @@ func _build_ui() -> void:
 	var right_scroll = ScrollContainer.new()
 	right_scroll.custom_minimum_size = Vector2(360, 0)
 	right_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	## Vertical-only scrolling. Without this the ScrollContainer lets wide child content overflow
+	## horizontally (a h-scrollbar) and the panel ran off the right screen edge. Disabling the
+	## horizontal scroll forces children to the column width so labels clip/wrap inside instead.
+	right_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	columns.add_child(right_scroll)
 
 	var right = VBoxContainer.new()
 	right.add_theme_constant_override("separation", 14)
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	## Fit the scroll viewport width exactly (ScrollContainer gives children their min width by
+	## default; this clamps the VBox so its panels don't expand past the 360px column).
+	right.custom_minimum_size = Vector2(360, 0)
 	right_scroll.add_child(right)
 
 	right.add_child(_section_label("CHAMPIONSHIP ENTRY"))
@@ -733,14 +743,17 @@ func _show_driver_card(driver_id: String) -> void:
 
 	var overlay = PanelContainer.new()
 	overlay.name = "DriverCardOverlay"
-	overlay.anchor_left   = 1.0
-	overlay.anchor_top    = 0.0
-	overlay.anchor_right  = 1.0
-	overlay.anchor_bottom = 0.0
-	overlay.offset_left   = -600
-	overlay.offset_top    = 190
-	overlay.offset_right  = -50
-	overlay.offset_bottom = 60
+	## Centered on screen (anchors 0.5, symmetric offsets) — was right-anchored and clipping
+	## nationality / (eff: NN.N) / contract off the right edge. (Popup-position pass.)
+	overlay.anchor_left   = 0.5
+	overlay.anchor_top    = 0.5
+	overlay.anchor_right  = 0.5
+	overlay.anchor_bottom = 0.5
+	overlay.offset_left   = -320
+	overlay.offset_top    = -380
+	overlay.offset_right  = 320
+	overlay.offset_bottom = 380
+	overlay.custom_minimum_size = Vector2(640, 0)
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.12, 0.12, 0.16, 0.98)
 	style.border_width_left = 2; style.border_width_right = 2
@@ -840,6 +853,10 @@ func _card_row(parent: VBoxContainer, label: String, value: String,
 	val.text = value
 	val.add_theme_font_size_override("font_size", 30)
 	val.add_theme_color_override("font_color", value_color)
+	## Expand into the remaining width and clip rather than overflow the centered card's edge.
+	val.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	val.clip_text = true
+	val.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	row.add_child(val)
 
 func _skill_color(value: float) -> Color:

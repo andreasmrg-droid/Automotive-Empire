@@ -1,3 +1,4 @@
+## Version: S37.25 — popup-position: contract card CENTERED (symmetric ±320, was -250..0 off-centre).
 extends Control
 ## Version: S37.10 — Column alignment: the live weekly salary read-out now sits AFTER the LOCK
 ##   column (both approach + legacy paths) so TERM/ASK/OFFER/LOCK align across all rows; TERM
@@ -72,14 +73,16 @@ func _ready() -> void:
 	## Centered card
 	var card = PanelContainer.new()
 	card.custom_minimum_size = Vector2(640, 0)
+	## Centered: symmetric ±320 offsets around screen center (was -250..0, off-centre + narrower
+	## than its 640 min-width). Vertically centered too.
 	card.set_anchor(SIDE_LEFT,   0.5)
 	card.set_anchor(SIDE_RIGHT,  0.5)
-	card.set_anchor(SIDE_TOP,    0.15)
-	card.set_anchor(SIDE_BOTTOM, 0.15)
-	card.offset_left   = -250
-	card.offset_right  = 0
-	card.offset_top    = 0
-	card.offset_bottom = 0
+	card.set_anchor(SIDE_TOP,    0.5)
+	card.set_anchor(SIDE_BOTTOM, 0.5)
+	card.offset_left   = -320
+	card.offset_right  = 320
+	card.offset_top    = -300
+	card.offset_bottom = 300
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.10, 0.12, 0.17)
 	style.border_width_left = 2; style.border_width_right = 2
