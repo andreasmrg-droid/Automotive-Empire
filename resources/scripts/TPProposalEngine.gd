@@ -1,4 +1,7 @@
 class_name TPProposalEngine
+## Version: S37.23 — DEDUPE: compute_optimal_assignments() now collapses identical proposals
+##   (type|car|champ|person) before returning, killing the doubled TP-proposal rows seen when
+##   player_team_cars holds a stale/orphan duplicate car (root: season-transition rebuild — #52).
 ## Version: S37.17 — #1 cleanup: removed dead car_setup_skill branch (field no longer exists).
 ## Version: S34.0 — TP critical message reworded: it flags only EXISTING cars that lack crew
 ##   ("some of your cars lack crew and can't race — assign in Racing Department"), making clear
@@ -203,7 +206,25 @@ func compute_optimal_assignments(team, team_cars: Array, include_tp: bool) -> Ar
 					best_tp.full_name(), eff, note, "normal"))
 				committed[best_tp.id] = true
 
-	return proposals
+	## De-dup defensively: if team_cars ever contains the same car twice (a stale/orphan entry
+	## from a season-transition rebuild), the per-car loop would emit the same proposal twice and
+	## the popup would show doubled rows. Collapse on a stable signature so the output is clean
+	## regardless of the input. (Fixes the doubled TP-proposal rows.)
+	return _dedupe_proposals(proposals)
+
+
+## Collapse proposals that are identical in (type, car, championship, person). Order-preserving.
+func _dedupe_proposals(proposals: Array) -> Array:
+	var seen: Dictionary = {}
+	var out: Array = []
+	for p in proposals:
+		var key = "%s|%s|%s|%s" % [
+			p.get("type",""), p.get("car_id",""), p.get("champ_id",""), p.get("person_id","")]
+		if key in seen:
+			continue
+		seen[key] = true
+		out.append(p)
+	return out
 
 ## ── Helpers: prestige, proposal builders, scoring, finders ────────────────────
 

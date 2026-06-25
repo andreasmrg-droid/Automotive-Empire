@@ -1,4 +1,6 @@
 extends Control
+## Version: S37.23 — popup-position: right column widened 300→340; _stat_row + _section_label
+##   values now expand+clip+ellipsis so championship names / TP-panel text stop clipping off-screen.
 ## Version: S37.16 — #41: driver-assign shows a modal popup on age-limit failure (kept open so a
 ##   different car can be chosen).
 ## Version: S36.9 — Removed the Racing World button from the championship panel (redundant — the
@@ -151,7 +153,7 @@ func _build_ui() -> void:
 	# ── Right: championship status + effects (scrollable — the championship list can
 	# now hold up to 21 entries, so the column must scroll to avoid overflow) ──────
 	var right_scroll = ScrollContainer.new()
-	right_scroll.custom_minimum_size = Vector2(300, 0)
+	right_scroll.custom_minimum_size = Vector2(340, 0)
 	right_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	columns.add_child(right_scroll)
 
@@ -654,6 +656,9 @@ func _section_label(text: String) -> Label:
 	lbl.text = text
 	lbl.add_theme_font_size_override("font_size", 22)
 	lbl.modulate = Color(0.5, 0.5, 0.5)
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lbl.clip_text = true
+	lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	return lbl
 
 func _stat_row(label: String, value: String, value_color: Color = Color(0.85, 0.85, 0.85)) -> HBoxContainer:
@@ -668,6 +673,10 @@ func _stat_row(label: String, value: String, value_color: Color = Color(0.85, 0.
 	val.text = value
 	val.add_theme_font_size_override("font_size", 24)
 	val.add_theme_color_override("font_color", value_color)
+	## Expand into the remaining column width and clip rather than overflow the panel edge.
+	val.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	val.clip_text = true
+	val.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	row.add_child(val)
 	return row
 

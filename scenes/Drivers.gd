@@ -1,3 +1,5 @@
+## Version: S37.23 — popup-position: driver card widened (636) + pulled in from the right edge
+##   (was clipping nationality / (eff: NN.N) / contract); card-row value labels now clip+ellipsis.
 ## Version: S37.16 — #41: driver card car-assign shows a "Cannot Assign Driver" popup on age-limit
 ##   failure; card stays open to pick another car.
 ## Version: S37.15 — #18 hidden-gems: driver card now shows a "Scout's Read" row — the team TP's
@@ -637,10 +639,12 @@ func _show_driver_card(driver_id: String) -> void:
 	card_overlay.anchor_top    = 0.0
 	card_overlay.anchor_right  = 1.0
 	card_overlay.anchor_bottom = 0.0
-	card_overlay.offset_left   = -600
-	card_overlay.offset_top    = 190
-	card_overlay.offset_right  = -50
-	card_overlay.offset_bottom = 60
+	## Wider panel pulled further in from the right edge so long values (nationality, "(eff: NN.N)"
+	## attribute readouts, contract/car line) no longer clip off-screen. (#1 popup-position fix.)
+	card_overlay.offset_left   = -660
+	card_overlay.offset_top    = 150
+	card_overlay.offset_right  = -24
+	card_overlay.offset_bottom = 40
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.12, 0.12, 0.16, 0.98)
 	style.border_width_left = 2
@@ -844,7 +848,7 @@ func _show_assign_car_popup(driver_id: String) -> void:
 
 	card_overlay = PanelContainer.new()
 	card_overlay.set_anchors_preset(Control.PRESET_CENTER)
-	card_overlay.custom_minimum_size = Vector2(360, 0)
+	card_overlay.custom_minimum_size = Vector2(636, 0)
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.12, 0.12, 0.16, 0.98)
 	style.border_width_left = 2
@@ -1076,7 +1080,7 @@ func _show_timing_popup(subject_id: String, subject_type: String) -> void:
 	if card_overlay: card_overlay.queue_free()
 	card_overlay = PanelContainer.new()
 	card_overlay.set_anchors_preset(Control.PRESET_CENTER)
-	card_overlay.custom_minimum_size = Vector2(360, 0)
+	card_overlay.custom_minimum_size = Vector2(636, 0)
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.10, 0.12, 0.18, 0.98)
 	for side in ["left","right","top","bottom"]: style.set("border_width_%s" % side, 2)
@@ -1147,7 +1151,7 @@ func _show_bond_response_popup(subject_id: String, subject_type: String) -> void
 	if card_overlay: card_overlay.queue_free()
 	card_overlay = PanelContainer.new()
 	card_overlay.set_anchors_preset(Control.PRESET_CENTER)
-	card_overlay.custom_minimum_size = Vector2(400, 0)
+	card_overlay.custom_minimum_size = Vector2(636, 0)
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.10, 0.12, 0.18, 0.98)
 	for side in ["left","right","top","bottom"]: style.set("border_width_%s" % side, 2)
@@ -1349,6 +1353,10 @@ func _card_row(parent: VBoxContainer, label: String, value: String,
 	val.text = value
 	val.add_theme_font_size_override("font_size", 30)
 	val.add_theme_color_override("font_color", value_color)
+	## Expand into the remaining width and clip rather than overflow the panel edge (popup-position fix).
+	val.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	val.clip_text = true
+	val.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	row.add_child(val)
 
 func _skill_color(value: float) -> Color:
