@@ -1,4 +1,7 @@
 extends Control
+## Version: S37.10 — Type-3 sponsor card updated for the ANNUAL commitment model: shows
+##   "CR X/season × N seasons (total CR Y)" and a clause explaining the per-season payment +
+##   the one-season repay penalty for skipping the committed championship.
 ## Version: S37.9 — Bug #6: the Type-3 (commitment) sponsor card in PENDING OFFERS now shows an
 ##   explicit clause line ("⚠ Requires racing X for the contract. Leaving repays CR Y.") so the
 ##   player sees the participation requirement before signing.
@@ -1724,20 +1727,22 @@ func _build_sponsor_offer_card(offer: Dictionary) -> PanelContainer:
 			offer.get("seasons_remaining",1)]
 		3:
 			var reg = GameState.CHAMPIONSHIP_REGISTRY.get(offer.get("championship_id",""),{})
-			lbl_detail.text = "[%s]  CR %s total  ·  %d seasons" % [
+			lbl_detail.text = "[%s]  CR %s/season × %d seasons  (total CR %s)" % [
 				reg.get("name", offer.get("championship_id","")),
-				_fmt(offer.get("commitment_total",0)), offer.get("seasons_remaining",1)]
+				_fmt(offer.get("annual_payment",0)), offer.get("seasons_total", offer.get("seasons_remaining",1)),
+				_fmt(offer.get("commitment_total",0))]
 	inner.add_child(lbl_detail)
 
-	## S37.9 (#6) — make the commitment clause explicit before signing a Type-3 sponsor.
+	## S37.10 — commitment clause: annual payment requires racing the championship each season.
 	if offer.get("type", 1) == 3 and offer.get("championship_id","") != "":
 		var reg2 = GameState.CHAMPIONSHIP_REGISTRY.get(offer.get("championship_id",""),{})
 		var lbl_clause = Label.new()
 		lbl_clause.add_theme_font_size_override("font_size", 20)
 		lbl_clause.add_theme_color_override("font_color", Color(1.0, 0.7, 0.3))
 		lbl_clause.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		lbl_clause.text = "⚠ Requires racing %s for the contract. Leaving repays CR %s." % [
-			reg2.get("name", offer.get("championship_id","")), _fmt(offer.get("commitment_total",0))]
+		lbl_clause.text = "⚠ Pays CR %s at each season's start while you race %s. Skip a season → repay that CR %s & deal ends." % [
+			_fmt(offer.get("annual_payment",0)), reg2.get("name", offer.get("championship_id","")),
+			_fmt(offer.get("annual_payment",0))]
 		inner.add_child(lbl_clause)
 
 	var btn_row = HBoxContainer.new()

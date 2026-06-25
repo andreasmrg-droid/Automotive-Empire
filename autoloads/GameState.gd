@@ -1,4 +1,8 @@
 extends Node
+## Version: S37.10 — (1) Sponsor system: added _process_sponsor_annual_payments() wrapper (commitment
+##   sponsors pay/penalise at season start) and pending_race_result_count() (Skip button). (2) Save/
+##   load now persist active_sponsors + sponsor_offers (previously NOT saved — a signed multi-season
+##   commitment vanished on reload). Back-compatible with older saves (defaults to empty).
 ## Version: S37.9 — Added cancel_renegotiation_by_subject_name() wrapper for the TDL X button on
 ##   player-initiated renegotiation rows (removes an un-submitted round-1 renegotiation approach).
 ## Version: S37.8 — Registration-deadline notification: widened the trigger from exactly "1 week
@@ -1942,6 +1946,14 @@ func apply_sponsor_race_bonuses(position: int = -1) -> void:
 func _process_sponsors_season_end() -> void:
 	_sponsor_manager._process_sponsors_season_end()
 
+## S37.10 — commitment (type-3) sponsor annual payment / penalty, run at SEASON START.
+func _process_sponsor_annual_payments() -> void:
+	_sponsor_manager._process_sponsor_annual_payments()
+
+## S37.10 — number of race-result screens still queued this week (Skip button label).
+func pending_race_result_count() -> int:
+	return _pending_race_results.size()
+
 func _maybe_generate_race_sponsor_offer(player_position: int) -> void:
 	_sponsor_manager._maybe_generate_race_sponsor_offer(player_position)
 
@@ -3594,6 +3606,10 @@ func save_game() -> void:
 		"next_season_registrations": next_season_registrations,
 		"sponsor_no_points_streak": sponsor_no_points_streak,
 		"active_sponsor": active_sponsor,
+		## S37.10 — persist the multi-season sponsor system (was previously NOT saved, so a signed
+		## commitment vanished on save/load). Arrays of plain dicts → JSON-safe as-is.
+		"active_sponsors": active_sponsors,
+		"sponsor_offers": sponsor_offers,
 		"player_team": {
 			"id": player_team.id,
 			"team_name": player_team.team_name,
@@ -3746,6 +3762,9 @@ func load_game(path: String = "user://save_game.json") -> void:
 		team_color_secondary = Color(data["team_color_secondary"])
 	sponsor_no_points_streak = data["sponsor_no_points_streak"]
 	active_sponsor = data["active_sponsor"]
+	## S37.10 — restore the multi-season sponsor system (back-compatible: older saves omit these).
+	active_sponsors = data.get("active_sponsors", [])
+	sponsor_offers = data.get("sponsor_offers", [])
 	campus_buildings = data["campus_buildings"]
 	if "active_rnd_tasks"     in data: active_rnd_tasks     = data["active_rnd_tasks"]
 	if "completed_rnd_tasks"   in data: completed_rnd_tasks   = data["completed_rnd_tasks"]

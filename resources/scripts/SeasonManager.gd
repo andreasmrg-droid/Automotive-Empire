@@ -169,6 +169,12 @@ func start_new_season() -> void:
 			names.append(gs.CHAMPIONSHIP_REGISTRY.get(cid, {}).get("name", cid))
 		gs.add_log("🏁 Season %d race set activated: %s" % [gs.current_season, ", ".join(names)])
 
+	# ── STAGE A2 — Commitment sponsor annual payments / penalties (S37.10) ────
+	## Runs immediately AFTER the registration ledger is promoted, so it sees whether the player
+	## registered for each sponsor's committed championship THIS season. Pays the annual instalment
+	## if registered, or applies the one-season repay penalty (and cancels the deal) if not.
+	gs._process_sponsor_annual_payments()
+
 	# ── PRE-B — Age & lapse (was the front half of _process_off_season) ─────
 	## Age drivers/staff, decrement contracts, lapse expired player contracts.
 	## Runs BEFORE Stage B so a contract expiring at this rollover frees its holder

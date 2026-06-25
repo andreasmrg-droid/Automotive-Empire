@@ -1,4 +1,9 @@
 extends Control
+## Version: S37.10 — Bug #11 (race results screen): (1) results table had column separation 0 so
+##   Laps/Time/Gap/Pts/Prize ran together — now 14px separation + wider matched header/row widths so
+##   the numbers are readable and aligned. (2) Added "Skip All ⏭" (header, shows when >1 race queued
+##   the same week) — applies every remaining race's repairs + sponsor bonuses and jumps to the Main
+##   Hub. Standings tables untouched.
 ## Version: S29.12 — Localized all paged-screen UI strings (nav buttons, page titles,
 ##   indicator) via Locale.t/tf; PAGE_TITLES const replaced with _page_title() helper.
 ## --- S29.11 — Race Results split into 3 paged screens with Back/Next (issue #2):
@@ -71,6 +76,18 @@ func _build_ui() -> void:
 	btn_continue.add_theme_font_size_override("font_size", 30)
 	btn_continue.pressed.connect(_on_continue)
 	header.add_child(btn_continue)
+
+	## S37.10 (bug #11) — Skip button: when several races are queued the same week (multiple
+	## championships), skip straight to the Main Hub, still applying each remaining race's repairs
+	## and sponsor bonuses so nothing is lost.
+	if GameState.pending_race_result_count() > 1:
+		var btn_skip = Button.new()
+		btn_skip.text = "Skip All  ⏭"
+		btn_skip.custom_minimum_size = Vector2(150, 40)
+		btn_skip.add_theme_font_size_override("font_size", 30)
+		btn_skip.tooltip_text = "Apply all remaining race results and return to the Main Hub."
+		btn_skip.pressed.connect(_on_skip_all)
+		header.add_child(btn_skip)
 
 	root.add_child(HSeparator.new())
 
@@ -246,9 +263,9 @@ func _build_race_results(parent: VBoxContainer) -> void:
 
 	# Column headers
 	var hdr = HBoxContainer.new()
-	hdr.add_theme_constant_override("separation", 0)
+	hdr.add_theme_constant_override("separation", 14)
 	parent.add_child(hdr)
-	for pair in [["Pos",36],["Driver",-1],["Laps",46],["Time",110],["Gap",88],["Pts",52],["Prize",80]]:
+	for pair in [["Pos",44],["Driver",-1],["Laps",54],["Time",128],["Gap",104],["Pts",54],["Prize",96]]:
 		var lh = Label.new()
 		lh.text = pair[0]
 		lh.add_theme_font_size_override("font_size", 20)
@@ -283,7 +300,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		var t_time = entry.get("total_time", 0.0)
 
 		var row = HBoxContainer.new()
-		row.add_theme_constant_override("separation", 0)
+		row.add_theme_constant_override("separation", 14)
 		parent.add_child(row)
 
 		# Position / medal
@@ -293,7 +310,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		elif pos == 2: lbl_pos.text = "🥈"
 		elif pos == 3: lbl_pos.text = "🥉"
 		else:          lbl_pos.text = "%2d." % pos
-		lbl_pos.custom_minimum_size = Vector2(36, 0)
+		lbl_pos.custom_minimum_size = Vector2(44, 0)
 		lbl_pos.add_theme_font_size_override("font_size", 26)
 		if is_dns: lbl_pos.modulate = Color(0.45, 0.45, 0.45)
 		row.add_child(lbl_pos)
@@ -315,7 +332,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		# Laps
 		var lbl_laps = Label.new()
 		lbl_laps.text = str(total_laps) if not is_dns else "—"
-		lbl_laps.custom_minimum_size = Vector2(46, 0)
+		lbl_laps.custom_minimum_size = Vector2(54, 0)
 		lbl_laps.add_theme_font_size_override("font_size", 24)
 		lbl_laps.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		lbl_laps.modulate = Color(0.65, 0.65, 0.65)
@@ -323,7 +340,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 
 		# Total time H:MM:SS.ms
 		var lbl_time = Label.new()
-		lbl_time.custom_minimum_size = Vector2(110, 0)
+		lbl_time.custom_minimum_size = Vector2(128, 0)
 		lbl_time.add_theme_font_size_override("font_size", 24)
 		lbl_time.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		if is_dns:
@@ -337,7 +354,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 
 		# Gap to leader
 		var lbl_gap = Label.new()
-		lbl_gap.custom_minimum_size = Vector2(88, 0)
+		lbl_gap.custom_minimum_size = Vector2(104, 0)
 		lbl_gap.add_theme_font_size_override("font_size", 24)
 		lbl_gap.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		if is_dns:
@@ -354,7 +371,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		# Points
 		var lbl_pts = Label.new()
 		lbl_pts.text = "+%d" % pts if (pts > 0 and not is_dns) else "—"
-		lbl_pts.custom_minimum_size = Vector2(52, 0)
+		lbl_pts.custom_minimum_size = Vector2(54, 0)
 		lbl_pts.add_theme_font_size_override("font_size", 24)
 		lbl_pts.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		lbl_pts.add_theme_color_override("font_color",
@@ -364,7 +381,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		# Prize
 		var lbl_prize = Label.new()
 		lbl_prize.text = "+CR %s" % _fmt(int(prize)) if prize > 0 else ""
-		lbl_prize.custom_minimum_size = Vector2(80, 0)
+		lbl_prize.custom_minimum_size = Vector2(96, 0)
 		lbl_prize.add_theme_font_size_override("font_size", 22)
 		lbl_prize.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		lbl_prize.add_theme_color_override("font_color", Color(0.9, 0.7, 0.2))
@@ -583,6 +600,17 @@ func _on_continue() -> void:
 		get_tree().reload_current_scene()
 	else:
 		get_tree().change_scene_to_file("res://scenes/MainHub.tscn")
+
+## S37.10 (bug #11) — apply the current result's effects, then loop through every remaining queued
+## result applying ITS repairs + sponsor bonuses, then go to the Main Hub. Mirrors pressing
+## Continue repeatedly without rendering each screen.
+func _on_skip_all() -> void:
+	GameState.apply_post_race_repairs()
+	GameState.apply_sponsor_race_bonuses()
+	while GameState.consume_next_race_result():
+		GameState.apply_post_race_repairs()
+		GameState.apply_sponsor_race_bonuses()
+	get_tree().change_scene_to_file("res://scenes/MainHub.tscn")
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.keycode == KEY_F12:

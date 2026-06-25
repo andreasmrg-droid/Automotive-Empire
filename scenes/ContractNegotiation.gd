@@ -1,4 +1,7 @@
 extends Control
+## Version: S37.10 — Column alignment: the live weekly salary read-out now sits AFTER the LOCK
+##   column (both approach + legacy paths) so TERM/ASK/OFFER/LOCK align across all rows; TERM
+##   widened to 230, ASK to 110, header widths matched, card 560→640. Pure layout.
 ## Version: S37.9 — Bug #8: SALARY is now negotiated as an ANNUAL figure with a live weekly
 ##   read-out. The engine + save format still store weekly_salary (unchanged); this is a pure
 ##   UI transform — the salary spinbox shows/edits annual (= weekly × WEEKS_PER_SEASON), a live
@@ -68,7 +71,7 @@ func _ready() -> void:
 
 	## Centered card
 	var card = PanelContainer.new()
-	card.custom_minimum_size = Vector2(560, 0)
+	card.custom_minimum_size = Vector2(640, 0)
 	card.set_anchor(SIDE_LEFT,   0.5)
 	card.set_anchor(SIDE_RIGHT,  0.5)
 	card.set_anchor(SIDE_TOP,    0.15)
@@ -234,7 +237,7 @@ func _build_approach_field_row(key: String, term: Dictionary, show_lock: bool = 
 	## Term label
 	var lbl = Label.new()
 	lbl.text = FIELD_LABELS.get(key, key)
-	lbl.custom_minimum_size = Vector2(190, 0)
+	lbl.custom_minimum_size = Vector2(230, 0)
 	lbl.add_theme_font_size_override("font_size", 24)
 	if is_locked or is_agreed:
 		lbl.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
@@ -247,7 +250,7 @@ func _build_approach_field_row(key: String, term: Dictionary, show_lock: bool = 
 	## Their ask
 	var their_ask = term.get("their_ask", 0)
 	var lbl_ask = Label.new()
-	lbl_ask.custom_minimum_size = Vector2(100, 0)
+	lbl_ask.custom_minimum_size = Vector2(110, 0)
 	lbl_ask.add_theme_font_size_override("font_size", 24)
 	lbl_ask.add_theme_color_override("font_color",
 		Color(0.4, 0.9, 0.4) if (is_locked or is_agreed) else Color(1.0, 0.6, 0.4))
@@ -287,16 +290,6 @@ func _build_approach_field_row(key: String, term: Dictionary, show_lock: bool = 
 		row.add_child(spin)
 		_fields[key] = spin
 
-		## S37.9 — live weekly read-out beside the annual salary spinbox.
-		if is_salary:
-			var lbl_wk = Label.new()
-			lbl_wk.custom_minimum_size = Vector2(120, 0)
-			lbl_wk.add_theme_font_size_override("font_size", 20)
-			lbl_wk.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
-			lbl_wk.text = "≈ CR %s/wk" % _fmt(int(round(spin.value / WEEKS_PER_SEASON)))
-			spin.value_changed.connect(_on_salary_changed.bind(lbl_wk))
-			row.add_child(lbl_wk)
-
 	## Lock button — drivers only
 	if show_lock:
 		var lock_btn = Button.new()
@@ -320,6 +313,18 @@ func _build_approach_field_row(key: String, term: Dictionary, show_lock: bool = 
 				_rebuild_approach())
 		row.add_child(lock_btn)
 		_lock_btns[key] = lock_btn
+
+	## S37.10 — live weekly read-out for the annual salary, placed AFTER the lock column so the
+	## TERM/ASK/OFFER/LOCK columns stay aligned across every row (was inserted before the lock,
+	## pushing the salary row's lock out of line). Sits in the trailing free space.
+	if is_salary and _fields.has(key) and _fields[key] is SpinBox:
+		var sp_ref: SpinBox = _fields[key]
+		var lbl_wk = Label.new()
+		lbl_wk.add_theme_font_size_override("font_size", 20)
+		lbl_wk.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
+		lbl_wk.text = "≈ CR %s/wk" % _fmt(int(round(sp_ref.value / WEEKS_PER_SEASON)))
+		sp_ref.value_changed.connect(_on_salary_changed.bind(lbl_wk))
+		row.add_child(lbl_wk)
 
 	return row
 
@@ -354,7 +359,7 @@ func _on_submit_approach() -> void:
 func _make_four_col(a: String, b: String, c: String, d: String, bold: bool) -> HBoxContainer:
 	var row = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
-	for item in [[a, 190], [b, 100], [c, 120], [d, 36]]:
+	for item in [[a, 230], [b, 110], [c, 120], [d, 36]]:
 		var lbl = Label.new()
 		lbl.text = item[0]
 		lbl.custom_minimum_size = Vector2(item[1], 0)
@@ -492,16 +497,6 @@ func _build_field_row(key: String, ask_val, offer_val) -> HBoxContainer:
 	row.add_child(spin)
 	_fields[key] = spin
 
-	## S37.9 — live weekly read-out beside the annual salary spinbox.
-	if is_salary:
-		var lbl_wk = Label.new()
-		lbl_wk.custom_minimum_size = Vector2(120, 0)
-		lbl_wk.add_theme_font_size_override("font_size", 22)
-		lbl_wk.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
-		lbl_wk.text = "≈ CR %s/wk" % _fmt(int(round(spin.value / WEEKS_PER_SEASON)))
-		spin.value_changed.connect(_on_salary_changed.bind(lbl_wk))
-		row.add_child(lbl_wk)
-
 	## Lock button — all negotiation types
 	var lock_key = key
 	var is_locked_old = _neg.get("locked_fields", []).has(key)
@@ -525,6 +520,16 @@ func _build_field_row(key: String, ask_val, offer_val) -> HBoxContainer:
 			_neg["locked_fields"] = lf
 			_rebuild())
 	row.add_child(lock_btn_old)
+
+	## S37.10 — weekly read-out after the lock (legacy path), keeps columns aligned.
+	if is_salary and _fields.has(key) and _fields[key] is SpinBox:
+		var sp_ref2: SpinBox = _fields[key]
+		var lbl_wk2 = Label.new()
+		lbl_wk2.add_theme_font_size_override("font_size", 22)
+		lbl_wk2.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
+		lbl_wk2.text = "≈ CR %s/wk" % _fmt(int(round(sp_ref2.value / WEEKS_PER_SEASON)))
+		sp_ref2.value_changed.connect(_on_salary_changed.bind(lbl_wk2))
+		row.add_child(lbl_wk2)
 
 	return row
 

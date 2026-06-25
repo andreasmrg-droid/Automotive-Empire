@@ -1,4 +1,9 @@
 class_name ContractEngine
+## Version: S37.10 — INTEREST REBALANCE (the "200 drivers interested in a new garage" bug). The
+##   interest score now gates reachable TALENT by the team's REPUTATION (interest = 60 +
+##   (player_rep − talent)*0.7 + free-agent bonus + rep-gap bonus + TP). A rep-0 garage attracts
+##   only ~13 low-talent free agents; reputation opens the pool. Low-talent (≤35) free agents are
+##   always reachable so a new team can field a car. See _subject_interest_score.
 ## Version: S37.9 — Bug (renegotiation TDL): make_renegotiation_approach is PLAYER-INITIATED, so
 ##   it no longer spawns a "Negotiations open: … make your opening offer." TDL just by opening the
 ##   dialog. New flags player_initiated + offer_submitted: the TDL line is suppressed until the
@@ -470,6 +475,20 @@ const INTEREST_THRESHOLD: float = 60.0
 ## (player_rep, tp_mod, and a team_id→rep index) ONCE and pass them in, so we don't re-loop
 ## championships/teams per candidate (that would reintroduce the S35.7 filter lag). When ctx is
 ## empty (the single approach call) we compute them inline.
+## S37.10 — INTEREST REBALANCE. The old formula (base = talent*0.5 + 50) gave an average driver a
+## 75 base, already over the 60 threshold BEFORE reputation mattered — so a brand-new rep-0 garage
+## attracted ~everyone (the "200 interested drivers" bug). The new model gates REACHABLE TALENT by
+## the player's REPUTATION: a subject is interested only if the team's reputation is in range of
+## their talent. A small no-name team can only attract low-talent / desperate / free-agent people;
+## reputation unlocks better talent. Curve (threshold = INTEREST_THRESHOLD = 60):
+##   interest = 60 + (player_rep − talent) * REP_TALENT_SLOPE + free_agent_bonus + rep_gap_bonus + tp
+##   - player_rep − talent: the core gate. rep ≥ talent → at/above threshold; rep ≪ talent → below.
+##   - REP_TALENT_SLOPE 0.7: each rep point you're above a subject's talent adds 0.7 interest.
+##   - free agents (no current team) get a bonus (they need a seat).
+##   - a subject on a BETTER team than yours is harder to tempt (rep_gap_bonus, negative if downhill).
+const REP_TALENT_SLOPE: float = 0.7
+const FREE_AGENT_INTEREST_BONUS: float = 18.0
+
 func _subject_interest_score(subject_id: String, subject_type: String, current_team_id: String,
 		ctx: Dictionary = {}) -> float:
 	var talent = 50.0
@@ -480,10 +499,22 @@ func _subject_interest_score(subject_id: String, subject_type: String, current_t
 		var s = gs.all_staff.get(subject_id)
 		if s: talent = s.talent if s.talent > 0 else 50.0
 
-	var base_chance = talent * 0.5 + 50.0
-
-	## Reputation gap: subject wants to move up, not down
 	var player_rep: float = ctx.get("player_rep", gs.player_team.reputation)
+
+	## Core gate: how does the team's reputation compare to the subject's talent?
+	var rep_vs_talent = player_rep - talent
+	var base_chance = INTEREST_THRESHOLD + rep_vs_talent * REP_TALENT_SLOPE
+
+	## Free agents need a seat — more reachable than a contracted person of equal talent.
+	if current_team_id == "":
+		base_chance += FREE_AGENT_INTEREST_BONUS
+		## Floor: a LOW-talent free agent will always take any seat (so a brand-new rep-0 team can
+		## still field a car). Prevents a soft-lock where literally nobody is interested at rep 0.
+		if talent <= 35.0:
+			base_chance = max(base_chance, INTEREST_THRESHOLD + 1.0)
+
+	## A subject currently at a HIGHER-rep team than the player won't drop down easily; a lower-rep
+	## team is easier to lure from. (Asymmetric: small downhill bonus, larger uphill penalty.)
 	var their_team_rep := 0.0
 	if current_team_id != "":
 		if ctx.has("team_rep"):
@@ -495,9 +526,9 @@ func _subject_interest_score(subject_id: String, subject_type: String, current_t
 					their_team_rep = t.reputation
 					break
 	var rep_gap = player_rep - their_team_rep
-	var rep_mod = clamp(rep_gap * 0.5, -25.0, 25.0)
+	var rep_gap_bonus = clamp(rep_gap * 0.4, -30.0, 15.0)
 
-	## TP modifier
+	## TP reputation gives a modest pull.
 	var tp_mod: float = ctx.get("tp_mod", -1.0)
 	if tp_mod < 0.0:
 		tp_mod = 0.0
@@ -507,7 +538,7 @@ func _subject_interest_score(subject_id: String, subject_type: String, current_t
 				tp_mod = max(tp_mod, tp.reputation * 0.3)
 				break
 
-	return clamp(base_chance + rep_mod + tp_mod, 1.0, 100.0)
+	return clamp(base_chance + rep_gap_bonus + tp_mod, 1.0, 100.0)
 
 ## Deterministic, binary: would this person join us? Same answer for the filter and the approach.
 func is_subject_interested(subject_id: String, subject_type: String, current_team_id: String,
