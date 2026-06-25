@@ -1,4 +1,6 @@
 extends Control
+## Version: S37.4 — Bug #5 follow-up: HQ EFFECTS panel sponsor-slot line now calls
+##   get_hq_sponsor_slots() instead of the stale hardcoded 1+lv/2 (showed 2 slots at Level 2).
 ## Version: S36.6 — Bug #19/#45 (cluster A): HQ now speaks in REGISTRATIONS, not car ownership.
 ##   The Overview championship list and the TP-assignment slot panel were built from
 ##   player_team_cars (championships you own a car for), so a registered-but-carless player saw
@@ -321,7 +323,7 @@ func _build_effects_card() -> PanelContainer:
 	var lv = b.get("level", 1)
 	for rd in [
 		["+%d%% Mktg Bonus" % lv,          Color(0.6, 0.8, 1.0)],
-		["%d Sponsor Slots" % (1 + lv / 2),  Color(0.6, 0.8, 1.0)],
+		["%d Sponsor Slots" % GameState.get_hq_sponsor_slots(),  Color(0.6, 0.8, 1.0)],
 		["%d TP Slot%s" % [GameState.get_hq_tp_slots(), "s" if GameState.get_hq_tp_slots() != 1 else ""],
 			Color(0.6, 0.8, 1.0)],
 		["Loan Tier %d" % min(lv / 3 + 1, 5), Color(0.6, 0.8, 1.0)],

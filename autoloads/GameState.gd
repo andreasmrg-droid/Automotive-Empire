@@ -1,4 +1,10 @@
 extends Node
+## Version: S37.4 — Bug #20: registration-deadline warnings reworked. Was a single-week blip
+##   (fired only when deadline == week+1), easily missed — now a tiered window (4 / 2 / 1 weeks +
+##   last day) with a per-championship subject (collapses to one standing notice, no spam), and
+##   GATED to championships the player can actually register for (affordable + deadline open) so
+##   the panel isn't flooded with out-of-budget series. Added repair_car_affordable() +
+##   get_affordable_repair_pct() wrappers for the new "repair what I can afford" buttons.
 ## Version: S37.1 — CP4 follow-up: fixed "GK is still there" for non-GK careers. Root cause was in
 ##   GKDiscipline.populate_season(), which forced ALL player drivers into GK group 0 regardless of
 ##   discipline — so a GP4 player still had a driver in GK's standings, and the weekly loop both
@@ -2280,6 +2286,12 @@ func repair_car(driver_id: String, repair_pct: float) -> bool:
 func repair_car_full(driver_id: String) -> bool:
 	return _car_manager.repair_car_full(driver_id)
 
+func get_affordable_repair_pct(driver_id: String) -> float:
+	return _car_manager.get_affordable_repair_pct(driver_id)
+
+func repair_car_affordable(driver_id: String) -> bool:
+	return _car_manager.repair_car_affordable(driver_id)
+
 func install_part_on_car(car_id: String, champ_id: String, pcode: String) -> bool:
 	return _car_manager.install_part_on_car(car_id, champ_id, pcode)
 
@@ -3341,25 +3353,37 @@ func advance_week() -> void:
 
 	# ── Championship registration deadline warnings ───────────────────────────
 	for champ_id in CHAMPIONSHIP_REGISTRY:
-		# Skip already registered or already running
+		# Skip already registered (next-season ledger), already running, or unregisterable.
 		if champ_id in player_registered_championships:
 			continue
-		var already_running = false
-		for champ in active_championships:
-			if champ.id == champ_id:
-				already_running = true
-				break
-		if already_running:
+		if champ_id in next_season_registrations:
+			continue
+		## Bug #20: only warn about championships the player could ACTUALLY register for this week
+		## (deadline still open AND entry fee affordable). This avoids flooding the panel with
+		## deadline warnings for championships far out of budget (e.g. SC Cup CR 32M, GP1 CR 51M).
+		if not can_register_for_championship(champ_id):
 			continue
 		var deadline = get_entry_deadline_week(champ_id)
 		var reg = CHAMPIONSHIP_REGISTRY[champ_id]
-		if deadline == current_week + 1:
+		## Bug #20: the old check fired ONLY on the exact week before the deadline (deadline ==
+		## current_week + 1), a single-week blip easily missed (e.g. screenshot: EPC/GP1 deadlines
+		## passed in weeks 19/11 with no warning by week 24). Now a tiered "approaching" window
+		## fires at 4 / 2 / 1 weeks out and on the day, each carrying the SAME per-championship
+		## subject so it collapses to one standing notification (no spam, can't be missed).
+		var weeks_left = deadline - current_week
+		var subj = "reg_deadline_%s" % champ_id
+		if weeks_left == 0:
+			add_notification("Critical",
+				"🚨 LAST DAY to register for %s (Week %d)! Entry fee: CR %s. After this week it's gone." % [
+				reg["name"], deadline, _fmt_int(reg["entry_fee"])], "", subj)
+		elif weeks_left == 1:
 			add_notification("High",
-				"⚠ LAST CHANCE: %s registration deadline is NEXT WEEK (Week %d)! Entry fee: CR %s." % [
-				reg["name"], deadline, _fmt_int(reg["entry_fee"])])
-		elif deadline == current_week:
-			add_notification("High",
-				"🚨 TODAY is the last day to register for %s! After this week the deadline is missed." % reg["name"])
+				"⚠ %s registration closes NEXT WEEK (Week %d). Entry fee: CR %s." % [
+				reg["name"], deadline, _fmt_int(reg["entry_fee"])], "", subj)
+		elif weeks_left == 2 or weeks_left == 4:
+			add_notification("Normal",
+				"🏁 %s registration closes in %d weeks (Week %d). Entry fee: CR %s." % [
+				reg["name"], weeks_left, deadline, _fmt_int(reg["entry_fee"])], "", subj)
 
 	## Weekly P&L summary — single line showing net change
 	var _net = player_team.balance - _balance_before

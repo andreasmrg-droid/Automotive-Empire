@@ -1,4 +1,6 @@
 ## Automotive Empire — FinancialDept.gd
+## Version: S37.3 — Bug #49: weekly income panel now itemizes income PER BUILDING (one row each)
+##   under a "Building Income" sub-header, instead of a single lumped "Building Income" total.
 ## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
 ##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 ## Version: S16.4 — Added Sponsors tab. Three tabs: FINANCES | SPONSORS | CFO PROPOSALS
@@ -142,10 +144,16 @@ func _build_income_panel() -> PanelContainer:
 		if sc.active:
 			supply_weekly += int(sc.parts_per_season / 52.0) * sc.cr_per_part
 
+	## Bug #49: itemize per-building income (was one lumped "Building Income" row).
+	var building_rows: Array = []
 	var building_income = 0
 	for bname in GameState.campus_buildings:
 		var b = GameState.campus_buildings[bname]
-		if b.get("level", 0) > 0: building_income += b.get("weekly_income", 0)
+		if b.get("level", 0) > 0:
+			var bi = b.get("weekly_income", 0)
+			if bi > 0:
+				building_rows.append([bname, bi])
+				building_income += bi
 
 	var prize_est = _estimate_weekly_prize()
 	var total = 0
@@ -153,10 +161,20 @@ func _build_income_panel() -> PanelContainer:
 		["Race Prizes (est.)",  prize_est,      prize_est > 0],
 		["Sponsors (Type 1)",   sponsor_weekly, sponsor_weekly > 0],
 		["Parts Sales",         supply_weekly,  supply_weekly > 0],
-		["Building Income",     building_income,building_income > 0],
 	]:
 		vbox.add_child(_income_row(item[0], item[1], item[2]))
 		if item[2]: total += item[1]
+
+	## Per-building income rows (indented under a small header when any exist).
+	if not building_rows.is_empty():
+		var bh = Label.new()
+		bh.text = "Building Income"
+		bh.add_theme_font_size_override("font_size", 22)
+		bh.add_theme_color_override("font_color", Color(0.55, 0.8, 0.55))
+		vbox.add_child(bh)
+		for br in building_rows:
+			vbox.add_child(_income_row("   • " + str(br[0]), br[1], true))
+		total += building_income
 
 	vbox.add_child(HSeparator.new())
 	vbox.add_child(_income_row("TOTAL (est.)", total, true))

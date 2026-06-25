@@ -1,4 +1,6 @@
 extends Control
+## Version: S37.4 — Repair UX: added "Fix N% (max SP)" button to the My Cars repair row so the
+##   player can repair as much as current SP affords when a full repair is unaffordable.
 ## Version: S36.4 — Bug #9/#19 (cluster A): Main Hub no longer reads the singular active_championship
 ##   (= GK). Driver-stats now look up each driver's championship position in THEIR OWN car's
 ##   championship (a Rally driver was wrongly shown "Not registered" because GK's standings were
@@ -1804,6 +1806,22 @@ func _refresh_cars() -> void:
 				_update_display()
 		)
 		btn_row.add_child(full_btn)
+
+		## Repair UX — "Fix affordable": repair as many whole 10% chunks as current SP allows,
+		## so the player is never fully blocked when they can't afford a full repair. Shown only
+		## when damaged, a full repair is NOT affordable, but at least a 10% chunk IS.
+		var afford_pct = GameState.get_affordable_repair_pct(driver_id)
+		if damage > 0.0 and GameState.spare_parts < sp_full and afford_pct >= 10.0:
+			var afford_btn = Button.new()
+			afford_btn.text = "Fix %d%% (max SP)" % int(afford_pct)
+			afford_btn.custom_minimum_size = Vector2(170, 30)
+			afford_btn.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
+			afford_btn.pressed.connect(func():
+				if GameState.repair_car_affordable(driver_id):
+					_refresh_cars()
+					_update_display()
+			)
+			btn_row.add_child(afford_btn)
 
 	# Bottom hint
 	var hint = Label.new()

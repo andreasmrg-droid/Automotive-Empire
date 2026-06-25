@@ -1,4 +1,7 @@
 class_name CarManager
+## Version: S37.4 — Repair UX: added get_affordable_repair_pct() / repair_car_affordable() — repair
+##   as many whole 10% chunks as current SP allows (used by My Cars + Garage repair buttons), so a
+##   short-SP player is never fully blocked.
 ## Version: S37.0 — CP4 (closes cluster A): manual repair_car() reads the SP-per-10%-damage rate from
 ##   THIS car's championship (get_championship_by_id(car.championship_id)) instead of the singular
 ##   gs.active_championship (= GK). Cars span multiple championships, so a single global rate was
@@ -364,6 +367,43 @@ func repair_car_full(driver_id: String) -> bool:
 		gs.add_notification("Normal", "Car is already at full condition.")
 		return false
 	return repair_car(driver_id, damage)
+
+
+## Bug #47 / repair UX — the SP rate for this car's championship (per 10% damage).
+func _car_sp_rate(car) -> int:
+	var car_champ: Championship = gs.get_championship_by_id(car.championship_id)
+	return int(car_champ.sp_per_10_pct_damage) if car_champ != null \
+		else int(gs.active_championship.sp_per_10_pct_damage)
+
+## Largest repair % the player can afford RIGHT NOW with current SP, in whole 10% chunks,
+## capped at the car's actual damage. Returns 0.0 if they can't afford even one 10% chunk.
+## (Repairs are charged per 10% chunk: cost = ceil(pct/10) × sp_rate.)
+func get_affordable_repair_pct(driver_id: String) -> float:
+	var car = get_car_for_driver(driver_id)
+	if not car:
+		return 0.0
+	var damage = 100.0 - car.condition
+	if damage <= 0.0:
+		return 0.0
+	var sp_rate = _car_sp_rate(car)
+	if sp_rate <= 0:
+		return damage  ## free repair edge case
+	var affordable_chunks = int(gs.spare_parts / sp_rate)          ## whole 10% chunks we can pay for
+	var damage_chunks = int(ceil(damage / 10.0))                   ## chunks needed for full repair
+	var chunks = min(affordable_chunks, damage_chunks)
+	return float(chunks) * 10.0
+
+## Repair as much as the player can currently afford (whole 10% chunks, capped at damage).
+func repair_car_affordable(driver_id: String) -> bool:
+	var pct = get_affordable_repair_pct(driver_id)
+	if pct <= 0.0:
+		var car = get_car_for_driver(driver_id)
+		var sp_rate = _car_sp_rate(car) if car else 0
+		gs.add_notification("High",
+			"Not enough SP for even a 10%% repair (need %d SP, have %d). Buy SP at the Logistics Center." % [
+			sp_rate, gs.spare_parts])
+		return false
+	return repair_car(driver_id, pct)
 
 
 func install_part_on_car(car_id: String, champ_id: String, pcode: String) -> bool:

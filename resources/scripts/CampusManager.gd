@@ -1,4 +1,6 @@
 class_name CampusManager
+## Version: S37.3 — Bug #5: HQ sponsor slots now increase at ODD levels (1,3,5...) not even —
+##   get_hq_sponsor_slots() = 1 + int((level-1)/2). L1=1, L3=2, L5=3, ... L26=13.
 ## Version: S27.0 — Extracted from GameState.gd (P57)
 ##   Buildings, upgrades, construction, income/maintenance, stat bonuses.
 extends RefCounted
@@ -586,4 +588,6 @@ func get_hq_tp_slots() -> int:
 func get_hq_sponsor_slots() -> int:
 	var hq = gs.campus_buildings.get("Headquarters", {})
 	if not hq.get("built", false): return 1
-	return 1 + int(hq.get("level", 1) / 2)
+	## Bug #5: sponsor slots increase at ODD levels (1,3,5...), not even.
+	## L1=1, L2=1, L3=2, L4=2, L5=3, L6=3 ...  (formula: 1 + int((level-1)/2))
+	return 1 + int((hq.get("level", 1) - 1) / 2)

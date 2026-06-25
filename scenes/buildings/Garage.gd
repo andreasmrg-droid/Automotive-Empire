@@ -1,4 +1,9 @@
 extends Control
+## Version: S37.4 — Bug #47 follow-up: Garage car-card "Repair" button now does a FULL repair when
+##   SP allows, else repairs as much as affordable (label shows "Fix N% (max SP)"); disabled only
+##   when even 10% is unaffordable.
+## Version: S37.3 — Bug #47: added a "🔧 Repair" button to each car card (race-built + driver
+##   assigned + damaged) that calls GameState.repair_car_full() and refreshes the tab.
 ## Version: S35.11b — Install popup widened 440→620 + rows wrap/use acronyms so the Install
 ##   button is no longer clipped off the popup edge. Empty slot shows "L0" (not "L0 — empty").
 ##   Warehouse panel now ALSO reflects the Logistics warehouse (provider L0 spares from
@@ -394,6 +399,31 @@ func _build_car_card(car) -> PanelContainer:
 	var cc = Color(0.3,0.9,0.3) if car.condition > 60 else (Color(1.0,0.75,0.1) if car.condition > 30 else Color(1.0,0.3,0.3))
 	cond_lbl.add_theme_color_override("font_color", cc)
 	hdr.add_child(cond_lbl)
+
+	## Bug #47 — manual "Repair" button. Repairs the car via CarManager: full repair when SP
+	## allows, otherwise as many whole 10% chunks as the player can afford (never fully blocked).
+	## Shown only when the car is race-built, has a driver assigned (repair is driver-keyed), and
+	## is actually damaged.
+	if not car.is_in_build() and car.driver_id != "" and car.condition < 100.0:
+		var did = car.driver_id
+		var afford_pct = GameState.get_affordable_repair_pct(did)
+		var damage = 100.0 - car.condition
+		var full_affordable = afford_pct >= damage - 0.01
+		var btn_fix = Button.new()
+		if full_affordable:
+			btn_fix.text = "🔧 Repair"
+		elif afford_pct >= 10.0:
+			btn_fix.text = "🔧 Fix %d%% (max SP)" % int(afford_pct)
+		else:
+			btn_fix.text = "🔧 Repair (need SP)"
+		btn_fix.add_theme_font_size_override("font_size", 22)
+		btn_fix.custom_minimum_size = Vector2(180, 34)
+		btn_fix.disabled = afford_pct < 10.0
+		btn_fix.pressed.connect(func():
+			var ok := GameState.repair_car_full(did) if full_affordable else GameState.repair_car_affordable(did)
+			if ok:
+				_show_tab(_selected_tab))
+		hdr.add_child(btn_fix)
 
 	## S35.11 (issue 7) — visible CNC performance bonus from installed parts. Updates whenever
 	## a part is installed/removed (the tab rebuilds), so the player sees the effect on the car.
