@@ -51,7 +51,7 @@
 | 37 | Garage driver/mechanic assignments show "none" | 🟡 | Assignment rebuild (S30–S32) + per-car reads (Cluster A). S37.x Garage screenshot showed driver/mechanic assigned correctly — verify across championships. |
 | 38 | Garage: Rally4 has no 2nd-driver slot; EPC needs 3 | 🟠 | drivers_per_car exists (canonical slots rule S33.2). Rally4-2 / EPC-3 specifics — verify the slots render. |
 | 39 | No notification to hire a new TP when one is needed | 🟡 | NotificationManager appends "No Team Principal" tasks. CFO (the optional analogue) reworked S37.6–S37.7. Verify TP-missing fires. |
-| 40 | Changing current TP assignment GK → Rally4 does nothing | 🟠 | TP Assignment cluster (deferred; TP_Assignment_System_Spec_v2). The reassignment action itself — verify / still open. |
+| 40 | Changing current TP assignment GK → Rally4 does nothing | ✅ | **S37.22** ROOT CAUSE: assign_staff_to_championship() QUEUED TP/Strategist moves to 'next week' (pending_staff_assignments) instead of applying — so assigned_championship stayed on GK, the HQ card showed the old series, the new championship read as no-TP → DNS → the game soft-locked into GK. Now applies IMMEDIATELY (matches driver/mechanic) + invalidates the staff cache so HQ refreshes at once. Added per-role one-per-championship slot guard and a hard strategist GK/Rally block. BONUS: clear_stranded_player_championship_staff() at rollover auto-unassigns a player TP/Strategist left on a no-longer-raced championship (HQ then shows 'Not assigned'). Strategist GK/Rally skip verified consistent across HQ/StaffHub/optimiser/warnings; TP optimiser correctly covers Rally (no skip). |
 | 41 | Driver failing age requirement should show a popup | ✅ | **S37.16** assign_driver_to_car() now returns a player-facing reason string; the Garage, Racing Dept and Driver-card assign flows show a modal "Cannot Assign Driver" popup on age-limit failure (was silent except a missable notification). Verify the popup fires for an under/over-age driver. |
 | 42 | Starting from Rally, a TDL says "GK has no principal" (stale GK ref) | 🟡 | GK-gating (S31, S37.1 player_in_gk). Verify the stale GK TDL is gone for a Rally career. |
 | 43 | Staff hub "Available Staff" button has a static count; remove counts | ⚪ Open | Still present (StaffHub "(%d)" buttons). Not yet removed. |
@@ -82,7 +82,7 @@ A 1-event model now governs notifications (built this session; CFO + deadline mi
 
 - **✅ Fixed:** #2, #5, #8, #11, #13, #14, #19, #20, #23, #28, #31, #33, #47, #49. (Confirmed in play: #5, #11, #20, #47; rest by changelog — verify the S37.9–S37.13 batch in-engine: #2 interest count, #8 salary units, #13 sponsor amounts.)
 - **🟡 Fixed–needs in-engine verification:** #4, #6, #7, #9, #10, #15, #21, #24, #25, #29, #32, #35, #36, #37, #39, #42, #44, #45, #46, #48, #51.
-- **🟠 Known/latent or partial:** #22, #38, #40. (#3 verified-closed S37.21; #34 done S37.21; #50 done S37.19.)
+- **🟠 Known/latent or partial:** #22, #38. (#40 done S37.22; #3 verified-closed S37.21; #34 done S37.21; #50 done S37.19.)
 - **🔵 Backlog/feature (design work):** #17, #27.
 - **⚪ Still open / not started:** #12, #26 (deferred — notification loop being redesigned). (#43 done S37.9; #18 done S37.14–15; #41 done S37.16; #1 done S37.17–18; #16 done S37.17; #50 done S37.19; #30 done S37.20.)
 

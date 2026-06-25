@@ -1,4 +1,7 @@
 class_name SeasonManager
+## Version: S37.22 — #40: after applying pending staff assignments at season start, call
+##   clear_stranded_player_championship_staff() so a player TP/Strategist left on a championship no
+##   longer raced (e.g. GK after switching to Rally) is auto-unassigned (prevents the GK soft-lock).
 ## Version: S37.19 — #50: season-end scrap now also clears part_inventory (loose L0 warehouse
 ##   parts were leaking across the season boundary; cars AND parts now scrap together).
 ## Version: S37.15 — #18: season-end staff aging loop now calls grow_talent_scouting() so a TP's
@@ -194,6 +197,9 @@ func start_new_season() -> void:
 	## (S33.1/33.2); this is purely the ordering correction.
 	gs._activate_presigned_contracts()
 	gs._apply_pending_staff_assignments()
+	## #40 — drop any player TP/Strategist left on a championship no longer raced this season
+	## (e.g. GK after switching to Rally), so HQ shows "Not assigned" rather than a stale series.
+	gs.clear_stranded_player_championship_staff()
 	gs.add_log("=== SEASON %d BEGINS ===" % gs.current_season)
 
 	# ── STAGE C — TP assignment (AI auto-assign) ────────────────────────────

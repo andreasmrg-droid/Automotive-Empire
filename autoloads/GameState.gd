@@ -3,6 +3,11 @@
 ##   starting + car championships).
 ## Version: S37.16 — #41: assign_driver_to_car() wrapper now propagates the String result.
 extends Node
+## Version: S37.22 — #40 TP/Strategist manual assignment: assign_staff_to_championship() now
+##   applies IMMEDIATELY (was queued to 'next week' → assigned_championship stayed stale → HQ card
+##   showed the old series → non-GK championship read as no-TP → DNS → soft-locked into GK). Added
+##   per-role slot guard + strategist GK/Rally block + clear_stranded_player_championship_staff()
+##   (rollover auto-unassign of player TP/Strategist on a no-longer-raced championship).
 ## Version: S37.15 — #18 hidden-gems: talent_scouting added to staff save/load serialization.
 ## Version: S37.10 — (1) Sponsor system: added _process_sponsor_annual_payments() wrapper (commitment
 ##   sponsors pay/penalise at season start) and pending_race_result_count() (Skip button). (2) Save/
@@ -2575,34 +2580,45 @@ func assign_staff_to_championship(staff_id: String, champ_id: String) -> void:
 	var staff = all_staff[staff_id]
 	var reg = CHAMPIONSHIP_REGISTRY.get(champ_id, {})
 	var champ_name = reg.get("name", champ_id)
+	var disc = reg.get("discipline", "")
 
-	## Guard: TP slot — only one TP per championship, but:
-	## - Same TP can be reassigned (clears old assignment)
-	## - GK discipline: one TP covers all tiers — assigning to any GK champ covers all
-	if staff.role == "Team Principal":
-		## Clear old assignment if this TP is already assigned somewhere
-		if staff.assigned_championship != "" and staff.assigned_championship != champ_id:
-			var old_reg = CHAMPIONSHIP_REGISTRY.get(staff.assigned_championship, {})
-			add_log("📋 %s unassigned from %s." % [staff.full_name(), old_reg.get("name", staff.assigned_championship)])
-		## Check no OTHER TP is already on this championship
+	## Strategist is NOT used in GK or Rally — block the assignment outright.
+	if staff.role == "Race Strategist" and disc in ["GK", "Rally"]:
+		add_notification("High",
+			"Race Strategists are not used in GK or Rally championships.")
+		return
+
+	## Slot guard — only ONE Team Principal / Race Strategist per championship.
+	## The SAME person may be reassigned (their old assignment is cleared below); a DIFFERENT
+	## same-role staffer already on this championship blocks the assignment.
+	if staff.role in ["Team Principal", "Race Strategist"]:
 		for sid2 in all_staff:
 			var s2 = all_staff[sid2]
 			if s2.id == staff_id: continue
-			if s2.role == "Team Principal" and s2.contract_team == player_team.id \
+			if s2.role == staff.role and s2.contract_team == player_team.id \
 					and s2.assigned_championship == champ_id:
 				add_notification("High",
-					"Championship already has a Team Principal assigned.")
+					"%s already has a %s assigned." % [champ_name, staff.role])
 				return
 
-	## TP and Strategist: queue for next week
-	if staff.role in ["Team Principal", "Race Strategist"]:
-		pending_staff_assignments[staff_id] = champ_id
-		add_log("📋 %s queued for %s — effective next week." % [staff.full_name(), champ_name])
-		add_notification("Normal",
-			"%s will be assigned to %s from next week." % [staff.full_name(), champ_name])
-	else:
-		staff.assigned_championship = champ_id
-		add_log("📋 %s assigned to %s" % [staff.full_name(), champ_name])
+	## Log the move off an old championship (reassignment, e.g. GK → Rally4).
+	if staff.assigned_championship != "" and staff.assigned_championship != champ_id:
+		var old_reg = CHAMPIONSHIP_REGISTRY.get(staff.assigned_championship, {})
+		add_log("📋 %s unassigned from %s." % [staff.full_name(), old_reg.get("name", staff.assigned_championship)])
+
+	## #40 — Manual TP / Strategist reassignment now applies IMMEDIATELY (was queued to "next
+	## week" via pending_staff_assignments, which left assigned_championship stale → the HQ card
+	## showed the OLD championship → looked like "nothing happened" → a non-GK championship read
+	## as having no TP → DNS → the game soft-locked into GK only). Driver/mechanic already apply
+	## immediately; TP/Strategist now match. (pending_staff_assignments is retained for the
+	## season-transition pipeline only.)
+	## Also clear any stale queued entry for this staffer so a prior queue can't re-fire next week.
+	if staff_id in pending_staff_assignments:
+		pending_staff_assignments.erase(staff_id)
+	staff.assigned_championship = champ_id
+	add_log("📋 %s assigned to %s." % [staff.full_name(), champ_name])
+	invalidate_player_staff_cache()
+	emit_signal("log_updated")
 
 func _apply_pending_staff_assignments() -> void:
 	if pending_staff_assignments.is_empty(): return
@@ -2614,6 +2630,23 @@ func _apply_pending_staff_assignments() -> void:
 		var reg = CHAMPIONSHIP_REGISTRY.get(cid, {})
 		add_log("📋 %s now active at %s." % [s.full_name(), reg.get("name", cid)])
 	pending_staff_assignments.clear()
+
+## #40 — At season rollover, clear any PLAYER Team Principal / Strategist still assigned to a
+## championship the player no longer races this season. Without this a TP stays stranded on (e.g.)
+## GK after switching to Rally, the HQ card shows the old series, and the new championship reads as
+## having no TP → DNS. After this runs, a stranded overseer shows "Not assigned" and the player
+## reassigns them. AI teams manage their own via ai_auto_assign — this touches the player only.
+func clear_stranded_player_championship_staff() -> void:
+	for sid in all_staff:
+		var s = all_staff[sid]
+		if s.contract_team != player_team.id: continue
+		if s.role not in ["Team Principal", "Race Strategist"]: continue
+		if s.assigned_championship != "" and s.assigned_championship not in player_registered_championships:
+			var reg = CHAMPIONSHIP_REGISTRY.get(s.assigned_championship, {})
+			add_log("📋 %s unassigned — %s is not on this season's calendar. Reassign in HQ." % [
+				s.full_name(), reg.get("name", s.assigned_championship)])
+			s.assigned_championship = ""
+	invalidate_player_staff_cache()
 
 func get_pending_assignment_for(sid: String) -> String:
 	return pending_staff_assignments.get(sid, "")
