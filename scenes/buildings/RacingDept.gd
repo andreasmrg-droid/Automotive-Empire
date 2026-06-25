@@ -1,3 +1,6 @@
+## Version: S37.24 — layout: driver-row fonts reduced (30→26/26→24/24→22) for a lighter left
+##   column; right column widened 340→360; _stat_row/_section_label clip+ellipsis (S37.23) keep
+##   championship names / TP-panel text inside the column.
 extends Control
 ## Version: S37.23 — popup-position: right column widened 300→340; _stat_row + _section_label
 ##   values now expand+clip+ellipsis so championship names / TP-panel text stop clipping off-screen.
@@ -153,7 +156,7 @@ func _build_ui() -> void:
 	# ── Right: championship status + effects (scrollable — the championship list can
 	# now hold up to 21 entries, so the column must scroll to avoid overflow) ──────
 	var right_scroll = ScrollContainer.new()
-	right_scroll.custom_minimum_size = Vector2(340, 0)
+	right_scroll.custom_minimum_size = Vector2(360, 0)
 	right_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	columns.add_child(right_scroll)
 
@@ -279,20 +282,20 @@ func _build_driver_card(driver) -> PanelContainer:
 
 	var lbl_name = Label.new()
 	lbl_name.text = driver.full_name()
-	lbl_name.add_theme_font_size_override("font_size", 30)
+	lbl_name.add_theme_font_size_override("font_size", 26)
 	lbl_name.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
 	lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row1.add_child(lbl_name)
 
 	var lbl_ovr = Label.new()
 	lbl_ovr.text = "Ovr %.0f" % driver.get_overall_skill()
-	lbl_ovr.add_theme_font_size_override("font_size", 26)
+	lbl_ovr.add_theme_font_size_override("font_size", 24)
 	lbl_ovr.add_theme_color_override("font_color", _skill_color(driver.get_overall_skill()))
 	row1.add_child(lbl_ovr)
 
 	var lbl_age = Label.new()
 	lbl_age.text = "Age %d  ·  %s" % [driver.age, driver.nationality]
-	lbl_age.add_theme_font_size_override("font_size", 24)
+	lbl_age.add_theme_font_size_override("font_size", 22)
 	lbl_age.modulate = Color(0.6, 0.6, 0.6)
 	row1.add_child(lbl_age)
 
@@ -310,7 +313,7 @@ func _build_driver_card(driver) -> PanelContainer:
 	else:
 		car_lbl.text = "🏎 No car assigned"
 		car_lbl.add_theme_color_override("font_color", Color(0.9, 0.5, 0.15))
-	car_lbl.add_theme_font_size_override("font_size", 24)
+	car_lbl.add_theme_font_size_override("font_size", 22)
 	row2.add_child(car_lbl)
 
 	# Championship standing — look up in the driver's OWN car's championship, not the
@@ -329,7 +332,7 @@ func _build_driver_card(driver) -> PanelContainer:
 					break
 	var lbl_champ = Label.new()
 	lbl_champ.text = "P%d  ·  %d pts" % [pos, pts] if pos > 0 else "Not in standings"
-	lbl_champ.add_theme_font_size_override("font_size", 24)
+	lbl_champ.add_theme_font_size_override("font_size", 22)
 	lbl_champ.modulate = Color(0.65, 0.65, 0.65)
 	row2.add_child(lbl_champ)
 
@@ -337,7 +340,7 @@ func _build_driver_card(driver) -> PanelContainer:
 	lbl_contract.text = "%d season%s left" % [
 		driver.contract_seasons_remaining,
 		"s" if driver.contract_seasons_remaining != 1 else ""]
-	lbl_contract.add_theme_font_size_override("font_size", 24)
+	lbl_contract.add_theme_font_size_override("font_size", 22)
 	lbl_contract.modulate = Color(1.0, 0.4, 0.4) if driver.contract_seasons_remaining <= 1 \
 		else Color(0.6, 0.6, 0.6)
 	row2.add_child(lbl_contract)

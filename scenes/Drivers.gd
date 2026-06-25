@@ -1,3 +1,4 @@
+## Version: S37.24 — popup-position: driver card CENTERED on screen (was right-anchored/clipping).
 ## Version: S37.23 — popup-position: driver card widened (636) + pulled in from the right edge
 ##   (was clipping nationality / (eff: NN.N) / contract); card-row value labels now clip+ellipsis.
 ## Version: S37.16 — #41: driver card car-assign shows a "Cannot Assign Driver" popup on age-limit
@@ -635,16 +636,16 @@ func _show_driver_card(driver_id: String) -> void:
 		return
 
 	card_overlay = PanelContainer.new()
-	card_overlay.anchor_left   = 1.0
-	card_overlay.anchor_top    = 0.0
-	card_overlay.anchor_right  = 1.0
-	card_overlay.anchor_bottom = 0.0
-	## Wider panel pulled further in from the right edge so long values (nationality, "(eff: NN.N)"
-	## attribute readouts, contract/car line) no longer clip off-screen. (#1 popup-position fix.)
-	card_overlay.offset_left   = -660
-	card_overlay.offset_top    = 150
-	card_overlay.offset_right  = -24
-	card_overlay.offset_bottom = 40
+	## Centered on screen (anchors at 0.5) with symmetric offsets so the card sits in the middle
+	## rather than hugging the right edge — keeps long values (nationality, eff, contract) on-screen.
+	card_overlay.anchor_left   = 0.5
+	card_overlay.anchor_top    = 0.5
+	card_overlay.anchor_right  = 0.5
+	card_overlay.anchor_bottom = 0.5
+	card_overlay.offset_left   = -320
+	card_overlay.offset_top    = -380
+	card_overlay.offset_right  = 320
+	card_overlay.offset_bottom = 380
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.12, 0.12, 0.16, 0.98)
 	style.border_width_left = 2

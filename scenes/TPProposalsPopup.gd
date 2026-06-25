@@ -1,4 +1,7 @@
 extends Control
+## Version: S37.24 — DOUBLE-FIRE fix: _rebuild_list() now clears + rebuilds SYNCHRONOUSLY. The old
+##   version awaited a frame between clear and re-add; two near-simultaneous calls (_ready→_build_ui
+##   and open()) interleaved past the clear and both appended → 4 rows for 2 proposals. Race removed.
 ## Version: S32.2 — TP rebuild: renders all 4 player-assignable roles (driver, mechanic,
 ##   pit crew, strategist). Reads the new proposal model (person_id/scope/type). Accept
 ##   per-item / accept-all adopt the regenerated single source (_last_tp_proposals).
@@ -127,8 +130,14 @@ func _build_ui() -> void:
 
 func _rebuild_list() -> void:
 	if not is_inside_tree(): return
-	for c in _list.get_children(): c.queue_free()
-	await get_tree().process_frame
+	## Clear + rebuild SYNCHRONOUSLY. The previous version awaited a frame between clearing and
+	## re-adding rows; when _rebuild_list was called twice in quick succession (once from _ready→
+	## _build_ui and once from open()), the two coroutines interleaved past the clear and both
+	## appended → DOUBLED rows while the summary reflected a single pass. free_children() with
+	## immediate removal + no await removes the race. (Fixes the doubled TP-proposal rows.)
+	for c in _list.get_children():
+		_list.remove_child(c)
+		c.queue_free()
 
 	var assignable = _proposals.filter(func(p): return p["type"] in [
 		"assign_driver", "assign_mechanic", "assign_pit_crew", "assign_strategist"])

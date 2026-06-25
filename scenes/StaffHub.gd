@@ -1,3 +1,5 @@
+## Version: S37.24 — popup-position: staff cards CENTERED on screen (anchors 0.5, symmetric
+##   offsets) instead of hugging the right edge; both card builders updated.
 ## Version: S37.18 — #1 screenshot follow-ups: CFO row "Fin Mgmt 0" (read removed
 ##   financial_management) → loan_management; CFO Skill-column label "Resources"→"Negotiation"
 ##   (matched the value); finmgmt sort key fixed. Card popup WIDENED + pulled in from the right
@@ -796,18 +798,18 @@ func _show_staff_card(staff_id: String) -> void:
 		return
 
 	card_overlay = PanelContainer.new()
-	card_overlay.anchor_left   = 1.0
-	card_overlay.anchor_top    = 0.0
-	card_overlay.anchor_right  = 1.0
-	card_overlay.anchor_bottom = 0.0
-	## Wider panel pulled further in from the right edge so long values (nationality, the
-	## "Team Level (no assignment needed)" assignment line, 100.0 attribute readouts) no longer
-	## clip off-screen. (#1 popup-position fix.)
-	card_overlay.offset_left   = -660
-	card_overlay.offset_top    = 150
-	card_overlay.offset_right  = -24
-	card_overlay.offset_bottom = 40
-	card_overlay.custom_minimum_size = Vector2(636, 0)
+	## Centered on screen (anchors at 0.5) with a fixed ~640px width and symmetric offsets, so the
+	## card sits in the middle rather than hugging the right edge. Vertically centered too. (Popup
+	## position pass — keeps long values fully on-screen.)
+	card_overlay.anchor_left   = 0.5
+	card_overlay.anchor_top    = 0.5
+	card_overlay.anchor_right  = 0.5
+	card_overlay.anchor_bottom = 0.5
+	card_overlay.offset_left   = -320
+	card_overlay.offset_top    = -380
+	card_overlay.offset_right  = 320
+	card_overlay.offset_bottom = 380
+	card_overlay.custom_minimum_size = Vector2(640, 0)
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.12, 0.12, 0.16, 0.98)
 	style.border_width_left = 2
@@ -1021,15 +1023,16 @@ func _show_assign_popup(staff_id: String) -> void:
 		return
 
 	card_overlay = PanelContainer.new()
-	card_overlay.anchor_left   = 1.0
-	card_overlay.anchor_top    = 0.0
-	card_overlay.anchor_right  = 1.0
-	card_overlay.anchor_bottom = 0.0
-	card_overlay.offset_left   = -600
-	card_overlay.offset_top    = 190
-	card_overlay.offset_right  = -50
-	card_overlay.offset_bottom = 60
-	card_overlay.custom_minimum_size = Vector2(380, 0)
+	## Centered on screen (popup-position pass) — was hugging the right edge and clipping.
+	card_overlay.anchor_left   = 0.5
+	card_overlay.anchor_top    = 0.5
+	card_overlay.anchor_right  = 0.5
+	card_overlay.anchor_bottom = 0.5
+	card_overlay.offset_left   = -320
+	card_overlay.offset_top    = -380
+	card_overlay.offset_right  = 320
+	card_overlay.offset_bottom = 380
+	card_overlay.custom_minimum_size = Vector2(640, 0)
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.12, 0.12, 0.16, 0.98)
 	style.border_width_left = 2
