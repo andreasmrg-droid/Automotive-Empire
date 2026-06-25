@@ -1,4 +1,5 @@
 class_name TPProposalEngine
+## Version: S37.17 — #1 cleanup: removed dead car_setup_skill branch (field no longer exists).
 ## Version: S34.0 — TP critical message reworded: it flags only EXISTING cars that lack crew
 ##   ("some of your cars lack crew and can't race — assign in Racing Department"), making clear
 ##   the TP never prompts buying a car. compute_optimal_assignments already iterates only actual
@@ -332,8 +333,7 @@ func _effective_stat(driver, disc: String, stat: String) -> float:
 
 func _effective_stat_staff(staff, disc: String, stat: String) -> float:
 	var raw: float = 50.0
-	if stat == "car_setup" and "car_setup_skill" in staff: raw = staff.car_setup_skill
-	elif stat == "car_setup" and "car_setup" in staff: raw = staff.car_setup
+	if stat == "car_setup" and "car_setup" in staff: raw = staff.car_setup
 	var adapt = staff.discipline_adaptation.get(disc, 50.0) \
 		if "discipline_adaptation" in staff and staff.discipline_adaptation.has(disc) else 50.0
 	return raw * (adapt / 100.0)

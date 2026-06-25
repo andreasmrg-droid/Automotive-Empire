@@ -1,3 +1,7 @@
+## Version: S37.17 — #1 CFO attributes showed all 0: detail card read the REMOVED field
+##   `interest_rates` (broke the attribute-list build). Now reads the real `speculation` stat.
+##   Also fixed Mechanic `car_knowledge`→`parts_knowledge` (detail list, row, sort key) and added
+##   the TP `talent_scouting` stat to the TP detail list.
 extends Control
 ## Version: S37.9 — Bug #43: removed the live count from the My/Available Staff tab labels (the
 ##   "(2)"/"(179)" parentheses) per design. Tab buttons now read plain "👥 My Staff" /
@@ -413,7 +417,7 @@ func _get_role_stats(staff) -> Array:
 			return [
 				["Setup", staff.car_setup if "car_setup" in staff else 0.0],
 				["Pit Stops", staff.pit_stops if "pit_stops" in staff else 0.0],
-				["Car Know", staff.car_knowledge if "car_knowledge" in staff else 0.0],
+				["Parts Know", staff.parts_knowledge if "parts_knowledge" in staff else 0.0],
 				["Rep", staff.reputation if "reputation" in staff else 0.0],
 			]
 		"Pit Crew":
@@ -1497,7 +1501,7 @@ func _sort_val(staff) -> float:
 		## Race Mechanic
 		"setup":       return staff.car_setup if "car_setup" in staff else 0.0
 		"pit_stops":   return staff.pit_stops if "pit_stops" in staff else 0.0
-		"car_know":    return staff.car_knowledge if "car_knowledge" in staff else 0.0
+		"car_know":    return staff.parts_knowledge if "parts_knowledge" in staff else 0.0
 		"track_know":  return staff.track_knowledge if "track_knowledge" in staff else 0.0
 		## Pit Crew
 		"pit_stop":    return staff.pit_stop_speed if "pit_stop_speed" in staff else 0.0
@@ -1524,7 +1528,7 @@ func _get_staff_attrs(staff) -> Array:
 	match staff.role:
 		"Race Mechanic":
 			return [["Car Setup", staff.car_setup], ["Pit Stops", staff.pit_stops],
-				["Car Knowledge", staff.car_knowledge], ["Track Knowledge", staff.track_knowledge]]
+				["Parts Knowledge", staff.parts_knowledge], ["Track Knowledge", staff.track_knowledge]]
 		"Pit Crew":
 			return [["Pit Stop Speed", staff.pit_stop_speed], ["Repair Skill", staff.repair_skill],
 				["Fatigue Res", staff.fatigue_resistance], ["Fitness", staff.fitness]]
@@ -1535,10 +1539,11 @@ func _get_staff_attrs(staff) -> Array:
 				["Race Pace Reading", staff.race_pace_reading],
 				["Car Setup Oversight", staff.car_setup_oversight],
 				["Pit Stop Management", staff.pit_stop_management],
-				["PR Skill", staff.pr_skill]]
+				["PR Skill", staff.pr_skill],
+				["Talent Scouting", staff.talent_scouting]]
 		"CFO":
 			return [["Loan Management", staff.loan_management],
-				["Interest Rates", staff.interest_rates],
+				["Speculation", staff.speculation],
 				["Sales Skill", staff.sales_skill],
 				["Sponsor Negotiation", staff.sponsor_negotiation],
 				["Resource Management", staff.resource_management],

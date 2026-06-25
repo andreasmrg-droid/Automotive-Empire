@@ -1,4 +1,6 @@
 extends Control
+## Version: S37.17 — #1: mechanic stat chips read REMOVED fields car_setup_skill/pit_stop_skill/
+##   car_knowledge (always fell back to placeholder 50). Now read car_setup/pit_stops/parts_knowledge.
 ## Version: S37.16 — #41: driver-assign now shows a modal "Cannot Assign Driver" popup when the
 ##   driver fails the championship age limit (was silent except a missable notification).
 ## Version: S37.5 — Bug #47 revision: Garage repair button now does a FULL repair when affordable,
@@ -969,9 +971,9 @@ func _open_staff_popup(car_id: String, role: String) -> void:
 			for pair in [["Pit Speed", pspeed], ["Repair", prep], ["Fatigue", pfat]]:
 				_add_stat_chip(stats_row, pair[0], pair[1])
 		else:
-			var setup = int(p.car_setup_skill)  if "car_setup_skill" in p else 50
-			var pit   = int(p.pit_stop_skill)   if "pit_stop_skill"  in p else 50
-			var know  = int(p.car_knowledge)    if "car_knowledge"   in p else 50
+			var setup = int(p.car_setup)   if "car_setup" in p else 50
+			var pit   = int(p.pit_stops)   if "pit_stops" in p else 50
+			var know  = int(p.parts_knowledge) if "parts_knowledge" in p else 50
 			for pair in [["Setup", setup], ["Pit", pit], ["Know", know]]:
 				_add_stat_chip(stats_row, pair[0], pair[1])
 

@@ -12,7 +12,7 @@
 
 | # | Item | Status | Where / how addressed |
 |---|------|--------|-----------------------|
-| 1 | CFO financial-mgmt attributes all 0 | ⚪ Open | Separate from the CFO *notification* work (done). The all-0 attribute display is still unconfirmed — likely a card reading a non-existent field. Still to do. |
+| 1 | CFO financial-mgmt attributes all 0 | ✅ | **S37.17** Confirmed: the CFO JSON data is fine (non-zero); the bug was DISPLAY. The StaffHub detail card read the REMOVED `interest_rates` field, which broke the whole attribute-list build → all-0. Now reads the real `speculation` stat. Same class of bug fixed in 4 more spots: Mechanic `car_knowledge`→`parts_knowledge` (detail list/row/sort) and Garage chips car_setup_skill/pit_stop_skill/car_knowledge → real fields (were placeholder 50). TP `talent_scouting` added to TP detail list. Verify CFO + mechanic cards show real values. |
 | 2 | New GK team has ~2943 staff interested (reputation/interest broken) | ✅ | **S37.10** interest model rebalanced in ContractEngine._subject_interest_score: interest now gates reachable TALENT by team REPUTATION (interest = 60 + (player_rep − talent)×0.7 + free-agent bonus + rep-gap bonus + TP). A rep-0 garage attracts only ~13 low-talent free agents; the pool grows with reputation. Low-talent (≤35) free agents always reachable so a new team can field a car. (Earlier: marketability driver fixed S36.0; interest model first reworked S35.9.) Verify the new-team count is sane. |
 | 3 | Main hub stretched off-screen | 🟠 | Layout-stretch pattern applied to several screens (S35.10, S29.x). Main Hub flagged for total revamp under #17 — verify current state. |
 | 4 | "Staff interested" + signed same week → notice shouldn't appear | 🟡 | Negotiation semantics + notification collapse (S35.1–S35.9). Verify this exact race condition. |
@@ -84,7 +84,7 @@ A 1-event model now governs notifications (built this session; CFO + deadline mi
 - **🟡 Fixed–needs in-engine verification:** #4, #6, #7, #9, #10, #15, #21, #24, #25, #29, #32, #35, #36, #37, #39, #42, #44, #45, #46, #48, #51.
 - **🟠 Known/latent or partial:** #3, #22, #34, #38, #40, #50.
 - **🔵 Backlog/feature (design work):** #17, #27.
-- **⚪ Still open / not started:** #1, #12, #16, #26, #30. (#43 already done S37.9; #18 done S37.14–15; #41 done S37.16.)
+- **⚪ Still open / not started:** #12, #26, #30. (#43 done S37.9; #18 done S37.14–15; #41 done S37.16; #1 done S37.17; #16 reported solved.)
 
 ## Suggested next batch (the ⚪ Open, lowest-risk)
 Mechanical, no re-fix risk: **#18** (starting-driver balance), **#41** (age-requirement popup), **#43** (remove hub button counts), **#30** (campus building text audit), **#1** (CFO all-0 attributes). Then notification-framework migrations: **#12, #26** (sponsor offer / building completion as `notify_event` with buttons).
