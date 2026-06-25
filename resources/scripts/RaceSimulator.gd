@@ -1,4 +1,7 @@
 class_name RaceSimulator
+## Version: S37.7 — Removed the per-race "No CFO on staff" notification (it fired every race — the
+##   W10/W12 spam). CFO is optional; its state is now a read-only TO-DO row + a one-time framework
+##   notification. The Team Principal warning (genuinely race-affecting) is unchanged.
 ## Version: S37.5 — Notification spam fix: the post-race "SP insufficient to fully repair Car N"
 ##   notification now carries the res_spare_parts subject, so it collapses to ONE standing SP
 ##   notice instead of stacking a fresh one every race week (was W8/W10/W10... in the panel).
@@ -46,10 +49,8 @@ func check_race_requirements_for(champ: Championship) -> void:
 	if tp == null:
 		gs.add_notification("High",
 			"⚠ No Team Principal for %s! Racing without tactical oversight." % champ.championship_name)
-	var has_cfo = gs.get_cfo() != null
-	if not has_cfo:
-		gs.add_notification("Normal",
-			"💼 No CFO on staff. Financial optimisation unavailable.")
+	## CFO is OPTIONAL — no per-race notification (it spammed every race). The "no CFO" state is
+	## surfaced once via notify_event("no_cfo", ..., "once") and stays visible in the TO-DO list.
 
 
 ## DNS check — returns true if the car CAN race, false if DNS.

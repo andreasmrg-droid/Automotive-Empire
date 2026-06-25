@@ -1,4 +1,11 @@
 extends Node
+## Version: S37.7 — Notification framework (1-event model) + two real fixes. Added notify_event()
+##   with modes once/standing/event/news (NotificationManager) and wrappers here. (1) CFO: the
+##   per-RACE "No CFO" emitter in RaceSimulator (the actual W10/W12 spam source) is removed; CFO is
+##   now a read-only TO-DO row + ONE notify_event("no_cfo", once) with a Staff-screen button.
+##   (2) ROOT CAUSE of "no deadline / erratic CFO notifications": both blocks sat AFTER the
+##   race-result early-return in advance_week(), so on any week the player raced they were skipped.
+##   Moved both BEFORE that return so they run every week. TO-DO list is read-only and never notifies.
 ## Version: S37.6 — Two notification fixes. (1) CFO hint: CFO is optional, so the recurring "No CFO"
 ##   TDL task was removed; a single one-time hint notification fires instead (cfo_hint_shown flag).
 ##   (2) Registration deadline: the warning never fired because the loop skipped any championship in
@@ -1479,9 +1486,6 @@ var dismissed_todo_items: Array = []  ## Items player has dismissed from to-do l
 var custom_todo_items:    Array = []  ## TP proposals and other injected TDL items
 var weeks_in_negative:       int   = 0
 var bankruptcy_screen_shown: bool  = false
-## One-time hint: "you have no CFO (optional)". Fired once, then never again (CFO is good-to-have,
-## not required) — see weekly loop. Not serialized: a hint at worst re-shows once after a reload.
-var cfo_hint_shown: bool = false
 var unread_notification_count: int = 0
 signal notifications_updated()
 
@@ -1937,6 +1941,13 @@ func _maybe_generate_race_sponsor_offer(player_position: int) -> void:
 
 func add_notification(priority: String, message: String, destination: String = "", subject: String = "") -> void:
 	_notification_manager.add_notification(priority, message, destination, subject)
+
+## Framework entry point (S37.7) — see NotificationManager.notify_event.
+func notify_event(event_id: String, priority: String, message: String, destination: String = "", mode: String = "event") -> void:
+	_notification_manager.notify_event(event_id, priority, message, destination, mode)
+
+func reset_notification_once(event_id: String) -> void:
+	_notification_manager.reset_once(event_id)
 
 func mark_all_notifications_read() -> void:
 	_notification_manager.mark_all_notifications_read()
@@ -3353,6 +3364,36 @@ func advance_week() -> void:
 					add_notification("Normal",
 						"✅ GK Round %d complete — advancing to Round %d!" % [this_gk_round, new_round])
 
+	# ── CFO optional hint (one-time, framework) ───────────────────────────────
+	## CFO is good-to-have, not required. Fire ONE notification ever if the player has none
+	## (notify_event "once" tracks this) — with a button to the Staff screen. The standing
+	## "no CFO" reminder lives in the read-only TO-DO list, which never notifies. Placed BEFORE
+	## the race-result early-return below so it runs even on weeks the player races.
+	if get_cfo() == null:
+		notify_event("no_cfo", "Normal",
+			"💼 No CFO on staff (optional). A CFO improves contract terms, financial intel and "
+			+ "auto-buys race logistics. Hire one from the Staff screen if you want those.",
+			"staff_hub", "once")
+
+	# ── Championship registration deadline warnings ───────────────────────────
+	## ONE consolidated notification the week before the deadline, listing every championship
+	## whose NEXT-SEASON registration closes next week. Placed BEFORE the race-result early-return
+	## (previously it sat after it, so on any week the player raced the warning was skipped — that
+	## is why no deadline notification ever appeared).
+	var closing_next_week: Array = []
+	for champ_id in CHAMPIONSHIP_REGISTRY:
+		## Skip if already secured for next season (ledger). Championships the player races THIS
+		## season are still listed — they must re-register for next season.
+		if champ_id in next_season_registrations:
+			continue
+		if get_entry_deadline_week(champ_id) - current_week == 1:
+			closing_next_week.append(CHAMPIONSHIP_REGISTRY[champ_id].get("name", champ_id))
+	if not closing_next_week.is_empty():
+		var list_txt = ", ".join(closing_next_week)
+		add_notification("High",
+			"⚠ Championship registration closes NEXT WEEK for: %s. Register at HQ → WRA before the deadline." % list_txt,
+			"", "reg_deadline_all")
+
 	## After all races processed this week — show first result screen
 	if not _pending_race_results.is_empty():
 		## S35.3: a skip that hits a player race is interrupted here by the scene change, so the
@@ -3367,32 +3408,6 @@ func advance_week() -> void:
 	_check_tp_proposal_notifications()
 
 	add_log("--- Week %d ---" % current_week)
-
-	# ── CFO optional hint (one-time) ──────────────────────────────────────────
-	## CFO is good-to-have, not required. Tell the player ONCE that they have none, then never
-	## again (no recurring TDL/notification spam).
-	if not cfo_hint_shown and get_cfo() == null:
-		cfo_hint_shown = true
-		add_notification("Normal",
-			"💼 No CFO hired (optional). A CFO improves contract terms, financial intel and auto-buys race logistics — hire one from the Staff screen if you want those.")
-
-	# ── Championship registration deadline warnings ───────────────────────────
-	## ONE consolidated notification the week before the deadline, listing every championship
-	## whose NEXT-SEASON registration closes next week (most share the same deadline week, so
-	## per-championship notices would mean ~20 messages at once). No 4/2/1 tiering.
-	var closing_next_week: Array = []
-	for champ_id in CHAMPIONSHIP_REGISTRY:
-		## Skip if already secured for next season (in the ledger). Championships the player races
-		## THIS season are still listed — they must re-register for next season.
-		if champ_id in next_season_registrations:
-			continue
-		if get_entry_deadline_week(champ_id) - current_week == 1:
-			closing_next_week.append(CHAMPIONSHIP_REGISTRY[champ_id].get("name", champ_id))
-	if not closing_next_week.is_empty():
-		var list_txt = ", ".join(closing_next_week)
-		add_notification("High",
-			"⚠ Championship registration closes NEXT WEEK for: %s. Register at HQ → WRA before the deadline." % list_txt,
-			"", "reg_deadline_all")
 
 	## Weekly P&L summary — single line showing net change
 	var _net = player_team.balance - _balance_before

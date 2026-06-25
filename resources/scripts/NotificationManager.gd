@@ -1,4 +1,7 @@
 class_name NotificationManager
+## Version: S37.7 — Notification framework: added notify_event() (modes once/standing/event/news)
+##   + _fired_once tracking + _push_news hook. CFO is now a READ-ONLY TO-DO row here (the TDL never
+##   notifies); the one-time "no CFO" notice is fired via notify_event from GameState.
 ## Version: S37.6 — Removed the recurring "No CFO hired" TDL task (CFO is optional — it nagged every
 ##   week). A one-time hint notification fires from GameState instead (cfo_hint_shown).
 ## Version: S35.11 — TDL 8b "queue manufacturing" nag now clears when a part of the blueprint
@@ -31,8 +34,57 @@ extends RefCounted
 
 var gs
 
+## ── Notification framework (S37.7) ─────────────────────────────────────────────
+## One model for all notifications, per the design rule:
+##   1. An EVENT triggers a notification (this method).
+##   2. The notification may carry a `destination` button that leads to where you act
+##      (e.g. "logistics", "garage", "staff"), and/or the TDL reflects the standing task.
+##   3. Meaningful world events (mode "news") also post to the news feed.
+## The TO-DO LIST is READ-ONLY: it is rebuilt from current state in get_pending_tasks() and
+## NEVER emits notifications (the player can already see the list). Operational "you should do X"
+## reminders belong in the TDL, not as repeating notifications.
+##
+## modes:
+##   "once"     — fire exactly once ever (tracked by event_id, persisted). For optional standing
+##                conditions you mention a single time (e.g. "no CFO").
+##   "standing" — subject-superseded: one live instance, refreshed when the condition re-fires
+##                (e.g. low fuel before a race). Use sparingly — prefer the TDL for chores.
+##   "event"    — a one-off event notification (no dedup beyond identical-text), e.g. "Garage
+##                upgraded to L2" with a button to the Garage.
+##   "news"     — like "event" but also flagged for the news feed (big signings, titles, top-tier
+##                entries).
+var _fired_once: Dictionary = {}   ## event_id -> true, persisted via serialize/deserialize
+
 func _init(game_state) -> void:
 	gs = game_state
+
+## Framework entry point. event_id is a stable key used for once-firing and supersede.
+func notify_event(event_id: String, priority: String, message: String,
+		destination: String = "", mode: String = "event") -> void:
+	match mode:
+		"once":
+			if _fired_once.get(event_id, false):
+				return
+			_fired_once[event_id] = true
+			add_notification(priority, message, destination, "")
+		"standing":
+			add_notification(priority, message, destination, event_id)  ## event_id == subject
+		"news":
+			add_notification(priority, message, destination, "")
+			_push_news(message)
+		_:  ## "event"
+			add_notification(priority, message, destination, "")
+
+## Reset a once-fired event so it can fire again (e.g. after the condition is resolved and recurs,
+## or at a new season). Optional — most "once" events stay fired for the whole save.
+func reset_once(event_id: String) -> void:
+	_fired_once.erase(event_id)
+
+func _push_news(message: String) -> void:
+	## Minimal news feed hook — appends to gs.news_feed if present. Safe no-op otherwise; the
+	## full news system is a separate design pass (Brainstorm thread 2).
+	if "news_feed" in gs:
+		gs.news_feed.append({"message": message, "week": gs.current_week, "season": gs.current_season})
 
 func add_notification(priority: String, message: String, destination: String = "", subject: String = "") -> void:
 	# ── S35.1: subject supersede (recurring-notification collapse) ──────────────
@@ -278,10 +330,11 @@ func get_pending_tasks() -> Array[String]:
 				non_gk_missing_tp.append(champ.championship_name)
 		if non_gk_missing_tp.size() > 0:
 			tasks.append("⚠ No Team Principal for: %s" % ", ".join(non_gk_missing_tp))
-	## CFO is OPTIONAL ("good to have", not required to run the team), so it is NOT listed as a
-	## recurring TDL task (that re-appeared every week = spam). A single one-time hint notification
-	## is fired from GameState instead (cfo_hint_shown flag), so the player is told once and never
-	## nagged again.
+	## CFO is OPTIONAL ("good to have"). It appears as a READ-ONLY TO-DO row while missing (the
+	## player can see the list; the TDL never fires notifications). The one-time "no CFO"
+	## notification is handled separately by notify_event("no_cfo", ..., "once") in GameState.
+	if gs.get_cfo() == null:
+		tasks.append("💼 No CFO (optional) — hire one from the Staff screen for financial perks.")
 
 	## Step 4 — Resources
 	## Low SP — only warn when races are still coming
