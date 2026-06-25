@@ -1,4 +1,9 @@
 extends Node
+## Version: S37.8 — Registration-deadline notification: widened the trigger from exactly "1 week
+##   out" to "this week OR next" (dl_gap 0 or 1) so a week-step can't slip past it, fires for ALL
+##   championships regardless of budget (player funds it however they like), and added an add_log()
+##   line ("🔔 Registration deadline imminent...") so the weekly log gives definitive proof it fired.
+##   (The block was already relocated before the race-result early-return in S37.7.)
 ## Version: S37.7 — Notification framework (1-event model) + two real fixes. Added notify_event()
 ##   with modes once/standing/event/news (NotificationManager) and wrappers here. (1) CFO: the
 ##   per-RACE "No CFO" emitter in RaceSimulator (the actual W10/W12 spam source) is removed; CFO is
@@ -3376,23 +3381,23 @@ func advance_week() -> void:
 			"staff_hub", "once")
 
 	# ── Championship registration deadline warnings ───────────────────────────
-	## ONE consolidated notification the week before the deadline, listing every championship
-	## whose NEXT-SEASON registration closes next week. Placed BEFORE the race-result early-return
-	## (previously it sat after it, so on any week the player raced the warning was skipped — that
-	## is why no deadline notification ever appeared).
+	## ONE consolidated notification for championships whose NEXT-SEASON registration deadline is
+	## imminent (this week or next). Runs every week BEFORE the race-result early-return so a race
+	## week can't skip it. Fires for ALL such championships regardless of budget — the player
+	## decides how to fund the entry (loan, sell, etc.).
 	var closing_next_week: Array = []
 	for champ_id in CHAMPIONSHIP_REGISTRY:
-		## Skip if already secured for next season (ledger). Championships the player races THIS
-		## season are still listed — they must re-register for next season.
 		if champ_id in next_season_registrations:
-			continue
-		if get_entry_deadline_week(champ_id) - current_week == 1:
+			continue  ## already secured for next season
+		var dl_gap = get_entry_deadline_week(champ_id) - current_week
+		if dl_gap == 0 or dl_gap == 1:   ## the week before, or the deadline week itself
 			closing_next_week.append(CHAMPIONSHIP_REGISTRY[champ_id].get("name", champ_id))
 	if not closing_next_week.is_empty():
 		var list_txt = ", ".join(closing_next_week)
+		add_log("🔔 Registration deadline imminent (wk %d) for: %s" % [current_week, list_txt])
 		add_notification("High",
-			"⚠ Championship registration closes NEXT WEEK for: %s. Register at HQ → WRA before the deadline." % list_txt,
-			"", "reg_deadline_all")
+			"⚠ Championship registration closes this week or next for: %s. Register at HQ → WRA." % list_txt,
+			"hq", "reg_deadline_all")
 
 	## After all races processed this week — show first result screen
 	if not _pending_race_results.is_empty():
