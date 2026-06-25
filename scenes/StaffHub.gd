@@ -1,3 +1,7 @@
+## Version: S37.18 — #1 screenshot follow-ups: CFO row "Fin Mgmt 0" (read removed
+##   financial_management) → loan_management; CFO Skill-column label "Resources"→"Negotiation"
+##   (matched the value); finmgmt sort key fixed. Card popup WIDENED + pulled in from the right
+##   edge (was clipping) + value labels clip/ellipsis; card now closes on role-tab switch.
 ## Version: S37.17 — #1 CFO attributes showed all 0: detail card read the REMOVED field
 ##   `interest_rates` (broke the attribute-list build). Now reads the real `speculation` stat.
 ##   Also fixed Mechanic `car_knowledge`→`parts_knowledge` (detail list, row, sort key) and added
@@ -160,6 +164,10 @@ func _build_ui() -> void:
 		btn.pressed.connect(func():
 			role_filter = _r
 			sort_field = "skill" if _r != "All" else "age"  ## All has no Skill sort
+			## Close any open card — it belongs to the previous role's staff (stale-card fix).
+			if card_overlay:
+				card_overlay.queue_free()
+				card_overlay = null
 			_rebuild_sort_bar()
 			_refresh_list()
 		)
@@ -429,7 +437,7 @@ func _get_role_stats(staff) -> Array:
 			]
 		"CFO":
 			return [
-				["Fin Mgmt", staff.financial_management if "financial_management" in staff else 0.0],
+				["Fin Mgmt", staff.loan_management if "loan_management" in staff else 0.0],
 				["Negot", staff.sponsor_negotiation if "sponsor_negotiation" in staff else 0.0],
 				["Sales", staff.sales_skill if "sales_skill" in staff else 0.0],
 				["Resource", staff.resource_management if "resource_management" in staff else 0.0],
@@ -792,11 +800,14 @@ func _show_staff_card(staff_id: String) -> void:
 	card_overlay.anchor_top    = 0.0
 	card_overlay.anchor_right  = 1.0
 	card_overlay.anchor_bottom = 0.0
-	card_overlay.offset_left   = -600
-	card_overlay.offset_top    = 190
-	card_overlay.offset_right  = -50
-	card_overlay.offset_bottom = 60
-	card_overlay.custom_minimum_size = Vector2(500, 0)
+	## Wider panel pulled further in from the right edge so long values (nationality, the
+	## "Team Level (no assignment needed)" assignment line, 100.0 attribute readouts) no longer
+	## clip off-screen. (#1 popup-position fix.)
+	card_overlay.offset_left   = -660
+	card_overlay.offset_top    = 150
+	card_overlay.offset_right  = -24
+	card_overlay.offset_bottom = 40
+	card_overlay.custom_minimum_size = Vector2(636, 0)
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.12, 0.12, 0.16, 0.98)
 	style.border_width_left = 2
@@ -1509,7 +1520,7 @@ func _sort_val(staff) -> float:
 		"fatigue_resistance": return staff.fatigue_resistance
 		"fitness":     return staff.fitness if "fitness" in staff else 0.0
 		## CFO
-		"finmgmt":     return staff.financial_management if "financial_management" in staff else 0.0
+		"finmgmt":     return staff.loan_management if "loan_management" in staff else 0.0
 		"negotiation": return staff.sponsor_negotiation if "sponsor_negotiation" in staff else 0.0
 		"sales":       return staff.sales_skill if "sales_skill" in staff else 0.0
 		"resource":    return staff.resource_management if "resource_management" in staff else 0.0
@@ -1631,6 +1642,10 @@ func _card_row(parent: VBoxContainer, label: String, value: String,
 	val.text = value
 	val.add_theme_font_size_override("font_size", 30)
 	val.add_theme_color_override("font_color", value_color)
+	## Expand into the remaining width and clip rather than overflow the panel edge (#1 fix).
+	val.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	val.clip_text = true
+	val.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	row.add_child(val)
 
 func _skill_color(value: float) -> Color:

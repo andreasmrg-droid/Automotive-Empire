@@ -1,4 +1,6 @@
 class_name Staff
+## Version: S37.18 — #1: CFO get_primary_skill_label() "Resources"→"Negotiation" to match the
+##   returned stat (sponsor_negotiation); the Skill column was mislabeled.
 ## Version: S37.15 — #18 hidden-gems: added talent_scouting TP stat ("eye for talent") + included
 ## it in the TP get_overall_skill() average (now /10); grow_talent_scouting() sharpens it each
 ## season toward the TP's talent ceiling (employed TPs faster). Loaded from JSON, saved/loaded.
@@ -177,7 +179,7 @@ func get_primary_skill_label() -> String:
 		"Race Mechanic":    return "Car Setup"
 		"Pit Crew":         return "Pit Speed"
 		"Team Principal":   return "Strategy"
-		"CFO":              return "Resources"
+		"CFO":              return "Negotiation"
 		"Designer":         return "Avg Design"
 		"Race Strategist":  return "Strategy"
 	return "Skill"
