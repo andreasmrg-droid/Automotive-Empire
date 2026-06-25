@@ -1,4 +1,6 @@
 extends Control
+## Version: S37.16 — #41: driver-assign shows a modal popup on age-limit failure (kept open so a
+##   different car can be chosen).
 ## Version: S36.9 — Removed the Racing World button from the championship panel (redundant — the
 ##   header already has one). Wrapped the right column in a ScrollContainer so the now-multi-entry
 ##   championship list (up to 21) plus TP-proposals and effects panels can't overflow the screen.
@@ -585,7 +587,10 @@ func _open_assign_popup(driver_id: String) -> void:
 			btn.disabled = already
 			var car_id_cap = car.id
 			btn.pressed.connect(func():
-				GameState.assign_driver_to_car(driver_id, car_id_cap)
+				var err = GameState.assign_driver_to_car(driver_id, car_id_cap)
+				if err != "":
+					_show_assign_blocked_popup(err)
+					return   ## keep the assign popup open to pick a different car
 				_popup.visible = false
 				refresh()
 			)
@@ -841,3 +846,14 @@ func _fmt(n: int) -> String:
 		result = s[i] + result
 		count += 1
 	return result
+
+## #41 — Visible modal when a driver can't be assigned (e.g. fails the championship age limit).
+func _show_assign_blocked_popup(message: String) -> void:
+	var dialog = AcceptDialog.new()
+	dialog.title = "Cannot Assign Driver"
+	dialog.dialog_text = message
+	dialog.ok_button_text = "OK"
+	add_child(dialog)
+	dialog.popup_centered()
+	dialog.confirmed.connect(dialog.queue_free)
+	dialog.canceled.connect(dialog.queue_free)

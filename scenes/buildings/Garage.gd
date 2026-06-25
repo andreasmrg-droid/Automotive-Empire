@@ -1,4 +1,6 @@
 extends Control
+## Version: S37.16 — #41: driver-assign now shows a modal "Cannot Assign Driver" popup when the
+##   driver fails the championship age limit (was silent except a missable notification).
 ## Version: S37.5 — Bug #47 revision: Garage repair button now does a FULL repair when affordable,
 ##   else a PROPORTIONAL repair spending ALL held SP (repair_car_max_sp) — label shows
 ##   "Repair X% (all SP)". Only disabled at 0 SP (was disabled below one full 10% chunk, making it
@@ -939,7 +941,11 @@ func _open_staff_popup(car_id: String, role: String) -> void:
 		else:
 			btn.text = "Reassign" if assignment_label != "" else "Assign"
 			btn.pressed.connect(func():
-				if cap_role == "DRIVER": GameState.assign_driver_to_car(cap_pid, cap_car)
+				if cap_role == "DRIVER":
+					var err = GameState.assign_driver_to_car(cap_pid, cap_car)
+					if err != "":
+						_show_assign_blocked_popup(err)
+						return   ## keep the popup open so a different driver can be picked
 				elif cap_role == "PIT CREW": GameState.assign_pit_crew_to_car(cap_pid, cap_car)
 				else: GameState.assign_staff_to_car(cap_pid, cap_car)
 				_popup.visible = false
@@ -1035,3 +1041,15 @@ func _make_panel(bg: Color, border: Color, bw: int = 2) -> PanelContainer:
 	style.content_margin_top  = 8;  style.content_margin_bottom = 8
 	panel.add_theme_stylebox_override("panel", style)
 	return panel
+
+## #41 — Visible modal when a driver can't be assigned (e.g. fails the championship age limit).
+## Previously the block only fired a notification, easy to miss while assigning in the Garage.
+func _show_assign_blocked_popup(message: String) -> void:
+	var dialog = AcceptDialog.new()
+	dialog.title = "Cannot Assign Driver"
+	dialog.dialog_text = message
+	dialog.ok_button_text = "OK"
+	add_child(dialog)
+	dialog.popup_centered()
+	dialog.confirmed.connect(dialog.queue_free)
+	dialog.canceled.connect(dialog.queue_free)

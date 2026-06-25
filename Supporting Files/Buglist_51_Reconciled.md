@@ -29,7 +29,7 @@
 | 15 | FU (fuel) not deducted after a race unless CFO buys | 🟡 | Fuel scoping fixed in Cluster A (RaceSimulator threads the raced champ, S37.0). Verify fuel drops per race without a CFO. |
 | 16 | HQ-Financial: "Balance" label visible on all graph tabs | ⚪ Open | Investigated S37.4: graphs live in HQ.gd (balance/fuel/economy/fans/marketability); redraw already does queue_free + await frame, so code looks correct. Left untouched — needs a live repro to see what actually persists. |
 | 17 | News + main-hub standings not useful; main hub needs total revamp | 🔵 Backlog | Design revamp, not a point fix. |
-| 18 | Starting driver too strong for a brand-new GK team | ⚪ Open | Balance value (DriverManager starting-driver skill band). Still to do. |
+| 18 | Starting driver too strong for a brand-new GK team | ✅ | **S37.14–S37.15** GK cadets age from 8 (no age skill bonus) + GK prodigy damping (raw entry band, high potential); potential now wide-normal across ALL pools; NEW TP `talent_scouting` stat drives a fuzzy Raw/Promising/Special read on the driver card (accuracy scales with the TP's eye, grows per season). |
 | 19 | HQ-WRA "not racing any" while in GK; news says racing all; false next-season reminder | ✅ | S36.6: HQ Overview + TP-slot panels now read player_registered_championships (were reading player_team_cars). Plus A-CP4 getter. Cluster-A display contradiction resolved. |
 | 20 | No notification for the last week to register for championships | ✅ | **S37.7** relocated the deadline block BEFORE the race-result early-return in advance_week() (root cause: race weeks skipped it). **S37.8** widened trigger to "this week or next", removed budget filter, added a 🔔 weekly-log line. **Confirmed in play.** |
 | 21 | "Formula" should read "GP" in HQ-WRA and New Game scene | 🟡 | RnDStudio + Locale relabel done (S35.21). NewGame.gd ("pinnacle of Formula racing") + HQ.gd display still say "Formula" (HQ.gd:1887 "Formula":4 is an internal WRA key — leave). Finish the two user-facing strings. |
@@ -52,7 +52,7 @@
 | 38 | Garage: Rally4 has no 2nd-driver slot; EPC needs 3 | 🟠 | drivers_per_car exists (canonical slots rule S33.2). Rally4-2 / EPC-3 specifics — verify the slots render. |
 | 39 | No notification to hire a new TP when one is needed | 🟡 | NotificationManager appends "No Team Principal" tasks. CFO (the optional analogue) reworked S37.6–S37.7. Verify TP-missing fires. |
 | 40 | Changing current TP assignment GK → Rally4 does nothing | 🟠 | TP Assignment cluster (deferred; TP_Assignment_System_Spec_v2). The reassignment action itself — verify / still open. |
-| 41 | Driver failing age requirement should show a popup | ⚪ Open | Not found in changelog. Still to do. |
+| 41 | Driver failing age requirement should show a popup | ✅ | **S37.16** assign_driver_to_car() now returns a player-facing reason string; the Garage, Racing Dept and Driver-card assign flows show a modal "Cannot Assign Driver" popup on age-limit failure (was silent except a missable notification). Verify the popup fires for an under/over-age driver. |
 | 42 | Starting from Rally, a TDL says "GK has no principal" (stale GK ref) | 🟡 | GK-gating (S31, S37.1 player_in_gk). Verify the stale GK TDL is gone for a Rally career. |
 | 43 | Staff hub "Available Staff" button has a static count; remove counts | ⚪ Open | Still present (StaffHub "(%d)" buttons). Not yet removed. |
 | 44 | Only Rally4 but code still thinks player is in GK (driver shown, DNS) | 🟡 | **Cluster A core** (A-CP4/A-CP4b, S37.0–S37.1). Headline symptom — needs keyboard verification. |
@@ -84,7 +84,7 @@ A 1-event model now governs notifications (built this session; CFO + deadline mi
 - **🟡 Fixed–needs in-engine verification:** #4, #6, #7, #9, #10, #15, #21, #24, #25, #29, #32, #35, #36, #37, #39, #42, #44, #45, #46, #48, #51.
 - **🟠 Known/latent or partial:** #3, #22, #34, #38, #40, #50.
 - **🔵 Backlog/feature (design work):** #17, #27.
-- **⚪ Still open / not started:** #1, #12, #16, #18, #26, #30, #41, #43.
+- **⚪ Still open / not started:** #1, #12, #16, #26, #30. (#43 already done S37.9; #18 done S37.14–15; #41 done S37.16.)
 
 ## Suggested next batch (the ⚪ Open, lowest-risk)
 Mechanical, no re-fix risk: **#18** (starting-driver balance), **#41** (age-requirement popup), **#43** (remove hub button counts), **#30** (campus building text audit), **#1** (CFO all-0 attributes). Then notification-framework migrations: **#12, #26** (sponsor offer / building completion as `notify_event` with buttons).

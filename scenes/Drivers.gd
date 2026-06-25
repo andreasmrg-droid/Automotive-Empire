@@ -1,3 +1,5 @@
+## Version: S37.16 — #41: driver card car-assign shows a "Cannot Assign Driver" popup on age-limit
+##   failure; card stays open to pick another car.
 ## Version: S37.15 — #18 hidden-gems: driver card now shows a "Scout's Read" row — the team TP's
 ##   fuzzy talent label (Raw/Promising/Special) instead of any raw potential number; no TP = no read.
 ## Version: S37.9 — Bug #43: removed the live count from the My/All Drivers tab labels (the
@@ -899,12 +901,27 @@ func _show_assign_car_popup(driver_id: String) -> void:
 			car_btn.disabled = true
 		var _car_id = car.id
 		car_btn.pressed.connect(func():
-			GameState.assign_driver_to_car(driver_id, _car_id)
+			var err = GameState.assign_driver_to_car(driver_id, _car_id)
+			if err != "":
+				_show_assign_blocked_popup(err)
+				return   ## leave the card open so the player can pick a different car
 			card_overlay.queue_free()
 			card_overlay = null
 			_refresh_list()
 		)
 		vbox.add_child(car_btn)
+
+## #41 — Visible modal when a driver can't be assigned to a car (e.g. fails the championship
+## age requirement). Previously this only fired a notification (easy to miss mid-action).
+func _show_assign_blocked_popup(message: String) -> void:
+	var dialog = AcceptDialog.new()
+	dialog.title = "Cannot Assign Driver"
+	dialog.dialog_text = message
+	dialog.ok_button_text = "OK"
+	add_child(dialog)
+	dialog.popup_centered()
+	dialog.confirmed.connect(dialog.queue_free)
+	dialog.canceled.connect(dialog.queue_free)
 
 # ── Release confirmation ───────────────────────────────────────────────────────
 

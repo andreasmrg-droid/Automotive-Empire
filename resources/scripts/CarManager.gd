@@ -1,4 +1,7 @@
 class_name CarManager
+## Version: S37.16 — #41: assign_driver_to_car() now RETURNS a String (empty = success, else a
+##   player-facing failure reason e.g. age-limit). Callers show a modal popup on failure instead of
+##   only a notification.
 ## Version: S37.5 — Repair UX: added repair_car_max_sp() — PROPORTIONAL repair spending all held SP
 ##   (not floored to 10% chunks), so a player with < one chunk's worth of SP (e.g. 100 SP at GK's
 ##   110/10%) can still repair (~9%). Used by the Garage repair button.
@@ -190,10 +193,10 @@ func rename_car(car_id: String, new_name: String) -> bool:
 	return true
 
 
-func assign_driver_to_car(driver_id: String, car_id: String) -> void:
+func assign_driver_to_car(driver_id: String, car_id: String) -> String:
 	var car = get_car_by_id(car_id)
 	if not car:
-		return
+		return "Car not found."
 	# Age eligibility check for this championship
 	var driver = gs.all_drivers.get(driver_id)
 	if driver:
@@ -201,12 +204,16 @@ func assign_driver_to_car(driver_id: String, car_id: String) -> void:
 		var min_age = reg.get("min_age", 0)
 		var max_age = reg.get("max_age", 99)
 		if driver.age < min_age or driver.age > max_age:
+			var limit_str = "%d–%s" % [min_age, str(max_age) if max_age < 99 else "+"]
+			var champ_name = reg.get("name", car.championship_id)
+			var reason = "too young" if driver.age < min_age else "too old"
+			var msg = "%s (age %d) is %s for %s.\n\nThis championship only allows ages %s." % [
+				driver.full_name(), driver.age, reason, champ_name, limit_str]
 			gs.add_notification("High",
-				"⚠ Cannot assign %s (age %d) to %s — age limit is %d–%s." % [
-				driver.full_name(), driver.age, reg.get("name", car.championship_id),
-				min_age, str(max_age) if max_age < 99 else "+"])
+				"⚠ Cannot assign %s (age %d) to %s — age limit is %s." % [
+				driver.full_name(), driver.age, champ_name, limit_str])
 			gs.emit_signal("log_updated")
-			return
+			return msg
 	# Unassign from any current car first
 	for c in gs.player_team_cars:
 		if c.driver_id == driver_id:
@@ -229,6 +236,7 @@ func assign_driver_to_car(driver_id: String, car_id: String) -> void:
 		# Record which championship this driver is running — shown next season
 		gs.previous_season_championship[driver_id] = car.championship_id
 		gs.emit_signal("log_updated")
+	return ""   ## empty = success (no popup); a non-empty string is a player-facing failure reason
 
 ## Creates a new empty car slot. Capped by Garage level.
 ## Called from the Garage scene — independent of driver hire.

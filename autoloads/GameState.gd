@@ -1,3 +1,4 @@
+## Version: S37.16 — #41: assign_driver_to_car() wrapper now propagates the String result.
 extends Node
 ## Version: S37.15 — #18 hidden-gems: talent_scouting added to staff save/load serialization.
 ## Version: S37.10 — (1) Sponsor system: added _process_sponsor_annual_payments() wrapper (commitment
@@ -2272,8 +2273,8 @@ func remove_car(car_id: String) -> bool:
 func rename_car(car_id: String, new_name: String) -> bool:
 	return _car_manager.rename_car(car_id, new_name)
 
-func assign_driver_to_car(driver_id: String, car_id: String) -> void:
-	_car_manager.assign_driver_to_car(driver_id, car_id)
+func assign_driver_to_car(driver_id: String, car_id: String) -> String:
+	return _car_manager.assign_driver_to_car(driver_id, car_id)
 
 func unassign_driver_from_car(car_id: String) -> void:
 	_car_manager.unassign_driver_from_car(car_id)
