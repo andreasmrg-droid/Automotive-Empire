@@ -1,4 +1,6 @@
 class_name SeasonManager
+## Version: S37.15 — #18: season-end staff aging loop now calls grow_talent_scouting() so a TP's
+## eye for talent improves over a career.
 ## Version: S36.15 — Bug #28/#31 (cluster A core, CP2): end_season() now crowns a driver AND team
 ##   champion for EVERY championship in the world (was only active_championship = GK). Non-GK use
 ##   standings; GK uses the elimination system for the driver champion and the flat cumulative
@@ -395,6 +397,7 @@ func _process_off_season_aging() -> void:
 	for staff_id in gs.all_staff:
 		var staff = gs.all_staff[staff_id]
 		staff.age += 1
+		staff.grow_talent_scouting()   ## #18 — TP's eye for talent sharpens each season
 		if staff.contract_seasons_remaining > 0:
 			staff.contract_seasons_remaining -= 1
 			if staff.contract_seasons_remaining == 0 and staff.contract_team == gs.player_team.id:

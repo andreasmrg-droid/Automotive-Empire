@@ -1,4 +1,6 @@
 extends RefCounted
+## Version: S37.15 — #18: Team Principal loader reads talent_scouting from staff_tp.json
+## attributes (defaults to a wide random roll when absent).
 ## Version: S24.2 — Driver loader wired. load_ai_drivers() loads
 ## drivers_professional.json and drivers_cadets.json.
 ## Cadets occupy Racing Department slots from day one.
@@ -348,6 +350,7 @@ func _staff_from_dict(sd: Dictionary) -> Staff:
 			s.pr_skill              = float(attrs.get("pr_skill",              50.0))
 			s.parts_knowledge       = float(attrs.get("parts_knowledge",       50.0))
 			s.track_knowledge       = float(attrs.get("track_knowledge",       10.0))
+			s.talent_scouting       = float(attrs.get("talent_scouting",       randf_range(10.0, 90.0)))
 
 		"Race Mechanic":
 			s.car_setup       = float(attrs.get("car_setup",       50.0))

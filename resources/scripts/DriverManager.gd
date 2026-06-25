@@ -1,4 +1,12 @@
 class_name DriverManager
+## Version: S37.15 — #18 hidden-gems: _roll_potential() Box–Muller wide-normal distribution used for
+##   ALL driver pools (most ordinary, stars rare) so the TP's eye-for-talent read is meaningful.
+## Version: S37.14 — #18 GK starting-driver too strong. GK cadet age range now starts at 8 (was 13)
+##   in both the FA hiring pool and the GK field regen, so a fresh cadet has age_factor 0 (no age
+##   skill bonus). Added GK-tier-1-only "prodigy damping" in _create_driver_for_discipline: raw
+##   skills compressed toward an entry band (~12–40), potential lifted to 60–95, experience 0 — a
+##   raw karting prospect to develop, not a finished racer. Shared tier system (other disciplines /
+##   AI fields) untouched. Registry GK min_age was already 8, so age-8 starters pass the filter.
 ## Version: S37.0 — CP4 (closes cluster A): stopped writing newly-signed drivers into the singular
 ##   active_championship.standings (= GK). hire_driver() no longer registers any standings entry — a
 ##   driver with no car belongs to no championship and is added to the CORRECT one when assigned to a
@@ -17,6 +25,17 @@ var gs
 
 func _init(game_state) -> void:
 	gs = game_state
+
+## ── Wide-normal potential roll (#18 / hidden-gems) ───────────────────────────
+## Most drivers are ORDINARY; genuine stars are rare. Returns a potential value drawn from
+## an approximately normal distribution (Box–Muller) centered on `mean`, clamped to [lo, hi].
+## Used for ALL driver pools so talent exists everywhere, not just GK. A wide spread is what
+## makes the TP's "eye for talent" meaningful — without it every prospect looks the same.
+func _roll_potential(mean: float = 58.0, spread: float = 16.0, lo: float = 25.0, hi: float = 98.0) -> float:
+	var u1 = max(randf(), 1e-6)
+	var u2 = randf()
+	var z = sqrt(-2.0 * log(u1)) * cos(TAU * u2)   ## standard normal
+	return clamp(mean + z * spread, lo, hi)
 
 func get_available_drivers() -> Array:
 	var result = []
@@ -154,7 +173,7 @@ func _find_and_sign_starting_driver(discipline: String, champ_id: String) -> Dri
 func _generate_drivers() -> void:
 	## Generates a free agent pool covering ALL championships.
 	## Player starts with no driver — must hire from this pool.
-	## Pool covers: GK (age 8-16), Rally/TC/OWC/SC/EPC (16-35), GP (16-35)
+	## Pool covers: GK (age 8-17), Rally/TC/OWC/SC/EPC (16-35), GP (16-35)
 	## Each discipline gets ~15 free agents at varying skill levels.
 	var nats = ["British","Italian","German","French","Spanish","Finnish",
 		"Brazilian","Japanese","American","Australian","Dutch","Belgian",
@@ -167,7 +186,7 @@ func _generate_drivers() -> void:
 	for i in range(8):
 		var nat = nats[randi() % nats.size()]
 		var sex = "Male" if randf() > 0.3 else "Female"
-		var age = randi_range(13, 17)
+		var age = randi_range(8, 17)   ## GK cadets start at 8 — bottom of the pyramid
 		var name_data = NameGenerator.get_full_name(nat, sex)
 		var d = _create_driver_for_discipline(
 			"D-GK-FA-%03d" % driver_idx, name_data["first"], name_data["last"],
@@ -282,12 +301,31 @@ func _create_driver_for_discipline(id: String, first: String, last: String,
 	d.marketability = clamp(randf_range(5.0, 30.0) + age_factor * 15.0 + tier_bonus * 0.5, 1.0, 99.0)
 	d.fitness            = 100.0
 	d.fatigue_resistance = clamp(randf_range(25.0, 65.0) + age_factor * 15.0 + float(tier) * 5.0, 1.0, 100.0)
-	d.potential          = randf_range(40.0, 95.0)
+	d.potential          = _roll_potential()   ## #18 — wide-normal: ordinary common, stars rare
 	d.aggression         = randf_range(20.0, 80.0)
 	d.experience         = age_factor * 40.0
 	d.morale             = 100.0
 
-	# Discipline adaptation — good in their primary discipline, low elsewhere
+	## GK PRODIGY DAMPING (#18) — a brand-new GK cadet is RAW TALENT, not a finished racer.
+	## Karting is the bottom of the pyramid: skills should read low (lots of room to grow) while
+	## POTENTIAL is high. Applied to GK tier-1 only, so the shared tier system (other disciplines,
+	## AI fields) is untouched. age 8 already zeroes age_factor; this compresses the residual rolls
+	## toward an entry band (~12–40) and raises potential into the prospect range.
+	if discipline == "GK" and tier == 1:
+		var GK_FLOOR := 12.0   ## nobody is hopeless
+		var GK_SPAN  := 0.55   ## compress the raw spread to ~55% — caps lucky highs in the ~40s
+		d.pace        = clamp(GK_FLOOR + (d.pace        - GK_FLOOR) * GK_SPAN, 1.0, 100.0)
+		d.car_control = clamp(GK_FLOOR + (d.car_control - GK_FLOOR) * GK_SPAN, 1.0, 100.0)
+		d.focus       = clamp(GK_FLOOR + (d.focus       - GK_FLOOR) * GK_SPAN, 1.0, 100.0)
+		d.race_craft  = clamp(GK_FLOOR + (d.race_craft  - GK_FLOOR) * GK_SPAN, 1.0, 100.0)
+		d.consistency = clamp(GK_FLOOR + (d.consistency - GK_FLOOR) * GK_SPAN, 1.0, 100.0)
+		d.feedback    = clamp(GK_FLOOR + (d.feedback    - GK_FLOOR) * GK_SPAN, 1.0, 100.0)
+		## Wide-normal potential — GK is the feeder tier so center a touch higher (more upside on
+		## average) but keep the spread so most cadets are ordinary and a real gem is rare (#18).
+		d.potential   = _roll_potential(62.0, 17.0, 25.0, 98.0)
+		d.experience  = 0.0
+
+
 	for disc in d.discipline_adaptation.keys():
 		if disc == discipline:
 			var starting = 5.0 + age_factor * 20.0 + tier_bonus * 0.3
@@ -340,7 +378,7 @@ func regenerate_gk_field(target_size: int = 510) -> int:
 	for i in range(to_make):
 		var nat = nats[randi() % nats.size()]
 		var sex = "Male" if randf() > 0.3 else "Female"
-		var age = randi_range(13, 17)   ## young entrants — bottom of the pyramid
+		var age = randi_range(8, 17)   ## young entrants — bottom of the pyramid (GK starts at 8)
 		var name_data = NameGenerator.get_full_name(nat, sex)
 		var new_id = "D-GK-GEN-S%d-%04d" % [gs.current_season, i]
 		var d = _create_driver_for_discipline(new_id, name_data["first"], name_data["last"],
@@ -374,7 +412,7 @@ func _create_driver(id: String, first: String, last: String, nationality: String
 	d.marketability = randf_range(5.0, 25.0) + age_factor * 10.0 # NEW — low at start
 	d.fitness            = 100.0
 	d.fatigue_resistance = clamp(randf_range(20.0, 60.0) + age_factor * 20.0, 1.0, 100.0)
-	d.potential          = randf_range(50.0, 95.0)
+	d.potential          = _roll_potential(62.0, 17.0, 25.0, 98.0)   ## #18 wide-normal
 	d.aggression         = randf_range(20.0, 80.0)
 	d.experience         = age_factor * 30.0
 	d.morale             = 100.0

@@ -1,3 +1,5 @@
+## Version: S37.15 — #18 hidden-gems: driver card now shows a "Scout's Read" row — the team TP's
+##   fuzzy talent label (Raw/Promising/Special) instead of any raw potential number; no TP = no read.
 ## Version: S37.9 — Bug #43: removed the live count from the My/All Drivers tab labels (the
 ##   "(1)"/"(1325)" parentheses) per design — the counts added noise and weren't actionable.
 ##   Tab buttons now read plain "🏎 My Drivers" / "🌍 All Drivers".
@@ -694,6 +696,19 @@ func _show_driver_card(driver_id: String) -> void:
 		"%d  |  %s  |  %s" % [driver.age, driver.sex, driver.nationality])
 	_card_row(vbox, "Discipline", "%s  (Adapt: %.1f)" % [
 		driver.active_discipline, driver.get_active_adaptation()])
+
+	## ── Scout's read (#18 / hidden-gems) ──────────────────────────────────────
+	## The player NEVER sees raw potential. The team's TP gives a fuzzy talent read whose
+	## reliability scales with the TP's talent_scouting ("eye for talent"). No TP → no read.
+	var tp = GameState.get_team_principal()
+	if tp != null:
+		var label_txt = driver.get_scouting_label(tp.talent_scouting, GameState.current_season)
+		var scout_col = Color(0.6, 0.6, 0.6)            ## Raw
+		if label_txt == "Promising": scout_col = Color(0.4, 0.8, 1.0)
+		elif label_txt == "Special": scout_col = Color(1.0, 0.82, 0.2)
+		_card_row(vbox, "Scout's Read", "%s" % label_txt, scout_col)
+	else:
+		_card_row(vbox, "Scout's Read", "No Team Principal to assess", Color(0.6, 0.4, 0.4))
 
 	# Championship position — in the driver's OWN car's championship, not the singular
 	# active_championship (= GK). (Cluster A, Bug #9/#19.)

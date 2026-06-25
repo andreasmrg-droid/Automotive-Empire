@@ -1,5 +1,9 @@
 ## Version: S24.1 — contract_type added (professional/cadet/academy). academy_upkeep_income added. fatigue_resistance added. fitness dynamic (starts 100). experience growth formula. peak_adaptation documented.
 class_name Driver
+## Version: S37.15 — #18 hidden-gems: get_scouting_label() returns a TP-derived fuzzy talent
+## read (Raw/Promising/Special); accuracy scales with the assessing TP's talent_scouting; raw
+## potential stays HIDDEN. Deterministic per (driver, season) so the label is stable but can shift
+## as the TP's eye grows. _true_talent_band() helper added.
 extends Resource
 
 # Identity
@@ -262,6 +266,45 @@ func change_discipline(new_discipline: String, current_season: int) -> void:
 func gain_experience() -> void:
 	var gain = 0.5 + (potential / 100.0) * 1.5
 	experience = min(100.0, experience + gain)
+
+## ── Talent scouting (#18 / hidden-gems) ──────────────────────────────────────
+## The player never sees raw `potential`. Instead the Team Principal's `talent_scouting`
+## stat yields a FUZZY LABEL — "Raw" / "Promising" / "Special" — and how OFTEN that label
+## is correct scales with the TP's eye. A green TP misreads prospects; a veteran reads them
+## reliably. The misread is DETERMINISTIC per (driver, season) so the label is stable — it
+## doesn't flicker each time the card is opened, but it can shift as the TP's eye improves.
+##
+## true band:  potential < 55 → Raw · 55–79 → Promising · ≥ 80 → Special
+## tp_scouting: 0 → ~always wrong-by-one band · 100 → ~always correct.
+const SCOUT_LABELS := ["Raw", "Promising", "Special"]
+
+func _true_talent_band() -> int:
+	if potential >= 80.0: return 2
+	elif potential >= 55.0: return 1
+	return 0
+
+## Returns the label the player sees, given the assessing TP's talent_scouting (0–100).
+## season is mixed into the seed so a TP re-evaluates as seasons pass (and as his eye grows).
+func get_scouting_label(tp_scouting: float, season: int = 0) -> String:
+	var true_band: int = _true_talent_band()
+	## Accuracy: at scouting 0 ≈ 35% correct, at 100 ≈ 97% correct.
+	var eye: float = clamp(tp_scouting, 0.0, 100.0)
+	var accuracy: float = 0.35 + (eye / 100.0) * 0.62
+	## Deterministic per-driver-per-season roll (stable label, no per-frame flicker).
+	var seed_val: int = hash("%s|%d" % [id, season])
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_val
+	if rng.randf() <= accuracy:
+		return SCOUT_LABELS[true_band]
+	## Misread: drift one band toward the middle-ish, never reveals the true band.
+	var wrong: int = true_band + (1 if rng.randf() < 0.5 else -1)
+	wrong = clampi(wrong, 0, 2)
+	if wrong == true_band:
+		wrong = clampi(true_band + 1, 0, 2)
+		if wrong == true_band:
+			wrong = clampi(true_band - 1, 0, 2)
+	return SCOUT_LABELS[wrong]
+
 
 ## Passive bonuses applied at season end.
 ## consistency += experience × 0.10

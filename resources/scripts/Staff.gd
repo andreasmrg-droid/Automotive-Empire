@@ -1,4 +1,7 @@
 class_name Staff
+## Version: S37.15 — #18 hidden-gems: added talent_scouting TP stat ("eye for talent") + included
+## it in the TP get_overall_skill() average (now /10); grow_talent_scouting() sharpens it each
+## season toward the TP's talent ceiling (employed TPs faster). Loaded from JSON, saved/loaded.
 extends Resource
 ## Version: S35.10 — added is_shortlisted (UI shortlist flag, saved/loaded; viewable in the
 ##   role-tabbed Shortlist screen).
@@ -85,6 +88,7 @@ extends Resource
 @export var car_setup_oversight: float = 0.0   # Amplifies mechanic's car_setup
 @export var pit_stop_management: float = 0.0   # Amplifies pit crew's pit_stop_speed
 @export var pr_skill: float = 0.0              # Boosts team reputation and marketability
+@export var talent_scouting: float = 0.0       # TP's "eye for talent" — accuracy of driver potential reads (#18)
 
 # ── CFO attributes ────────────────────────────────────────────────────────────
 @export var loan_management: float = 0.0     # All loan decisions — amount, interest rate, early repayment
@@ -152,7 +156,7 @@ func get_overall_skill() -> float:
 		"Team Principal":
 			return (race_strategy + practice_management + qualifying_management
 				+ race_pace_reading + car_setup_oversight + pit_stop_management
-				+ pr_skill + parts_knowledge + track_knowledge) / 9.0
+				+ pr_skill + parts_knowledge + track_knowledge + talent_scouting) / 10.0
 		"Race Strategist":
 			return (race_strategy + race_pace_reading + practice_scheduling
 				+ qualifying_timing + track_knowledge) / 5.0
@@ -241,3 +245,16 @@ func update_track_knowledge(track_id: String, growth_amount: float) -> void:
 	for v in track_knowledge_by_track.values():
 		if v > best: best = v
 	track_knowledge = best
+
+## ── Talent scouting growth (#18) ─────────────────────────────────────────────
+## A TP's eye for talent sharpens with experience. Called once per season (SeasonManager
+## aging loop). Grows toward the TP's own hidden `talent` ceiling; an EMPLOYED TP (watching
+## his own drivers develop) grows faster than an idle free agent. Only Team Principals scout.
+func grow_talent_scouting() -> void:
+	if role != "Team Principal":
+		return
+	var ceiling = max(talent, talent_scouting)   ## never shrink; talent caps growth
+	if talent_scouting >= ceiling:
+		return
+	var rate = 3.0 if contract_team != "" else 1.0   ## employed eye sharpens faster
+	talent_scouting = min(ceiling, talent_scouting + rate)

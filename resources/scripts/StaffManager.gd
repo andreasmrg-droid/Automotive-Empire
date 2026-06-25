@@ -1,4 +1,6 @@
 class_name StaffManager
+## Version: S37.15 — #18: runtime-generated Team Principals now roll talent_scouting (wide 10–90,
+## independent of overall quality — a mediocre TP can have a great eye).
 ## Version: S35.6 — get_player_staff_by_role() now reads GameState's player-staff cache instead of
 ##   scanning all 5000+ staff every call (called many times per HQ render). hire/release invalidate
 ##   the cache. See GameState S35.6.
@@ -141,6 +143,9 @@ func _generate_staff_attributes(staff: Staff, base_quality: float) -> void:
 			staff.pr_skill             = clamp(q + randf_range(-20.0, 20.0), 1.0, 100.0)
 			staff.parts_knowledge      = clamp(q + randf_range(-15.0, 15.0), 1.0, 100.0)
 			staff.track_knowledge      = clamp(randf_range(10.0, 50.0), 1.0, 100.0)
+			## Eye for talent — INDEPENDENT of overall quality (a mediocre TP can have a great eye,
+			## and vice versa), so it's its own wide roll rather than q ± variance. Grows by season.
+			staff.talent_scouting      = clamp(randf_range(10.0, 90.0), 1.0, 100.0)
 
 		"CFO":
 			staff.loan_management     = clamp(q + randf_range(-15.0, 15.0), 1.0, 100.0)

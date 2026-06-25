@@ -1,4 +1,5 @@
 extends Node
+## Version: S37.15 — #18 hidden-gems: talent_scouting added to staff save/load serialization.
 ## Version: S37.10 — (1) Sponsor system: added _process_sponsor_annual_payments() wrapper (commitment
 ##   sponsors pay/penalise at season start) and pending_race_result_count() (Skip button). (2) Save/
 ##   load now persist active_sponsors + sponsor_offers (previously NOT saved — a signed multi-season
@@ -4013,6 +4014,7 @@ func _serialize_staff() -> Dictionary:
 			"race_pace_reading": s.race_pace_reading,
 			"car_setup_oversight": s.car_setup_oversight,
 			"pit_stop_management": s.pit_stop_management, "pr_skill": s.pr_skill,
+			"talent_scouting": s.talent_scouting,
 			"loan_management": s.loan_management, "speculation": s.speculation,
 			"sales_skill": s.sales_skill, "sponsor_negotiation": s.sponsor_negotiation,
 			"resource_management": s.resource_management, "budget_planning": s.budget_planning,
@@ -4067,6 +4069,7 @@ func _deserialize_staff(data_dict: Dictionary) -> void:
 		s.car_setup_oversight = sd.get("car_setup_oversight", 0.0)
 		s.pit_stop_management = sd.get("pit_stop_management", 0.0)
 		s.pr_skill = sd.get("pr_skill", 0.0)
+		s.talent_scouting = sd.get("talent_scouting", 0.0)
 		s.loan_management = sd.get("loan_management", 0.0)
 		s.speculation = sd.get("speculation", sd.get("interest_rates", 0.0))
 		s.sales_skill = sd.get("sales_skill", 0.0)

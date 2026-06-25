@@ -63,6 +63,7 @@
 | 49 | HQ-Financial weekly income doesn't show per-building income | ✅ | **S37.3** Financialdept income panel now itemizes each income-producing building on its own row under a "Building Income" sub-header. Verify. |
 | 50 | All warehouse parts scrapped at end of season | 🟠 | Cars scrapped each season is intended (Phase 2, §6.0); whether loose warehouse PARTS should also scrap is a design question — verify intended vs bug. |
 | 51 | Full car built from CNC must be delivered to Garage with parts installed | 🟡 | Build Whole Car one-pass (S30–S32, §6.0/§8). Verify the assembled car arrives with all 6 parts installed. |
+| 52 | New game continues previous game (state leak) + load-game wrong-week | 🔵 Deferred (low priority) | Shared root cause: `setup_new_game` does not reset many persistent collections (active_sponsors, sponsor_offers, active_approaches, registrations, player_team_cars, notifications, GK state, etc.) and `gk_discipline` is only recreated `if null`; the load path restores `current_week` but doesn't clear transient session state either. **Not a priority while the workflow is quit-to-restart** (player does not currently use save/load to start a fresh game). Investigated S37.13, not fixed. Pick up when save/load becomes part of the loop. |
 
 ---
 
