@@ -1,4 +1,6 @@
 class_name NotificationManager
+## Version: S37.6 — Removed the recurring "No CFO hired" TDL task (CFO is optional — it nagged every
+##   week). A one-time hint notification fires from GameState instead (cfo_hint_shown).
 ## Version: S35.11 — TDL 8b "queue manufacturing" nag now clears when a part of the blueprint
 ##   exists anywhere (queued / warehouse / installed), not just when queued — needed because the
 ##   WRA approval now persists after building (RnDEngine S35.11b, issue 3).
@@ -276,8 +278,10 @@ func get_pending_tasks() -> Array[String]:
 				non_gk_missing_tp.append(champ.championship_name)
 		if non_gk_missing_tp.size() > 0:
 			tasks.append("⚠ No Team Principal for: %s" % ", ".join(non_gk_missing_tp))
-	if gs.get_cfo() == null:
-		tasks.append("💼 No CFO hired — hire one from Staff screen.")
+	## CFO is OPTIONAL ("good to have", not required to run the team), so it is NOT listed as a
+	## recurring TDL task (that re-appeared every week = spam). A single one-time hint notification
+	## is fired from GameState instead (cfo_hint_shown flag), so the player is told once and never
+	## nagged again.
 
 	## Step 4 — Resources
 	## Low SP — only warn when races are still coming

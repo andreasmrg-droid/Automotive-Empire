@@ -1,4 +1,11 @@
 extends Node
+## Version: S37.6 — Two notification fixes. (1) CFO hint: CFO is optional, so the recurring "No CFO"
+##   TDL task was removed; a single one-time hint notification fires instead (cfo_hint_shown flag).
+##   (2) Registration deadline: the warning never fired because the loop skipped any championship in
+##   active_championships (= the whole 21-champ world → skipped everything). Removed that broken
+##   skip; now ONE consolidated "closes next week" notification lists the championships whose
+##   next-season deadline is one week out (skip only those already in the next-season ledger). No
+##   4/2/1 tiering, no affordability filter.
 ## Version: S37.5 — Bug #20 revision: removed the affordability filter on deadline warnings (the
 ##   player can take a loan to cover an entry-fee gap, so a cash shortfall must not hide a deadline)
 ##   — now warns for every championship whose deadline is still open. Added repair_car_max_sp()
@@ -1472,6 +1479,9 @@ var dismissed_todo_items: Array = []  ## Items player has dismissed from to-do l
 var custom_todo_items:    Array = []  ## TP proposals and other injected TDL items
 var weeks_in_negative:       int   = 0
 var bankruptcy_screen_shown: bool  = false
+## One-time hint: "you have no CFO (optional)". Fired once, then never again (CFO is good-to-have,
+## not required) — see weekly loop. Not serialized: a hint at worst re-shows once after a reload.
+var cfo_hint_shown: bool = false
 var unread_notification_count: int = 0
 signal notifications_updated()
 
@@ -3358,47 +3368,31 @@ func advance_week() -> void:
 
 	add_log("--- Week %d ---" % current_week)
 
+	# ── CFO optional hint (one-time) ──────────────────────────────────────────
+	## CFO is good-to-have, not required. Tell the player ONCE that they have none, then never
+	## again (no recurring TDL/notification spam).
+	if not cfo_hint_shown and get_cfo() == null:
+		cfo_hint_shown = true
+		add_notification("Normal",
+			"💼 No CFO hired (optional). A CFO improves contract terms, financial intel and auto-buys race logistics — hire one from the Staff screen if you want those.")
+
 	# ── Championship registration deadline warnings ───────────────────────────
+	## ONE consolidated notification the week before the deadline, listing every championship
+	## whose NEXT-SEASON registration closes next week (most share the same deadline week, so
+	## per-championship notices would mean ~20 messages at once). No 4/2/1 tiering.
+	var closing_next_week: Array = []
 	for champ_id in CHAMPIONSHIP_REGISTRY:
-		# Skip already registered (next-season ledger), already running, or running this season.
-		if champ_id in player_registered_championships:
-			continue
+		## Skip if already secured for next season (in the ledger). Championships the player races
+		## THIS season are still listed — they must re-register for next season.
 		if champ_id in next_season_registrations:
 			continue
-		## Bug #20: warn for ANY championship whose registration is still open this season —
-		## NOT filtered by affordability (the player can take a loan to cover an entry-fee gap,
-		## so a cash shortfall today should not hide the deadline). Already-running championships
-		## (in active_championships) are skipped below.
-		var already_running := false
-		for ac in active_championships:
-			if ac.id == champ_id:
-				already_running = true
-				break
-		if already_running:
-			continue
-		var deadline = get_entry_deadline_week(champ_id)
-		if current_week > deadline:
-			continue  ## deadline already passed — nothing to warn about
-		var reg = CHAMPIONSHIP_REGISTRY[champ_id]
-		## Bug #20: the old check fired ONLY on the exact week before the deadline (deadline ==
-		## current_week + 1), a single-week blip easily missed (e.g. screenshot: EPC/GP1 deadlines
-		## passed in weeks 19/11 with no warning by week 24). Now a tiered "approaching" window
-		## fires at 4 / 2 / 1 weeks out and on the day, each carrying the SAME per-championship
-		## subject so it collapses to one standing notification (no spam, can't be missed).
-		var weeks_left = deadline - current_week
-		var subj = "reg_deadline_%s" % champ_id
-		if weeks_left == 0:
-			add_notification("Critical",
-				"🚨 LAST DAY to register for %s (Week %d)! Entry fee: CR %s. After this week it's gone." % [
-				reg["name"], deadline, _fmt_int(reg["entry_fee"])], "", subj)
-		elif weeks_left == 1:
-			add_notification("High",
-				"⚠ %s registration closes NEXT WEEK (Week %d). Entry fee: CR %s." % [
-				reg["name"], deadline, _fmt_int(reg["entry_fee"])], "", subj)
-		elif weeks_left == 2 or weeks_left == 4:
-			add_notification("Normal",
-				"🏁 %s registration closes in %d weeks (Week %d). Entry fee: CR %s." % [
-				reg["name"], weeks_left, deadline, _fmt_int(reg["entry_fee"])], "", subj)
+		if get_entry_deadline_week(champ_id) - current_week == 1:
+			closing_next_week.append(CHAMPIONSHIP_REGISTRY[champ_id].get("name", champ_id))
+	if not closing_next_week.is_empty():
+		var list_txt = ", ".join(closing_next_week)
+		add_notification("High",
+			"⚠ Championship registration closes NEXT WEEK for: %s. Register at HQ → WRA before the deadline." % list_txt,
+			"", "reg_deadline_all")
 
 	## Weekly P&L summary — single line showing net change
 	var _net = player_team.balance - _balance_before
