@@ -1,4 +1,7 @@
 extends Control
+## Version: S37.9 — Renegotiation TDL X button: a "Negotiations open: NAME — make your opening
+##   offer." row now shows an ✕ that dismisses the un-submitted renegotiation
+##   (cancel_renegotiation_by_subject_name). Other negotiation tasks stay non-dismissible.
 ## Version: S37.4 — Repair UX: added "Fix N% (max SP)" button to the My Cars repair row so the
 ##   player can repair as much as current SP affords when a full repair is unaffordable.
 ## Version: S36.4 — Bug #9/#19 (cluster A): Main Hub no longer reads the singular active_championship
@@ -899,15 +902,36 @@ func _refresh_log() -> void:
 				"their reply received" in task_text or "awaiting their reply" in task_text or \
 				"team wants CR" in task_text or "Bond approach" in task_text or \
 				"bond offer for" in task_text
-			if not is_negotiation_task:
+			## S37.9 — a "Negotiations open: NAME — make your opening offer." row is a player-
+			## initiated renegotiation the player hasn't submitted yet. Give it an X to dismiss
+			## (cancels the un-submitted approach). Other negotiation tasks (offer sent, bond,
+			## in-progress rounds) stay non-dismissible so a live offer can't be dropped by accident.
+			var is_dismissible_negotiation = "Negotiations open:" in task_text \
+				and "make your opening offer" in task_text
+			if not is_negotiation_task or is_dismissible_negotiation:
 				var btn_x = Button.new()
 				btn_x.text = "✕"
 				btn_x.custom_minimum_size = Vector2(22, 22)
 				btn_x.add_theme_font_size_override("font_size", 20)
 				btn_x.modulate = Color(0.5, 0.5, 0.5)
 				var tt = task_text
-				btn_x.pressed.connect(func():
-					GameState.dismiss_todo_item(tt))
+				if is_dismissible_negotiation:
+					## Extract the subject name between "Negotiations open: " and " — make".
+					var nm = tt
+					var p = nm.find("Negotiations open: ")
+					if p != -1:
+						nm = nm.substr(p + "Negotiations open: ".length())
+					var dash = nm.find(" — make")
+					if dash != -1:
+						nm = nm.substr(0, dash)
+					nm = nm.strip_edges()
+					btn_x.tooltip_text = "Dismiss this renegotiation (you haven't made an offer yet)."
+					btn_x.pressed.connect(func():
+						GameState.cancel_renegotiation_by_subject_name(nm)
+						_refresh_log())
+				else:
+					btn_x.pressed.connect(func():
+						GameState.dismiss_todo_item(tt))
 				task_row.add_child(btn_x)
 
 	## ── Log (scrollable below TDL) ────────────────────────────────────────────

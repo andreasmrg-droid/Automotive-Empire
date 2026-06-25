@@ -1,4 +1,10 @@
 extends Control
+## Version: S37.9 — Bug #8: SALARY is now negotiated as an ANNUAL figure with a live weekly
+##   read-out. The engine + save format still store weekly_salary (unchanged); this is a pure
+##   UI transform — the salary spinbox shows/edits annual (= weekly × WEEKS_PER_SEASON), a live
+##   "≈ CR N/wk" caption updates as you type, and on submit the annual value is divided back to
+##   weekly before it reaches the contract engine. Applies to driver + staff in both the approach
+##   path (_build_approach_field_row) and the legacy path (_build_field_row).
 ## Version: S35.7 — Close button is now a pure no-op (closes the window, leaves the negotiation
 ##   untouched in HQ Pending Activity); previously it cancelled a Round-1 approach. Walk Away leaves
 ##   a visible "you have walked away" entry that persists until the next week advance.
@@ -22,7 +28,7 @@ var _content: VBoxContainer
 var _is_approach: bool = false
 
 const FIELD_LABELS = {
-	"weekly_salary":       "Weekly Salary (CR)",
+	"weekly_salary":       "Annual Salary (CR)",
 	"win_bonus":           "Win Bonus (CR)",
 	"podium_bonus":        "Podium Bonus (CR)",
 	"championship_bonus":  "Championship Bonus (CR)",
@@ -35,6 +41,10 @@ const FIELD_LABELS = {
 	"seasons_remaining":   "Seasons",
 	"start_date":          "Start Date",
 }
+
+## S37.9 — Salary is stored weekly but negotiated annually. One season = 52 weeks.
+## Only weekly_salary uses this transform; weekly_payment (sponsors) stays weekly.
+const WEEKS_PER_SEASON := 52
 
 const FIELD_ORDER_DRIVER = [
 	"weekly_salary","duration_seasons","win_bonus","podium_bonus","championship_bonus","release_clause","start_date"
@@ -230,6 +240,10 @@ func _build_approach_field_row(key: String, term: Dictionary, show_lock: bool = 
 		lbl.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
 	row.add_child(lbl)
 
+	## S37.9 — salary is shown/edited as an ANNUAL figure (= weekly × 52).
+	var is_salary := key == "weekly_salary"
+	var disp_mult := WEEKS_PER_SEASON if is_salary else 1
+
 	## Their ask
 	var their_ask = term.get("their_ask", 0)
 	var lbl_ask = Label.new()
@@ -242,7 +256,7 @@ func _build_approach_field_row(key: String, term: Dictionary, show_lock: bool = 
 	elif key in ["duration_seasons","seasons_remaining"]:
 		lbl_ask.text = "%d" % int(their_ask)
 	else:
-		lbl_ask.text = "CR %s" % _fmt(int(their_ask))
+		lbl_ask.text = "CR %s" % _fmt(int(their_ask) * disp_mult)
 	row.add_child(lbl_ask)
 
 	## Player input (disabled if locked/agreed)
@@ -261,12 +275,27 @@ func _build_approach_field_row(key: String, term: Dictionary, show_lock: bool = 
 		spin.add_theme_font_size_override("font_size", 24)
 		if key in ["duration_seasons","seasons_remaining"]:
 			spin.min_value = 1; spin.max_value = 5; spin.step = 1
+		elif is_salary:
+			## Annual units: cap at 2× their annual ask, step a week's worth.
+			spin.min_value = 0
+			spin.max_value = float(their_ask) * disp_mult * 2.0
+			spin.step = WEEKS_PER_SEASON
 		else:
 			spin.min_value = 0; spin.max_value = float(their_ask) * 2.0; spin.step = 10
-		spin.value = term.get("player_offer", their_ask)
+		spin.value = term.get("player_offer", their_ask) * disp_mult
 		spin.editable = not (is_locked or is_agreed)
 		row.add_child(spin)
 		_fields[key] = spin
+
+		## S37.9 — live weekly read-out beside the annual salary spinbox.
+		if is_salary:
+			var lbl_wk = Label.new()
+			lbl_wk.custom_minimum_size = Vector2(120, 0)
+			lbl_wk.add_theme_font_size_override("font_size", 20)
+			lbl_wk.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
+			lbl_wk.text = "≈ CR %s/wk" % _fmt(int(round(spin.value / WEEKS_PER_SEASON)))
+			spin.value_changed.connect(_on_salary_changed.bind(lbl_wk))
+			row.add_child(lbl_wk)
 
 	## Lock button — drivers only
 	if show_lock:
@@ -301,6 +330,9 @@ func _on_submit_approach() -> void:
 		var ctrl = _fields[key]
 		if key == "start_date":
 			offers[key] = "immediate" if ctrl.selected == 0 else "next_season"
+		elif key == "weekly_salary":
+			## S37.9 — spinbox is in ANNUAL units; store back as weekly.
+			offers[key] = int(round(float(ctrl.value) / WEEKS_PER_SEASON))
 		else:
 			offers[key] = int(ctrl.value)
 	for key in _lock_btns:
@@ -422,6 +454,10 @@ func _build_field_row(key: String, ask_val, offer_val) -> HBoxContainer:
 	var row = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 
+	## S37.9 — salary shown/edited annually (= weekly × 52).
+	var is_salary := key == "weekly_salary"
+	var disp_mult := WEEKS_PER_SEASON if is_salary else 1
+
 	## Label
 	var lbl = Label.new()
 	lbl.text = FIELD_LABELS.get(key, key)
@@ -437,7 +473,7 @@ func _build_field_row(key: String, ask_val, offer_val) -> HBoxContainer:
 	if key == "duration_seasons" or key == "seasons_remaining":
 		lbl_ask.text = "%d" % int(ask_val)
 	else:
-		lbl_ask.text = "CR %s" % _fmt(int(ask_val))
+		lbl_ask.text = "CR %s" % _fmt(int(ask_val) * disp_mult)
 	row.add_child(lbl_ask)
 
 	## Player input
@@ -448,11 +484,23 @@ func _build_field_row(key: String, ask_val, offer_val) -> HBoxContainer:
 		spin.min_value = 1; spin.max_value = 5; spin.step = 1
 	elif key == "seasons_remaining":
 		spin.min_value = 1; spin.max_value = 5; spin.step = 1
+	elif is_salary:
+		spin.min_value = 0; spin.max_value = ask_val * disp_mult * 2.0; spin.step = WEEKS_PER_SEASON
 	else:
 		spin.min_value = 0; spin.max_value = ask_val * 2.0; spin.step = 10
-	spin.value = offer_val
+	spin.value = offer_val * disp_mult
 	row.add_child(spin)
 	_fields[key] = spin
+
+	## S37.9 — live weekly read-out beside the annual salary spinbox.
+	if is_salary:
+		var lbl_wk = Label.new()
+		lbl_wk.custom_minimum_size = Vector2(120, 0)
+		lbl_wk.add_theme_font_size_override("font_size", 22)
+		lbl_wk.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
+		lbl_wk.text = "≈ CR %s/wk" % _fmt(int(round(spin.value / WEEKS_PER_SEASON)))
+		spin.value_changed.connect(_on_salary_changed.bind(lbl_wk))
+		row.add_child(lbl_wk)
 
 	## Lock button — all negotiation types
 	var lock_key = key
@@ -484,7 +532,11 @@ func _build_field_row(key: String, ask_val, offer_val) -> HBoxContainer:
 func _on_submit() -> void:
 	var offer = {}
 	for key in _fields:
-		offer[key] = int(_fields[key].value)
+		if key == "weekly_salary":
+			## S37.9 — spinbox is annual; store weekly.
+			offer[key] = int(round(float(_fields[key].value) / WEEKS_PER_SEASON))
+		else:
+			offer[key] = int(_fields[key].value)
 	var result = GameState.submit_negotiation_offer(offer)
 	match result:
 		"accepted":
@@ -632,6 +684,13 @@ func _action_btn(label: String, bg: Color) -> Button:
 	var hover = style.duplicate(); hover.bg_color = bg.lightened(0.12)
 	btn.add_theme_stylebox_override("hover", hover)
 	return btn
+
+## S37.9 — live weekly read-out for the annual salary spinbox. Bound via
+## value_changed.connect(_on_salary_changed.bind(lbl)); `value` is the signal arg (annual),
+## `lbl` is the bound Label. Named handler (not an inline lambda) for parser robustness.
+func _on_salary_changed(value: float, lbl: Label) -> void:
+	if is_instance_valid(lbl):
+		lbl.text = "≈ CR %s/wk" % _fmt(int(round(value / WEEKS_PER_SEASON)))
 
 func _fmt(n: int) -> String:
 	if n >= 1000000: return "%.1fM" % (n / 1000000.0)

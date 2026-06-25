@@ -1,4 +1,10 @@
 class_name ContractEngine
+## Version: S37.9 — Bug (renegotiation TDL): make_renegotiation_approach is PLAYER-INITIATED, so
+##   it no longer spawns a "Negotiations open: … make your opening offer." TDL just by opening the
+##   dialog. New flags player_initiated + offer_submitted: the TDL line is suppressed until the
+##   player actually submits an offer (offer_submitted flips true in submit_approach_contract_offer).
+##   Also deduped: opening Renegotiate twice in the same week no longer appends a 2nd identical
+##   approach (and duplicate TDL row) — any un-submitted prior approach for the subject is replaced.
 ## Version: S37.0 — CP4 (closes cluster A): immediate driver signing no longer writes the new driver
 ##   into active_championship.standings (= GK). A just-signed driver has no car, so they join the
 ##   correct championship's standings at car assignment (CarManager.assign_driver_to_car), per Rule
@@ -204,6 +210,19 @@ func make_renegotiation_approach(subject_id: String, subject_type: String) -> Di
 			"agreed":       false,
 		}
 	ap["their_current_ask"] = neg["their_ask"].duplicate()
+	## S37.9 — player opened this themselves; until an offer is actually submitted it must NOT
+	## spawn a "make your opening offer" TDL (you're already in the dialog). NotificationManager
+	## checks this flag; submit_approach_contract_offer flips it on first submit.
+	ap["player_initiated"] = true
+	ap["offer_submitted"]  = false
+	## S37.9 — dedup: opening Renegotiate twice in the same week reuses the same neg_id, which
+	## previously appended a SECOND identical approach (and a duplicate TDL row). Replace any
+	## existing approach for this subject that hasn't been submitted yet.
+	for i in range(gs.active_approaches.size() - 1, -1, -1):
+		var ex = gs.active_approaches[i]
+		if ex.get("subject_id","") == subject_id and ex.get("type","") == "renegotiation" \
+		   and not ex.get("offer_submitted", false):
+			gs.active_approaches.remove_at(i)
 	gs.active_approaches.append(ap)
 	gs.emit_signal("approach_updated")
 	return ap
@@ -973,6 +992,9 @@ func submit_approach_contract_offer(neg_id: String,
 
 	ap["last_action_week"] = gs.current_week
 	ap["player_turn"] = false  ## Waiting for their reply — not the player's turn until next week
+	## S37.9 — once the player has actually submitted an offer, the negotiation is "real" and may
+	## surface in the TDL (the player-initiated suppression only applied before any offer).
+	ap["offer_submitted"] = true
 
 	## Evaluate BEFORE incrementing round — round shown is the round just played
 	var outcome = _evaluate_approach_offer(ap)
@@ -1311,6 +1333,21 @@ func cancel_approach_before_submit(neg_id: String) -> void:
 				## Already submitted at least once — just reset last_action_week
 				ap["last_action_week"] = gs.current_week
 			return
+
+## S37.9 — dismiss a player-initiated renegotiation from the TDL X button. Only removes the
+## approach if the player never submitted an offer (round 1, their turn) — an in-progress
+## negotiation (offer already sent) is NOT silently dropped, to avoid losing a pending offer.
+## Returns true if something was removed.
+func cancel_renegotiation_by_subject_name(subject_name: String) -> bool:
+	for i in range(gs.active_approaches.size()):
+		var ap = gs.active_approaches[i]
+		if ap.get("subject_name","") == subject_name and ap.get("type","") == "renegotiation" \
+		   and ap.get("contract_round", 1) == 1 and ap.get("player_turn", true) \
+		   and not ap.get("offer_submitted", false):
+			gs.active_approaches.remove_at(i)
+			gs.emit_signal("approach_updated")
+			return true
+	return false
 
 func get_active_approaches_for_display() -> Array:
 	## Returns all approaches that should show in HQ Pending Activity

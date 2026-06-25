@@ -1,4 +1,15 @@
 class_name SponsorManager
+## Version: S37.9 — Bugs #5/#6 (sponsor realism).
+##   #5 Offer floor: offers now scale to real running costs. Type-3 (commitment) pays ~105% of the
+##      tied championship's annual cost (entry fee + car cost). Type-1 (weekly) and Type-2 (bonuses)
+##      carry no championship tie, so they scale to a fraction of a REFERENCE championship's annual
+##      cost (≈25–45% of cost as a season of weekly pay for T1; %-of-cost bonuses for T2). Replaces
+##      the old flat randi_range bands that were far below one year's entry+car.
+##   #6 Commitment clause: a Type-3 sponsor REQUIRES the team to keep racing the tied championship.
+##      The season-end penalty now checks the PLAYER'S registration (player_registered_championships
+##      / next_season_registrations) rather than mere world-existence of the championship (which was
+##      always true, so the penalty never fired). The clause is surfaced at sign time (log + High
+##      notification) so the player knows leaving repays commitment_total.
 ## Version: S27.0 — Extracted from GameState.gd (P57)
 ##   Sponsor generation, CFO search, sign/cancel, weekly/season processing.
 extends RefCounted
@@ -94,8 +105,46 @@ func _get_sponsor_tier_for_team() -> int:
 	return 1
 
 
+## S37.9 (#5) — annual cost of one championship = one-time entry fee + the car cost for that
+## championship. Used to floor sponsor offers so they're meaningful against real running costs.
+func _championship_annual_cost(champ_id: String) -> int:
+	if champ_id == "": return 0
+	var reg = gs.CHAMPIONSHIP_REGISTRY.get(champ_id, {})
+	var entry = int(reg.get("entry_fee", 0))
+	var car   = gs.get_provider_car_cost(champ_id)
+	return entry + car
+
+## Pick a championship the player is actually in (preferred) or any active one, for tying a
+## commitment-type sponsor to. Returns "" if none.
+func _pick_commitment_championship() -> String:
+	## Prefer a championship the player is registered in (the offer should be relevant).
+	var pool: Array = []
+	for cid in gs.player_registered_championships:
+		pool.append(cid)
+	if pool.is_empty():
+		for champ in gs.active_championships:
+			pool.append(champ.id)
+	if pool.is_empty(): return ""
+	return pool[randi() % pool.size()]
+
+## Median-ish annual cost across the player's relevant championships — used to scale the
+## NON-committed sponsor types (1 weekly, 2 bonuses), which carry no championship tie.
+func _reference_annual_cost() -> int:
+	var costs: Array = []
+	for cid in gs.player_registered_championships:
+		var c = _championship_annual_cost(cid)
+		if c > 0: costs.append(c)
+	if costs.is_empty():
+		for champ in gs.active_championships:
+			var c = _championship_annual_cost(champ.id)
+			if c > 0: costs.append(c)
+	if costs.is_empty():
+		return 50000  ## sane fallback before any registration exists
+	costs.sort()
+	return int(costs[costs.size() / 2])
+
+
 func _generate_sponsor_offer(type: int, tier: int) -> Dictionary:
-	var mult = 1.0 + (tier - 1) * 2.5
 	var offer = {
 		"sponsor_id":       _generate_sponsor_id(),
 		"name":             _generate_sponsor_name(),
@@ -112,18 +161,39 @@ func _generate_sponsor_offer(type: int, tier: int) -> Dictionary:
 		"expires_season":   gs.current_season + 2,
 		## Offer expires in 2–4 weeks if not acted on (Bugs doc §10)
 		"expires_week":     gs.current_week + randi_range(2, 4),
+		## S37.9 (#6) — commitment metadata (filled for type 3): the team must keep racing the
+		## tied championship for the contract's duration or pay commitment_total back (penalty).
+		"requires_championship": false,
 	}
 	match type:
-		1: offer.weekly_payment = int(randi_range(500, 2000) * mult)
+		## Type 1 — ongoing WEEKLY income, no championship tie. Scale a season's worth of weekly
+		## pay to a fraction (~25–45%) of a reference championship's annual cost.
+		1:
+			var ref_cost = _reference_annual_cost()
+			var annual_share = ref_cost * randf_range(0.25, 0.45)
+			offer.weekly_payment = max(200, int(round(annual_share / 52.0)))
+		## Type 2 — performance BONUSES, no tie. Scaled off the reference cost too.
 		2:
-			offer.win_bonus    = int(randi_range(2000, 8000) * mult)
-			offer.podium_bonus = int(randi_range(500, 2000) * mult)
-			offer.season_bonus = int(randi_range(5000, 20000) * mult)
+			var ref2 = _reference_annual_cost()
+			offer.win_bonus    = max(1000, int(ref2 * randf_range(0.04, 0.08)))
+			offer.podium_bonus = max(400,  int(ref2 * randf_range(0.015, 0.03)))
+			offer.season_bonus = max(3000, int(ref2 * randf_range(0.10, 0.20)))
+		## Type 3 — COMMITMENT sponsor: tied to a championship, pays a lump that covers ~105% of
+		## that championship's annual cost (entry + car) in exchange for the team racing it.
 		3:
-			if not gs.active_championships.is_empty():
-				var champ = gs.active_championships[randi() % gs.active_championships.size()]
-				offer.championship_id = champ.id
-				offer.commitment_total = int(randi_range(20000, 80000) * mult)
+			var champ_id = _pick_commitment_championship()
+			if champ_id != "":
+				offer.championship_id = champ_id
+				var cost = _championship_annual_cost(champ_id)
+				## 105% of (entry + car); never below a floor so tier-1 cheap champs still pay.
+				offer.commitment_total = max(20000, int(round(cost * 1.05)))
+				offer.requires_championship = true
+			else:
+				## No championship to tie to → fall back to a weekly-style offer so the slot
+				## isn't a dead "Type 3 with no commitment".
+				offer.type = 1
+				var rc = _reference_annual_cost()
+				offer.weekly_payment = max(200, int(round(rc * randf_range(0.25, 0.45) / 52.0)))
 	return offer
 
 
@@ -229,7 +299,15 @@ func sign_sponsor(sponsor_id: String) -> bool:
 		return false
 	if offer.type == 3 and offer.championship_id != "":
 		gs.player_team.balance += offer.commitment_total
-		gs.add_log("💰 Commitment sponsor: %s. CR %s." % [offer.name, gs._fmt_int(offer.commitment_total)])
+		var champ_name = offer.championship_id
+		var reg = gs.CHAMPIONSHIP_REGISTRY.get(offer.championship_id, {})
+		if reg.has("name"): champ_name = reg["name"]
+		gs.add_log("💰 Commitment sponsor: %s. CR %s up front — you must race %s for %d season(s) or repay it." % [
+			offer.name, gs._fmt_int(offer.commitment_total), champ_name, offer.get("seasons_remaining", 1)])
+		gs.add_notification("High",
+			"%s pays CR %s but requires you to keep racing %s. Leaving repays CR %s." % [
+				offer.name, gs._fmt_int(offer.commitment_total), champ_name, gs._fmt_int(offer.commitment_total)],
+			"hq")
 	gs.active_sponsors.append(offer)
 	gs.sponsor_offers.remove_at(offer_idx)
 	gs.add_log("🤝 Sponsor signed: %s (Type %d)." % [offer.name, offer.type])
@@ -330,15 +408,17 @@ func _process_sponsors_season_end() -> void:
 	var to_remove: Array = []
 	for sp in gs.active_sponsors:
 		if sp.type == 3 and sp.championship_id != "":
-			var still_active = false
-			for champ in gs.active_championships:
-				if champ.id == sp.championship_id:
-					still_active = true
-					break
-			if not still_active:
+			## S37.9 (#6) — the commitment is to the PLAYER racing this championship. The previous
+			## check only asked "does this championship still exist in the world", which is always
+			## true — so a player who dropped their registration escaped the penalty. Now we check
+			## the player's own registration for the upcoming season.
+			var player_in_it = sp.championship_id in gs.player_registered_championships \
+				or sp.championship_id in gs.next_season_registrations
+			if not player_in_it:
 				gs.player_team.balance -= sp.commitment_total
-				gs.add_log("⚠ Sponsor penalty: CR %s. Dropped %s." % [gs._fmt_int(sp.commitment_total), sp.name])
-				gs.add_notification("Critical", "Sponsor penalty CR %s: %s (championship exit)." % [
+				gs.add_log("⚠ Sponsor penalty: CR %s. You left %s's championship." % [
+					gs._fmt_int(sp.commitment_total), sp.name])
+				gs.add_notification("Critical", "Sponsor penalty CR %s: %s — you stopped racing the committed championship." % [
 					gs._fmt_int(sp.commitment_total), sp.name])
 				to_remove.append(sp)
 				continue

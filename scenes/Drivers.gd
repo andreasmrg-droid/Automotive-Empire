@@ -1,3 +1,6 @@
+## Version: S37.9 — Bug #43: removed the live count from the My/All Drivers tab labels (the
+##   "(1)"/"(1325)" parentheses) per design — the counts added noise and weren't actionable.
+##   Tab buttons now read plain "🏎 My Drivers" / "🌍 All Drivers".
 ## Version: S36.11 — Bug #9/#19 (cluster A): the driver card's championship position now looks up
 ##   the driver's OWN car's championship (via get_championship_by_id) instead of the singular
 ##   active_championship (= GK), so a non-GK driver shows their real standing.
@@ -101,13 +104,13 @@ func _build_ui() -> void:
 	layout.add_child(tab_row)
 
 	tab_my_btn = Button.new()
-	tab_my_btn.text = "🏎 My Drivers (%d)" % GameState.player_team.drivers.size()
+	tab_my_btn.text = "🏎 My Drivers"
 	tab_my_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tab_my_btn.pressed.connect(func(): _show_tab("my_drivers"))
 	tab_row.add_child(tab_my_btn)
 
 	tab_all_btn = Button.new()
-	tab_all_btn.text = "🌍 All Drivers (%d)" % GameState.all_drivers.size()
+	tab_all_btn.text = "🌍 All Drivers"
 	tab_all_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tab_all_btn.pressed.connect(func(): _show_tab("all_drivers"))
 	tab_row.add_child(tab_all_btn)
@@ -808,7 +811,7 @@ func _show_driver_card(driver_id: String) -> void:
 			get_tree().current_scene.add_child(panel)
 			panel.open(GameState.active_negotiation)
 			panel.closed.connect(func():
-				tab_my_btn.text = "🏎 My Drivers (%d)" % GameState.player_team.drivers.size()
+				tab_my_btn.text = "🏎 My Drivers"
 				_refresh_list()))
 		btn_row.add_child(hire_btn)
 
@@ -892,7 +895,7 @@ func _show_assign_car_popup(driver_id: String) -> void:
 
 func _confirm_release_driver(driver_id: String) -> void:
 	GameState.release_driver(driver_id)
-	tab_my_btn.text = "🏎 My Drivers (%d)" % GameState.player_team.drivers.size()
+	tab_my_btn.text = "🏎 My Drivers"
 	_refresh_list()
 
 ## ── Approach button logic ─────────────────────────────────────────────────────
@@ -1196,7 +1199,7 @@ func _show_contract_negotiation_popup(subject_id: String, _subject_type: String)
 	get_tree().current_scene.add_child(panel)
 	panel.open_approach(ap)
 	panel.closed.connect(func():
-		tab_my_btn.text = "🏎 My Drivers (%d)" % GameState.player_team.drivers.size()
+		tab_my_btn.text = "🏎 My Drivers"
 		_refresh_list())
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

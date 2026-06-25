@@ -1,4 +1,6 @@
 extends Node
+## Version: S37.9 — Added cancel_renegotiation_by_subject_name() wrapper for the TDL X button on
+##   player-initiated renegotiation rows (removes an un-submitted round-1 renegotiation approach).
 ## Version: S37.8 — Registration-deadline notification: widened the trigger from exactly "1 week
 ##   out" to "this week OR next" (dl_gap 0 or 1) so a week-step can't slip past it, fires for ALL
 ##   championships regardless of budget (player funds it however they like), and added an add_log()
@@ -2449,6 +2451,10 @@ func walk_away_approach(neg_id: String) -> void:
 
 func cancel_approach_before_submit(neg_id: String) -> void:
 	_contract_engine.cancel_approach_before_submit(neg_id)
+
+## S37.9 — TDL X button: dismiss a player-initiated renegotiation the player never submitted.
+func cancel_renegotiation_by_subject_name(subject_name: String) -> bool:
+	return _contract_engine.cancel_renegotiation_by_subject_name(subject_name)
 
 func get_active_approaches_for_display() -> Array:
 	return _contract_engine.get_active_approaches_for_display()

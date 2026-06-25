@@ -1,4 +1,7 @@
 extends Control
+## Version: S37.9 — Bug #43: removed the live count from the My/Available Staff tab labels (the
+##   "(2)"/"(179)" parentheses) per design. Tab buttons now read plain "👥 My Staff" /
+##   "🌍 Available Staff".
 ## Version: S36.10 — Bug (cluster A): the "Assign to championship" popup now lists only the player's
 ##   REGISTERED championships (via get_player_championships), not all 21 world championships. Also
 ##   fixed the tiny My-Staff name font (14 → 24) to match the Available list and be readable.
@@ -124,13 +127,13 @@ func _build_ui() -> void:
 	layout.add_child(tab_row)
 
 	tab_my_btn = Button.new()
-	tab_my_btn.text = "👥 My Staff (%d)" % GameState.get_all_player_staff().size()
+	tab_my_btn.text = "👥 My Staff"
 	tab_my_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tab_my_btn.pressed.connect(func(): _show_tab("my_staff"))
 	tab_row.add_child(tab_my_btn)
 
 	tab_all_btn = Button.new()
-	tab_all_btn.text = "🌍 Available Staff (%d)" % GameState.get_all_available_staff().size()
+	tab_all_btn.text = "🌍 Available Staff"
 	tab_all_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tab_all_btn.pressed.connect(func(): _show_tab("available_staff"))
 	tab_row.add_child(tab_all_btn)
@@ -1454,7 +1457,7 @@ func _show_contract_negotiation_popup(subject_id: String, _subject_type: String)
 	get_tree().current_scene.add_child(panel)
 	panel.open_approach(ap)
 	panel.closed.connect(func():
-		tab_my_btn.text = "👥 My Staff (%d)" % GameState.get_all_player_staff().size()
+		tab_my_btn.text = "👥 My Staff"
 		_refresh_list())
 
 # ── Release confirmation ───────────────────────────────────────────────────────
@@ -1462,7 +1465,7 @@ func _show_contract_negotiation_popup(subject_id: String, _subject_type: String)
 func _confirm_release_staff(staff_id: String) -> void:
 	## No confirmation dialog per design spec
 	GameState.release_staff(staff_id)
-	tab_my_btn.text = "👥 My Staff (%d)" % GameState.get_all_player_staff().size()
+	tab_my_btn.text = "👥 My Staff"
 	_refresh_list()
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

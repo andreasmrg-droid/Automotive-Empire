@@ -1,4 +1,8 @@
 class_name NotificationManager
+## Version: S37.9 — Renegotiation TDL: the round-1 "make your opening offer" task is now suppressed
+##   for player-initiated renegotiations until an offer is actually submitted (player_initiated +
+##   offer_submitted flags from ContractEngine). Opening the Renegotiate dialog no longer creates a
+##   TDL row by itself.
 ## Version: S37.7 — Notification framework: added notify_event() (modes once/standing/event/news)
 ##   + _fired_once tracking + _push_news hook. CFO is now a READ-ONLY TO-DO row here (the TDL never
 ##   notifies); the one-time "no CFO" notice is fired via notify_event from GameState.
@@ -391,7 +395,14 @@ func get_pending_tasks() -> Array[String]:
 				var rounds_left = ap.get("max_contract_rounds",4) - ap.get("contract_round",1)
 				if ap.get("player_turn", true):
 					if ap.get("contract_round", 1) == 1:
-						tasks.append("📋 Negotiations open: %s — make your opening offer." % ap["subject_name"])
+						## S37.9 — a player-initiated renegotiation that the player opened but has
+						## NOT yet submitted an offer for should not nag them ("make your opening
+						## offer") — they're already in the dialog. Only show it once a real
+						## back-and-forth exists (offer submitted) or for AI-initiated approaches.
+						if ap.get("player_initiated", false) and not ap.get("offer_submitted", false):
+							pass
+						else:
+							tasks.append("📋 Negotiations open: %s — make your opening offer." % ap["subject_name"])
 					else:
 						tasks.append("📋 Contract Round %d/%d with %s — their reply received, respond now." % [
 							ap.get("contract_round",1), ap.get("max_contract_rounds",4), ap["subject_name"]])
