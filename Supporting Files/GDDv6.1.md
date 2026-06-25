@@ -1,6 +1,12 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v6.0 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+**Version:** v6.1 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v6.1: salary units (#8), interest rebalance (#2), sponsor commitment redesign (#13), results/
+	standings UI (#11) — S37.9–S37.13. Annual salary negotiation with weekly read-out; interest gates
+	reachable talent by reputation; type-3 sponsors tie to a reputation-band championship with annual
+	payment + skip penalty + save/load persistence; race-results "Skip All" + Driver-fills column
+	layout. Deferred/flagged: new-game state leak + load-game wrong-week (shared root cause; not fixed).
+	See §20 changelog. -->
 <!-- v6.0: Cluster A close-out + repair UX + the NOTIFICATION FRAMEWORK (S37.0–S37.8).
 	§7.2 CP4 — the singular `active_championship` getter now resolves the player's REAL racing
 	championship (registered → owned-car → legacy → dummy), not always GK; RaceSimulator threads the
@@ -889,15 +895,22 @@ contracted at the join date — will their TEAM let them go (the CEO/owner-team'
    are blocked from re-approach for **26 weeks** (per person, week-granular). A still-cooling
    approach is rejected with "their team recently refused — try again."
 
-2. **Person interest — DETERMINISTIC and binary (the TP's domain).** Score =
-   `talent×0.5 + 50 + clamp(rep_gap×0.5, −25, +25) + TP.reputation×0.3`, where `rep_gap` =
-   player team reputation − the person's current team reputation (free agents count as rep 0).
+2. **Person interest — DETERMINISTIC and binary (the TP's domain).** Score (S37.10) =
+   `60 + (player_rep − talent)×0.7 + free_agent_bonus + clamp(rep_gap×0.4, −30, +15) + TP.reputation×0.3`,
+   where `rep_gap` = player team reputation − the person's current team reputation. Free agents get
+   `free_agent_bonus = 18` (and a low-talent (≤35) free agent is always at/above the threshold, so a
+   brand-new team can field a car). The CORE GATE is `player_rep − talent`: a person is reachable only
+   when the team's reputation is in range of their talent — so a rep-0 garage attracts only a handful of
+   low-talent free agents, and the pool grows with reputation (rep-50 → ~371, rep-75+ → ~full grid).
    Drivers use hidden `potential`; staff use `talent`. The person is interested if the score
    **≥ 60** (`INTEREST_THRESHOLD`). **No dice** — this is the single source of truth shared by
    the "Interested Only" filter and the approach, so what the filter shows is exactly what the
    approach honours. No TP assigned → cannot approach a contracted person. **Not interested →
    approach ends** with a visible popup ("not the right time"). The filter shows only the
    genuinely-interested (100%), never a percentage.
+   *(Earlier model, pre-S37.10: `talent×0.5 + 50 + clamp(rep_gap×0.5,±25) + TP.rep×0.3` — replaced
+   because the talent term cleared the 60 threshold before reputation mattered, so a new garage
+   attracted ~everyone.)*
 
 3. **Determine contract status AT THE JOIN DATE** (immediate or next-season — player's choice):
    - **Free at join** = no contract now, OR (next-season signing AND ≤1 season remaining, i.e.
@@ -1227,6 +1240,46 @@ the wildcards). Biggest risk: scope creep — keep saying "backlog."
 ## 20. IMPLEMENTATION CHANGELOG (recent — newest first)
 
 Historical record of what shipped; design facts above already reflect these.
+
+- **S37.9–S37.13 (salary units · interest rebalance · sponsor commitment redesign · results UI — bugs #8/#2/#13/#11):**
+  - **Annual salary negotiation (S37.9, #8):** ContractNegotiation now negotiates salary as an ANNUAL
+    figure with a live "≈ CR x/wk" read-out beside the spinbox (stored back as weekly). Signal handlers
+    use a NAMED `_on_salary_changed(value, lbl).bind(lbl)` (not an inline multiline lambda, which broke
+    parsing). Renegotiation no longer creates a TDL until the player submits an offer.
+  - **Interest rebalance (S37.10, #2):** `ContractEngine._subject_interest_score` rewritten. Old base
+    (talent×0.5+50) cleared the 60 threshold before reputation mattered, so a rep-0 garage attracted
+    ~everyone. New model gates reachable TALENT by team REPUTATION:
+    `interest = 60 + (player_rep − talent)×0.7 + free_agent_bonus(18) + rep_gap_bonus + tp_mod`.
+    Low-talent (≤35) free agents are always reachable so a new team can field a car. Simulated against
+    the real driver pool: rep-0 → ~13 reachable, rep-50 → ~371, rep-75+ → full grid.
+  - **Sponsor commitment redesign (S37.10, #13):** type-3 (commitment) sponsors now pick a championship
+    from a REPUTATION BAND near the team's rep (REP_BAND_DOWN 18 / REP_BAND_UP 22 on the champ `rep`
+    scale 15=GK…100=GP1) — no GK→GP1 or GP1→Rally4 offers. Payment is ANNUAL (~1 season's entry+car
+    ±variation, rounded to 500) paid at the START of each registered season via
+    `_process_sponsor_annual_payments()` (called from SeasonManager Stage A2, after the registration
+    ledger is promoted). The offer expires before the championship's registration deadline. Penalty for
+    skipping the committed championship = repay only that season's amount, and the deal cancels.
+    `seasons_total`/`seasons_paid` track progress; a fully-paid deal ends cleanly. Fixed the "all offers
+    exactly 20K" flat-floor bug. **Save/load now persist `active_sponsors` + `sponsor_offers`** (were
+    never serialized, so a signed multi-season commitment vanished on reload; back-compatible defaults).
+  - **Race results "Skip All" + column layout (S37.10–S37.13, #11):** added a "Skip All ⏭" header button
+    (shown when >1 race is queued the same week) that applies each remaining race's repairs + sponsor
+    bonuses and returns to the Main Hub (`pending_race_result_count()` drives visibility). Results +
+    standings tables re-laid-out: the Driver column EXPANDS to fill the container (≈2/5 of width), then
+    Laps/Time/Gap/Pts spread across the rest with equal stretch ratios and Prize fixed at the far right;
+    Laps/Time/Gap centered, Pts/Prize right-aligned. Header and rows share IDENTICAL sizing mode +
+    alignment per column (+`clip_contents`) so headers always sit above their data. Driver-standings
+    name/team no longer jam together. **Confirmed in play.**
+  - **DEFERRED / FLAGGED (not fixed — pick up next):** (1) "starting a new game continues the previous
+    game" — `setup_new_game` does not reset many persistent collections (active_sponsors, sponsor_offers,
+    active_approaches, player_registered_championships, next_season_registrations, active_championships,
+    player_team_cars, notifications, weeks_in_negative, pending_* screens, _pending_race_results) and
+    `gk_discipline` is only recreated `if null`, so a second new game reuses stale state. (2) Load-game
+    starts at the pre-load week — `load_game` DOES restore `current_week` correctly and `_autosave` saves
+    after the week increment, so the likely cause is transient session state (pending race/season screens)
+    not being cleared on load, or the MainHub week label not refreshing. Both share the same root cause
+    (neither `setup_new_game` nor `load_game` fully clears transient state) and were investigated but not
+    yet fixed. Staff-hire slot validation (#2-adjacent) was deferred — the existing "no slot" path works.
 
 - **S37.0–S37.8 (Cluster A close-out + repair UX + notification framework — §7.2/§6.11/§15.1):**
   - **CP4 — the `active_championship` getter (S37.0):** the singular getter used to return GK

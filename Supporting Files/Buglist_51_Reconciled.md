@@ -1,6 +1,6 @@
 # Automotive Empire — Original 51-Item List, Reconciled Against Shipped Code
 
-**Reconciled:** 2026-06-25 · against repo HEAD `f8491e3` (bugs 22) + GDD v5.9 changelog (S28–S37.8).
+**Reconciled:** 2026-06-25 · against repo HEAD `52a7206` (S37.13) + GDD v6.0 changelog (S28–S37.13).
 **Status legend:** ✅ Fixed (incl. player-confirmed in play) · 🟡 Fixed–needs in-engine verification · 🟠 Known/latent (partial or no-op until data added) · 🔵 Backlog/feature (design-approved, sequenced later) · ⚪ Open/unassigned.
 
 > Note: GitHub is authoritative. This maps your ORIGINAL numbered list (1–51) onto the work that
@@ -13,18 +13,18 @@
 | # | Item | Status | Where / how addressed |
 |---|------|--------|-----------------------|
 | 1 | CFO financial-mgmt attributes all 0 | ⚪ Open | Separate from the CFO *notification* work (done). The all-0 attribute display is still unconfirmed — likely a card reading a non-existent field. Still to do. |
-| 2 | New GK team has ~2943 staff interested (reputation/interest broken) | 🟡 | Marketability driver fixed S36.0 (fan pool from player_registered_championships); interest model reworked S35.9. Verify the new-team interested count is now sane. |
+| 2 | New GK team has ~2943 staff interested (reputation/interest broken) | ✅ | **S37.10** interest model rebalanced in ContractEngine._subject_interest_score: interest now gates reachable TALENT by team REPUTATION (interest = 60 + (player_rep − talent)×0.7 + free-agent bonus + rep-gap bonus + TP). A rep-0 garage attracts only ~13 low-talent free agents; the pool grows with reputation. Low-talent (≤35) free agents always reachable so a new team can field a car. (Earlier: marketability driver fixed S36.0; interest model first reworked S35.9.) Verify the new-team count is sane. |
 | 3 | Main hub stretched off-screen | 🟠 | Layout-stretch pattern applied to several screens (S35.10, S29.x). Main Hub flagged for total revamp under #17 — verify current state. |
 | 4 | "Staff interested" + signed same week → notice shouldn't appear | 🟡 | Negotiation semantics + notification collapse (S35.1–S35.9). Verify this exact race condition. |
 | 5 | Sponsor slots should increase on ODD levels (1,3,5…) not even | ✅ | **S37.3** CampusManager.get_hq_sponsor_slots() = 1+int((level-1)/2). **S37.4** HQ EFFECTS panel now calls the same function (was hardcoded 1+lv/2 → showed 2 at L2). **Confirmed in play.** |
 | 6 | TDL renew triggered HQ counting loop; renegotiate re-triggered HQ entry | 🟡 | Negotiation/HQ-entry semantics (S35.7). Verify the TDL-renew path specifically. |
 | 7 | Staff/driver card pushed too far right / off-screen | 🟡 | Personnel hub + View Card popup overhaul (S35.10). Verify card alignment. |
-| 8 | Weekly-salary vs annual-salary inconsistency on hub cards | ⚪ Open | Not found in changelog. Still to do. |
+| 8 | Weekly-salary vs annual-salary inconsistency on hub cards | ✅ | **S37.9** salary is now negotiated as an ANNUAL figure in ContractNegotiation with a live weekly read-out (≈ CR x/wk) beside the spinbox; stored back as weekly. Verify hub cards + negotiation agree. |
 | 9 | Next race wrong week; S1 player appears registered in ALL championships | 🟡 | **Cluster A core.** A-CP4 (S37.0) getter rewrite; A-CP4b (S37.1) GK group-0 seeding gated. Needs keyboard verification. |
 | 10 | HQ contract-negotiation entry frozen; walk-away didn't remove it | 🟡 | Negotiation entry lifecycle (S35.7). Verify frozen-entry + walk-away-clear. |
-| 11 | Race results columns stacked right; need a skip button | ⚪ Open | Not found in changelog. Column spacing + skip-results button still to do. |
+| 11 | Race results columns stacked right; need a skip button | ✅ | **S37.10** "Skip All ⏭" button added (header, shows when >1 race queued the same week) — applies each remaining race's repairs + sponsor bonuses and jumps to the Main Hub. **S37.11–S37.13** results + standings column layout reworked: Driver column expands to fill the container, Laps/Time/Gap/Pts spread across the remaining width (Driver ≈ 2/5), Laps/Time/Gap centered, Pts/Prize handled separately, Prize fixed far right; header + rows share identical sizing + alignment per column (+clip_contents) so headers sit above data. Driver standings name/team no longer jam. **Confirmed in play.** |
 | 12 | No TDL/notification for a new sponsor offer | ⚪ Open | Candidate for the notify_event framework (S37.7) — not yet migrated. Still to do. |
-| 13 | Sponsor offers below the championship entry fee | ⚪ Open | Not found in changelog. Still to do (SponsorManager offer floor). |
+| 13 | Sponsor offers below the championship entry fee | ✅ | **S37.10** SponsorManager commitment (type-3) sponsors REDESIGNED: a sponsor wants the team to race a SPECIFIC championship for N seasons, chosen from a REPUTATION BAND near the team's rep (no GK→GP1 / GP1→Rally4 offers). Payment is ANNUAL (~1 season's entry+car ±variation) paid at the START of each registered season; offer expires before the championship's registration deadline; skipping a season = repay only that season's amount and the deal cancels. Fixed the "all offers exactly 20K" flat-floor bug (varied floor + cost band). active_sponsors/sponsor_offers now persist in save/load (were lost on reload). Verify offer amounts + tiering. |
 | 14 | 891k active fans for a brand-new garage | ✅ | S36.0: get_team_active_fans()/marketability derive from player_registered_championships via _player_global_fan_pool(). Verify the starting number. |
 | 15 | FU (fuel) not deducted after a race unless CFO buys | 🟡 | Fuel scoping fixed in Cluster A (RaceSimulator threads the raced champ, S37.0). Verify fuel drops per race without a CFO. |
 | 16 | HQ-Financial: "Balance" label visible on all graph tabs | ⚪ Open | Investigated S37.4: graphs live in HQ.gd (balance/fuel/economy/fans/marketability); redraw already does queue_free + await frame, so code looks correct. Left untouched — needs a live repro to see what actually persists. |
@@ -77,16 +77,24 @@ A 1-event model now governs notifications (built this session; CFO + deadline mi
 
 ---
 
-## Quick tallies (S37.8)
+## Quick tallies (S37.13)
 
-- **✅ Fixed (4 confirmed in play: #5, #20, #47; + #14/#19/#28/#31/#33/#49/#23 by changelog):** #5, #14, #19, #20, #23, #28, #31, #33, #47, #49.
-- **🟡 Fixed–needs in-engine verification:** #2, #4, #6, #7, #9, #10, #15, #21, #24, #25, #29, #32, #35, #36, #37, #39, #42, #44, #45, #46, #48, #51.
+- **✅ Fixed:** #2, #5, #8, #11, #13, #14, #19, #20, #23, #28, #31, #33, #47, #49. (Confirmed in play: #5, #11, #20, #47; rest by changelog — verify the S37.9–S37.13 batch in-engine: #2 interest count, #8 salary units, #13 sponsor amounts.)
+- **🟡 Fixed–needs in-engine verification:** #4, #6, #7, #9, #10, #15, #21, #24, #25, #29, #32, #35, #36, #37, #39, #42, #44, #45, #46, #48, #51.
 - **🟠 Known/latent or partial:** #3, #22, #34, #38, #40, #50.
 - **🔵 Backlog/feature (design work):** #17, #27.
-- **⚪ Still open / not started:** #1, #8, #11, #12, #13, #16, #18, #26, #30, #41, #43.
+- **⚪ Still open / not started:** #1, #12, #16, #18, #26, #30, #41, #43.
 
 ## Suggested next batch (the ⚪ Open, lowest-risk)
-Mechanical, no re-fix risk, confirmed untouched by changelog: **#8** (salary unit), **#11** (results spacing + skip), **#13** (sponsor offer floor), **#18** (starting-driver balance), **#41** (age-requirement popup), **#43** (remove hub button counts). Then notification-framework migrations: **#12, #26** (sponsor offer / building completion as `notify_event` with buttons).
+Mechanical, no re-fix risk: **#18** (starting-driver balance), **#41** (age-requirement popup), **#43** (remove hub button counts), **#30** (campus building text audit), **#1** (CFO all-0 attributes). Then notification-framework migrations: **#12, #26** (sponsor offer / building completion as `notify_event` with buttons).
+
+## S37.9–S37.13 session summary (this chat)
+- **#8** annual-salary negotiation with live weekly read-out (S37.9).
+- **#2** interest rebalance — reputation gates reachable talent (S37.10).
+- **#13** sponsor commitment redesign — reputation-band championship, annual payment, penalty, save/load persistence, flat-floor fix (S37.10).
+- **#11** race-results "Skip All" button (S37.10) + results/standings column alignment rework (S37.11–S37.13).
+- **NOTE (deferred, flagged):** "new game continues previous game" — `setup_new_game` does not reset many persistent collections (active_sponsors, sponsor_offers, active_approaches, registrations, player_team_cars, notifications, GK state, etc.); and `gk_discipline` only recreated `if null`. Shares root cause with the **load-game wrong-week** symptom (load restores current_week correctly, but transient session state isn't cleared on load either). Both investigated, NOT yet fixed — pick up next.
+- **NOTE (declined this session):** staff-hire slot validation (#2-adjacent) — slot "no slot" text already works; deferred to avoid duplicate functions.
 
 ## Repo hygiene
 - Only `GDDv5.9.md` remains in Supporting Files (duplicate underscore version removed) — flag resolved.
