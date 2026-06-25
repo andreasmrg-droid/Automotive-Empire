@@ -1,4 +1,11 @@
 extends Control
+## Version: S37.13 — Race Results layout: Driver expands to ~2/5 of width (Laps starts there), then
+##   Laps/Time/Gap/Pts expand EQUALLY to spread across the rest, Prize fixed at far right. Laps/Time/
+##   Gap centered; Pts/Prize right. Header + rows share identical sizing + alignment per column.
+## Version: S37.12 — Race Results table rebuilt with the driver-standings recipe: Driver column
+##   EXPANDS to fill the container; all other columns are fixed-width + right-aligned, with header and
+##   rows sharing the SAME sizing mode and SAME alignment per column (+clip_contents) so the header
+##   sits exactly above its data and the table fills the whole panel. Standings untouched.
 ## Version: S37.11 — Standings + results column balance. DRIVER standings used a 130px clipped name
 ##   next to an expanding team label with separation 0, so "Charlie B WilliamsPinnacle Alliance"
 ##   jammed together; now Driver/Team use proportional stretch ratios (3:2) with 16px separation so
@@ -267,20 +274,30 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		return
 
 	# Column headers
+	## S37.13 — Layout per design owner: Driver expands to ~2/5 of the width (so Laps starts there),
+	## then Laps/Time/Gap/Pts each expand EQUALLY (ratio 1) to spread across the remaining space, and
+	## Prize stays fixed at the far right. Alignment: Laps/Time/Gap = CENTER, Pts/Prize = RIGHT.
+	## spec: [text, mode, value, align]  mode "exp"→stretch ratio=value, "fixed"→width=value.
 	var hdr = HBoxContainer.new()
 	hdr.add_theme_constant_override("separation", 16)
 	parent.add_child(hdr)
-	for pair in [["Pos",52],["Driver",-1],["Laps",64],["Time",150],["Gap",130],["Pts",64],["Prize",120]]:
+	for spec in [["Pos","fixed",52,"L"],["Driver","exp",2.5,"L"],["Laps","exp",1,"C"],["Time","exp",1,"C"],["Gap","exp",1,"C"],["Pts","exp",2,"C"],["Prize","fixed",130,"R"]]:
 		var lh = Label.new()
-		lh.text = pair[0]
+		lh.text = spec[0]
 		lh.add_theme_font_size_override("font_size", 20)
 		lh.modulate = Color(0.45, 0.45, 0.45)
-		if pair[1] == -1:
+		lh.clip_contents = true
+		if spec[1] == "exp":
 			lh.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			lh.size_flags_stretch_ratio = float(spec[2])
 		else:
-			lh.custom_minimum_size = Vector2(pair[1], 0)
-		if pair[0] in ["Laps","Time","Gap","Pts","Prize"]:
+			lh.custom_minimum_size = Vector2(spec[2], 0)
+		if spec[3] == "C":
+			lh.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		elif spec[3] == "R":
 			lh.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		else:
+			lh.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		hdr.add_child(lh)
 
 	parent.add_child(HSeparator.new())
@@ -324,6 +341,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		var lbl_name = Label.new()
 		lbl_name.text = driver.full_name()
 		lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lbl_name.size_flags_stretch_ratio = 2.5
 		lbl_name.add_theme_font_size_override("font_size", 26)
 		lbl_name.clip_contents = true
 		if is_dns:
@@ -337,17 +355,21 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		# Laps
 		var lbl_laps = Label.new()
 		lbl_laps.text = str(total_laps) if not is_dns else "—"
-		lbl_laps.custom_minimum_size = Vector2(64, 0)
+		lbl_laps.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lbl_laps.size_flags_stretch_ratio = 1.0
+		lbl_laps.clip_contents = true
 		lbl_laps.add_theme_font_size_override("font_size", 24)
-		lbl_laps.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		lbl_laps.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		lbl_laps.modulate = Color(0.65, 0.65, 0.65)
 		row.add_child(lbl_laps)
 
 		# Total time H:MM:SS.ms
 		var lbl_time = Label.new()
-		lbl_time.custom_minimum_size = Vector2(150, 0)
+		lbl_time.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lbl_time.size_flags_stretch_ratio = 1.0
+		lbl_time.clip_contents = true
 		lbl_time.add_theme_font_size_override("font_size", 24)
-		lbl_time.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		lbl_time.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		if is_dns:
 			lbl_time.text = "—"
 			lbl_time.modulate = Color(0.45, 0.45, 0.45)
@@ -359,9 +381,11 @@ func _build_race_results(parent: VBoxContainer) -> void:
 
 		# Gap to leader
 		var lbl_gap = Label.new()
-		lbl_gap.custom_minimum_size = Vector2(130, 0)
+		lbl_gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lbl_gap.size_flags_stretch_ratio = 1.0
+		lbl_gap.clip_contents = true
 		lbl_gap.add_theme_font_size_override("font_size", 24)
-		lbl_gap.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		lbl_gap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		if is_dns:
 			lbl_gap.text = "DNS"
 			lbl_gap.modulate = Color(0.45, 0.45, 0.45)
@@ -376,9 +400,11 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		# Points
 		var lbl_pts = Label.new()
 		lbl_pts.text = "+%d" % pts if (pts > 0 and not is_dns) else "—"
-		lbl_pts.custom_minimum_size = Vector2(64, 0)
+		lbl_pts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lbl_pts.size_flags_stretch_ratio = 2.0
+		lbl_pts.clip_contents = true
 		lbl_pts.add_theme_font_size_override("font_size", 24)
-		lbl_pts.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		lbl_pts.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		lbl_pts.add_theme_color_override("font_color",
 			Color(0.45,0.45,0.45) if (pts == 0 or is_dns) else Color(0.6, 1.0, 0.6))
 		row.add_child(lbl_pts)
@@ -386,7 +412,8 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		# Prize
 		var lbl_prize = Label.new()
 		lbl_prize.text = "+CR %s" % _fmt(int(prize)) if prize > 0 else ""
-		lbl_prize.custom_minimum_size = Vector2(120, 0)
+		lbl_prize.custom_minimum_size = Vector2(130, 0)
+		lbl_prize.clip_contents = true
 		lbl_prize.add_theme_font_size_override("font_size", 22)
 		lbl_prize.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		lbl_prize.add_theme_color_override("font_color", Color(0.9, 0.7, 0.2))
@@ -540,7 +567,7 @@ func _build_standings(parent: VBoxContainer, teams_mode: bool) -> void:
 			row.add_child(lbl_team)
 			var lbl_pts = Label.new()
 			lbl_pts.text = "%d pts" % entry["points"]
-			lbl_pts.custom_minimum_size = Vector2(64, 0)
+			lbl_pts.custom_minimum_size = Vector2(80, 0)
 			lbl_pts.add_theme_font_size_override("font_size", 24)
 			lbl_pts.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 			lbl_pts.modulate = Color(0.7, 0.7, 0.7)
