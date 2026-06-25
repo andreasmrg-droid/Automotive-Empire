@@ -1,4 +1,6 @@
 extends Control
+## Version: S37.20 — #30 text audit: fictionalized real-world trademark provider names
+##   (IndyCar/WRC/NASCAR/WEC/Formula) to discipline-based fictional names per the IP rule.
 ## Version: S36.5 — Refactor: _player_championships() now delegates to the shared
 ##   GameState.get_player_championships() (S36.4) instead of duplicating the logic locally.
 ## Version: S36.3 — Logistics presets reworked: SP quick-fill now 100/1000/10000, and ALL quick-fill
@@ -669,16 +671,16 @@ func _make_buy_car_card(champ_id: String) -> PanelContainer:
 			"C-001":"WRA Karting Supply Co.","C-002":"WRA Karting Supply Co.",
 			"C-003":"Apex Kart Distribution","C-004":"Apex Kart Distribution",
 			"C-005":"Rally Equipment Group", "C-006":"Rally Equipment Group",
-			"C-007":"Rally Equipment Group", "C-008":"WRC Contracted Provider",
+			"C-007":"Rally Equipment Group", "C-008":"Rally Pinnacle Provider",
 			"C-009":"TCM Touring Specialists","C-010":"TCM Touring Specialists",
 			"C-011":"OWC Chassis Group",      "C-012":"OWC Chassis Group",
-			"C-013":"IndyCar Contracted Provider",
-			"C-014":"NASCAR Supply Alliance", "C-015":"NASCAR Supply Alliance",
-			"C-016":"NASCAR Supply Alliance", "C-017":"NASCAR Contracted Provider",
+			"C-013":"OWC Pro Contracted Provider",
+			"C-014":"Stock Car Supply Alliance", "C-015":"Stock Car Supply Alliance",
+			"C-016":"Stock Car Supply Alliance", "C-017":"Stock Car Contracted Provider",
 			"C-018":"EPC Prototype Suppliers","C-019":"EPC Prototype Suppliers",
-			"C-020":"WEC Contracted Provider",
-			"C-021":"Formula Parts Direct",   "C-022":"Formula Parts Direct",
-			"C-023":"Formula Parts Direct",   "C-024":"GP1 Contracted Provider",
+			"C-020":"EPC Contracted Provider",
+			"C-021":"GP Parts Direct",        "C-022":"GP Parts Direct",
+			"C-023":"GP Parts Direct",        "C-024":"GP1 Contracted Provider",
 		}
 		var car_cost      = GameState.get_provider_car_cost(champ_id)
 		var provider      = PROVIDERS.get(champ_id, "WRA Contracted Provider")

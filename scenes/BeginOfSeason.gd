@@ -1,4 +1,8 @@
 extends Control
+## Version: S37.21 — #34 Beginning-of-Season is now INFORMATIONAL ONLY: removed the TDL row "→"
+##   buttons, the readiness-panel "Fix →" buttons, and the "Championship Registration" button. The
+##   checklist/readiness/finances remain as a read-only season summary; the player acts from the
+##   hub. (_go/_action_btn kept but unused — this scene is flagged for a full redesign.)
 ## Version: S29.6 — Two-column content wrapped in a ScrollContainer so the START
 ##   SEASON button stays pinned at the bottom with large fonts (issue #9).
 ## --- S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
@@ -83,9 +87,7 @@ func _build_ui() -> void:
 		lbl_none.modulate = Color(0.55, 0.55, 0.55)
 		lbl_none.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		left.add_child(lbl_none)
-		var btn_reg = _action_btn("🏆 Championship Registration →", Color(0.15, 0.40, 0.65))
-		btn_reg.pressed.connect(func(): _go("res://scenes/ChampionshipSelect.tscn"))
-		left.add_child(btn_reg)
+		## #34 — informational only: the "Championship Registration →" action button was removed.
 	else:
 		for champ in player_champs:
 			left.add_child(_build_champ_card(champ))
@@ -144,14 +146,8 @@ func _build_champ_card(champ) -> PanelContainer:
 			Color(0.5, 0.9, 0.5) if check["ok"] else Color(1.0, 0.55, 0.2))
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(lbl)
-		if not check["ok"] and check.get("dest", "") != "":
-			var btn = Button.new()
-			btn.text = "Fix →"
-			btn.custom_minimum_size = Vector2(54, 22)
-			btn.add_theme_font_size_override("font_size", 20)
-			var d = check["dest"]
-			btn.pressed.connect(func(): _go(d))
-			row.add_child(btn)
+		## #34 — informational only: the "Fix →" navigation button was removed; the ✅/⚠ readiness
+		## status remains as a read-only at-a-glance summary.
 		vbox.add_child(row)
 
 	return panel
@@ -225,12 +221,8 @@ func _build_tdl() -> VBoxContainer:
 		lbl.add_theme_color_override("font_color", Color(0.78, 0.78, 0.78))
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(lbl)
-		var btn = Button.new(); btn.text = "→"
-		btn.custom_minimum_size = Vector2(26, 22)
-		btn.add_theme_font_size_override("font_size", 20)
-		var d = item[2]
-		btn.pressed.connect(func(): _go(d))
-		row.add_child(btn)
+		## #34 — informational only: the per-row "→" navigation button was removed. This screen
+		## is a season-start SUMMARY; the player acts from the hub / notifications, not from here.
 		vbox.add_child(row)
 	return vbox
 
@@ -269,6 +261,8 @@ func _on_start() -> void:
 	get_tree().change_scene_to_file("res://scenes/MainHub.tscn")
 
 ## Navigate away while keeping pending_season_screen so MainHub returns here.
+## #34 — currently UNUSED: all in-screen navigation (TDL "→", "Fix →", "Register" buttons) was
+## removed to make this screen informational-only. Kept for the planned full redesign of this scene.
 func _go(scene_path: String) -> void:
 	GameState.pending_season_screen = "begin_of_season"
 	get_tree().change_scene_to_file(scene_path)
@@ -296,6 +290,8 @@ func _card_panel(bg: Color) -> PanelContainer:
 	panel.add_theme_stylebox_override("panel", style)
 	return panel
 
+## #34 — currently UNUSED (the only action button, "Championship Registration", was removed for
+## the informational-only pass). Kept for the planned redesign.
 func _action_btn(text: String, bg: Color) -> Button:
 	var btn = Button.new()
 	btn.text = text

@@ -1,4 +1,5 @@
 extends Control
+## Version: S37.20 — #30 text audit: "Go-Kart"→"Go-Karting" (discipline-name consistency).
 ## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
 ##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
 
@@ -58,7 +59,7 @@ func _build_ui() -> void:
 		lbl_prc.add_theme_color_override("font_color", Color(1.0, 0.6, 0.2))
 		lbl_prc.add_theme_font_size_override("font_size", 24)
 		left.add_child(lbl_prc)
-	lbl_desc.text = "Tight technical karting circuit. Improves Go-Kart discipline stats. Generates income via Public Racing Club."
+	lbl_desc.text = "Tight technical karting circuit. Improves Go-Karting discipline stats. Generates income via Public Racing Club."
 	lbl_desc.modulate = Color(0.7, 0.7, 0.7)
 	lbl_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lbl_desc.add_theme_font_size_override("font_size", 26)
