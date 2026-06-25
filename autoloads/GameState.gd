@@ -1,4 +1,8 @@
 extends Node
+## Version: S37.5 — Bug #20 revision: removed the affordability filter on deadline warnings (the
+##   player can take a loan to cover an entry-fee gap, so a cash shortfall must not hide a deadline)
+##   — now warns for every championship whose deadline is still open. Added repair_car_max_sp()
+##   wrapper (proportional all-SP repair for the Garage button).
 ## Version: S37.4 — Bug #20: registration-deadline warnings reworked. Was a single-week blip
 ##   (fired only when deadline == week+1), easily missed — now a tiered window (4 / 2 / 1 weeks +
 ##   last day) with a per-championship subject (collapses to one standing notice, no spam), and
@@ -2292,6 +2296,9 @@ func get_affordable_repair_pct(driver_id: String) -> float:
 func repair_car_affordable(driver_id: String) -> bool:
 	return _car_manager.repair_car_affordable(driver_id)
 
+func repair_car_max_sp(driver_id: String) -> bool:
+	return _car_manager.repair_car_max_sp(driver_id)
+
 func install_part_on_car(car_id: String, champ_id: String, pcode: String) -> bool:
 	return _car_manager.install_part_on_car(car_id, champ_id, pcode)
 
@@ -3353,17 +3360,25 @@ func advance_week() -> void:
 
 	# ── Championship registration deadline warnings ───────────────────────────
 	for champ_id in CHAMPIONSHIP_REGISTRY:
-		# Skip already registered (next-season ledger), already running, or unregisterable.
+		# Skip already registered (next-season ledger), already running, or running this season.
 		if champ_id in player_registered_championships:
 			continue
 		if champ_id in next_season_registrations:
 			continue
-		## Bug #20: only warn about championships the player could ACTUALLY register for this week
-		## (deadline still open AND entry fee affordable). This avoids flooding the panel with
-		## deadline warnings for championships far out of budget (e.g. SC Cup CR 32M, GP1 CR 51M).
-		if not can_register_for_championship(champ_id):
+		## Bug #20: warn for ANY championship whose registration is still open this season —
+		## NOT filtered by affordability (the player can take a loan to cover an entry-fee gap,
+		## so a cash shortfall today should not hide the deadline). Already-running championships
+		## (in active_championships) are skipped below.
+		var already_running := false
+		for ac in active_championships:
+			if ac.id == champ_id:
+				already_running = true
+				break
+		if already_running:
 			continue
 		var deadline = get_entry_deadline_week(champ_id)
+		if current_week > deadline:
+			continue  ## deadline already passed — nothing to warn about
 		var reg = CHAMPIONSHIP_REGISTRY[champ_id]
 		## Bug #20: the old check fired ONLY on the exact week before the deadline (deadline ==
 		## current_week + 1), a single-week blip easily missed (e.g. screenshot: EPC/GP1 deadlines

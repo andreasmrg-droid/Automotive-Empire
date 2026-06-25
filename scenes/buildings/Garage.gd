@@ -1,4 +1,8 @@
 extends Control
+## Version: S37.5 — Bug #47 revision: Garage repair button now does a FULL repair when affordable,
+##   else a PROPORTIONAL repair spending ALL held SP (repair_car_max_sp) — label shows
+##   "Repair X% (all SP)". Only disabled at 0 SP (was disabled below one full 10% chunk, making it
+##   unusable in GK where one chunk = 110 SP).
 ## Version: S37.4 — Bug #47 follow-up: Garage car-card "Repair" button now does a FULL repair when
 ##   SP allows, else repairs as much as affordable (label shows "Fix N% (max SP)"); disabled only
 ##   when even 10% is unaffordable.
@@ -400,27 +404,32 @@ func _build_car_card(car) -> PanelContainer:
 	cond_lbl.add_theme_color_override("font_color", cc)
 	hdr.add_child(cond_lbl)
 
-	## Bug #47 — manual "Repair" button. Repairs the car via CarManager: full repair when SP
-	## allows, otherwise as many whole 10% chunks as the player can afford (never fully blocked).
-	## Shown only when the car is race-built, has a driver assigned (repair is driver-keyed), and
-	## is actually damaged.
+	## Bug #47 — manual "Repair" button. Repairs the car via CarManager: a FULL repair when SP
+	## covers it, otherwise a PROPORTIONAL repair spending all currently-held SP (repair_car_max_sp),
+	## so the button is usable even when a full 10% chunk isn't affordable (e.g. GK 110 SP/10% with
+	## 100 SP in hand → ~9% repair). Only disabled when the player has 0 SP. Shown when the car is
+	## race-built, has a driver assigned (repair is driver-keyed), and is actually damaged.
 	if not car.is_in_build() and car.driver_id != "" and car.condition < 100.0:
 		var did = car.driver_id
-		var afford_pct = GameState.get_affordable_repair_pct(did)
 		var damage = 100.0 - car.condition
+		var afford_pct = GameState.get_affordable_repair_pct(did)
 		var full_affordable = afford_pct >= damage - 0.01
 		var btn_fix = Button.new()
 		if full_affordable:
-			btn_fix.text = "🔧 Repair"
-		elif afford_pct >= 10.0:
-			btn_fix.text = "🔧 Fix %d%% (max SP)" % int(afford_pct)
+			btn_fix.text = "🔧 Full Repair"
+		elif GameState.spare_parts > 0:
+			## Show the % this SP will buy (proportional, not floored to 10%).
+			var sp_rate = GameState.get_championship_by_id(car.championship_id)
+			var rate = sp_rate.sp_per_10_pct_damage if sp_rate != null else 100.0
+			var max_pct = min((float(GameState.spare_parts) / float(rate)) * 10.0, damage)
+			btn_fix.text = "🔧 Repair %.0f%% (all SP)" % max_pct
 		else:
 			btn_fix.text = "🔧 Repair (need SP)"
 		btn_fix.add_theme_font_size_override("font_size", 22)
-		btn_fix.custom_minimum_size = Vector2(180, 34)
-		btn_fix.disabled = afford_pct < 10.0
+		btn_fix.custom_minimum_size = Vector2(200, 34)
+		btn_fix.disabled = GameState.spare_parts <= 0
 		btn_fix.pressed.connect(func():
-			var ok := GameState.repair_car_full(did) if full_affordable else GameState.repair_car_affordable(did)
+			var ok := GameState.repair_car_full(did) if full_affordable else GameState.repair_car_max_sp(did)
 			if ok:
 				_show_tab(_selected_tab))
 		hdr.add_child(btn_fix)

@@ -1,4 +1,7 @@
 class_name RaceSimulator
+## Version: S37.5 — Notification spam fix: the post-race "SP insufficient to fully repair Car N"
+##   notification now carries the res_spare_parts subject, so it collapses to ONE standing SP
+##   notice instead of stacking a fresh one every race week (was W8/W10/W10... in the panel).
 ## Version: S37.0 — CP4 (closes cluster A): per-race fuel/SP/condition reads no longer go through the
 ##   singular gs.active_championship (which was always GK). can_car_race() reads the CAR's
 ##   championship fuel rate; _update_driver_stats_after_race() takes the raced `champ` for total_races
@@ -701,8 +704,12 @@ func auto_repair_cars_post_race() -> void:
 
 	if any_failed:
 		var names = ", ".join(failed_car_names)
+		## Share the res_spare_parts subject with the weekly SP warning so the player sees ONE
+		## standing SP notification, not a fresh "SP insufficient to fully repair Car N" every race
+		## week (was spamming W8/W10/W10...). Subject supersede keeps only the latest instance.
 		gs.add_notification("Critical" if gs.spare_parts == 0 else "High",
-			"SP insufficient to fully repair %s. Buy more SP at Logistics Center." % names)
+			"SP insufficient to fully repair %s. Buy more SP at Logistics Center." % names,
+			"", "res_spare_parts")
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -1,4 +1,7 @@
 class_name CarManager
+## Version: S37.5 — Repair UX: added repair_car_max_sp() — PROPORTIONAL repair spending all held SP
+##   (not floored to 10% chunks), so a player with < one chunk's worth of SP (e.g. 100 SP at GK's
+##   110/10%) can still repair (~9%). Used by the Garage repair button.
 ## Version: S37.4 — Repair UX: added get_affordable_repair_pct() / repair_car_affordable() — repair
 ##   as many whole 10% chunks as current SP allows (used by My Cars + Garage repair buttons), so a
 ##   short-SP player is never fully blocked.
@@ -404,6 +407,38 @@ func repair_car_affordable(driver_id: String) -> bool:
 			sp_rate, gs.spare_parts])
 		return false
 	return repair_car(driver_id, pct)
+
+## Garage repair (Bug #47) — spend ALL currently-held SP on a PROPORTIONAL repair, not floored to
+## whole 10% chunks. With a high per-10% rate (e.g. GK = 110 SP) a player holding 100 SP could
+## never trigger a 10% chunk; this lets that 100 SP buy a fractional repair (~9%) so repair is
+## always usable. Repairs min(SP-afforded %, actual damage); spends only the SP actually used.
+func repair_car_max_sp(driver_id: String) -> bool:
+	var car = get_car_for_driver(driver_id)
+	if not car:
+		return false
+	var damage = 100.0 - car.condition
+	if damage <= 0.0:
+		gs.add_notification("Normal", "Car is already at full condition.")
+		return false
+	if gs.spare_parts <= 0:
+		gs.add_notification("High",
+			"No SP to repair with. Buy SP at the Logistics Center.")
+		return false
+	var sp_rate = _car_sp_rate(car)
+	if sp_rate <= 0:
+		return repair_car(driver_id, damage)  ## free-repair edge case
+	## % of condition restorable by ALL current SP: (SP / sp_rate) chunks × 10% per chunk.
+	var max_pct = (float(gs.spare_parts) / float(sp_rate)) * 10.0
+	var repair_pct = min(max_pct, damage)
+	## SP actually consumed = proportional to the % repaired (rounded up to the nearest SP).
+	var sp_cost = int(ceil(repair_pct / 10.0 * sp_rate))
+	sp_cost = min(sp_cost, gs.spare_parts)
+	gs.spare_parts -= sp_cost
+	car.condition = min(100.0, car.condition + repair_pct)
+	gs.add_log("🔧 Repair +%.1f%% → %.0f%% condition (-%d SP, %d remaining)" % [
+		repair_pct, car.condition, sp_cost, gs.spare_parts])
+	gs.emit_signal("log_updated")
+	return true
 
 
 func install_part_on_car(car_id: String, champ_id: String, pcode: String) -> bool:
