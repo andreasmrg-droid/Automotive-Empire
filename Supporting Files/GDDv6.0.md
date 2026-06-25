@@ -1,6 +1,18 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v5.9 (consolidated master) · **Engine:** Godot 4.6.3 / GDScript
+**Version:** v6.0 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v6.0: Cluster A close-out + repair UX + the NOTIFICATION FRAMEWORK (S37.0–S37.8).
+	§7.2 CP4 — the singular `active_championship` getter now resolves the player's REAL racing
+	championship (registered → owned-car → legacy → dummy), not always GK; RaceSimulator threads the
+	raced championship through per-race fuel/SP/condition/adaptation reads; standings registration
+	follows Rule #6 (driver joins at car assignment, not at sign time); GK group-0 seeding gated to
+	real GK drivers via a player_in_gk flag (a non-GK career no longer sees stray GK races/results).
+	§15.1 NEW — the EVENT → TDL / NOTIFICATION+BUTTON / NEWS framework (notify_event, modes
+	once/standing/event/news; the TO-DO list is read-only and never notifies). §6.11 Repair UX —
+	per-car SP rate, a Garage "Repair" button with proportional all-SP repair, and the registration-
+	deadline notification fixed (was sitting after the race-result early-return → skipped on race
+	weeks). Misc: HQ sponsor-slot display, per-building income breakdown, sponsor slots at odd levels,
+	SP-notification de-dup. BUGLIST reconciled: 10 fixed, see `Buglist_51_Reconciled.md`. -->
 <!-- v5.9: §1 GK Championship final-weekend redesign (S36.18–S36.20), now confirmed in playtest.
 	 GK is 22 races / 4 rounds (8/7/5/2); points RESET each round; the final weekend is two races
 	 the SAME week — Semi-Final then Grand Final; the Semi cuts top-10-per-group into a single
@@ -400,6 +412,21 @@ Three paged screens navigated with Back/Next (Continue stays in the header throu
 3. **Season Development** — car condition + driver development + staff development. Only
    present if the player actually raced; navigation auto-collapses to 2 pages otherwise.
 
+### 6.11 Manual repair & SP economy (S37.0–S37.5)
+
+Cars accrue damage; repairs spend Spare Parts (SP) at a **per-championship rate**
+(`sp_per_10_pct_damage` from `CHAMP_LOGISTICS` — e.g. GK = 110 SP per 10% damage, scaling up by
+tier). The rate is always read from the car's OWN championship, never the singular
+`active_championship` (CP4, §7.2). Three ways to repair, all routed through `CarManager`:
+- **Auto-repair** after a race weekend (full if SP allows; partial if SP runs out, then a single
+  de-duplicated "SP insufficient" notice — §15.1).
+- **Manual buttons** (Main Hub "My Cars" + Garage car card): Fix 10% / Fix 50% / Full Repair,
+  disabled when the relevant whole-chunk cost isn't affordable.
+- **Proportional all-SP repair** (`repair_car_max_sp`): spends ALL currently-held SP for a fractional
+  repair, so a player holding less than one full 10% chunk (very common at GK's 110-SP rate) is never
+  fully blocked. The Garage "Repair" button uses full-when-affordable, else this; disabled only at
+  0 SP. Buying SP is done at the Logistics Center.
+
 ---
 
 ## 7. CHAMPIONSHIPS, REGISTRATION & SEASON FLOW
@@ -474,6 +501,30 @@ definition of that target season (`signed_season + 1`), so the pipeline reasons 
 target rather than the fragile relative string "next_season" (the string-replay was the root of
 the original "bounces back, never joins" activation bug). `signed_season` remains the only stored
 field — the helper only names the derived value, so there is no parallel state to drift.
+
+### 7.2 CP4 — the player's active championship (S37.0–S37.2)
+
+`active_championships` is the WHOLE world (all 21 championships always run); the player's actual
+entries live in `player_registered_championships` (and `next_season_registrations` is the ledger for
+next season). The **singular** `active_championship` getter — read by many screens and the race sim
+for "the player's current championship" — used to return `active_championships[0]`, which is ALWAYS
+GK (C-001). That single wrong read was the root of a whole symptom cluster: a Rally-only career
+showing GK races/results, GK-rate SP/fuel math on a non-GK car, and "registered in all championships"
+contradictions.
+
+The getter now resolves the player's REAL championship in priority order:
+`player_registered_championships` (their entries) → the championship of an owned car → a legacy
+explicit field → a safe **dummy** championship (so callers never get null). Consequences:
+- `RaceSimulator` threads the **raced** championship through every per-race read (fuel, SP, condition,
+  adaptation) rather than the singular getter — see §6.11.
+- **Standings registration follows Rule #6:** a driver is registered to a championship at CAR
+  ASSIGNMENT, not at sign time. Premature GK writes in `DriverManager` / `ContractEngine` were
+  removed; the starting driver registers to the car's championship.
+- **GK isolation:** `GKDiscipline.populate_season()` seeds GK group-0 with real GK drivers only, and a
+  serialized `player_in_gk` flag gates the weekly GK simulation, round-advance and elimination notices
+  — a non-GK player never receives them. The GK final weekend still resolves via the shadow sim, and
+  RacingWorld reads the GK champion/leader from the shadow standings so GK remains visible in the
+  world view.
 
 ---
 
@@ -1000,6 +1051,47 @@ subjects keep distinct items separate while each one collapses over time; the we
 full history (only the panel collapses). The GK elimination notice additionally fires exactly once
 per season (a per-season flag), since a Round-1 exit otherwise re-announced at every later round.
 
+### 15.1 Notification Framework — the 1-event model (S37.7)
+
+The governing principle for **all** notifications. A single EVENT fires once and may produce up to
+three distinct outputs — never a recurring nag:
+
+1. **The event triggers a notification.** Entry point: `notify_event(event_id, priority, message,
+   destination, mode)` on `NotificationManager` (wrapped on `GameState`). `event_id` is a stable key
+   used for once-firing and supersede.
+2. **The notification may lead somewhere.** It can carry a `destination` button that opens the screen
+   where the player acts (a key in `NOTIFICATION_DESTINATIONS` — e.g. `staff_hub`, `hq`, `garage`,
+   `logistics`, `financial_dept`). In parallel, if the underlying condition is a standing task, it is
+   reflected as a **read-only row in the TO-DO list**.
+3. **Meaningful world events also create news.** Big signings/releases, a championship win, entry to
+   a top-tier championship → `mode = "news"` also posts to the news feed (hook `_push_news`; the full
+   news system remains a separate design pass, §13.2).
+
+**Modes:**
+| Mode | Behaviour | Use for |
+|---|---|---|
+| `once` | Fires exactly once ever (tracked by `event_id` in `_fired_once`). | Optional standing facts mentioned a single time (e.g. "no CFO"). |
+| `standing` | Subject-superseded: one live instance, refreshed when the condition re-fires. | Sparingly — prefer the TDL for chores (e.g. low fuel before a race). |
+| `event` | One-off event notice (no dedup beyond identical-text). | "Garage upgraded to L2" + a button to the Garage. |
+| `news` | Like `event`, plus posts to the news feed. | Titles, top-tier entry, marquee signings. |
+
+**THE CARDINAL RULE — the TO-DO LIST IS READ-ONLY AND NEVER EMITS NOTIFICATIONS.** The TDL is
+rebuilt from current state each week (`get_pending_tasks`) and exists so the player can *see*
+outstanding work; it must not also fire notifications, or standing chores spam the bell every week.
+Operational "you should do X" reminders belong in the TDL; the notification fires once for the
+*event*, not once per week for the *state*.
+
+**Rationale / history.** The old code inverted this: the weekly TDL builder re-appended "No CFO"
+every week (a recurring task) AND a separate per-race emitter in `RaceSimulator` fired the same
+condition every race — so the player saw the same notice at W8/W10/W12. Under the framework, CFO is a
+single read-only TDL row plus one `notify_event("no_cfo", once)` with a Staff-screen button. (CFO is
+explicitly OPTIONAL — good-to-have, not required to field a team.)
+
+**Migration status.** Migrated: CFO, registration-deadline warning. Pending (still on the legacy
+`add_notification`): TP-missing (#39/#42/#45), fuel/SP (#15/#23), building completion (#26), sponsor
+offer (#12), and the news-mode events (signings/titles/top-tier entry). Each migration adds the
+proper destination button or news flag.
+
 ### Resource bar visibility (design rule)
 The persistent top resource bar is visible in ALL in-game scenes EXCEPT: popups/modal
 overlays, New Game, Race Results, End of Season, Beginning of Season. (Implement as: shown by
@@ -1136,6 +1228,36 @@ the wildcards). Biggest risk: scope creep — keep saying "backlog."
 
 Historical record of what shipped; design facts above already reflect these.
 
+- **S37.0–S37.8 (Cluster A close-out + repair UX + notification framework — §7.2/§6.11/§15.1):**
+  - **CP4 — the `active_championship` getter (S37.0):** the singular getter used to return GK
+    (`active_championships[0]`) for everyone. It now resolves the player's REAL championship:
+    player_registered_championships → the championship of an owned car → legacy field → a safe dummy.
+    `RaceSimulator` threads the raced championship through per-race fuel / SP / condition / adaptation
+    reads (no more GK-rate math on a Rally car). Standings registration follows Rule #6 — a driver is
+    registered to a championship at CAR ASSIGNMENT, not at sign time (premature GK writes removed).
+  - **GK bleed gating (S37.1–S37.2):** `GKDiscipline.populate_season()` seeds GK group-0 with REAL GK
+    drivers only; a serialized `player_in_gk` flag means a non-GK career no longer simulates/【sees】
+    stray GK races, results, round-advance or elimination notices. RacingWorld reads the GK champion/
+    leader from the shadow standings so GK results are visible in the world view.
+  - **Repair UX (S37.3–S37.5, §6.11):** manual `repair_car()` reads the SP-per-10%-damage rate from
+    THIS car's championship. Added `repair_car_max_sp()` — a PROPORTIONAL repair spending all held SP
+    (not floored to 10% chunks) so a player short of one full chunk (GK = 110 SP/10%) can still
+    repair. Garage car-card "Repair" button uses it (full when affordable, else proportional);
+    disabled only at 0 SP.
+  - **Notification framework (S37.6–S37.8, §15.1):** added `notify_event()` (modes once/standing/
+    event/news) + `_fired_once` + `_push_news`. CFO migrated: removed the per-race "No CFO" emitter
+    (the real spam source) and the recurring TDL task; CFO is now a read-only TDL row + a one-time
+    `notify_event("no_cfo", once)` with a Staff button. **Root-cause fix:** the CFO-hint and
+    registration-deadline blocks sat AFTER the race-result early-return in `advance_week()`, so on any
+    week the player raced they were skipped — that is why no deadline notification ever appeared. Both
+    moved BEFORE the return; the deadline warning now fires "this week or next" for any championship
+    (no budget filter — the player can loan), with a 🔔 weekly-log line for verification.
+  - **Misc fixes:** sponsor slots increase at ODD HQ levels (1+int((level-1)/2)) and the HQ EFFECTS
+    panel now calls that function (was a hardcoded 1+lv/2 showing 2 at L2); the Financial weekly-income
+    panel itemizes income PER BUILDING; the post-race "SP insufficient" notice carries the
+    res_spare_parts subject so it collapses to one. BUGLIST reconciled — 10 fixed, see
+    `Buglist_51_Reconciled.md`.
+
 - **S35.16–S35.21 (R&D Studio polish + P4 gating + localization — §8.5/§16):**
   - **Scroll fixes (S35.16–S35.17):** the centre catalog and right Blueprint Status columns weren't
     scrolling (Status had no ScrollContainer at all; the catalog's bar was hidden under full-width
@@ -1232,28 +1354,35 @@ Historical record of what shipped; design facts above already reflect these.
 
 ---
 
-## 21. KNOWN DEFECTS — see `BUGLIST.md`
+## 21. KNOWN DEFECTS — see `BUGLIST.md` / `Buglist_51_Reconciled.md`
 
-The live defect/work queue lives in the companion file **`BUGLIST.md`** (kept separate so this
-design document stays the durable source of truth and isn't cluttered with transient bugs). As of
-v5.8 it holds **51 open items**, organised by severity (S1 state-corrupting → S3 cosmetic) and by
-system. The highest-leverage clusters flagged there:
+The live defect/work queue lives in two companion files (kept separate so this design document stays
+the durable source of truth): **`BUGLIST.md`** (cluster-based: A-CP4, A-STD, …) and
+**`Buglist_51_Reconciled.md`** (the bridge mapping the original numbered 1–51 playtest list onto
+shipped work). As of v6.0 the reconciled list records **10 fixed** (#5, 14, 19, 20, 23, 28, 31, 33,
+47, 49 — of which #5, #20, #47 are confirmed in play), ~22 fixed-pending-verification, and 11 still
+open. The remaining high-leverage clusters:
 
-- **Championship-registration cluster (#9, #19, #44, #48, #33)** — player treated as registered in
-  ALL championships rather than only those entered; likely one root cause, many symptoms.
-- **Standings wipe (#31) + GK team points (#28)** — end-of-season results destroyed; see §13/§14.
-- **Roster desync (#35) + contract loop (#6, #10)** — Season Transition Pipeline area (§7.1).
-- **Interest/reputation model (#2, #4) + CFO data (#1)** — economy correctness (§9, §12).
-- **Garage slots & assignment (#37–#41, #45–#47)** — multi-driver champ slots, repair, TP reassign.
-- **Notification cluster** and several **design revamps** (#17 Main Hub, #32 Racing World, #34
-  Beginning-of-Season, #30 building text) scheduled as design work, not point fixes.
+- **Championship-registration cluster (#9, #19, #44, #48)** — addressed by CP4 (§7.2); the display
+  contradictions (#19) and stray-GK symptoms are fixed in code, pending keyboard verification.
+- **Standings persistence (#31) + GK team champion (#28)** — ✅ fixed (S36.14 / S36.15+).
+- **Roster desync (#35) + contract loop (#6, #10)** — Season Transition Pipeline area (§7.1), pending
+  verification.
+- **Interest/reputation (#2, #4) + CFO data (#1)** — economy correctness (§9, §12); #1 still open.
+- **Garage slots & assignment (#37, #38, #40, #41, #46)** — multi-driver champ slots, TP reassign,
+  age-requirement popup; repair (#47) ✅.
+- **Lowest-risk OPEN batch** (no re-fix risk, untouched by changelog): #8, #11, #13, #18, #41, #43.
+- **Notification-framework migration** (§15.1): TP/fuel/SP/building-completion/sponsor-offer/news
+  events still on the legacy path. **Design revamps** (#17 Main Hub, #32 Racing World, #34
+  Beginning-of-Season, #30 building text) remain scheduled as design work, not point fixes.
 
-When a fix ships, update the relevant section above AND mark the item ✅ in `BUGLIST.md`.
+When a fix ships, update the relevant section above AND mark the item in both tracker files.
 
 ---
 
-*End of GDD v5.8. Companion files: `Brainstorm_Threads.md` (vision/strategy),
+*End of GDD v6.0. Companion files: `Brainstorm_Threads.md` (vision/strategy),
 `FEATURE_AI_Championship_Sim.md` (deferred feature spec), `TP_Assignment_System_Spec_v2.md` (TP
 assignment design), `Season_Transition_Pipeline_Spec_v1.md` (§7.1 rollout detail),
-`Master_Calculation___Formula_Document` (formula reference), `BUGLIST.md` (defect/work queue).
-Keep this document reconciled with the code after every session.*
+`Master_Calculation___Formula_Document` (formula reference), `BUGLIST.md` +
+`Buglist_51_Reconciled.md` (defect/work queue). Keep this document reconciled with the code after
+every session.*
