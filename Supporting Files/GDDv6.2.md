@@ -1,6 +1,14 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v6.1 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+**Version:** v6.2 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v6.2: two design rules added (S37.25). §15 — RESOURCE BAR is now MANDATORY in every in-game
+	scene (exceptions: modals + the four full-screen flow states); a scene missing it is a bug, and
+	wiring it in is part of "done." §15.1 + §18 — the MAIN HUB REDESIGN is a HARD PREREQUISITE
+	before the notification loop is constructed/finished: the bell/badge/panel/banner/TDL all live
+	on the hub, so order is fixed (1) Main Hub redesign → (2) notification loop + legacy-
+	add_notification migrations. Code state this session S37.22–S37.25: #40 TP soft-lock (immediate
+	assign + rollover stranded-staff cleanup), #52b doubled TP rows (await-race in _rebuild_list),
+	popup-position sweep (all cards centered; right column constrained). -->
 <!-- v6.1: salary units (#8), interest rebalance (#2), sponsor commitment redesign (#13), results/
 	standings UI (#11) — S37.9–S37.13. Annual salary negotiation with weekly read-out; interest gates
 	reachable talent by reputation; type-3 sponsors tie to a reputation-band championship with annual
@@ -1105,10 +1113,22 @@ explicitly OPTIONAL — good-to-have, not required to field a team.)
 offer (#12), and the news-mode events (signings/titles/top-tier entry). Each migration adds the
 proper destination button or news flag.
 
-### Resource bar visibility (design rule)
-The persistent top resource bar is visible in ALL in-game scenes EXCEPT: popups/modal
-overlays, New Game, Race Results, End of Season, Beginning of Season. (Implement as: shown by
-default, explicitly suppressed only in those contexts.)
+**SEQUENCING — MAIN HUB REDESIGN IS A HARD PREREQUISITE.** Before the notification loop is
+constructed/finished (the framework above and the remaining migrations), the **Main Hub must be
+redesigned first — this is mandatory, not optional.** The bell, unread badge, slide-in panel,
+critical banner, and the read-only To-Do List all live on the Main Hub, so the notification loop's
+surfaces depend on the redesigned hub. Building the loop against the current hub would mean wiring
+notification UI into a layout that is about to change. Order is therefore fixed: (1) Main Hub
+redesign → (2) notification loop construction + legacy-`add_notification` migrations. Do not begin
+the notification loop work until the hub redesign lands.
+
+### Resource bar visibility (design rule — MANDATORY)
+The persistent top resource bar is a **required, always-present element of every in-game scene.**
+It MUST be visible in ALL scenes, with only these deliberate exceptions: popups/modal overlays,
+New Game, Race Results, End of Season, Beginning of Season. Any scene that currently lacks it is a
+bug to fix, not an accepted state. Implement as: the bar is shown by default and is explicitly
+suppressed ONLY in the listed full-screen-flow / modal contexts — never omitted by accident. When
+building or reworking any scene, wiring in the shared resource bar is part of "done."
 
 ### Layout conventions (large-font safety)
 - Tall content is wrapped in a ScrollContainer with the action/footer row PINNED below it, so
@@ -1206,6 +1226,16 @@ RefCounted engine classes for headless multi-season testing.
 - **Then:** race sim swap-in (module design §6.8).
 - **Parallel/after:** AI Championship Sim (§14) + News System (§13) + Transfer Market (P51) =
   the living world.
+
+**UI/UX prerequisites (cross-cutting, not a phase):**
+- **Main Hub redesign — MANDATORY BEFORE the notification loop construction.** The notification
+  loop's surfaces (bell, badge, slide-in panel, critical banner, read-only TDL) all live on the
+  Main Hub, so the hub must be redesigned first; only then build/finish the notification framework
+  and migrate the legacy `add_notification` callers (§15.1). Fixed order: Main Hub redesign →
+  notification loop.
+- **Resource bar everywhere (§15).** The shared top resource bar is required in every in-game
+  scene (exceptions: modals + the four full-screen flow states). Wiring it in is part of "done"
+  for any new or reworked scene.
 
 **Realistic timeline:** playable balanced ECONOMIC sim (no race) ~3–5 months at a few focused
 sessions/week; full game with race integrated + balanced ~8–14 months (race sim + balance are
