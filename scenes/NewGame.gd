@@ -1,3 +1,5 @@
+## Version: S37.19 — #50 audit: no GK relics affecting non-GK starts (the only relic was the
+##   part-inventory active_championship seed, fixed in GameState). GK age display 8–16→8–17.
 extends Control
 ## Version: S29.14 — Cost summary back to a single horizontal row (all four values side by
 ##   side, each column EXPAND_FILL), per request. Budget box still sits above the card grid.
@@ -75,7 +77,7 @@ const DIFFICULTY_DESC = {
 
 ## Tier 1 championships available at start
 const TIER1_CHAMPS = {
-	"C-001": {"name": "GK Championship",  "discipline": "Go-Karting", "entry_fee": 9000,   "races": 21,  "age": "8–16",
+	"C-001": {"name": "GK Championship",  "discipline": "Go-Karting", "entry_fee": 9000,   "races": 21,  "age": "8–17",
 		"desc": "The classic starting point. Low cost, pure driving skill. Talent scouts watch closely.",
 		"icon": "🏎",
 		"includes": ["1 Car", "1 Driver", "1 Mechanic", "1 Team Principal"],

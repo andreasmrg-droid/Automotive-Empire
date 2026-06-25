@@ -1,4 +1,6 @@
 class_name SeasonManager
+## Version: S37.19 — #50: season-end scrap now also clears part_inventory (loose L0 warehouse
+##   parts were leaking across the season boundary; cars AND parts now scrap together).
 ## Version: S37.15 — #18: season-end staff aging loop now calls grow_talent_scouting() so a TP's
 ## eye for talent improves over a career.
 ## Version: S36.15 — Bug #28/#31 (cluster A core, CP2): end_season() now crowns a driver AND team
@@ -250,6 +252,7 @@ func start_new_season() -> void:
 	gs.car_installed_parts.clear()
 	gs.car_provider_parts.clear()
 	gs.cnc_parts_inventory.clear()
+	gs.part_inventory.clear()   ## #50 — loose L0 warehouse parts are scrapped with the cars (no carry-over)
 	gs.add_log("🏎 All cars retired for Season %d. Buy or build new cars before Race 1." % gs.current_season)
 
 	# ── Reset all championships for new season ───────────────────────────

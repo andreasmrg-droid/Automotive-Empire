@@ -1,3 +1,6 @@
+## Version: S37.19 — #50: _setup_part_inventory() removed the 3 free starting parts (seeds EMPTY)
+##   and fixed a GK relic (seeded active_championship=legacy GK; now seeds the player's real
+##   starting + car championships).
 ## Version: S37.16 — #41: assign_driver_to_car() wrapper now propagates the String result.
 extends Node
 ## Version: S37.15 — #18 hidden-gems: talent_scouting added to staff save/load serialization.
@@ -2358,11 +2361,24 @@ func get_all_parts_for_car(car_id: String) -> Dictionary:
 
 
 func _setup_part_inventory() -> void:
+	## #50 — The warehouse no longer starts with 3 free parts of each type. Cars + loose parts are
+	## scrapped at season end, and the player must BUY (or CNC) every part — no freebies at setup.
+	## GK-relic fix: seed the inventory dict for the player's ACTUAL car championships (and the
+	## starting championship), NOT active_championship — which at this point in setup can still
+	## resolve to the legacy GK (C-001) default because player_registered_championships isn't
+	## populated until just after this call. Empty (0) dicts keep the structure so installs/buys
+	## that index part_inventory[champ_id][part] don't error.
 	part_inventory = {}
-	var champ_id = active_championship.id
-	part_inventory[champ_id] = {}
-	for part in PARTS_LIST:
-		part_inventory[champ_id][part] = 3  # Start with 3 of each
+	var champ_ids: Array = []
+	if _starting_champ_id != "" and not _starting_champ_id in champ_ids:
+		champ_ids.append(_starting_champ_id)
+	for car in player_team_cars:
+		if car.championship_id != "" and not car.championship_id in champ_ids:
+			champ_ids.append(car.championship_id)
+	for cid in champ_ids:
+		part_inventory[cid] = {}
+		for part in PARTS_LIST:
+			part_inventory[cid][part] = 0  ## start EMPTY — no free parts (#50)
 
 func get_part_stock(part_name: String, champ_id: String = "") -> int:
 	if champ_id == "":
