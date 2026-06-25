@@ -1,4 +1,9 @@
 extends Control
+## Version: S37.11 — Standings + results column balance. DRIVER standings used a 130px clipped name
+##   next to an expanding team label with separation 0, so "Charlie B WilliamsPinnacle Alliance"
+##   jammed together; now Driver/Team use proportional stretch ratios (3:2) with 16px separation so
+##   they spread and never touch. Team standings + race-results tables also get 16px separation and
+##   wider, consistent column widths (Pts widened so 4-digit totals fit).
 ## Version: S37.10 — Bug #11 (race results screen): (1) results table had column separation 0 so
 ##   Laps/Time/Gap/Pts/Prize ran together — now 14px separation + wider matched header/row widths so
 ##   the numbers are readable and aligned. (2) Added "Skip All ⏭" (header, shows when >1 race queued
@@ -263,9 +268,9 @@ func _build_race_results(parent: VBoxContainer) -> void:
 
 	# Column headers
 	var hdr = HBoxContainer.new()
-	hdr.add_theme_constant_override("separation", 14)
+	hdr.add_theme_constant_override("separation", 16)
 	parent.add_child(hdr)
-	for pair in [["Pos",44],["Driver",-1],["Laps",54],["Time",128],["Gap",104],["Pts",54],["Prize",96]]:
+	for pair in [["Pos",52],["Driver",-1],["Laps",64],["Time",150],["Gap",130],["Pts",64],["Prize",120]]:
 		var lh = Label.new()
 		lh.text = pair[0]
 		lh.add_theme_font_size_override("font_size", 20)
@@ -300,7 +305,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		var t_time = entry.get("total_time", 0.0)
 
 		var row = HBoxContainer.new()
-		row.add_theme_constant_override("separation", 14)
+		row.add_theme_constant_override("separation", 16)
 		parent.add_child(row)
 
 		# Position / medal
@@ -310,7 +315,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		elif pos == 2: lbl_pos.text = "🥈"
 		elif pos == 3: lbl_pos.text = "🥉"
 		else:          lbl_pos.text = "%2d." % pos
-		lbl_pos.custom_minimum_size = Vector2(44, 0)
+		lbl_pos.custom_minimum_size = Vector2(52, 0)
 		lbl_pos.add_theme_font_size_override("font_size", 26)
 		if is_dns: lbl_pos.modulate = Color(0.45, 0.45, 0.45)
 		row.add_child(lbl_pos)
@@ -332,7 +337,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		# Laps
 		var lbl_laps = Label.new()
 		lbl_laps.text = str(total_laps) if not is_dns else "—"
-		lbl_laps.custom_minimum_size = Vector2(54, 0)
+		lbl_laps.custom_minimum_size = Vector2(64, 0)
 		lbl_laps.add_theme_font_size_override("font_size", 24)
 		lbl_laps.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		lbl_laps.modulate = Color(0.65, 0.65, 0.65)
@@ -340,7 +345,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 
 		# Total time H:MM:SS.ms
 		var lbl_time = Label.new()
-		lbl_time.custom_minimum_size = Vector2(128, 0)
+		lbl_time.custom_minimum_size = Vector2(150, 0)
 		lbl_time.add_theme_font_size_override("font_size", 24)
 		lbl_time.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		if is_dns:
@@ -354,7 +359,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 
 		# Gap to leader
 		var lbl_gap = Label.new()
-		lbl_gap.custom_minimum_size = Vector2(104, 0)
+		lbl_gap.custom_minimum_size = Vector2(130, 0)
 		lbl_gap.add_theme_font_size_override("font_size", 24)
 		lbl_gap.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		if is_dns:
@@ -371,7 +376,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		# Points
 		var lbl_pts = Label.new()
 		lbl_pts.text = "+%d" % pts if (pts > 0 and not is_dns) else "—"
-		lbl_pts.custom_minimum_size = Vector2(54, 0)
+		lbl_pts.custom_minimum_size = Vector2(64, 0)
 		lbl_pts.add_theme_font_size_override("font_size", 24)
 		lbl_pts.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		lbl_pts.add_theme_color_override("font_color",
@@ -381,7 +386,7 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		# Prize
 		var lbl_prize = Label.new()
 		lbl_prize.text = "+CR %s" % _fmt(int(prize)) if prize > 0 else ""
-		lbl_prize.custom_minimum_size = Vector2(96, 0)
+		lbl_prize.custom_minimum_size = Vector2(120, 0)
 		lbl_prize.add_theme_font_size_override("font_size", 22)
 		lbl_prize.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		lbl_prize.add_theme_color_override("font_color", Color(0.9, 0.7, 0.2))
@@ -412,9 +417,9 @@ func _build_standings(parent: VBoxContainer, teams_mode: bool) -> void:
 
 		# Column headers
 		var hdr = HBoxContainer.new()
-		hdr.add_theme_constant_override("separation", 0)
+		hdr.add_theme_constant_override("separation", 16)
 		parent.add_child(hdr)
-		for pair in [["#", 28], ["Team", -1], ["Pts", 50]]:
+		for pair in [["#", 36], ["Team", -1], ["Pts", 80]]:
 			var lh = Label.new()
 			lh.text = pair[0]
 			lh.add_theme_font_size_override("font_size", 20)
@@ -438,11 +443,11 @@ func _build_standings(parent: VBoxContainer, teams_mode: bool) -> void:
 					break
 			var pos = i + 1
 			var row = HBoxContainer.new()
-			row.add_theme_constant_override("separation", 0)
+			row.add_theme_constant_override("separation", 16)
 			parent.add_child(row)
 			var lbl_pos = Label.new()
 			lbl_pos.text = "%2d." % pos
-			lbl_pos.custom_minimum_size = Vector2(28, 0)
+			lbl_pos.custom_minimum_size = Vector2(36, 0)
 			lbl_pos.add_theme_font_size_override("font_size", 24)
 			row.add_child(lbl_pos)
 			var lbl_name = Label.new()
@@ -457,7 +462,7 @@ func _build_standings(parent: VBoxContainer, teams_mode: bool) -> void:
 			row.add_child(lbl_name)
 			var lbl_pts = Label.new()
 			lbl_pts.text = "%d pts" % entry["points"]
-			lbl_pts.custom_minimum_size = Vector2(50, 0)
+			lbl_pts.custom_minimum_size = Vector2(80, 0)
 			lbl_pts.add_theme_font_size_override("font_size", 24)
 			lbl_pts.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 			lbl_pts.modulate = Color(0.7, 0.7, 0.7)
@@ -473,16 +478,22 @@ func _build_standings(parent: VBoxContainer, teams_mode: bool) -> void:
 
 		# Column headers
 		var hdr = HBoxContainer.new()
-		hdr.add_theme_constant_override("separation", 0)
+		hdr.add_theme_constant_override("separation", 16)
 		parent.add_child(hdr)
-		for pair in [["#", 28], ["Driver", 130], ["Team", -1], ["Pts", 50]]:
+		## S37.11 — proportional columns (stretch ratios) instead of fixed minimums + clip, so the
+		## name and team never jam together ("Charlie B WilliamsPinnacle Alliance") and the row uses
+		## the full panel width. # fixed; Driver/Team expand 3:2; Pts fixed right.
+		for spec in [["#", "fixed", 36], ["Driver", "exp", 3], ["Team", "exp", 2], ["Pts", "fixed", 64]]:
 			var lh = Label.new()
-			lh.text = pair[0]
+			lh.text = spec[0]
 			lh.add_theme_font_size_override("font_size", 20)
 			lh.modulate = Color(0.45, 0.45, 0.45)
-			if pair[1] == -1: lh.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			else: lh.custom_minimum_size = Vector2(pair[1], 0)
-			if pair[0] == "Pts": lh.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			if spec[1] == "exp":
+				lh.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				lh.size_flags_stretch_ratio = float(spec[2])
+			else:
+				lh.custom_minimum_size = Vector2(spec[2], 0)
+			if spec[0] == "Pts": lh.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 			hdr.add_child(lh)
 
 		parent.add_child(HSeparator.new())
@@ -500,16 +511,17 @@ func _build_standings(parent: VBoxContainer, teams_mode: bool) -> void:
 					team_name = team.team_name
 					break
 			var row = HBoxContainer.new()
-			row.add_theme_constant_override("separation", 0)
+			row.add_theme_constant_override("separation", 16)
 			parent.add_child(row)
 			var lbl_pos = Label.new()
 			lbl_pos.text = "%2d." % pos
-			lbl_pos.custom_minimum_size = Vector2(28, 0)
+			lbl_pos.custom_minimum_size = Vector2(36, 0)
 			lbl_pos.add_theme_font_size_override("font_size", 24)
 			row.add_child(lbl_pos)
 			var lbl_name = Label.new()
 			lbl_name.text = driver.full_name()
-			lbl_name.custom_minimum_size = Vector2(130, 0)
+			lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			lbl_name.size_flags_stretch_ratio = 3.0
 			lbl_name.add_theme_font_size_override("font_size", 24)
 			lbl_name.clip_contents = true
 			if is_player:
@@ -520,6 +532,7 @@ func _build_standings(parent: VBoxContainer, teams_mode: bool) -> void:
 			var lbl_team = Label.new()
 			lbl_team.text = team_name
 			lbl_team.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			lbl_team.size_flags_stretch_ratio = 2.0
 			lbl_team.add_theme_font_size_override("font_size", 20)
 			lbl_team.clip_contents = true
 			lbl_team.add_theme_color_override("font_color",
@@ -527,7 +540,7 @@ func _build_standings(parent: VBoxContainer, teams_mode: bool) -> void:
 			row.add_child(lbl_team)
 			var lbl_pts = Label.new()
 			lbl_pts.text = "%d pts" % entry["points"]
-			lbl_pts.custom_minimum_size = Vector2(50, 0)
+			lbl_pts.custom_minimum_size = Vector2(64, 0)
 			lbl_pts.add_theme_font_size_override("font_size", 24)
 			lbl_pts.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 			lbl_pts.modulate = Color(0.7, 0.7, 0.7)
