@@ -1,3 +1,11 @@
+## Version: S37.37 — show_popup() added: shared AcceptDialog for on-the-spot blocking-error feedback
+##   (Notification & News Roadmap, Phase 0). Engines/scenes call gs.show_popup(message, title);
+##   parented to get_tree().current_scene so RefCounted engines can pop it. Phase 1 (started):
+##   buy_fuel / buy_spare_parts / buy_part insufficient-funds + no-cost-data errors now pop on the
+##   spot instead of routing to the notification panel. show_popup guards against stacking (one modal
+##   at a time; bulk-buy failures fold into a single dialog). register_for_championship guards
+##   (unknown ID / already registered / deadline passed / cannot afford fee) also pop. Remaining
+##   blocking errors migrate next.
 ## Version: S37.34 — pending_campus_zone (transient): Campus restores the last-viewed zone tab when
 ##   returning from a building (set in _show_zone, read in _ready). new-game reset + load clear.
 ## Version: S37.32 — Part purchase prices: load res://data/part_costs.json (Excel CNC base costs ×
@@ -2009,6 +2017,40 @@ func add_notification(priority: String, message: String, destination: String = "
 func notify_event(event_id: String, priority: String, message: String, destination: String = "", mode: String = "event") -> void:
 	_notification_manager.notify_event(event_id, priority, message, destination, mode)
 
+## S37.37 — On-the-spot blocking-error popup (Notification & News Roadmap, Phase 0).
+## Shared AcceptDialog for "you can't do that right now" feedback. Replaces routing blocking
+## errors through the notification panel (which the player, mid-action on another screen, easily
+## misses). Any engine or scene calls gs.show_popup(...); parented to the active scene so it works
+## even when called from RefCounted engines that have no node of their own. Generalises the inline
+## AcceptDialog pattern first used in S29.0 / bug #41.
+## A blocking popup must never STACK: Godot allows only one exclusive child window at a time, and a
+## bulk action (e.g. Logistics "+N each" looping buy_part over every part) would otherwise spawn one
+## dialog per failed item. If a popup is already showing, fold the new message into it instead.
+var _active_popup: AcceptDialog = null
+
+func show_popup(message: String, title: String = "Notice") -> void:
+	var scene: Node = get_tree().current_scene
+	if scene == null:
+		push_warning("show_popup: no current scene — " + message)
+		return
+	# One popup at a time — append the new line rather than stacking a second modal.
+	if is_instance_valid(_active_popup):
+		if not _active_popup.dialog_text.contains(message):
+			_active_popup.dialog_text += "\n" + message
+		return
+	var dialog := AcceptDialog.new()
+	dialog.title = title
+	dialog.dialog_text = message
+	dialog.ok_button_text = "OK"
+	_active_popup = dialog
+	scene.add_child(dialog)
+	dialog.popup_centered()
+	var _clear := func():
+		_active_popup = null
+		dialog.queue_free()
+	dialog.confirmed.connect(_clear)
+	dialog.canceled.connect(_clear)
+
 func reset_notification_once(event_id: String) -> void:
 	_notification_manager.reset_once(event_id)
 
@@ -2122,7 +2164,7 @@ func buy_spare_parts(units: int) -> bool:
 	var cost_per_unit: float = get_sp_cost_per_unit()
 	var total_cost: float = units * cost_per_unit
 	if player_team.balance < total_cost:
-		add_notification("High", "Not enough credits to buy spare parts.")
+		show_popup("Not enough credits to buy spare parts (need CR %.0f, have CR %.0f)." % [total_cost, player_team.balance], "Insufficient Funds")
 		return false
 	player_team.balance -= total_cost
 	spare_parts += units
@@ -2134,7 +2176,7 @@ func buy_fuel(kg: float) -> bool:
 	var cost_per_kg = get_fuel_cost_per_kg()
 	var total_cost = kg * cost_per_kg
 	if player_team.balance < total_cost:
-		add_notification("High", "Not enough credits to buy fuel.")
+		show_popup("Not enough credits to buy fuel (need CR %.0f, have CR %.0f)." % [total_cost, player_team.balance], "Insufficient Funds")
 		return false
 	player_team.balance -= total_cost
 	fuel_kg += kg
@@ -2432,15 +2474,15 @@ func buy_part(part_name: String, quantity: int, champ_id: String = "") -> bool:
 		champ_id = active_championship.id
 	var base_unit_price = get_part_unit_price(champ_id, part_name)
 	if base_unit_price <= 0:
-		add_notification("High", "No part cost data for %s in this championship." % part_name)
+		show_popup("No part cost data for %s in this championship." % part_name, "Cannot Buy Part")
 		return false
 	# Apply Logistics Center discount (-1% per level, max -50%)
 	var discount = get_logistics_parts_discount()
 	var unit_cost = int(round(base_unit_price * discount))
 	var total_cost = unit_cost * quantity
 	if player_team.balance < total_cost:
-		add_notification("High", "Not enough credits to buy %d× %s (need CR %d, have CR %d)." % [
-			quantity, part_name, total_cost, int(player_team.balance)])
+		show_popup("Not enough credits to buy %d× %s (need CR %d, have CR %d)." % [
+			quantity, part_name, total_cost, int(player_team.balance)], "Insufficient Funds")
 		return false
 	player_team.balance -= total_cost
 	if not champ_id in part_inventory:
@@ -2886,19 +2928,19 @@ func can_register_for_championship(champ_id: String) -> bool:
 func register_for_championship(champ_id: String) -> bool:
 	var reg = CHAMPIONSHIP_REGISTRY.get(champ_id, {})
 	if reg.is_empty():
-		add_notification("High", "Unknown championship ID: %s" % champ_id)
+		show_popup("Unknown championship ID: %s" % champ_id, "Cannot Register")
 		return false
 	if champ_id in next_season_registrations:
-		add_notification("Normal", "Already registered for %s (Season %d)." % [reg["name"], current_season + 1])
+		show_popup("Already registered for %s (Season %d)." % [reg["name"], current_season + 1], "Already Registered")
 		return false
 	var deadline = get_entry_deadline_week(champ_id)
 	if current_week > deadline:
-		add_notification("High", "Registration deadline for %s passed (Week %d)." % [reg["name"], deadline])
+		show_popup("Registration deadline for %s passed (Week %d)." % [reg["name"], deadline], "Deadline Passed")
 		return false
 	var fee = reg.get("entry_fee", 0)
 	if player_team.balance < fee:
-		add_notification("High", "Cannot afford entry fee for %s (need CR %s)." % [
-			reg["name"], _fmt_int(fee)])
+		show_popup("Cannot afford entry fee for %s (need CR %s)." % [
+			reg["name"], _fmt_int(fee)], "Insufficient Funds")
 		return false
 	player_team.balance -= fee
 	next_season_registrations.append(champ_id)

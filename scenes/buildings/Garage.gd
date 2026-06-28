@@ -1,3 +1,6 @@
+## Version: S37.37 — Notification & News Roadmap, Phase 1: generic error add_notification(err)
+##   passthrough converted to GameState.show_popup() (on-the-spot AcceptDialog), consistent with the
+##   existing scene popups (#41 / S29.0). Specific cases (not_interested / team_refused) unchanged.
 ## Version: S37.35 — Standard minimal header [Name·Level][Resource Bar][Back][Main Hub]; driver-slots
 ##   + income moved to a sub-row below the header (Main Hub concept).
 ## Version: S37.31 — Added shared ResourceBar component to the header; refresh hooked into _refresh_header so resource changes update immediately.
@@ -816,7 +819,7 @@ func _open_part_popup(car_id: String, pcode: String, champ_id: String) -> void:
 					_popup.visible = false
 					_show_tab(_selected_tab)
 				else:
-					GameState.add_notification("High", "Could not install that part — see log."))
+					GameState.show_popup("Could not install that part \u2014 see log.", "Cannot Install"))
 			row.add_child(btn)
 
 	## ── Provider (L0) options ─────────────────────────────────────────────────
@@ -851,7 +854,7 @@ func _open_part_popup(car_id: String, pcode: String, champ_id: String) -> void:
 				_popup.visible = false
 				_show_tab(_selected_tab)
 			else:
-				GameState.add_notification("High", "Could not install that part — see log."))
+				GameState.show_popup("Could not install that part \u2014 see log.", "Cannot Install"))
 		row.add_child(btn)
 
 	if cnc_keys.is_empty() and prov_stock <= 0:

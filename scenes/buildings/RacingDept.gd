@@ -1,3 +1,6 @@
+## Version: S37.37 — Notification & News Roadmap, Phase 1: generic error add_notification(err)
+##   passthrough converted to GameState.show_popup() (on-the-spot AcceptDialog), consistent with the
+##   existing scene popups (#41 / S29.0). Specific cases (not_interested / team_refused) unchanged.
 ## Version: S37.33 — Standard scene layout: added shared ResourceBar + Main Hub button to the
 ##   header ([Name][Level][Resource Bar][Back][Main Hub]); bar refreshes via the scene's build/
 ##   refresh path. Part of the §15.3 scene-standard rollout.
@@ -428,7 +431,7 @@ func _build_driver_card(driver) -> PanelContainer:
 		if err == "not_interested":
 			_show_not_interested_popup(d_id)  ## S29.0 — visible popup, not just notification
 		elif err != "":
-			GameState.add_notification("High", err)
+			GameState.show_popup(err, "Action Failed")
 		elif err == "":
 			var ap = GameState._get_approach_by_subject(d_id)
 			if not ap.is_empty() and ap["status"] == "negotiating":

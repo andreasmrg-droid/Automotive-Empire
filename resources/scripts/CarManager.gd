@@ -1,4 +1,9 @@
 class_name CarManager
+## Version: S37.37 — Notification & News Roadmap, Phase 1: blocking-error add_notification calls
+##   converted to gs.show_popup() — garage full, invalid car name, already-full-condition repairs,
+##   not-enough-SP repairs, no CNC inventory, no provider parts in stock. Age-limit assign block
+##   intentionally NOT popped here (assign_driver_to_car returns the msg; caller pops it — the #41
+##   pattern, avoids double-show). Car-ready / install-success / pit-crew-DNS left for Phase 2/3.
 ## Version: S37.16 — #41: assign_driver_to_car() now RETURNS a String (empty = success, else a
 ##   player-facing failure reason e.g. age-limit). Callers show a modal popup on failure instead of
 ##   only a notification.
@@ -64,9 +69,9 @@ func generate_car_name(for_champ_id: String = "") -> String:
 func add_car(for_champ_id: String = "", silent: bool = false) -> bool:
 	var max_c = gs.get_max_cars()
 	if gs.player_team_cars.size() >= max_c:
-		gs.add_notification("High",
+		gs.show_popup(
 			"Garage full (%d/%d slots). Upgrade the Garage to field more cars." % [
-			gs.player_team_cars.size(), max_c])
+			gs.player_team_cars.size(), max_c], "Garage Full")
 		return false
 
 	# Determine which championship this car is for
@@ -178,10 +183,10 @@ func remove_car(car_id: String) -> bool:
 func rename_car(car_id: String, new_name: String) -> bool:
 	var name = new_name.strip_edges()
 	if name == "":
-		gs.add_notification("Normal", "Car name cannot be empty.")
+		gs.show_popup("Car name cannot be empty.", "Invalid Name")
 		return false
 	if name.length() > 12:
-		gs.add_notification("Normal", "Car name must be 12 characters or fewer.")
+		gs.show_popup("Car name must be 12 characters or fewer.", "Invalid Name")
 		return false
 	var car = get_car_by_id(car_id)
 	if not car:
@@ -209,9 +214,10 @@ func assign_driver_to_car(driver_id: String, car_id: String) -> String:
 			var reason = "too young" if driver.age < min_age else "too old"
 			var msg = "%s (age %d) is %s for %s.\n\nThis championship only allows ages %s." % [
 				driver.full_name(), driver.age, reason, champ_name, limit_str]
-			gs.add_notification("High",
-				"⚠ Cannot assign %s (age %d) to %s — age limit is %s." % [
-				driver.full_name(), driver.age, champ_name, limit_str])
+			## NOTE (S37.37): no show_popup here — assign_driver_to_car RETURNS this msg and the
+			## caller (Garage/RacingDept/Drivers) already displays it via _show_assign_blocked_popup
+			## (the #41 pattern). Popping here too would double-show. Caller-side popup is the single
+			## source. TODO Phase-0 cleanup: collapse _show_assign_blocked_popup onto GameState.show_popup.
 			gs.emit_signal("log_updated")
 			return msg
 	# Unassign from any current car first
@@ -351,15 +357,15 @@ func repair_car(driver_id: String, repair_pct: float) -> bool:
 	var current = car.condition
 	var actual_repair = min(repair_pct, 100.0 - current)
 	if actual_repair <= 0.0:
-		gs.add_notification("Normal", "Car is already at full condition.")
+		gs.show_popup("Car is already at full condition.", "Nothing to Repair")
 		return false
 	## CP4 — SP cost read from THIS car's championship, not the singular active_championship (= GK).
 	var car_champ: Championship = gs.get_championship_by_id(car.championship_id)
 	var sp_rate = car_champ.sp_per_10_pct_damage if car_champ != null else gs.active_championship.sp_per_10_pct_damage
 	var sp_cost = int(ceil(actual_repair / 10.0) * sp_rate)
 	if gs.spare_parts < sp_cost:
-		gs.add_notification("High",
-			"Not enough SP to repair car. Need %d SP, have %d." % [sp_cost, gs.spare_parts])
+		gs.show_popup(
+			"Not enough SP to repair car. Need %d SP, have %d." % [sp_cost, gs.spare_parts], "Not Enough Spare Parts")
 		return false
 	gs.spare_parts -= sp_cost
 	car.condition = min(100.0, current + actual_repair)
@@ -375,7 +381,7 @@ func repair_car_full(driver_id: String) -> bool:
 		return false
 	var damage = 100.0 - car.condition
 	if damage <= 0.0:
-		gs.add_notification("Normal", "Car is already at full condition.")
+		gs.show_popup("Car is already at full condition.", "Nothing to Repair")
 		return false
 	return repair_car(driver_id, damage)
 
@@ -410,9 +416,9 @@ func repair_car_affordable(driver_id: String) -> bool:
 	if pct <= 0.0:
 		var car = get_car_for_driver(driver_id)
 		var sp_rate = _car_sp_rate(car) if car else 0
-		gs.add_notification("High",
+		gs.show_popup(
 			"Not enough SP for even a 10%% repair (need %d SP, have %d). Buy SP at the Logistics Center." % [
-			sp_rate, gs.spare_parts])
+			sp_rate, gs.spare_parts], "Not Enough Spare Parts")
 		return false
 	return repair_car(driver_id, pct)
 
@@ -426,11 +432,11 @@ func repair_car_max_sp(driver_id: String) -> bool:
 		return false
 	var damage = 100.0 - car.condition
 	if damage <= 0.0:
-		gs.add_notification("Normal", "Car is already at full condition.")
+		gs.show_popup("Car is already at full condition.", "Nothing to Repair")
 		return false
 	if gs.spare_parts <= 0:
-		gs.add_notification("High",
-			"No SP to repair with. Buy SP at the Logistics Center.")
+		gs.show_popup(
+			"No SP to repair with. Buy SP at the Logistics Center.", "Not Enough Spare Parts")
 		return false
 	var sp_rate = _car_sp_rate(car)
 	if sp_rate <= 0:
@@ -459,12 +465,12 @@ func install_part_on_car(car_id: String, champ_id: String, pcode: String) -> boo
 		## Fall back to the matching-scan used for display.
 		var matches = gs.get_cnc_stock_for_slot(champ_id, pcode)
 		if matches.is_empty():
-			gs.add_notification("High", "No %s in CNC inventory." % pcode)
+			gs.show_popup("No %s in CNC inventory." % pcode, "Cannot Install")
 			return false
 		inv_key = matches[0]
 	var item = gs.cnc_parts_inventory[inv_key]
 	if not item is Dictionary or item.get("quantity", 0) <= 0:
-		gs.add_notification("High", "No %s in CNC inventory." % pcode)
+		gs.show_popup("No %s in CNC inventory." % pcode, "Cannot Install")
 		return false
 	var car = null
 	for c in gs.player_team_cars:
@@ -547,7 +553,7 @@ func install_provider_part(car_id: String, champ_id: String, pcode: String) -> b
 		"SUS":"Suspension","BRK":"Brakes","CHS":"Chassis"}
 	var part_name = PCODE_TO_NAME.get(pcode, pcode)
 	if gs.get_part_stock(part_name, champ_id) <= 0:
-		gs.add_notification("High", "No %s provider parts in stock." % part_name)
+		gs.show_popup("No %s provider parts in stock." % part_name, "Out of Stock")
 		return false
 	var car = null
 	for c in gs.player_team_cars:

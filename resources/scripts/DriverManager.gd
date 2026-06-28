@@ -1,4 +1,7 @@
 class_name DriverManager
+## Version: S37.37 — Notification & News Roadmap, Phase 1: blocking-error add_notification calls
+##   converted to gs.show_popup() (on-the-spot AcceptDialog). Genuine events (hired / signed /
+##   released) left as notifications for Phase 3.
 ## Version: S37.15 — #18 hidden-gems: _roll_potential() Box–Muller wide-normal distribution used for
 ##   ALL driver pools (most ordinary, stars rare) so the TP's eye-for-talent read is meaningful.
 ## Version: S37.14 — #18 GK starting-driver too strong. GK cadet age range now starts at 8 (was 13)
@@ -62,14 +65,14 @@ func hire_driver(driver_id: String) -> bool:
 		return false
 	var driver = gs.all_drivers[driver_id]
 	if driver.contract_team != "":
-		gs.add_notification("High", "%s is already contracted to another team." % driver.full_name())
+		gs.show_popup("%s is already contracted to another team." % driver.full_name(), "Cannot Sign")
 		return false
 	# Enforce Racing Department slot cap
 	var max_d = gs.get_max_drivers()
 	if gs.player_team.drivers.size() >= max_d:
-		gs.add_notification("High",
+		gs.show_popup(
 			"Racing Department full (%d/%d slots). Upgrade it to sign more drivers." % [
-			gs.player_team.drivers.size(), max_d])
+			gs.player_team.drivers.size(), max_d], "Slots Full")
 		return false
 	driver.contract_team = gs.player_team.id
 	driver.contract_seasons_remaining = 5

@@ -1,4 +1,10 @@
 class_name RnDEngine
+## Version: S37.37 — Notification & News Roadmap, Phase 1: blocking-error add_notification calls
+##   converted to gs.show_popup() (on-the-spot AcceptDialog) — CNC manufacture guards (no blueprint /
+##   plant not built / insufficient funds / not WRA-approved / season-locked), install guards (car
+##   not found / no inventory), and start_rnd_task guards (unknown / already done / prereq / not
+##   enough RP|CR / invalid|busy designer). Genuine events (CNC ready, R&D complete, WRA approved)
+##   intentionally LEFT as notifications for Phase 3/4. No logic change beyond the surface swap.
 ## Version: S35.19 — P4 unlock now ALSO enforces Required_RnD_Studio_Level (the R&D Design Studio
 ##   building level). The data carried this on every Special Project but it was never checked; now
 ##   a project needs both its target building AND the Studio at/above the required level. Gate
@@ -342,11 +348,11 @@ func get_manufacturable_parts() -> Array:
 
 func start_cnc_production(part: String, champ_id: String, quantity: int = 1) -> bool:
 	if not has_blueprint(part):
-		gs.add_notification("High", "No blueprint for %s. Research it in R&D Studio first." % part)
+		gs.show_popup("No blueprint for %s. Research it in R&D Studio first." % part, "Cannot Manufacture")
 		return false
 	var building = gs.campus_buildings.get("CNC Parts Plant", {})
 	if not building.get("built", false):
-		gs.add_notification("High", "CNC Parts Plant not built.")
+		gs.show_popup("CNC Parts Plant not built.", "Cannot Manufacture")
 		return false
 	var cnc = gs.CNC_DATA.get(champ_id, gs.CNC_DATA.get("C-001", {}))
 	var base_cost = cnc.get("base_total_cost", 10000)
@@ -355,7 +361,7 @@ func start_cnc_production(part: String, champ_id: String, quantity: int = 1) -> 
 		"Gearbox":0.08,"Brakes":0.06,"Suspension":0.06}
 	var unit_cost = int(base_cost * PART_COST_RATIO.get(part, 0.10) * float(quantity))
 	if gs.player_team.balance < unit_cost:
-		gs.add_notification("High", "Insufficient funds for CNC production. Need CR %s." % gs._fmt_int(unit_cost))
+		gs.show_popup("Insufficient funds for CNC production. Need CR %s." % gs._fmt_int(unit_cost), "Insufficient Funds")
 		return false
 	# Manufacture time: design_weeks scaled by part complexity
 	const PART_TIME_RATIO = {"Aero":0.4,"Engine":0.6,"Chassis":0.5,
@@ -440,11 +446,11 @@ func assign_cnc_part_to_car(car_id: String, part: String) -> bool:
 	for c in gs.player_team_cars:
 		if c.id == car_id: car = c; break
 	if car == null:
-		gs.add_notification("High", "Car not found: %s" % car_id)
+		gs.show_popup("Car not found: %s" % car_id, "Cannot Install")
 		return false
 	var available = gs.cnc_parts_inventory.get(part, 0)
 	if available <= 0:
-		gs.add_notification("High", "No %s in CNC inventory. Manufacture one first." % part)
+		gs.show_popup("No %s in CNC inventory. Manufacture one first." % part, "Cannot Install")
 		return false
 	gs.cnc_parts_inventory[part] = available - 1
 	if gs.cnc_parts_inventory[part] <= 0:
@@ -595,24 +601,24 @@ func _get_wra_group_season(cid: String) -> int:
 func start_cnc_job(blueprint_id: String, quantity: int = 1,
 		extra_cr: int = 0, extra_weeks: int = 0) -> bool:
 	if not is_blueprint_approved(blueprint_id):
-		gs.add_notification("High", "Blueprint not WRA-approved. Submit it at the WRA Office in HQ first.")
+		gs.show_popup("Blueprint not WRA-approved. Submit it at the WRA Office in HQ first.", "Cannot Manufacture")
 		return false
 	## Bug 8: a blueprint designed for a FUTURE season cannot be manufactured yet —
 	## the CNC only unlocks it once that season begins. Prevents a next-season part
 	## from becoming available in the current season.
 	var bp_season = int(gs.known_blueprints.get(blueprint_id, {}).get("season", gs.current_season))
 	if bp_season > gs.current_season:
-		gs.add_notification("High",
-			"This blueprint is for Season %d — it unlocks for CNC manufacturing when that season begins." % bp_season,
-			"cnc_plant")
+		gs.show_popup(
+			"This blueprint is for Season %d \u2014 it unlocks for CNC manufacturing when that season begins." % bp_season,
+			"Not Available Yet")
 		return false
 	var building = gs.campus_buildings.get("CNC Parts Plant", {})
 	if not building.get("built", false):
-		gs.add_notification("High", "CNC Parts Plant not built.")
+		gs.show_popup("CNC Parts Plant not built.", "Cannot Manufacture")
 		return false
 	var total_cr = get_cnc_manufacturing_cr(blueprint_id, quantity, extra_cr)
 	if gs.player_team.balance < total_cr:
-		gs.add_notification("High", "Insufficient funds. Need CR %s." % gs._fmt_int(total_cr))
+		gs.show_popup("Insufficient funds. Need CR %s." % gs._fmt_int(total_cr), "Insufficient Funds")
 		return false
 	var weeks = get_cnc_manufacturing_weeks(blueprint_id, extra_weeks)
 	var reliability = calculate_final_reliability(blueprint_id, extra_cr, extra_weeks)
@@ -809,28 +815,28 @@ func rnd_task_active_or_done(task_id: String) -> bool:
 func start_rnd_task(task_id: String, designer_id: String, championship_id: String = "") -> bool:
 	var task = gs.RND_TASKS.get(task_id, {})
 	if task.is_empty():
-		gs.add_notification("High", "Unknown R&D task: %s" % task_id)
+		gs.show_popup("Unknown R&D task: %s" % task_id, "Cannot Start R&D")
 		return false
 	if rnd_task_active_or_done(task_id):
-		gs.add_notification("Normal", "'%s' is already researched or in progress." % task["name"])
+		gs.show_popup("'%s' is already researched or in progress." % task["name"], "Cannot Start R&D")
 		return false
 	if not rnd_task_unlocked(task_id):
 		var req = task.get("requires", "")
-		gs.add_notification("High", "Prerequisite not met: complete '%s' first." % gs.RND_TASKS.get(req, {}).get("name", req))
+		gs.show_popup("Prerequisite not met: complete '%s' first." % gs.RND_TASKS.get(req, {}).get("name", req), "Cannot Start R&D")
 		return false
 	if gs.research_points < task["rp"]:
-		gs.add_notification("High", "Not enough RP. Need %d, have %.0f." % [task["rp"], gs.research_points])
+		gs.show_popup("Not enough RP. Need %d, have %.0f." % [task["rp"], gs.research_points], "Cannot Start R&D")
 		return false
 	if gs.player_team.balance < task["cr"]:
-		gs.add_notification("High", "Not enough CR. Need %s, have %s." % [gs._fmt_int(task["cr"]), gs._fmt_int(int(gs.player_team.balance))])
+		gs.show_popup("Not enough CR. Need %s, have %s." % [gs._fmt_int(task["cr"]), gs._fmt_int(int(gs.player_team.balance))], "Insufficient Funds")
 		return false
 	if not designer_id in gs.all_staff:
-		gs.add_notification("High", "Invalid designer.")
+		gs.show_popup("Invalid designer.", "Cannot Start R&D")
 		return false
 	for t in gs.active_rnd_tasks:
 		if t["designer_id"] == designer_id:
 			var other = gs.RND_TASKS.get(t["id"], {})
-			gs.add_notification("High", "Designer already working on '%s'." % other.get("name", t["id"]))
+			gs.show_popup("Designer already working on '%s'." % other.get("name", t["id"]), "Designer Busy")
 			return false
 
 	gs.research_points -= task["rp"]

@@ -1,4 +1,7 @@
 class_name StaffManager
+## Version: S37.37 — Notification & News Roadmap, Phase 1: blocking-error add_notification calls
+##   converted to gs.show_popup() (on-the-spot AcceptDialog). Genuine events (hired / signed /
+##   released) left as notifications for Phase 3.
 ## Version: S37.15 — #18: runtime-generated Team Principals now roll talent_scouting (wide 10–90,
 ## independent of overall quality — a mediocre TP can have a great eye).
 ## Version: S35.6 — get_player_staff_by_role() now reads GameState's player-staff cache instead of
@@ -223,13 +226,13 @@ func hire_staff(staff_id: String) -> bool:
 		var existing_tp = get_player_staff_by_role("Team Principal")
 		var max_tp = gs.get_hq_tp_slots()
 		if existing_tp.size() >= max_tp:
-			gs.add_notification("High",
-				"TP slots full (%d/%d). Upgrade the HQ to unlock more slots." % [existing_tp.size(), max_tp])
+			gs.show_popup(
+				"TP slots full (%d/%d). Upgrade the HQ to unlock more slots." % [existing_tp.size(), max_tp], "Slots Full")
 			return false
 	if staff.role == "CFO":
 		var existing_cfo = get_player_staff_by_role("CFO")
 		if existing_cfo.size() >= 1:
-			gs.add_notification("High", "You already have a CFO. Release them first.")
+			gs.show_popup("You already have a CFO. Release them first.", "Already Have a CFO")
 			return false
 	staff.contract_team = gs.player_team.id
 	staff.contract_seasons_remaining = 5

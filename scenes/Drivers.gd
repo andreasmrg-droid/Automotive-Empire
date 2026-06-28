@@ -1,3 +1,6 @@
+## Version: S37.37 — Notification & News Roadmap, Phase 1: generic error add_notification(err)
+##   passthrough converted to GameState.show_popup() (on-the-spot AcceptDialog), consistent with the
+##   existing scene popups (#41 / S29.0). Specific cases (not_interested / team_refused) unchanged.
 ## Version: S37.36 — Standard minimal header [Name][Resource Bar][Back][Main Hub]; Shortlist entry
 ##   moved to a sub-row below the header (Main Hub concept).
 ## Version: S37.24 — popup-position: driver card CENTERED on screen (was right-anchored/clipping).
@@ -1045,7 +1048,7 @@ func _initiate_approach(subject_id: String, subject_type: String, start_date: St
 	elif err == "team_refused" or err == "team_refused_cooldown":
 		_show_team_refused_popup(subject_id, subject_type)  ## S35.9 — team won't release
 	elif err != "":
-		GameState.add_notification("High", err)
+		GameState.show_popup(err, "Action Failed")
 	else:
 		## Check if we went straight to negotiating (free agent) — open popup immediately
 		var ap = GameState._get_approach_by_subject(subject_id)
