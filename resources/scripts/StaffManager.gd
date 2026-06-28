@@ -1,4 +1,9 @@
 class_name StaffManager
+## Version: S37.42 — BUGFIX (release doesn't unassign): release_staff() now clears the CAR-side
+##   assignment (car.mechanic_id / car.pit_crew_id) for the released staff, mirroring release_driver.
+##   Previously only the staff object was cleared, so a released mechanic/pit-crew stayed wired to
+##   the car → no readiness gap, no TDL/warning until the player manually unassigned. Strategist/TP
+##   are team-level (assigned_championship, already cleared) and were unaffected.
 ## Version: S37.37 — Notification & News Roadmap, Phase 1: blocking-error add_notification calls
 ##   converted to gs.show_popup() (on-the-spot AcceptDialog). Genuine events (hired / signed /
 ##   released) left as notifications for Phase 3.
@@ -270,6 +275,18 @@ func release_staff(staff_id: String) -> void:
 	staff.assigned_car_id = ""
 	staff.contract_seasons_remaining = 0
 	staff.release_clause = 0
+	## S37.42 — BUGFIX: clear the CAR-side assignment too. Cars hold mechanic_id / pit_crew_id; the
+	## old release_staff only cleared the staff object, so a released mechanic/pit-crew stayed wired
+	## to the car → no readiness gap detected, no TDL, no warning (the slot looked filled). Mirror
+	## release_driver's car-walk. (Strategist/TP are team-level via assigned_championship, already
+	## cleared above — they were never the problem.)
+	for car in gs.player_team_cars:
+		if car.mechanic_id == staff_id:
+			car.mechanic_id = ""
+			gs.add_log("🔧 Car %d now has no mechanic (released)." % car.car_number)
+		if car.pit_crew_id == staff_id:
+			car.pit_crew_id = ""
+			gs.add_log("⏱ Car %d now has no pit crew (released)." % car.car_number)
 	gs.invalidate_player_staff_cache()  ## S35.6 — roster changed
 	gs.add_log("👋 Released %s (%s)" % [staff.full_name(), staff.role])
 	gs.emit_signal("log_updated")

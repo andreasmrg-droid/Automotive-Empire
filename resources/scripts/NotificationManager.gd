@@ -1,4 +1,9 @@
 class_name NotificationManager
+## Version: S37.42 — Readiness gaps are now CRITICAL (red): missing driver / mechanic / Team Principal
+##   all cause a DNS, so their TDL rows are prefixed with 🚫 (the UI's critical-color marker) instead
+##   of ⚠/🔧/👤 which rendered orange. (Driver-on-car 🏎 and Pit Crew ⏱ were already red.) Routing
+##   substrings preserved so the → buttons still resolve. Strategist readiness check still pending
+##   (tied to the SC-Dev-Cup building-slot investigation).
 ## Version: S37.40 — Commitment (type-3) sponsor TDL: while not registered for the championship
 ##   a championship-sponsor requires, a TDL prompts registration NEXT SEASON (clears on register).
 ##   Championship sponsors now drive a TDL, not just a notification.
@@ -306,7 +311,7 @@ func get_pending_tasks() -> Array[String]:
 		var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
 		if car.driver_id == "":
 			if gs.player_team.drivers.is_empty():
-				tasks.append("👤 No drivers signed — hire one from Drivers screen.")
+				tasks.append("🚫 No drivers signed — hire one from Drivers screen (car will DNS).")
 			else:
 				tasks.append("🏎 %s [%s] — no driver assigned. Go to Garage." % [car_label, champ_name])
 		if car.mechanic_id == "":
@@ -317,9 +322,9 @@ func get_pending_tasks() -> Array[String]:
 					has_mechanic = true
 					break
 			if not has_mechanic:
-				tasks.append("🔧 No Race Mechanic hired — hire one from Staff screen.")
+				tasks.append("🚫 No Race Mechanic hired — hire one from Staff screen (car will DNS).")
 			else:
-				tasks.append("🔧 %s [%s] — no mechanic assigned. Go to Garage." % [car_label, champ_name])
+				tasks.append("🚫 %s [%s] — no mechanic assigned. Go to Garage (car will DNS)." % [car_label, champ_name])
 		if gs.get_pit_crew_required(car.championship_id):
 			if car.pit_crew_id == "" or car.pit_crew_id == "N/A":
 				tasks.append("⏱ %s [%s] — no Pit Crew. Assign in Pit Crew Arena." % [car_label, champ_name])
@@ -336,9 +341,9 @@ func get_pending_tasks() -> Array[String]:
 	if has_gk_active and not gk_tp_ok:
 		var has_any_tp = gs.get_player_staff_by_role("Team Principal").size() > 0
 		if not has_any_tp:
-			tasks.append("⚠ No Team Principal — hire one from Staff screen.")
+			tasks.append("🚫 No Team Principal — hire one from Staff screen (car will DNS).")
 		else:
-			tasks.append("⚠ GK disciplines have no Team Principal assigned. Go to Racing Department.")
+			tasks.append("🚫 GK disciplines have no Team Principal assigned. Go to Racing Department (car will DNS).")
 	elif not has_gk_active:
 		## Non-GK: check each active championship
 		var non_gk_missing_tp: Array = []
@@ -347,7 +352,7 @@ func get_pending_tasks() -> Array[String]:
 			if gs._get_tp_for_championship(champ.id) == null:
 				non_gk_missing_tp.append(champ.championship_name)
 		if non_gk_missing_tp.size() > 0:
-			tasks.append("⚠ No Team Principal for: %s" % ", ".join(non_gk_missing_tp))
+			tasks.append("🚫 No Team Principal for: %s (car will DNS)." % ", ".join(non_gk_missing_tp))
 	## CFO is OPTIONAL ("good to have"). It appears as a READ-ONLY TO-DO row while missing (the
 	## player can see the list; the TDL never fires notifications). The one-time "no CFO"
 	## notification is handled separately by notify_event("no_cfo", ..., "once") in GameState.
