@@ -1,4 +1,12 @@
 class_name RaceSimulator
+## Version: S37.45 — (1) BUGFIX/design: a missing Team Principal is now a DNS, enforced in
+##   can_car_race() (was only a soft "racing without oversight" warning that let the car race
+##   anyway — contradicting the readiness TDL). Uses the same player-scoped _get_tp_for_championship
+##   resolver as the TDL so the two agree; removed the misleading warning in check_race_requirements_for.
+##   (2) Phase 3 (events→notify_event): all 13 notifications migrated — DNS/resource conditions →
+##   "standing" (collapse to latest via their existing subjects; DNS pit-crew/TP now route to
+##   pit_arena/racing_center), terminal damage + repair-failure → "event". (3) Stale "24
+##   championships" comment → 21.
 ## Version: S37.7 — Removed the per-race "No CFO on staff" notification (it fired every race — the
 ##   W10/W12 spam). CFO is optional; its state is now a read-only TO-DO row + a one-time framework
 ##   notification. The Team Principal warning (genuinely race-affecting) is unchanged.
@@ -45,12 +53,12 @@ func _init(game_state) -> void:
 # ═══════════════════════════════════════════════════════════════════════════
 
 func check_race_requirements_for(champ: Championship) -> void:
-	var tp = gs.get_team_principal()
-	if tp == null:
-		gs.add_notification("High",
-			"⚠ No Team Principal for %s! Racing without tactical oversight." % champ.championship_name)
+	## S37.45 — the old "No Team Principal — racing without tactical oversight" warning was removed:
+	## a missing TP is now a DNS (enforced in can_car_race), so the car does NOT race, and the DNS
+	## notification fires there. Keeping the soft "racing anyway" message here would contradict that.
 	## CFO is OPTIONAL — no per-race notification (it spammed every race). The "no CFO" state is
 	## surfaced once via notify_event("no_cfo", ..., "once") and stays visible in the TO-DO list.
+	pass
 
 
 ## DNS check — returns true if the car CAN race, false if DNS.
@@ -65,38 +73,49 @@ func can_car_race(driver_id: String) -> bool:
 	var fuel_needed = car_champ.fuel_per_car_per_race if car_champ != null else gs.active_championship.fuel_per_car_per_race
 	var fuel_champ_id = car_champ.id if car_champ != null else gs.active_championship.id
 	if gs.fuel_kg < fuel_needed:
-		gs.add_notification("Critical",
+		gs.notify_event("dns_fuel_%s" % fuel_champ_id, "Critical",
 			"DNS: Not enough fuel (%.1f kg). Need %.1f kg. Buy fuel at Logistics Center." % [
-				gs.fuel_kg, fuel_needed], "logistics", "dns_fuel_%s" % fuel_champ_id)
+				gs.fuel_kg, fuel_needed], "logistics", "standing")
 		gs.add_log("🚫 DNS — Insufficient fuel for race start.")
 		return false
 
 	# DNS: car not yet delivered (in build / in transit) — Phase 2
 	if not car.delivered:
-		gs.add_notification("Critical",
+		gs.notify_event("dns_undelivered_%s" % car.id, "Critical",
 			"DNS: %s is still in build — arrives Week %d." % [
 				(car.car_name if car.car_name != "" else "Car %d" % car.car_number), car.delivery_week],
-			"", "dns_undelivered_%s" % car.id)
+			"", "standing")
 		gs.add_log("🚫 DNS — %s not yet delivered (arrives Wk %d)." % [
 			(car.car_name if car.car_name != "" else "Car %d" % car.car_number), car.delivery_week])
 		return false
 
 	# DNS: no race mechanic
 	if car.mechanic_id == "":
-		gs.add_notification("Critical",
+		gs.notify_event("dns_mechanic_%s" % car.id, "Critical",
 			"DNS: %s has no Race Mechanic! Assign one in the Garage before racing." % (car.car_name if car.car_name != "" else "Car %d" % car.car_number),
-			"garage", "dns_mechanic_%s" % car.id)
+			"garage", "standing")
 		gs.add_log("🚫 DNS — No Race Mechanic on %s." % (car.car_name if car.car_name != "" else "Car %d" % car.car_number))
 		return false
 
 	# DNS: no pit crew for non-GK championships
 	if gs.get_pit_crew_required(car.championship_id):
 		if car.pit_crew_id == "" or car.pit_crew_id == "N/A":
-			gs.add_notification("Critical",
+			gs.notify_event("dns_pitcrew_%s" % car.id, "Critical",
 				"DNS: %s has no Pit Crew! Assign one in the Pit Crew Arena before racing." % (car.car_name if car.car_name != "" else "Car %d" % car.car_number),
-				"", "dns_pitcrew_%s" % car.id)
+				"pit_arena", "standing")
 			gs.add_log("🚫 DNS — No Pit Crew on %s." % (car.car_name if car.car_name != "" else "Car %d" % car.car_number))
 			return false
+
+	# DNS: no Team Principal for this car's championship. S37.45 — per design ruling, a missing TP
+	# is a DNS (not just "racing without oversight"). The readiness TDL already flags this as
+	# Critical; this is the matching ENFORCEMENT (previously the sim only warned and raced anyway).
+	# Uses the same player-scoped, discipline-aware TP resolver as the TDL so the two agree.
+	if gs._get_tp_for_championship(car.championship_id) == null:
+		gs.notify_event("dns_tp_%s" % car.championship_id, "Critical",
+			"DNS: %s has no Team Principal! Assign one in the Racing Department before racing." % (car.car_name if car.car_name != "" else "Car %d" % car.car_number),
+			"racing_center", "standing")
+		gs.add_log("🚫 DNS — No Team Principal for %s." % car.championship_id)
+		return false
 
 	return true
 
@@ -175,18 +194,16 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 			if not car.delivered:
 				gs.add_log("🚫 DNS [%s] %s — car not yet delivered (arrives Wk %d)." % [
 					c.championship_name, car_label, car.delivery_week])
-				gs.add_notification("High",
+				gs.notify_event("dns_undelivered_%s" % car.id, "High",
 					"DNS: %s not delivered until Week %d for %s." % [
-					car_label, car.delivery_week, c.championship_name], "logistics",
-					"dns_undelivered_%s" % car.id)
+					car_label, car.delivery_week, c.championship_name], "logistics", "standing")
 				car_dns = true
 
 			if car.driver_id == "":
 				gs.add_log("🚫 DNS [%s] %s — no driver assigned." % [c.championship_name, car_label])
-				gs.add_notification("Critical",
+				gs.notify_event("dns_driver_%s" % car.id, "Critical",
 					"DNS: %s has no driver for %s! Assign in Garage." % [
-					car_label, c.championship_name], "garage",
-					"dns_driver_%s" % car.id)
+					car_label, c.championship_name], "garage", "standing")
 				car_dns = true
 			elif car.delivered and not can_car_race(car.driver_id):
 				# Only run the full requirement gate for delivered cars — an undelivered
@@ -195,19 +212,17 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 
 			if car.mechanic_id == "":
 				gs.add_log("🚫 DNS [%s] %s — no mechanic assigned." % [c.championship_name, car_label])
-				gs.add_notification("Critical",
+				gs.notify_event("dns_mechanic_%s" % car.id, "Critical",
 					"DNS: %s has no mechanic for %s! Assign in Garage." % [
-					car_label, c.championship_name], "garage",
-					"dns_mechanic_%s" % car.id)
+					car_label, c.championship_name], "garage", "standing")
 				car_dns = true
 
 			if gs.get_pit_crew_required(c.id):
 				if car.pit_crew_id == "" or car.pit_crew_id == "N/A":
 					gs.add_log("🚫 DNS [%s] %s — no Pit Crew assigned." % [c.championship_name, car_label])
-					gs.add_notification("Critical",
+					gs.notify_event("dns_pitcrew_%s" % car.id, "Critical",
 						"DNS: %s has no Pit Crew for %s! Assign one in Pit Crew Arena." % [
-						car_label, c.championship_name], "",
-						"dns_pitcrew_%s" % car.id)
+						car_label, c.championship_name], "pit_arena", "standing")
 					car_dns = true
 
 			if car_dns:
@@ -441,7 +456,7 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 	degrade_car_conditions(race_data["laps"], dns_driver_ids, c)
 
 	# Consume fuel and earn RP — only for player's own championships
-	## Bug 13 fix: designers were earning RP from all 24 championships
+	## Bug 13 fix: designers were earning RP from all 21 championships
 	if c.id in gs.player_registered_championships:
 		consume_race_resources(c)
 		earn_race_rp(race_data["laps"])
@@ -636,9 +651,9 @@ func degrade_car_conditions(laps: int, dns_driver_ids: Array = [], champ: Champi
 				var pd = gs.car_installed_parts[car.id][pcode]
 				pd["condition"] = max(0.0, pd.get("condition", 100.0) - loss)
 				if pd["condition"] <= 0.0:
-					gs.add_notification("Critical",
+					gs.notify_event("terminal_%s_%s" % [pcode, car.id], "Critical",
 						"🔩 %s TERMINAL DAMAGE on %s! Slot empty — car cannot race." % [
-						pcode, car.car_name if car.car_name != "" else "Car %d" % car.car_number])
+						pcode, car.car_name if car.car_name != "" else "Car %d" % car.car_number], "", "event")
 					gs.car_installed_parts[car.id].erase(pcode)
 		## Degrade per-part condition for provider parts
 		if car.id in gs.car_provider_parts:
@@ -646,9 +661,9 @@ func degrade_car_conditions(laps: int, dns_driver_ids: Array = [], champ: Champi
 				var pd = gs.car_provider_parts[car.id][pcode]
 				pd["condition"] = max(0.0, pd.get("condition", 100.0) - loss)
 				if pd["condition"] <= 0.0:
-					gs.add_notification("Critical",
+					gs.notify_event("terminal_%s_%s" % [pcode, car.id], "Critical",
 						"🔩 %s TERMINAL DAMAGE on %s! Slot empty — buy provider parts at Logistics." % [
-						pcode, car.car_name if car.car_name != "" else "Car %d" % car.car_number])
+						pcode, car.car_name if car.car_name != "" else "Car %d" % car.car_number], "logistics", "event")
 					gs.car_provider_parts[car.id].erase(pcode)
 		gs.add_log("🔩 Car %d condition after race: %.0f%% (−%.1f%% over %d laps)" % [
 			car.car_number, car.condition, loss, laps])
@@ -675,8 +690,8 @@ func auto_repair_cars_post_race() -> void:
 			continue
 
 		if car.mechanic_id == "":
-			gs.add_notification("High",
-				"Car %d cannot be repaired — no Race Mechanic assigned!" % car.car_number)
+			gs.notify_event("repair_no_mech_%d" % car.car_number, "High",
+				"Car %d cannot be repaired — no Race Mechanic assigned!" % car.car_number, "garage", "event")
 			any_failed = true
 			failed_car_names.append("Car %d (no mechanic)" % car.car_number)
 			continue
@@ -708,9 +723,9 @@ func auto_repair_cars_post_race() -> void:
 		## Share the res_spare_parts subject with the weekly SP warning so the player sees ONE
 		## standing SP notification, not a fresh "SP insufficient to fully repair Car N" every race
 		## week (was spamming W8/W10/W10...). Subject supersede keeps only the latest instance.
-		gs.add_notification("Critical" if gs.spare_parts == 0 else "High",
+		gs.notify_event("res_spare_parts", "Critical" if gs.spare_parts == 0 else "High",
 			"SP insufficient to fully repair %s. Buy more SP at Logistics Center." % names,
-			"", "res_spare_parts")
+			"logistics", "standing")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
