@@ -1,3 +1,7 @@
+## Version: S37.39 — Close is now a true safeguard in BOTH modes: it calls discard_draft_negotiation
+##   to drop an un-acted DRAFT (open → look → leave commits nothing). A Close button was ADDED to the
+##   legacy/sponsor mode (previously only Submit/Accept/Walk Away). Walk Away unchanged (deliberate
+##   rejection; 2-season penalty even at round 0).
 ## Version: S37.25 — popup-position: contract card CENTERED (symmetric ±320, was -250..0 off-centre).
 extends Control
 ## Version: S37.10 — Column alignment: the live weekly salary read-out now sits AFTER the LOCK
@@ -215,11 +219,13 @@ func _rebuild_approach() -> void:
 	btn_row.add_child(btn_accept)
 
 	var btn_close = _action_btn("Close ✕", Color(0.25, 0.25, 0.30))
-	btn_close.tooltip_text = "Close this window. The negotiation stays open and unchanged."
+	btn_close.tooltip_text = "Close this window. If you haven't acted yet, nothing is committed."
 	btn_close.pressed.connect(func():
-		## S35.7: Close means CLOSE — it must not alter the negotiation. The entry stays in HQ
-		## Pending Activity exactly as it was. (Previously called cancel_approach_before_submit,
-		## which deleted a Round-1 approach on close — wrong: that's Walk Away's job.)
+		## S37.39: Close is a safeguard, not an action. If this round is still a DRAFT (player
+		## opened it but never pressed Submit / Accept / Walk Away), discard it so it never reaches
+		## HQ / TDL / save. If the player already acted, draft is cleared and this is a pure no-op
+		## (the live entry stays in HQ Pending Activity exactly as it was — the S35.7 rule).
+		GameState.discard_draft_negotiation(_ap.get("neg_id", ""))
 		queue_free()
 		emit_signal("closed"))
 	btn_row.add_child(btn_close)
@@ -456,6 +462,17 @@ func _rebuild() -> void:
 	var btn_walk = _action_btn("✕ Walk Away", Color(0.35, 0.12, 0.12))
 	btn_walk.pressed.connect(_on_walk_away)
 	btn_row.add_child(btn_walk)
+
+	## S37.39 — legacy/sponsor mode previously had no Close. A Close safeguard added so the player
+	## can open, look, and leave without committing: if the negotiation is still a DRAFT (no Submit/
+	## Accept/Walk Away yet) it's discarded; otherwise Close is a no-op leaving the live round intact.
+	var btn_close = _action_btn("Close ✕", Color(0.25, 0.25, 0.30))
+	btn_close.tooltip_text = "Close this window. If you haven't acted yet, nothing is committed."
+	btn_close.pressed.connect(func():
+		GameState.discard_draft_negotiation()
+		queue_free()
+		emit_signal("closed"))
+	btn_row.add_child(btn_close)
 
 
 func _build_field_row(key: String, ask_val, offer_val) -> HBoxContainer:

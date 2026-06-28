@@ -1,4 +1,10 @@
 class_name ContractEngine
+## Version: S37.39 — DRAFT negotiations: opening the panel (renegotiation, free-at-join approach,
+##   and legacy/sponsor active_negotiation) marks the round draft=true so it does NOT appear in HQ /
+##   TDL / save until the player acts. Submit / Accept / Walk Away clear the draft (Walk Away applies
+##   the 2-season penalty + event even at round 0, per design). discard_draft_negotiation() lets the
+##   Close button drop an un-acted draft. The interest/team-refusal GATE still runs on open (valid
+##   every time). free-at-join "interested! begins" notification suppressed (panel announces it).
 ## Version: S37.10 — INTEREST REBALANCE (the "200 drivers interested in a new garage" bug). The
 ##   interest score now gates reachable TALENT by the team's REPUTATION (interest = 60 +
 ##   (player_rep − talent)*0.7 + free-agent bonus + rep-gap bonus + TP). A rep-0 garage attracts
@@ -220,6 +226,9 @@ func make_renegotiation_approach(subject_id: String, subject_type: String) -> Di
 	## checks this flag; submit_approach_contract_offer flips it on first submit.
 	ap["player_initiated"] = true
 	ap["offer_submitted"]  = false
+	## S37.39 — DRAFT: opening the panel must not spawn a live round in HQ/TDL/save. The approach is
+	## a draft until the player presses Submit / Accept / Walk Away. Close = no-op (draft discarded).
+	ap["draft"] = true
 	## S37.9 — dedup: opening Renegotiate twice in the same week reuses the same neg_id, which
 	## previously appended a SECOND identical approach (and a duplicate TDL row). Replace any
 	## existing approach for this subject that hasn't been submitted yet.
@@ -318,6 +327,10 @@ func make_sponsor_approach(sponsor_id: String) -> Dictionary:
 ## Start a negotiation. Stores state in active_negotiation.
 func start_negotiation(neg: Dictionary) -> void:
 	if not "locked_fields" in neg: neg["locked_fields"] = []
+	## S37.39 — DRAFT: opening a (sponsor/legacy) negotiation must not leave a live active_negotiation
+	## behind if the player just closes. Draft is cleared on Submit / Accept / Walk Away; the panel's
+	## Close clears active_negotiation while it is still a draft.
+	neg["draft"] = true
 	gs.active_negotiation = neg
 	gs.emit_signal("negotiation_updated")
 
@@ -326,6 +339,7 @@ func start_negotiation(neg: Dictionary) -> void:
 ## "waiting" means offer submitted but counter arrives next week (1 round per week rule).
 func submit_negotiation_offer(player_offer: Dictionary) -> String:
 	if gs.active_negotiation.is_empty(): return "rejected"
+	gs.active_negotiation["draft"] = false  ## S37.39 — player acted: negotiation is now live.
 	## Enforce 1-round-per-week: if counter is pending, block resubmission until next week
 	if gs.active_negotiation.get("waiting_week", 0) > gs.current_week:
 		return "waiting"
@@ -854,9 +868,12 @@ func initiate_approach(subject_id: String, subject_type: String,
 		ap["status"] = "negotiating"
 		ap["needs_bond"] = false
 		_start_contract_phase(ap)
+		## S37.39 — DRAFT: this branch OPENS the negotiation panel. Opening must not leave a live
+		## round in HQ/TDL/save, nor fire "negotiation begins". It becomes real only when the player
+		## presses Submit / Accept / Walk Away (which clear draft). Close = no-op (draft discarded).
+		ap["draft"] = true
 		var fa_note: String = "free agent" if current_team_id == "" else "contract expires before joining"
 		gs.add_log("📋 Approach to %s (%s) — no bond, contract negotiation begins." % [name_str, fa_note])
-		gs.add_notification("Normal", "%s is interested! Contract negotiation begins (no buyout needed)." % name_str)
 	else:
 		## Contracted at join date — bond negotiation with the OWNER TEAM (GDD §12-A step 3).
 		## The team replies NEXT WEEK with its opening ask; the player then accepts / counters /
@@ -1006,6 +1023,7 @@ func submit_approach_contract_offer(neg_id: String,
 		field_offers: Dictionary, locked_fields: Array) -> String:
 	var ap = _get_approach(neg_id)
 	if ap == null or ap["status"] != "negotiating": return "error"
+	ap["draft"] = false  ## S37.39 — player acted: the round is now live.
 
 	## Update player offers and locks
 	for key in field_offers:
@@ -1058,13 +1076,34 @@ func accept_approach_terms(neg_id: String) -> void:
 		## next-season pick silently become immediate on "Accept all".
 		if key == "start_date": continue
 		ap["terms"][key]["player_offer"] = ap["terms"][key]["their_ask"]
+	ap["draft"] = false  ## S37.39 — player acted (accepted): the round is now live/committed.
 	ap["status"] = "agreed"
 	_apply_approach_result(ap)
 	gs.emit_signal("approach_updated")
 
+## S37.39 — Close handlers call this to discard an un-acted draft. For the approach system it
+## removes the draft entry from active_approaches; for the legacy single-slot it clears
+## active_negotiation. Acted rounds (draft already cleared by Submit/Accept/Walk Away) are left
+## untouched, so Close after an action is still a safe no-op.
+func discard_draft_negotiation(neg_id: String = "") -> void:
+	if neg_id != "":
+		for i in range(gs.active_approaches.size() - 1, -1, -1):
+			var ap = gs.active_approaches[i]
+			if ap.get("neg_id", "") == neg_id and ap.get("draft", false):
+				gs.active_approaches.remove_at(i)
+				gs.emit_signal("approach_updated")
+				return
+	if not gs.active_negotiation.is_empty() and gs.active_negotiation.get("draft", false):
+		gs.active_negotiation = {}
+		gs.emit_signal("negotiation_updated")
+
 func walk_away_approach(neg_id: String) -> void:
 	var ap = _get_approach(neg_id)
 	if ap == null: return
+	## S37.39 — Walk Away is a DELIBERATE rejection and applies even from a draft (round 0): clearing
+	## the draft flag makes the walked-away entry real, so the 2-season penalty + event below stand.
+	## (Close, by contrast, is a no-op and discards the draft without penalty.)
+	ap["draft"] = false
 	## S35.7: Walk Away leaves a VISIBLE "you walked away" entry in HQ Pending Activity that stays
 	## until the next week advance (then it's cleared — see _clear_walked_away_approaches, called
 	## from advance_week). status="walked_away" + the week it happened so the cleanup knows when.
@@ -1382,7 +1421,9 @@ func cancel_renegotiation_by_subject_name(subject_name: String) -> bool:
 
 func get_active_approaches_for_display() -> Array:
 	## Returns all approaches that should show in HQ Pending Activity
+	## S37.39 — drafts (panel opened, not yet acted on) are never shown.
 	return gs.active_approaches.filter(func(ap):
+		if ap.get("draft", false): return false
 		return ap["status"] not in ["activated", "expired"] or \
 			(ap["status"] == "agreed" and ap.get("type") == "pre_signed"))
 

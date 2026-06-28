@@ -1,4 +1,6 @@
 class_name NotificationManager
+## Version: S37.39 — DRAFT exclusion: pending-negotiation TDL skips draft approaches (a round the
+##   player opened but has not yet acted on).
 ## Version: S37.38 — clear_all_notifications() added (Main Hub "Delete All" button); Main Hub
 ##   notification panel: snooze removed, "Mark All as Read" + "Delete All" buttons added next to
 ##   the panel title.
@@ -384,6 +386,7 @@ func get_pending_tasks() -> Array[String]:
 
 	## Step 7b — Pending negotiations awaiting player response
 	for ap in gs.active_approaches:
+		if ap.get("draft", false): continue  ## S37.39 — drafts aren't live; no TDL until acted on
 		if ap["status"] in ["failed","rejected","expired","activated","agreed"]: continue
 		match ap["status"]:
 			"bond_incoming":

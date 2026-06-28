@@ -1,3 +1,5 @@
+## Version: S37.39 — DRAFT negotiations: discard_draft_negotiation() wrapper; save strips draft
+##   approaches from active_approaches so an un-acted draft never persists.
 ## Version: S37.38 — clear_all_notifications() wrapper (Main Hub "Delete All").
 ## Version: S37.37 — show_popup() added: shared AcceptDialog for on-the-spot blocking-error feedback
 ##   (Notification & News Roadmap, Phase 0). Engines/scenes call gs.show_popup(message, title);
@@ -2564,6 +2566,9 @@ func accept_approach_terms(neg_id: String) -> void:
 func walk_away_approach(neg_id: String) -> void:
 	_contract_engine.walk_away_approach(neg_id)
 
+func discard_draft_negotiation(neg_id: String = "") -> void:
+	_contract_engine.discard_draft_negotiation(neg_id)
+
 func cancel_approach_before_submit(neg_id: String) -> void:
 	_contract_engine.cancel_approach_before_submit(neg_id)
 
@@ -3852,7 +3857,7 @@ func save_game() -> void:
 		"walked_away_subjects":      walked_away_subjects,
 		"team_refused_subjects":     team_refused_subjects,
 		"pending_staff_assignments": pending_staff_assignments,
-		"active_approaches":         active_approaches,
+		"active_approaches":         active_approaches.filter(func(ap): return not ap.get("draft", false)),
 		"reputation_legacy_bonuses": reputation_legacy_bonuses,
 		"history_balance":           history_balance,
 		"history_fuel_price":        history_fuel_price,
