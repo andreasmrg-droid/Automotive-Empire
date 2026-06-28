@@ -1,3 +1,18 @@
+## Version: S37.47 — LIVING WORLD: wired the new AIChampionshipSim engine into the weekly race loop.
+##   Non-player, non-GK championships now run a lightweight result model each race week (else-branch
+##   of is_player_champ; GK excluded), so their standings populate and Racing World / EOS show real
+##   champions. Restores the world that the S37.43 Bug-3 fix had inadvertently left empty (it stopped
+##   awarding AI points), WITHOUT re-introducing the DNS spam. Engine declared + instantiated at all
+##   3 init sites. (Place AIChampionshipSim.gd in resources/scripts/ for class_name registration.)
+##   Also carries the S37.46 notification migration (below).
+## Version: S37.46 — Notification & News Roadmap, Phase 3 (events→notify_event). All ~24 GameState
+##   notifications migrated: 3 → "news" (drivers + constructors titles, GK champion); 4 → "standing"
+##   (economy state, fuel shock, GK player-eliminated, registration deadline — collapse via subject);
+##   6 → show_popup (build-car errors: missing blueprints / garage full / insufficient funds;
+##   strategist-not-in-GK; already-assigned; binding-registration on unregister attempt); screenshot
+##   notification DELETED (log-only); autosave → "event" (non-blocking panel notice, no toast channel
+##   exists); rest → "event" (car delivered/in-build, registration warn/confirm, formula-design,
+##   WRA-reset, counter-offer, GK round complete). Framework add_notification (notify_event impl) kept.
 ## Version: S37.41 — Added "pit_arena" to NOTIFICATION_DESTINATIONS/_LABELS (Phase 3: CarManager's
 ##   pit-crew-DNS event routes there).
 ## Version: S37.39 — DRAFT negotiations: discard_draft_negotiation() wrapper; save strips draft
@@ -279,6 +294,8 @@ var _season_manager: SeasonManager = null
 var _financial_engine: FinancialEngine = null
 ## P57 Race Simulator — owns race simulation + post-race processing
 var _race_simulator: RaceSimulator = null
+## S37.47 AI Championship Sim — lightweight result model for non-player, non-GK championships
+var _ai_championship_sim: AIChampionshipSim = null
 ## P57 Contract Engine — owns negotiation, approach/bond, contracts
 var _contract_engine: ContractEngine = null
 ## P57 R&D Engine — owns R&D tasks, WRA, CNC production
@@ -521,8 +538,8 @@ func _award_drivers_championship(driver_id: String, champ: Championship) -> void
 	if driver.contract_team == player_team.id:
 		var team_boost = 3.0 + float(tier) * 1.0
 		player_team.reputation = clamp(player_team.reputation + team_boost, 0.0, 100.0)
-		add_notification("High",
-			"🏆 %s wins Drivers Championship! Team +%.0f reputation." % [driver.full_name(), team_boost], "hq")
+		notify_event("drv_title_%s" % champ.id, "High",
+			"🏆 %s wins Drivers Championship! Team +%.0f reputation." % [driver.full_name(), team_boost], "hq", "news")
 	champ.drivers_champion_history.append({
 		"season": current_season, "driver_id": driver_id, "driver_name": driver.full_name()})
 	if champ.drivers_champion_history.size() > 5:
@@ -539,8 +556,8 @@ func _award_teams_championship(team_id: String, champ: Championship) -> void:
 		if t.id == team_id: champ_team_name = t.team_name; break
 	if team_id == player_team.id:
 		player_team.reputation = clamp(player_team.reputation + team_boost, 0.0, 100.0)
-		add_notification("High",
-			"🏆 Constructors Championship won! Team +%.0f reputation." % team_boost, "hq")
+		notify_event("con_title_%s" % champ.id, "High",
+			"🏆 Constructors Championship won! Team +%.0f reputation." % team_boost, "hq", "news")
 	add_log("🏆 %s wins Constructors Championship." % champ_team_name)
 	champ.teams_champion_history.append({
 		"season": current_season, "team_id": team_id, "team_name": champ_team_name})
@@ -789,8 +806,8 @@ func _update_economy_and_fuel() -> void:
 	## still moves (index/prices update below regardless), the player just gets no heads-up.
 	var new_state = global_economy_state
 	if new_state != prev_state and get_cfo() != null:
-		add_notification("Normal", "📊 Economy shifted to %s (index %.0f)." % [new_state, economy_index],
-			"", "economy_state")
+		notify_event("economy_state", "Normal", "📊 Economy shifted to %s (index %.0f)." % [new_state, economy_index],
+			"", "standing")
 
 	## ── Fuel price ───────────────────────────────────────────────────────────
 	## Smooth base derived from economy_index
@@ -807,8 +824,8 @@ func _update_economy_and_fuel() -> void:
 	if randf() < 0.03:
 		fuel_move += current_fuel_price * randf_range(-0.05, 0.05)
 		if get_cfo() != null:
-			add_notification("Normal", "⛽ Fuel price fluctuation — global supply shift.",
-				"", "economy_fuel_shock")
+			notify_event("economy_fuel_shock", "Normal", "⛽ Fuel price fluctuation — global supply shift.",
+				"", "standing")
 
 	current_fuel_price = clamp(
 		current_fuel_price + fuel_mean_pull + fuel_move,
@@ -1585,6 +1602,7 @@ func _ready() -> void:
 	_season_manager = SeasonManager.new(self)
 	_financial_engine = FinancialEngine.new(self)
 	_race_simulator = RaceSimulator.new(self)
+	_ai_championship_sim = AIChampionshipSim.new(self)
 	_contract_engine = ContractEngine.new(self)
 	_rnd_engine = RnDEngine.new(self)
 	_notification_manager = NotificationManager.new(self)
@@ -1667,9 +1685,9 @@ func _process_car_deliveries() -> void:
 			var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
 			var reg = CHAMPIONSHIP_REGISTRY.get(car.championship_id, {})
 			var champ_name = reg.get("name", car.championship_id)
-			add_notification("Normal",
+			notify_event("delivered_%s" % car.id, "Normal",
 				"🏎 %s delivered — ready to race in %s. Assign crew in the Garage." % [
-				car_label, champ_name], "garage")
+				car_label, champ_name], "garage", "event")
 			add_log("🏎 %s delivered (Week %d) for %s." % [car_label, current_week, champ_name])
 
 # ── Build Whole Car (Phase 2) ─────────────────────────────────────────────────
@@ -1756,19 +1774,16 @@ func get_build_whole_car_delivery_week(champ_id: String) -> int:
 func build_whole_car(champ_id: String) -> bool:
 	if not can_build_whole_car(champ_id):
 		var miss = missing_car_blueprints(champ_id)
-		add_notification("High",
-			"Cannot build car yet — missing approved blueprints: %s." % ", ".join(miss), "cnc_plant")
+		show_popup("Cannot build car yet — missing approved blueprints: %s." % ", ".join(miss), "Cannot Build Car")
 		return false
 	if player_team_cars.size() >= get_max_cars():
-		add_notification("High",
-			"Garage full (%d/%d). Upgrade the Garage to build more cars." % [
-			player_team_cars.size(), get_max_cars()], "garage")
+		show_popup("Garage full (%d/%d). Upgrade the Garage to build more cars." % [
+			player_team_cars.size(), get_max_cars()], "Garage Full")
 		return false
 	var total_cr = get_build_whole_car_cost(champ_id)
 	if player_team.balance < total_cr:
-		add_notification("High",
-			"Insufficient funds to build the car. Need CR %s for all 6 parts." % _fmt_int(total_cr),
-			"cnc_plant")
+		show_popup("Insufficient funds to build the car. Need CR %s for all 6 parts." % _fmt_int(total_cr),
+			"Insufficient Funds")
 		return false
 
 	var approved = _approved_car_blueprints(champ_id)
@@ -1796,9 +1811,9 @@ func build_whole_car(champ_id: String) -> bool:
 
 	add_log("🏗 %s — whole car build started: 6 parts queued, arrives Week %d (CR %s)." % [
 		champ_name, car.delivery_week, _fmt_int(total_cr)])
-	add_notification("Normal",
+	notify_event("inbuild_%s" % car.id, "Normal",
 		"🏗 %s car in build — all 6 parts queued, arrives Week %d. Pre-assign crew in the Garage." % [
-		champ_name, car.delivery_week], "garage")
+		champ_name, car.delivery_week], "garage", "event")
 	return true
 
 func assign_cnc_part_to_car(car_id: String, part: String) -> bool:
@@ -2673,8 +2688,7 @@ func assign_staff_to_championship(staff_id: String, champ_id: String) -> void:
 
 	## Strategist is NOT used in GK or Rally — block the assignment outright.
 	if staff.role == "Race Strategist" and disc in ["GK", "Rally"]:
-		add_notification("High",
-			"Race Strategists are not used in GK or Rally championships.")
+		show_popup("Race Strategists are not used in GK or Rally championships.", "Not Applicable")
 		return
 
 	## Slot guard — only ONE Team Principal / Race Strategist per championship.
@@ -2686,8 +2700,7 @@ func assign_staff_to_championship(staff_id: String, champ_id: String) -> void:
 			if s2.id == staff_id: continue
 			if s2.role == staff.role and s2.contract_team == player_team.id \
 					and s2.assigned_championship == champ_id:
-				add_notification("High",
-					"%s already has a %s assigned." % [champ_name, staff.role])
+				show_popup("%s already has a %s assigned." % [champ_name, staff.role], "Already Assigned")
 				return
 
 	## Log the move off an old championship (reassignment, e.g. GK → Rally4).
@@ -2989,10 +3002,10 @@ func register_for_championship(champ_id: String) -> bool:
 	if not warnings.is_empty():
 		var warn_text = "Registered for %s. ⚠ ADVISORY — DNS risk if unresolved before Race 1 (no refunds):\n" % reg["name"]
 		warn_text += "\n".join(warnings)
-		add_notification("High", warn_text)
+		notify_event("reg_warn_%s" % reg["name"], "High", warn_text, "", "event")
 	else:
-		add_notification("Normal", "Registered for %s. Buy/build a car before Week %d." % [
-			reg["name"], delivery_wk])
+		notify_event("reg_ok_%s" % reg["name"], "Normal", "Registered for %s. Buy/build a car before Week %d." % [
+			reg["name"], delivery_wk], "", "event")
 
 	## ── Blueprint design reminder ─────────────────────────────────────────────
 	var next_season = current_season + 1
@@ -3006,10 +3019,10 @@ func register_for_championship(champ_id: String) -> bool:
 			break
 	if not has_any_next_bp:
 		if is_formula:
-			add_notification("Critical",
+			notify_event("formula_design_%s_s%d" % [champ_id, next_season], "Critical",
 				"🚨 You registered for %s Season %d. Formula teams MUST design a new car each season. Start designing Season %d blueprints in the R&D Design Studio — P1 DESIGN tab." % [
 					reg["name"], next_season, next_season],
-				"rnd_studio")
+				"rnd_studio", "event")
 		else:
 			## Only warn about WRA reset if actually approaching — compute based on next_season
 			var wra_group = _get_wra_group_for_championship(champ_id)
@@ -3022,12 +3035,12 @@ func register_for_championship(champ_id: String) -> bool:
 				var seasons_until_reset = wra_len - seasons_in_cycle
 				## Only notify when the registered season itself is in the last 2 of the cycle
 				if seasons_until_reset <= 2 and seasons_in_cycle > 0:
-					add_notification("High",
+					notify_event("wra_reset_%s_s%d" % [wra_group, next_season], "High",
 						"⚠ WRA regulation reset for %s in %d season%s. Consider designing Season %d blueprints now before your current ones are wiped." % [
 							wra_group, seasons_until_reset,
 							"s" if seasons_until_reset != 1 else "",
 							next_season],
-						"rnd_studio")
+						"rnd_studio", "event")
 
 	emit_signal("log_updated")
 	return true
@@ -3035,8 +3048,7 @@ func register_for_championship(champ_id: String) -> bool:
 ## Championship registrations are final — no withdrawals once entered.
 ## Teams are contractually bound to participate. DNS applies if requirements aren't met.
 func unregister_from_championship(_champ_id: String) -> void:
-	add_notification("High",
-		"Championship registrations are binding. Teams cannot withdraw once entered. DNS applies if car/driver requirements are not met.")
+	show_popup("Championship registrations are binding. Teams cannot withdraw once entered. DNS applies if car/driver requirements are not met.", "Registration Binding")
 
 ## Returns all championship IDs the player has registered for NEXT season (the ledger).
 ## S28.1: this is simply the NextSeasonLedger contents.
@@ -3161,6 +3173,7 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 	_season_manager = SeasonManager.new(self)
 	_financial_engine = FinancialEngine.new(self)
 	_race_simulator = RaceSimulator.new(self)
+	_ai_championship_sim = AIChampionshipSim.new(self)
 	_contract_engine = ContractEngine.new(self)
 	_rnd_engine = RnDEngine.new(self)
 	_notification_manager = NotificationManager.new(self)
@@ -3351,8 +3364,8 @@ func advance_week() -> void:
 			var subj = _get_subject_display_name(
 				active_negotiation.get("subject_id",""),
 				active_negotiation.get("subject_type","sponsor"))
-			add_notification("High",
-				"📋 %s has counter-offered — return to negotiate." % subj, "hq")
+			notify_event("counter_%s" % subj, "High",
+				"📋 %s has counter-offered — return to negotiate." % subj, "hq", "event")
 			emit_signal("negotiation_updated")
 
 	## Record weekly snapshot for P32 graphs
@@ -3446,6 +3459,14 @@ func advance_week() -> void:
 					## assigned [RALLY3/TC/EPC…]" spam each race week. Gate it on is_player_champ; AI
 					## championships still advance via champ.current_round below and the AI/shadow path.
 					_simulate_race(race, champ)
+				elif champ.id != "C-001":
+					## S37.47 — LIVING WORLD: non-player, non-GK championships run the lightweight
+					## AIChampionshipSim (strength scalar → finishing order → points via the existing
+					## points table) so their standings populate and Racing World shows real tables.
+					## This does NOT run the player's race code (no DNS spam — the S37.43 fix stands);
+					## it only awards AI results. GK (C-001) is excluded — it has its own shadow sim
+					## below. The player's championship is handled by _simulate_race above.
+					_ai_championship_sim.simulate_round(champ)
 			## Sponsor race bonuses handled by apply_sponsor_race_bonuses()
 			champ.current_round += 1
 
@@ -3544,22 +3565,22 @@ func advance_week() -> void:
 					## GK" at Rounds 2 and 3 — irrelevant duplicates (the player is already out).
 					if not gk_discipline.player_elimination_announced:
 						gk_discipline.player_elimination_announced = true
-						add_notification("High",
+						notify_event("gk_player_eliminated", "High",
 							"🏁 Your driver was eliminated at the end of GK Round %d. Season over for GK." % this_gk_round,
-							"", "gk_player_eliminated")
+							"", "standing")
 				elif this_gk_round >= 4 or gk_discipline.is_complete():
 					## S28.3 (Bug 2): Round 4 is the final — no "Round 5". Announce the champion.
 					var champ = gk_discipline.get_champion()
 					if not champ.is_empty():
 						var cd = all_drivers.get(champ.get("driver_id", ""), null)
 						var cname = cd.full_name() if cd else "Unknown"
-						add_notification("Normal",
-							"🏆 GK Championship complete — Champion: %s (%d pts)." % [cname, champ.get("points", 0)])
+						notify_event("gk_champion_s%d" % current_season, "Normal",
+							"🏆 GK Championship complete — Champion: %s (%d pts)." % [cname, champ.get("points", 0)], "", "news")
 					else:
-						add_notification("Normal", "🏁 GK Championship complete for the season.")
+						notify_event("gk_season_done", "Normal", "🏁 GK Championship complete for the season.", "", "event")
 				elif not player_eliminated and new_round <= 4:
-					add_notification("Normal",
-						"✅ GK Round %d complete — advancing to Round %d!" % [this_gk_round, new_round])
+					notify_event("gk_round_%d" % this_gk_round, "Normal",
+						"✅ GK Round %d complete — advancing to Round %d!" % [this_gk_round, new_round], "", "event")
 
 	# ── CFO optional hint (one-time, framework) ───────────────────────────────
 	## CFO is good-to-have, not required. Fire ONE notification ever if the player has none
@@ -3587,9 +3608,9 @@ func advance_week() -> void:
 	if not closing_next_week.is_empty():
 		var list_txt = ", ".join(closing_next_week)
 		add_log("🔔 Registration deadline imminent (wk %d) for: %s" % [current_week, list_txt])
-		add_notification("High",
+		notify_event("reg_deadline_all", "High",
 			"⚠ Championship registration closes this week or next for: %s. Register at HQ → WRA." % list_txt,
-			"hq", "reg_deadline_all")
+			"hq", "standing")
 
 	## After all races processed this week — show first result screen
 	if not _pending_race_results.is_empty():
@@ -3766,7 +3787,7 @@ func _autosave() -> void:
 			file.store_string(data)
 			file.close()
 	add_log("💾 Autosave slot %d — S%d W%d" % [slot, current_season, current_week])
-	add_notification("Normal", "💾 Game autosaved (slot %d)." % slot)
+	notify_event("autosave_s%d_w%d" % [current_season, current_week], "Normal", "💾 Game autosaved (slot %d)." % slot, "", "event")
 
 ## S37.26 — loads the static race calendar (all championships' schedules) from the data JSON.
 ## Called once at engine init. Safe no-op if the file is missing.
@@ -4172,6 +4193,7 @@ func load_game(path: String = "user://save_game.json") -> void:
 	_financial_engine = FinancialEngine.new(self)
 	## P57: Initialize RaceSimulator
 	_race_simulator = RaceSimulator.new(self)
+	_ai_championship_sim = AIChampionshipSim.new(self)
 	## P57: Initialize ContractEngine
 	_contract_engine = ContractEngine.new(self)
 	_rnd_engine = RnDEngine.new(self)
@@ -4369,7 +4391,7 @@ func _input(event: InputEvent) -> void:
 		var timestamp = Time.get_datetime_string_from_system().replace(":", "-")
 		var path = "user://screenshot_%s.png" % timestamp
 		screenshot.save_png(path)
-		add_notification("Normal", "📸 Screenshot saved: %s" % path)
+		## S37.46 — screenshot notification removed (log-only, per design); add_log below keeps it.
 		add_log("📸 Screenshot saved: %s" % path)
 
 ## ═══════════════════════════════════════════════════════════════════════════
