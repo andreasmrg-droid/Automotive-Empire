@@ -1,4 +1,10 @@
 extends Control
+## Version: S37.48 — Racing World compact cards (_build_world_card, used for every championship the
+##   player isn't in) now show the TEAM/constructors leader alongside the driver leader. The data was
+##   already populated (AIChampionshipSim.add_team_points for AI champs; the real sim for the player's
+##   champ), but this card only displayed the driver leader — so the world looked like it had no team
+##   standings. The player's own championship was unaffected (it uses the richer _build_active_card,
+##   which already shows full driver + team columns).
 ## Version: S37.2 — GK results now visible in the Racing World "world card" for non-GK careers.
 ##   The GK championship's champ.standings only ever holds the player's group-0 snapshot (reset to
 ##   0 each round by _sync_gk_group0_to_standings), so the world card showed an empty/zero leader —
@@ -515,6 +521,22 @@ func _build_world_card(cid: String, champ,
 				lbl_leader.add_theme_font_size_override("font_size", 22)
 				lbl_leader.modulate = Color(0.6, 0.6, 0.6)
 				info.add_child(lbl_leader)
+			## S37.48 — show the TEAM (constructors) leader alongside the driver leader. The data
+			## is populated by AIChampionshipSim.add_team_points (non-player champs) / the real sim
+			## (player champ); previously the world card only displayed the driver leader.
+			var team_sorted = champ.get_team_standings_sorted()
+			if team_sorted.size() > 0:
+				var t_name: String = team_sorted[0]["team_id"]
+				for t in GameState.all_teams:
+					if t.id == team_sorted[0]["team_id"]:
+						t_name = t.team_name; break
+				if team_sorted[0]["team_id"] == GameState.player_team.id:
+					t_name = GameState.player_team.team_name
+				var lbl_team = Label.new()
+				lbl_team.text = "Team: %s  ·  %d pts" % [t_name, team_sorted[0]["points"]]
+				lbl_team.add_theme_font_size_override("font_size", 22)
+				lbl_team.modulate = Color(0.55, 0.6, 0.55)
+				info.add_child(lbl_team)
 	else:
 		## Not running this season
 		lbl_sub.text = "Not active this season"
