@@ -1,4 +1,7 @@
 class_name RaceSimulator
+## Version: S37.50 — Missing Race Strategist is now a DNS in can_car_race() (same design ruling as
+##   the S37.45 TP-DNS), gated to disciplines that use a Strategist (all except GK & Rally). Matches
+##   the new strategist readiness TDL in NotificationManager so the warning and the enforcement agree.
 ## Version: S37.45 — (1) BUGFIX/design: a missing Team Principal is now a DNS, enforced in
 ##   can_car_race() (was only a soft "racing without oversight" warning that let the car race
 ##   anyway — contradicting the readiness TDL). Uses the same player-scoped _get_tp_for_championship
@@ -116,6 +119,20 @@ func can_car_race(driver_id: String) -> bool:
 			"racing_center", "standing")
 		gs.add_log("🚫 DNS — No Team Principal for %s." % car.championship_id)
 		return false
+
+	# DNS: no Race Strategist for this car's championship. S37.50 — per design ruling, a missing
+	# Strategist is a DNS (same standing as the TP), in every discipline EXCEPT GK and Rally (which
+	# don't use a Strategist — same rule as TPProposalEngine and the readiness TDL). The starting
+	# roster provisions one for SC/GP; expanding into EPC/TC/OWC requires hiring one. Uses the same
+	# player-scoped resolver as the TDL so the two agree.
+	var _sdisc = gs.CHAMPIONSHIP_REGISTRY.get(car.championship_id, {}).get("discipline", "")
+	if _sdisc != "GK" and _sdisc != "Rally":
+		if gs._get_strategist_for_championship(car.championship_id) == null:
+			gs.notify_event("dns_strategist_%s" % car.championship_id, "Critical",
+				"DNS: %s has no Race Strategist! Assign one in the Racing Department before racing." % (car.car_name if car.car_name != "" else "Car %d" % car.car_number),
+				"racing_center", "standing")
+			gs.add_log("🚫 DNS — No Race Strategist for %s." % car.championship_id)
+			return false
 
 	return true
 

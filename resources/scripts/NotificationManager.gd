@@ -1,4 +1,9 @@
 class_name NotificationManager
+## Version: S37.50 — Added the Race Strategist readiness check (Step 3a in get_pending_tasks),
+##   previously deferred (it was blocked by the new-game Ops Sim building bug, fixed in GameState
+##   S37.50). Flags "No Race Strategist for: <champs> (car will DNS)" per championship the player
+##   fields a car in, for every discipline except GK & Rally. Matches the can_car_race strategist-DNS
+##   enforcement (RaceSimulator S37.50) so the TDL warning and the actual DNS agree.
 ## Version: S37.43 — BUGFIX (false GK-TP TDL for non-GK players): the TP readiness check keyed on
 ##   "any GK championship is active" (GK/C-001 is ALWAYS in the world), so an SC/Rally/etc. player
 ##   wrongly saw "no TP for GK" while their real championships went unchecked — and the non-GK branch
@@ -369,6 +374,21 @@ func get_pending_tasks() -> Array[String]:
 				tasks.append("🚫 GK has no Team Principal assigned. Go to Racing Department (car will DNS).")
 	if nongk_missing_tp.size() > 0:
 		tasks.append("🚫 No Team Principal for: %s (car will DNS)." % ", ".join(nongk_missing_tp))
+
+	## Step 3a — Race Strategist missing. S37.50: previously deferred (tied to the new-game Ops Sim
+	## building bug, now fixed). A Strategist is required in every discipline EXCEPT GK and Rally
+	## (same rule as TPProposalEngine: disc not in {GK, Rally}). Checked per-championship the player
+	## actually fields a car in. The Strategist occupies an Ops Sim & Telemetry slot.
+	var missing_strategist: Array = []
+	for cid in player_champ_ids:
+		var sreg = gs.CHAMPIONSHIP_REGISTRY.get(cid, {})
+		var sdisc = sreg.get("discipline", "")
+		if sdisc == "GK" or sdisc == "Rally":
+			continue
+		if gs._get_strategist_for_championship(cid) == null:
+			missing_strategist.append(sreg.get("name", cid))
+	if missing_strategist.size() > 0:
+		tasks.append("🚫 No Race Strategist for: %s (car will DNS)." % ", ".join(missing_strategist))
 	## CFO is OPTIONAL ("good to have"). It appears as a READ-ONLY TO-DO row while missing (the
 	## player can see the list; the TDL never fires notifications). The one-time "no CFO"
 	## notification is handled separately by notify_event("no_cfo", ..., "once") in GameState.

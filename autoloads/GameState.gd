@@ -1,3 +1,9 @@
+## Version: S37.50 — NEW-GAME provisioning fixes (_give_starting_assets): (1) Ops Sim key typo —
+##   "Ops Sim" → "Ops Sim & Telemetry" (the real key everywhere else), so SC Dev / GP4 actually
+##   build the Ops Sim building at start and the starting Race Strategist gets its slot (the
+##   strategist was created but stranded — no building = no slot). (2) GP now also starts with the
+##   R&D Design Studio + CNC Parts Plant built AND a starting Designer (team-level, R&D-Studio slot),
+##   so a GP4 career can design+produce parts from week 1. Budgets were tuned manually for the upkeep.
 ## Version: S37.47 — LIVING WORLD: wired the new AIChampionshipSim engine into the weekly race loop.
 ##   Non-player, non-GK championships now run a lightweight result model each race week (else-branch
 ##   of is_player_champ; GK excluded), so their standings populate and Racing World / EOS show real
@@ -2264,9 +2270,21 @@ func _give_starting_assets(champ_id: String) -> void:
 			campus_buildings["Pit Crew Arena"]["built"] = true
 			campus_buildings["Pit Crew Arena"]["level"] = 1
 	if discipline in ["SC", "GP"]:
-		if "Ops Sim" in campus_buildings:
-			campus_buildings["Ops Sim"]["built"] = true
-			campus_buildings["Ops Sim"]["level"] = 1
+		if "Ops Sim & Telemetry" in campus_buildings:
+			campus_buildings["Ops Sim & Telemetry"]["built"] = true
+			campus_buildings["Ops Sim & Telemetry"]["level"] = 1
+
+	## S37.50 — GP starts with the design+manufacturing chain (R&D Design Studio + CNC Parts Plant)
+	## so a GP4 career can develop and produce parts from week 1. The Designer is provisioned in
+	## section 7a below (the R&D Studio supplies the Designer hiring slot). Other disciplines build
+	## these later. (Budgets were tuned manually to cover the added upkeep.)
+	if discipline == "GP":
+		if "R&D Design Studio" in campus_buildings:
+			campus_buildings["R&D Design Studio"]["built"] = true
+			campus_buildings["R&D Design Studio"]["level"] = 1
+		if "CNC Parts Plant" in campus_buildings:
+			campus_buildings["CNC Parts Plant"]["built"] = true
+			campus_buildings["CNC Parts Plant"]["level"] = 1
 
 	## ── 3. Starting TP ───────────────────────────────────────────────────────
 	var tp = _create_starting_staff("Team Principal", 55.0, 70.0)
@@ -2302,6 +2320,16 @@ func _give_starting_assets(champ_id: String) -> void:
 		strat.contract_seasons_remaining = 3
 		strat.assigned_championship = champ_id
 		all_staff[strat.id] = strat
+
+	## ── 7a. Designer (GP) ────────────────────────────────────────────────────
+	## S37.50 — GP starts with a Designer to staff the R&D Design Studio (built above). The Designer
+	## is team-level staff (operates in the R&D Studio only; no discipline adaptation, GDD §F), so it
+	## follows the TP/Strategist pattern: contract_team set, no per-car assignment.
+	if discipline == "GP":
+		var designer = _create_starting_staff("Designer", 45.0, 65.0)
+		designer.contract_team = player_team.id
+		designer.contract_seasons_remaining = 3
+		all_staff[designer.id] = designer
 
 	## ── 8. Assign driver to car ──────────────────────────────────────────────
 	if driver != null and not player_team_cars.is_empty():
