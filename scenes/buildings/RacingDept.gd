@@ -1,3 +1,6 @@
+## Version: S37.33 — Standard scene layout: added shared ResourceBar + Main Hub button to the
+##   header ([Name][Level][Resource Bar][Back][Main Hub]); bar refreshes via the scene's build/
+##   refresh path. Part of the §15.3 scene-standard rollout.
 ## Version: S37.24 — layout: driver-row fonts reduced (30→26/26→24/24→22) for a lighter left
 ## Version: S37.25 — popup-position: RacingDept driver card CENTERED (was right-anchored/clipping)
 ##   + _card_row clip; right column constrained (horizontal_scroll_mode DISABLED + VBox clamped to
@@ -45,12 +48,17 @@ var _popup_list: VBoxContainer
 var _assigning_driver_id: String = ""
 
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
+var _resource_bar = null   ## S37.33 shared ResourceBar component
+const ResourceBarScript = preload("res://scenes/components/ResourceBar.gd")
+
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_ui()
 	refresh()
 
 func _build_ui() -> void:
+	if _resource_bar != null and _resource_bar.has_method("refresh"):
+		_resource_bar.refresh()
 	## Clear all existing children to prevent overlay on rebuild
 	for c in get_children():
 		c.queue_free()
@@ -82,29 +90,48 @@ func _build_ui() -> void:
 	var building = GameState.campus_buildings.get("Racing Department", {})
 	var level = building.get("level", 1)
 
+	# ── STANDARD HEADER: [Name·Level] [Resource Bar] [Back] [Main Hub] ──
 	var lbl_title = Label.new()
 	lbl_title.text = "🏎 RACING DEPARTMENT  ·  Level %d" % level
 	lbl_title.add_theme_font_size_override("font_size", 44)
 	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(lbl_title)
 
-	_lbl_slots = Label.new()
-	_lbl_slots.add_theme_font_size_override("font_size", 28)
-	_lbl_slots.modulate = Color(0.7, 0.7, 0.7)
-	header.add_child(_lbl_slots)
-
-	var btn_racing_world = Button.new()
-	btn_racing_world.text = Locale.t("rw_btn")
-	btn_racing_world.custom_minimum_size = Vector2(140, 36)
-	btn_racing_world.pressed.connect(func():
-		get_tree().change_scene_to_file("res://scenes/RacingWorld.tscn"))
-	header.add_child(btn_racing_world)
+	_resource_bar = ResourceBarScript.new()
+	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
+	header.add_child(_resource_bar)
 
 	var btn_back = Button.new()
 	btn_back.text = "← Back"
 	btn_back.custom_minimum_size = Vector2(100, 36)
 	btn_back.pressed.connect(_on_back)
 	header.add_child(btn_back)
+
+	var btn_hub = Button.new()
+	btn_hub.text = "🏠 Main Hub"
+	btn_hub.custom_minimum_size = Vector2(130, 36)
+	btn_hub.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/MainHub.tscn"))
+	header.add_child(btn_hub)
+
+	root_vbox.add_child(HSeparator.new())
+
+	# ── SUB-HEADER ROW: scene-specific controls live BELOW the header (Main Hub concept) ──
+	var subrow = HBoxContainer.new()
+	subrow.add_theme_constant_override("separation", 16)
+	root_vbox.add_child(subrow)
+
+	_lbl_slots = Label.new()
+	_lbl_slots.add_theme_font_size_override("font_size", 28)
+	_lbl_slots.modulate = Color(0.7, 0.7, 0.7)
+	_lbl_slots.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	subrow.add_child(_lbl_slots)
+
+	var btn_racing_world = Button.new()
+	btn_racing_world.text = Locale.t("rw_btn")
+	btn_racing_world.custom_minimum_size = Vector2(140, 36)
+	btn_racing_world.pressed.connect(func():
+		get_tree().change_scene_to_file("res://scenes/RacingWorld.tscn"))
+	subrow.add_child(btn_racing_world)
 
 	root_vbox.add_child(HSeparator.new())
 

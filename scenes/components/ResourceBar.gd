@@ -28,7 +28,7 @@ func _ready() -> void:
 func _build() -> void:
 	var hb := HBoxContainer.new()
 	hb.alignment = BoxContainer.ALIGNMENT_CENTER
-	hb.add_theme_constant_override("separation", 24)
+	hb.add_theme_constant_override("separation", 14)
 	add_child(hb)
 	_cr = _make_label(Color(0.4, 0.9, 0.4)); hb.add_child(_cr)
 	_rp = _make_label(Color(0.5, 0.7, 1.0)); hb.add_child(_rp)
@@ -38,9 +38,8 @@ func _build() -> void:
 
 func _make_label(color: Color) -> Label:
 	var l := Label.new()
-	l.add_theme_font_size_override("font_size", 28)
+	l.add_theme_font_size_override("font_size", 22)
 	l.add_theme_color_override("font_color", color)
-	l.custom_minimum_size = Vector2(110, 0)
 	return l
 
 

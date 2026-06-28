@@ -92,10 +92,16 @@ func _build_ui() -> void:
 	_refresh_header_labels()
 
 	var back_btn = Button.new()
-	back_btn.text = "← Back to Campus"
-	back_btn.custom_minimum_size = Vector2(150, 38)
+	back_btn.text = "← Back"
+	back_btn.custom_minimum_size = Vector2(100, 38)
 	back_btn.pressed.connect(_on_back_pressed)
 	header.add_child(back_btn)
+
+	var btn_hub = Button.new()
+	btn_hub.text = "🏠 Main Hub"
+	btn_hub.custom_minimum_size = Vector2(130, 38)
+	btn_hub.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/MainHub.tscn"))
+	header.add_child(btn_hub)
 
 	root.add_child(HSeparator.new())
 

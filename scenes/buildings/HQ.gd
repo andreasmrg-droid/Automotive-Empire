@@ -110,11 +110,7 @@ func _build_ui() -> void:
 	badge.add_child(badge_lbl)
 	header.add_child(badge)
 
-	# Shared resource bar (S37.31) — centered: team badge stays left, bar expands to centre.
-	_resource_bar = ResourceBarScript.new()
-	_resource_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(_resource_bar)
-
+	# Title + level (badge on the left is HQ's documented exception to the standard header)
 	var lbl_title = Label.new()
 	lbl_title.text = "🏛  HEADQUARTERS"
 	lbl_title.add_theme_font_size_override("font_size", 44)
@@ -123,16 +119,28 @@ func _build_ui() -> void:
 
 	var building = GameState.campus_buildings.get("Headquarters", {})
 	var lbl_lv = Label.new()
-	lbl_lv.text = "Level %d" % building.get("level", 1)
+	lbl_lv.text = "·  Level %d" % building.get("level", 1)
 	lbl_lv.add_theme_font_size_override("font_size", 26)
 	lbl_lv.add_theme_color_override("font_color", Color(0.4, 0.9, 0.5))
+	lbl_lv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(lbl_lv)
+
+	# Standard: [Resource Bar][Back][Main Hub]
+	_resource_bar = ResourceBarScript.new()
+	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
+	header.add_child(_resource_bar)
 
 	var btn_back = Button.new()
 	btn_back.text = "← Back"
 	btn_back.custom_minimum_size = Vector2(90, 34)
 	btn_back.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/Campus.tscn"))
 	header.add_child(btn_back)
+
+	var btn_hub = Button.new()
+	btn_hub.text = "🏠 Main Hub"
+	btn_hub.custom_minimum_size = Vector2(130, 34)
+	btn_hub.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/MainHub.tscn"))
+	header.add_child(btn_hub)
 
 	root.add_child(HSeparator.new())
 

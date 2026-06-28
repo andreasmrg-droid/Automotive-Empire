@@ -1,3 +1,5 @@
+## Version: S37.35 — Standard minimal header [Name·Level][Resource Bar][Back][Main Hub]; driver-slots
+##   + income moved to a sub-row below the header (Main Hub concept).
 ## Version: S37.31 — Added shared ResourceBar component to the header; refresh hooked into _refresh_header so resource changes update immediately.
 extends Control
 ## Version: S37.17 — #1: mechanic stat chips read REMOVED fields car_setup_skill/pit_stop_skill/
@@ -102,36 +104,47 @@ func _build_ui() -> void:
 	root.add_theme_constant_override("separation", 10)
 	margin.add_child(root)
 
-	# ── Header ────────────────────────────────────────────────────────────────
+	# ── Header: [Name·Level][Resource Bar][Back][Main Hub] ──
 	var hdr = HBoxContainer.new()
 	hdr.add_theme_constant_override("separation", 14)
 	root.add_child(hdr)
-	# Shared resource bar (S37.31)
-	_resource_bar = ResourceBarScript.new()
-	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
-	hdr.add_child(_resource_bar)
-
 
 	_lbl_level = Label.new()
 	_lbl_level.add_theme_font_size_override("font_size", 44)
 	_lbl_level.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hdr.add_child(_lbl_level)
 
-	_lbl_slots = Label.new()
-	_lbl_slots.add_theme_font_size_override("font_size", 26)
-	_lbl_slots.modulate = Color(0.7,0.7,0.7)
-	hdr.add_child(_lbl_slots)
-
-	_lbl_income = Label.new()
-	_lbl_income.add_theme_font_size_override("font_size", 26)
-	_lbl_income.modulate = Color(0.4,0.9,0.5)
-	hdr.add_child(_lbl_income)
+	_resource_bar = ResourceBarScript.new()
+	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
+	hdr.add_child(_resource_bar)
 
 	var btn_back = Button.new()
 	btn_back.text = "← Back"
 	btn_back.custom_minimum_size = Vector2(90, 34)
 	btn_back.pressed.connect(_on_back)
 	hdr.add_child(btn_back)
+
+	var btn_hub = Button.new()
+	btn_hub.text = "🏠 Main Hub"
+	btn_hub.custom_minimum_size = Vector2(130, 34)
+	btn_hub.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/MainHub.tscn"))
+	hdr.add_child(btn_hub)
+
+	# Sub-header row: slots + income below the header (Main Hub concept)
+	var subrow = HBoxContainer.new()
+	subrow.add_theme_constant_override("separation", 16)
+	root.add_child(subrow)
+
+	_lbl_slots = Label.new()
+	_lbl_slots.add_theme_font_size_override("font_size", 26)
+	_lbl_slots.modulate = Color(0.7,0.7,0.7)
+	_lbl_slots.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	subrow.add_child(_lbl_slots)
+
+	_lbl_income = Label.new()
+	_lbl_income.add_theme_font_size_override("font_size", 26)
+	_lbl_income.modulate = Color(0.4,0.9,0.5)
+	subrow.add_child(_lbl_income)
 
 	root.add_child(HSeparator.new())
 

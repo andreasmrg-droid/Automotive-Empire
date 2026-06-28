@@ -1,3 +1,5 @@
+## Version: S37.35 — Standard minimal header [Name·Level][Resource Bar][Back][Main Hub]; blueprint
+##   status moved to a sub-row below the header (Main Hub concept).
 extends Control
 ## Version: S35.17 — `_make_scroll_column` gains a right-side gutter (MarginContainer, margin_right
 ##   12) so the vertical scrollbar always has a clear lane and never overlaps full-width content —
@@ -53,6 +55,9 @@ const PART_COLORS = {
 # Championship selection for production cost context
 var _selected_champ_id: String = ""
 
+var _resource_bar = null   ## S37.35 shared ResourceBar
+const ResourceBarScript = preload("res://scenes/components/ResourceBar.gd")
+
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	## S35.12 — default the championship tab to the first in the shared principle order (GP1…GK),
@@ -87,13 +92,10 @@ func _build_ui() -> void:
 	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(lbl_title)
 
-	# Blueprint count badge — show WRA-approved (ready to manufacture)
-	var bp_count = GameState.wra_approved_blueprints.size()
-	var lbl_bp = Label.new()
-	lbl_bp.text = "✅ %d WRA Approved" % bp_count if bp_count > 0 else "📋 No approved blueprints"
-	lbl_bp.add_theme_font_size_override("font_size", 26)
-	lbl_bp.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4) if bp_count > 0 else Color(0.45, 0.45, 0.45))
-	header.add_child(lbl_bp)
+	# Standard header: [Name·Level][Resource Bar][Back][Main Hub]
+	_resource_bar = ResourceBarScript.new()
+	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
+	header.add_child(_resource_bar)
 
 	var btn_back = Button.new()
 	btn_back.text = "← Back"
@@ -101,6 +103,23 @@ func _build_ui() -> void:
 	btn_back.pressed.connect(_on_back)
 	header.add_child(btn_back)
 
+	var btn_hub = Button.new()
+	btn_hub.text = "🏠 Main Hub"
+	btn_hub.custom_minimum_size = Vector2(130, 34)
+	btn_hub.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/MainHub.tscn"))
+	header.add_child(btn_hub)
+
+	root.add_child(_hsep())
+
+	# Sub-header row: scene-specific status below the header (Main Hub concept)
+	var subrow = HBoxContainer.new()
+	root.add_child(subrow)
+	var bp_count = GameState.wra_approved_blueprints.size()
+	var lbl_bp = Label.new()
+	lbl_bp.text = "✅ %d WRA Approved" % bp_count if bp_count > 0 else "📋 No approved blueprints"
+	lbl_bp.add_theme_font_size_override("font_size", 26)
+	lbl_bp.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4) if bp_count > 0 else Color(0.45, 0.45, 0.45))
+	subrow.add_child(lbl_bp)
 	root.add_child(_hsep())
 
 	## S35.12 — championship tab strip (scrollable; all 21 championships, ordered by the
@@ -660,6 +679,8 @@ func _build_champ_tab_strip() -> Control:
 
 ## S35.12 — Rebuild the whole screen (clears children, re-runs _build_ui) after a tab change.
 func _rebuild() -> void:
+	if _resource_bar != null and _resource_bar.has_method("refresh"):
+		_resource_bar.refresh()
 	for c in get_children(): c.queue_free()
 	_build_ui()
 

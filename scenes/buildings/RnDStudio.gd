@@ -1,4 +1,5 @@
-## Version: S37.31 — Added shared ResourceBar component to the header; refresh hooked into _rebuild_studio so resource changes update immediately.
+## Version: S37.35 — Standard minimal header [Name][Resource Bar][Back][Main Hub]; RP storage box +
+##   balance moved to a sub-row below the header (Main Hub concept). Refresh hooked into _rebuild_studio.
 extends Control
 ## Version: S35.21 — (1) P4 requirement messaging CONSOLIDATED: one "Required: 🏢 {Building} Lv X
 ##   &  🔬 Studio Lv Y" line (green if met, amber if not) replaces the old two-chip row + the
@@ -132,21 +133,37 @@ func _build_ui() -> void:
 	root.add_theme_constant_override("separation", 10)
 	margin.add_child(root)
 
-	# ── Header ────────────────────────────────────────────────────────────────
+	# ── Header: [Name][Resource Bar][Back][Main Hub] ──
 	var header = HBoxContainer.new()
 	header.add_theme_constant_override("separation", 14)
 	root.add_child(header)
-	# Shared resource bar (S37.31)
-	_resource_bar = ResourceBarScript.new()
-	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
-	header.add_child(_resource_bar)
-
 
 	var lbl_title = Label.new()
 	lbl_title.text = Locale.t("rnd_title")
 	lbl_title.add_theme_font_size_override("font_size", 42)
 	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(lbl_title)
+
+	_resource_bar = ResourceBarScript.new()
+	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
+	header.add_child(_resource_bar)
+
+	var btn_back = Button.new()
+	btn_back.text = Locale.t("rnd_back")
+	btn_back.custom_minimum_size = Vector2(90, 34)
+	btn_back.pressed.connect(_on_back)
+	header.add_child(btn_back)
+
+	var btn_hub = Button.new()
+	btn_hub.text = "🏠 Main Hub"
+	btn_hub.custom_minimum_size = Vector2(130, 34)
+	btn_hub.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/MainHub.tscn"))
+	header.add_child(btn_hub)
+
+	# Sub-header row: RP storage + balance below the header (Main Hub concept)
+	var subrow = HBoxContainer.new()
+	subrow.add_theme_constant_override("separation", 14)
+	root.add_child(subrow)
 
 	var rp_box = _make_panel(Color(0.07, 0.10, 0.16))
 	var rp_inner = HBoxContainer.new()
@@ -168,19 +185,17 @@ func _build_ui() -> void:
 	lbl_rp.add_theme_font_size_override("font_size", 24)
 	lbl_rp.add_theme_color_override("font_color", Color(0.45, 0.75, 1.0))
 	rp_inner.add_child(lbl_rp)
-	header.add_child(rp_box)
+	subrow.add_child(rp_box)
+
+	var _subspacer = Control.new()
+	_subspacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	subrow.add_child(_subspacer)
 
 	var lbl_bal = Label.new()
 	lbl_bal.text = "💰 %s" % _fmt(int(GameState.player_team.balance))
 	lbl_bal.add_theme_font_size_override("font_size", 26)
 	lbl_bal.add_theme_color_override("font_color", Color(0.5, 0.9, 0.4))
-	header.add_child(lbl_bal)
-
-	var btn_back = Button.new()
-	btn_back.text = Locale.t("rnd_back")
-	btn_back.custom_minimum_size = Vector2(90, 34)
-	btn_back.pressed.connect(_on_back)
-	header.add_child(btn_back)
+	subrow.add_child(lbl_bal)
 
 	root.add_child(_hsep())
 

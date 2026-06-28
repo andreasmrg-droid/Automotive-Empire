@@ -1,3 +1,5 @@
+## Version: S37.35 — Standard minimal header [Name·Level][Resource Bar][Back][Main Hub] (Main Hub
+##   concept). Bar refreshes via _build_ui. Scene-specific controls (if any) live below the header.
 extends Control
 ## Version: S36.13 — Bug #9/#19 (cluster A): the "Pit Crew not required" gate now checks the
 ##   player's ACTUAL championships via get_player_championships() + get_pit_crew_required(), instead
@@ -11,12 +13,17 @@ extends Control
 
 var _crew_container: VBoxContainer
 
+var _resource_bar = null   ## S37.35 shared ResourceBar
+const ResourceBarScript = preload("res://scenes/components/ResourceBar.gd")
+
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_ui()
 	refresh()
 
 func _build_ui() -> void:
+	if _resource_bar != null and _resource_bar.has_method("refresh"):
+		_resource_bar.refresh()
 	var margin = MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	margin.add_theme_constant_override("margin_left",   28)
@@ -43,7 +50,16 @@ func _build_ui() -> void:
 	btn_back.text = "← Back"
 	btn_back.custom_minimum_size = Vector2(100, 36)
 	btn_back.pressed.connect(_on_back)
+	# Shared resource bar — standard header [Name·Level][Bar][Back][Main Hub]
+	_resource_bar = ResourceBarScript.new()
+	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
+	header.add_child(_resource_bar)
 	header.add_child(btn_back)
+	var btn_hub = Button.new()
+	btn_hub.text = "🏠 Main Hub"
+	btn_hub.custom_minimum_size = Vector2(130, 36)
+	btn_hub.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/MainHub.tscn"))
+	header.add_child(btn_hub)
 	root.add_child(HSeparator.new())
 
 	# Discipline check (cluster A, Bug #9/#19): show the "not required" message based on the

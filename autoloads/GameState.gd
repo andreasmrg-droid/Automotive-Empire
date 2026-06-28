@@ -1,3 +1,5 @@
+## Version: S37.34 — pending_campus_zone (transient): Campus restores the last-viewed zone tab when
+##   returning from a building (set in _show_zone, read in _ready). new-game reset + load clear.
 ## Version: S37.32 — Part purchase prices: load res://data/part_costs.json (Excel CNC base costs ×
 ##   manufacturer profit 8% × quality 1.0) via get_part_unit_price/get_part_prices; buy_part uses
 ##   it. Fixes the 'buying parts doesn't deduct credits' bug (hardcoded PART_COSTS had GK at 0).
@@ -867,6 +869,7 @@ var current_loan:           float  = 0.0
 var _prev_week_balance:     float  = 0.0
 ## Navigation
 var pending_hq_tab: String = ""
+var pending_campus_zone: String = ""   ## S37.34 transient — Campus restores last-viewed zone tab
 ## Set by _end_season / start_new_season so MainHub knows which screen to show on next load.
 ## Values: "" (normal), "end_of_season", "begin_of_season"
 var pending_season_screen: String = ""
@@ -3061,6 +3064,7 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 	## Transient routing strings — must not survive into a fresh game.
 	pending_season_screen     = ""
 	pending_hq_tab            = ""
+	pending_campus_zone       = ""
 	pending_staff_filter      = ""
 	pending_rnd_champ_id      = ""
 	pending_rnd_pillar        = 1
@@ -3991,6 +3995,7 @@ func load_game(path: String = "user://save_game.json") -> void:
 	unread_notification_count = int(data.get("unread_notification_count", 0))
 	pending_season_screen     = ""
 	pending_hq_tab            = ""
+	pending_campus_zone       = ""
 	pending_staff_filter      = ""
 	pending_rnd_champ_id      = ""
 	pending_rnd_pillar        = 1

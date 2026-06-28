@@ -91,6 +91,9 @@ func _ready() -> void:
 	zones_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	zones_box.add_theme_constant_override("separation", 14)
 
+	## S37.34 — restore the zone tab the player was on when they entered a building.
+	if GameState.pending_campus_zone != "" and GameState.campus_zones.has(GameState.pending_campus_zone):
+		_current_zone = GameState.pending_campus_zone
 	_show_zone(_current_zone)
 
 ## Builds one tab button per zone, tinted in the zone's colour. Active = full colour, inactive = dim.
@@ -147,6 +150,7 @@ func _build_campus() -> void:
 ## Shows only the selected zone's building cards; updates tab highlight.
 func _show_zone(zone_name: String) -> void:
 	_current_zone = zone_name
+	GameState.pending_campus_zone = zone_name   ## S37.34 — remember for building Back-button return
 	_style_tabs()
 	for child in zones_box.get_children():
 		child.queue_free()

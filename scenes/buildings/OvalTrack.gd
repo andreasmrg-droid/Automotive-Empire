@@ -1,13 +1,20 @@
+## Version: S37.35 — Standard minimal header [Name·Level][Resource Bar][Back][Main Hub] (Main Hub
+##   concept). Bar refreshes via _build_ui. Scene-specific controls (if any) live below the header.
 extends Control
 ## Version: S37.20 — #30 text audit: "IndyCar"→"Open-Wheel" (real trademark + wrong discipline name).
 ## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
 ##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
+
+var _resource_bar = null   ## S37.35 shared ResourceBar
+const ResourceBarScript = preload("res://scenes/components/ResourceBar.gd")
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_ui()
 
 func _build_ui() -> void:
+	if _resource_bar != null and _resource_bar.has_method("refresh"):
+		_resource_bar.refresh()
 	var margin = MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	margin.add_theme_constant_override("margin_left",   28)
@@ -34,7 +41,16 @@ func _build_ui() -> void:
 	btn_back.text = "← Back"
 	btn_back.custom_minimum_size = Vector2(100, 36)
 	btn_back.pressed.connect(_on_back)
+	# Shared resource bar — standard header [Name·Level][Bar][Back][Main Hub]
+	_resource_bar = ResourceBarScript.new()
+	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
+	header.add_child(_resource_bar)
 	header.add_child(btn_back)
+	var btn_hub = Button.new()
+	btn_hub.text = "🏠 Main Hub"
+	btn_hub.custom_minimum_size = Vector2(130, 36)
+	btn_hub.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/MainHub.tscn"))
+	header.add_child(btn_hub)
 	root.add_child(HSeparator.new())
 
 	# Two columns
