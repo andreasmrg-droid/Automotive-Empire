@@ -1,6 +1,12 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v6.4 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+**Version:** v6.5 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v6.5: STATE-HANDLER DISCIPLINE (S37.28–S37.29). #52 fixed (New-Game state leak + load bleed)
+	and a FULL audit of all 129 GameState vars vs the three handlers (setup_new_game / save_game /
+	load_game) closed the remaining leaks: WRA pipeline (active_wra_submissions, wra_approved/
+	rejected_blueprints), bankruptcy counters (weeks_in_negative, bankruptcy_screen_shown),
+	dismissed_todo_items, ceo_accumulated_salary, and player identity (player_name/nationality/ceo_*/
+	game_difficulty). NEW §15.2 'STATE HANDLER CHECKLIST' codifies the rule so this can't recur. -->
 <!-- v6.4: MAIN HUB REDESIGN shipped (S37.27) — the §18 hard-prerequisite is DONE, unblocking
 	the notification-loop migration. New mockup-driven layout: Row1 nameplate (team + player name) ·
 	resource bar · Menu (BELL REMOVED); Row2 Season|Week|Next-Race strip; Row3 nav (Campus · Calendar ·
@@ -213,17 +219,17 @@ The economic heartbeat. All values reference the Master Variables Excel.
 
 ```
 Weekly_Total_Income   = Sponsor_Income + Race_Prize_Income + Commercial_Car_Sales_Income
-                      + Racing_Parts_Sales_Income + Building_Passive_Income + Merchandise_Income
+					  + Racing_Parts_Sales_Income + Building_Passive_Income + Merchandise_Income
 
 Weekly_Total_Expenses = Driver_Salaries + Staff_Salaries + Building_Maintenance
-                      + R&D_Project_Costs + Manufacturing_Materials + Loan_Interest
-                      + Race_Entry_Fees + Taxes + Fuel_Costs
+					  + R&D_Project_Costs + Manufacturing_Materials + Loan_Interest
+					  + Race_Entry_Fees + Taxes + Fuel_Costs
 
 Net_Weekly_Profit     = Weekly_Total_Income − Weekly_Total_Expenses
 Current_Balance_new   = Current_Balance_old + Net_Weekly_Profit
 
 Company_Value = Current_Balance + Value_of_All_Buildings + Value_of_All_Cars
-              + Value_of_Commercial_Inventory + Value_of_R&D_Assets − Current_Loan_Balance
+			  + Value_of_Commercial_Inventory + Value_of_R&D_Assets − Current_Loan_Balance
 
 Max_Loan_Amount = Company_Value × Loan_Multiplier × Reputation_Factor
 ```
@@ -290,7 +296,7 @@ each subsequent season (until the next 4-season regulation reset, §11).
 
 ```
 Final_Reliability = Base_Reliability + (Extra_Credits_Invested ÷ 12,000)
-                  + (Extra_Weeks × 5)          [capped at 100]
+				  + (Extra_Weeks × 5)          [capped at 100]
 ```
 
 Designer stats set a blueprint's *initial* reliability before CNC; the CNC process itself is
@@ -1238,6 +1244,38 @@ the Main Hub (consistent with the other hubs). Shortlist API on GameState:
 
 ---
 
+## 15.2 STATE HANDLER CHECKLIST — the three-handler rule (MANDATORY)
+
+*Born from bug #52 (S37.28) + the full S37.29 audit. Read this before adding any GameState var.*
+
+Persistent game state in `GameState` must be wired into **THREE handlers** or it leaks/breaks:
+1. **`setup_new_game`** — reset it to its starting value (so a New Game does not inherit the
+   previous one — the #52 leak).
+2. **`save_game`** — write it into the `save_data` dict (so it survives to disk).
+3. **`load_game`** — read it back with a default via `data.get(key, default)` (so a load restores
+   it AND old saves do not crash).
+
+**Decide the category of each new var, then wire the matching handlers:**
+
+| Category | Example | new_game | save | load |
+|---|---|---|---|---|
+| **Persistent state** (collections, balances, counters, registrations, fuel/SP, GK data) | `active_wra_submissions`, `weeks_in_negative`, `custom_calendar_events` | reset | save | load |
+| **Transient / UI routing** (momentary, meaningless on disk) | `pending_hq_tab`, `pending_season_screen`, the `pending_*` strings | reset | — (do NOT save) | clear to default |
+| **Derived / rebuilt** (regenerated from other data at setup) | `active_championships` (rebuilt in `_setup_championship`), `_player_staff_*` caches, `ai_cars`, `last_race_*` | — | — | — |
+| **Static-from-file** (loaded at init) | `race_calendar_data` (from `race_calendar.json`) | — | — | — (reloaded each launch) |
+| **Pure constants / config tables** | `CHAMPIONSHIP_REGISTRY`, `CNC_DATA` | — | — | — |
+
+**Illustration (same session, two vars, different handling):** the Calendar feature added
+`custom_calendar_events` (player-created → persistent → all three handlers) and `race_calendar_data`
+(loaded from JSON → static-from-file → none of the three). Same feature, opposite wiring.
+
+**The audit habit:** when in doubt, the var is persistent state — wire all three. A missing
+`save`/`load` pair silently loses player progress; a missing `new_game` reset silently leaks the
+previous game. Both are invisible until a player hits them. The S37.29 audit cross-checked all 129
+GameState vars this way; re-run it after any batch of new state.
+
+---
+
 ## 16. LOCALIZATION (Rule 3)
 
 Every user-facing string MUST go through `Locale.t("key")` or `Locale.tf("key", [args])`
@@ -1342,6 +1380,15 @@ the wildcards). Biggest risk: scope creep — keep saying "backlog."
 
 Historical record of what shipped; design facts above already reflect these.
 
+- **S37.28–S37.29 (#52 state leak + full handler audit):** `setup_new_game` now clears leaked
+  session state (sponsors/offers/approaches/notifications/SP/fuel/pending_*/fresh GK); `load_game`
+  clears transient routing + restores notifications. Then a full audit of all 129 GameState vars vs
+  the three handlers closed the rest: WRA pipeline (active_wra_submissions, wra_approved/rejected_
+  blueprints), bankruptcy counters (weeks_in_negative + bankruptcy_screen_shown — was reloadable to
+  escape bankruptcy), dismissed_todo_items, ceo_accumulated_salary, and player identity (player_name/
+  nationality/ceo_age/ceo_sex/game_difficulty — were resetting to defaults on load). New §15.2 State
+  Handler Checklist codifies the rule. GameState → S37.29.
+
 - **S37.27 (Main Hub redesign — §15.1/§18 prerequisite, buglist #17):** mockup-driven rebuild.
   Nameplate (team + player name) · resource bar · Menu in row 1 (notification BELL removed);
   Season|Week|Next-Race strip; nav row with the new Calendar button; three always-visible centre
@@ -1365,25 +1412,25 @@ Historical record of what shipped; design facts above already reflect these.
 
 - **S37.9–S37.13 (salary units · interest rebalance · sponsor commitment redesign · results UI — bugs #8/#2/#13/#11):**
   - **Annual salary negotiation (S37.9, #8):** ContractNegotiation now negotiates salary as an ANNUAL
-    figure with a live "≈ CR x/wk" read-out beside the spinbox (stored back as weekly). Signal handlers
-    use a NAMED `_on_salary_changed(value, lbl).bind(lbl)` (not an inline multiline lambda, which broke
-    parsing). Renegotiation no longer creates a TDL until the player submits an offer.
+	figure with a live "≈ CR x/wk" read-out beside the spinbox (stored back as weekly). Signal handlers
+	use a NAMED `_on_salary_changed(value, lbl).bind(lbl)` (not an inline multiline lambda, which broke
+	parsing). Renegotiation no longer creates a TDL until the player submits an offer.
   - **Interest rebalance (S37.10, #2):** `ContractEngine._subject_interest_score` rewritten. Old base
-    (talent×0.5+50) cleared the 60 threshold before reputation mattered, so a rep-0 garage attracted
-    ~everyone. New model gates reachable TALENT by team REPUTATION:
-    `interest = 60 + (player_rep − talent)×0.7 + free_agent_bonus(18) + rep_gap_bonus + tp_mod`.
-    Low-talent (≤35) free agents are always reachable so a new team can field a car. Simulated against
-    the real driver pool: rep-0 → ~13 reachable, rep-50 → ~371, rep-75+ → full grid.
+	(talent×0.5+50) cleared the 60 threshold before reputation mattered, so a rep-0 garage attracted
+	~everyone. New model gates reachable TALENT by team REPUTATION:
+	`interest = 60 + (player_rep − talent)×0.7 + free_agent_bonus(18) + rep_gap_bonus + tp_mod`.
+	Low-talent (≤35) free agents are always reachable so a new team can field a car. Simulated against
+	the real driver pool: rep-0 → ~13 reachable, rep-50 → ~371, rep-75+ → full grid.
   - **Sponsor commitment redesign (S37.10, #13):** type-3 (commitment) sponsors now pick a championship
 	from a REPUTATION BAND near the team's rep (REP_BAND_DOWN 18 / REP_BAND_UP 22 on the champ `rep`
 	scale 15=GK…100=GP1) — no GK→GP1 or GP1→Rally4 offers. Payment is ANNUAL (~1 season's entry+car
-    ±variation, rounded to 500) paid at the START of each registered season via
-    `_process_sponsor_annual_payments()` (called from SeasonManager Stage A2, after the registration
+	±variation, rounded to 500) paid at the START of each registered season via
+	`_process_sponsor_annual_payments()` (called from SeasonManager Stage A2, after the registration
 	ledger is promoted). The offer expires before the championship's registration deadline. Penalty for
 	skipping the committed championship = repay only that season's amount, and the deal cancels.
-    `seasons_total`/`seasons_paid` track progress; a fully-paid deal ends cleanly. Fixed the "all offers
-    exactly 20K" flat-floor bug. **Save/load now persist `active_sponsors` + `sponsor_offers`** (were
-    never serialized, so a signed multi-season commitment vanished on reload; back-compatible defaults).
+	`seasons_total`/`seasons_paid` track progress; a fully-paid deal ends cleanly. Fixed the "all offers
+	exactly 20K" flat-floor bug. **Save/load now persist `active_sponsors` + `sponsor_offers`** (were
+	never serialized, so a signed multi-season commitment vanished on reload; back-compatible defaults).
   - **Race results "Skip All" + column layout (S37.10–S37.13, #11):** added a "Skip All ⏭" header button
 	(shown when >1 race is queued the same week) that applies each remaining race's repairs + sponsor
 	bonuses and returns to the Main Hub (`pending_race_result_count()` drives visibility). Results +
@@ -1406,14 +1453,14 @@ Historical record of what shipped; design facts above already reflect these.
 - **S37.0–S37.8 (Cluster A close-out + repair UX + notification framework — §7.2/§6.11/§15.1):**
   - **CP4 — the `active_championship` getter (S37.0):** the singular getter used to return GK
 	(`active_championships[0]`) for everyone. It now resolves the player's REAL championship:
-    player_registered_championships → the championship of an owned car → legacy field → a safe dummy.
-    `RaceSimulator` threads the raced championship through per-race fuel / SP / condition / adaptation
-    reads (no more GK-rate math on a Rally car). Standings registration follows Rule #6 — a driver is
-    registered to a championship at CAR ASSIGNMENT, not at sign time (premature GK writes removed).
+	player_registered_championships → the championship of an owned car → legacy field → a safe dummy.
+	`RaceSimulator` threads the raced championship through per-race fuel / SP / condition / adaptation
+	reads (no more GK-rate math on a Rally car). Standings registration follows Rule #6 — a driver is
+	registered to a championship at CAR ASSIGNMENT, not at sign time (premature GK writes removed).
   - **GK bleed gating (S37.1–S37.2):** `GKDiscipline.populate_season()` seeds GK group-0 with REAL GK
-    drivers only; a serialized `player_in_gk` flag means a non-GK career no longer simulates/【sees】
-    stray GK races, results, round-advance or elimination notices. RacingWorld reads the GK champion/
-    leader from the shadow standings so GK results are visible in the world view.
+	drivers only; a serialized `player_in_gk` flag means a non-GK career no longer simulates/【sees】
+	stray GK races, results, round-advance or elimination notices. RacingWorld reads the GK champion/
+	leader from the shadow standings so GK results are visible in the world view.
   - **Repair UX (S37.3–S37.5, §6.11):** manual `repair_car()` reads the SP-per-10%-damage rate from
 	THIS car's championship. Added `repair_car_max_sp()` — a PROPORTIONAL repair spending all held SP
 	(not floored to 10% chunks) so a player short of one full chunk (GK = 110 SP/10%) can still

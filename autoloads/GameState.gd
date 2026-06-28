@@ -1,3 +1,8 @@
+## Version: S37.29 — #52 full audit: ALL 129 GameState vars cross-checked vs the 3 state handlers.
+##   Added save/load + new-game resets for the remaining leaks: WRA pipeline (active_wra_submissions,
+##   wra_approved/rejected_blueprints), bankruptcy counters (weeks_in_negative, bankruptcy_screen_shown),
+##   dismissed_todo_items, ceo_accumulated_salary, and player identity (player_name/nationality/ceo_*/
+##   game_difficulty). See GDD 'State Handler Checklist' — every new persistent var must touch all three.
 ## Version: S37.28 — #52 fix: setup_new_game now clears leaked session state (sponsors/offers/
 ##   approaches/notifications/SP/fuel/pending_* + fresh GK); load_game clears transient routing and
 ##   restores notifications (now also saved). Prevents New-Game state leak + cross-load bleed.
@@ -3054,6 +3059,14 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 	pending_cnc_blueprint     = ""
 	## GK state is recreated fresh below (the old `if gk_discipline == null` left stale GK data).
 	gk_discipline             = null
+	## S37.29 (#52 follow-up audit): more persistent state that had no new-game reset.
+	active_wra_submissions    = []
+	wra_approved_blueprints   = []
+	wra_rejected_blueprints   = []
+	dismissed_todo_items      = []
+	weeks_in_negative         = 0
+	bankruptcy_screen_shown   = false
+	ceo_accumulated_salary    = 0.0
 	active_rnd_tasks = []
 	completed_rnd_tasks = []
 	completed_bp_tasks  = []
@@ -3773,6 +3786,21 @@ func save_game() -> void:
 		"custom_calendar_events":    custom_calendar_events,   ## S37.26
 		"notifications":             notifications,                 ## S37.28 (#52)
 		"unread_notification_count": unread_notification_count,     ## S37.28 (#52)
+		## S37.29 (#52 audit): persistent state that was being lost on save/load.
+		"active_wra_submissions":    active_wra_submissions,
+		"wra_approved_blueprints":   wra_approved_blueprints,
+		"wra_rejected_blueprints":   wra_rejected_blueprints,
+		"dismissed_todo_items":      dismissed_todo_items,
+		"weeks_in_negative":         weeks_in_negative,
+		"bankruptcy_screen_shown":   bankruptcy_screen_shown,
+		"ceo_accumulated_salary":    ceo_accumulated_salary,
+		## Player identity / config (were resetting to defaults on load).
+		"player_name":               player_name,
+		"player_team_name":          player_team_name,
+		"player_team_nationality":   player_team_nationality,
+		"ceo_age":                   ceo_age,
+		"ceo_sex":                   ceo_sex,
+		"game_difficulty":           game_difficulty,
 	}
 
 	# Save all teams
@@ -3931,6 +3959,21 @@ func load_game(path: String = "user://save_game.json") -> void:
 	pending_rnd_champ_id      = ""
 	pending_rnd_pillar        = 1
 	pending_cnc_blueprint     = ""
+	## S37.29 (#52 audit): restore persistent state that previously reset on load.
+	active_wra_submissions    = data.get("active_wra_submissions", [])
+	wra_approved_blueprints   = data.get("wra_approved_blueprints", [])
+	wra_rejected_blueprints   = data.get("wra_rejected_blueprints", [])
+	dismissed_todo_items      = data.get("dismissed_todo_items", [])
+	weeks_in_negative         = int(data.get("weeks_in_negative", 0))
+	bankruptcy_screen_shown   = bool(data.get("bankruptcy_screen_shown", false))
+	ceo_accumulated_salary    = float(data.get("ceo_accumulated_salary", 0.0))
+	## Player identity / config.
+	player_name               = data.get("player_name", player_name)
+	player_team_name          = data.get("player_team_name", player_team_name)
+	player_team_nationality   = data.get("player_team_nationality", player_team_nationality)
+	ceo_age                   = int(data.get("ceo_age", ceo_age))
+	ceo_sex                   = data.get("ceo_sex", ceo_sex)
+	game_difficulty           = data.get("game_difficulty", game_difficulty)
 
 	# Restore championship standings (all championships, keyed by id — see _serialize_all_…).
 	_setup_championship()
