@@ -1,4 +1,6 @@
 extends Control
+## Version: S37.40 — TDL routing: commitment-sponsor "requires racing X" task routes to HQ and
+##   opens the WRA tab (registration), matching the R&D→WRA submit task.
 ## Version: S37.38 — Notification panel: removed per-notification Snooze buttons; added "Mark All as
 ##   Read" + "Delete All" buttons in the panel header next to the NOTIFICATIONS title (new
 ##   _build_notifications_panel). The per-notification nav "Go →" button is preserved (now in
@@ -538,7 +540,8 @@ func _refresh_todo() -> void:
 				## tab, not Overview, so the player lands on the blueprint-submission panel.
 				var go_hq: bool = (d == "res://scenes/buildings/HQ.tscn")
 				var hq_tab := "overview"
-				if go_hq and ("submit to WRA" in task_text or "Blueprint ready" in task_text):
+				if go_hq and ("submit to WRA" in task_text or "Blueprint ready" in task_text \
+						or "requires racing" in task_text):
 					hq_tab = "wra"
 				btn_go.pressed.connect(func():
 					if go_hq:
@@ -1391,6 +1394,9 @@ func _get_todo_destination(task: String) -> String:
 		return "res://scenes/buildings/HQ.tscn"
 	## R&D → WRA → CNC → Garage pipeline
 	if "submit to WRA" in task or "Blueprint ready" in task:
+		return "res://scenes/buildings/HQ.tscn"
+	## Commitment sponsor requires racing a championship — register via HQ → WRA (S37.40)
+	if "requires racing" in task:
 		return "res://scenes/buildings/HQ.tscn"
 	if "queue manufacturing" in task or "CNC Plant" in task:
 		return "res://scenes/buildings/CNCPlant.tscn"

@@ -1,4 +1,7 @@
 class_name NotificationManager
+## Version: S37.40 — Commitment (type-3) sponsor TDL: while not registered for the championship
+##   a championship-sponsor requires, a TDL prompts registration NEXT SEASON (clears on register).
+##   Championship sponsors now drive a TDL, not just a notification.
 ## Version: S37.39 — DRAFT exclusion: pending-negotiation TDL skips draft approaches (a round the
 ##   player opened but has not yet acted on).
 ## Version: S37.38 — clear_all_notifications() added (Main Hub "Delete All" button); Main Hub
@@ -489,6 +492,22 @@ func get_pending_tasks() -> Array[String]:
 	if gs.current_week >= 20 and gs.player_registered_championships.is_empty() \
 			and not gs.active_championships.is_empty():
 		tasks.append("📋 No championships registered for next season — register in HQ → WRA.")
+
+	## Step 11 — Commitment (type-3) sponsors require racing a SPECIFIC championship NEXT SEASON.
+	## The TDL clears only once the player has COMMITTED for next season (next_season_registrations) —
+	## NOT merely because they race it this season (a re-commit sponsor for the championship you're
+	## currently in still needs you to register for next season, or you owe that season back).
+	## (S37.40 — per design: championship sponsors must drive a TDL, not just a notice.)
+	for sp in gs.active_sponsors:
+		if sp.get("type", 0) != 3: continue
+		var champ_id: String = sp.get("championship_id", "")
+		if champ_id == "": continue
+		if champ_id in gs.next_season_registrations: continue
+		var champ_name: String = champ_id
+		var reg: Dictionary = gs.CHAMPIONSHIP_REGISTRY.get(champ_id, {})
+		if reg.has("name"): champ_name = reg["name"]
+		tasks.append("🤝 %s requires racing %s — register for it next season (HQ → WRA)." % [
+			sp.get("name", "Sponsor"), champ_name])
 
 	## Auto-clean custom_todo_items that are no longer relevant
 	## (e.g. "Assign a driver to Car X" after driver has been assigned)

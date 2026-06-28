@@ -1,4 +1,9 @@
 class_name SponsorManager
+## Version: S37.40 — Commitment (type-3) sponsor is now a forward commitment: _pick_commitment_
+##   championship excludes championships already in next_season_registrations (so the deal always
+##   asks the player to register for a championship they have NOT yet committed to next season).
+##   Sign-time notification reworded to "register for it next season". Pairs with the new
+##   commitment-sponsor TDL in NotificationManager.
 ## Version: S37.10 — Commitment sponsor REDESIGN (per design owner). A type-3 sponsor wants the team
 ##   to race a SPECIFIC championship for N seasons, chosen from a REPUTATION BAND near the team's rep
 ##   (no GK team getting GP1 offers, no GP1 team getting Rally4). Payment is ANNUAL (~1 season's
@@ -137,6 +142,11 @@ func _pick_commitment_championship() -> String:
 	var hi := prep + REP_BAND_UP
 	var pool: Array = []
 	for cid in gs.CHAMPIONSHIP_REGISTRY:
+		## S37.40 — a commitment sponsor must target a championship the player has NOT already
+		## committed to for next season; otherwise the "commitment" is meaningless and produces no
+		## actionable TDL. (Currently-raced championships are still eligible — the sponsor then asks
+		## the player to RE-commit for next season.)
+		if cid in gs.next_season_registrations: continue
 		var reg = gs.CHAMPIONSHIP_REGISTRY[cid]
 		var crep: float = float(reg.get("rep", 50))
 		if crep >= lo and crep <= hi:
@@ -147,6 +157,7 @@ func _pick_commitment_championship() -> String:
 		var best := ""
 		var best_d := 1e9
 		for cid in gs.CHAMPIONSHIP_REGISTRY:
+			if cid in gs.next_season_registrations: continue
 			var crep: float = float(gs.CHAMPIONSHIP_REGISTRY[cid].get("rep", 50))
 			var d: float = abs(crep - prep)
 			if d < best_d:
@@ -358,7 +369,7 @@ func sign_sponsor(sponsor_id: String) -> bool:
 			gs.add_log("🤝 %s signed: pays CR %s/season once you race %s (first instalment at next season start). %d-season deal." % [
 				offer.name, gs._fmt_int(offer.annual_payment), champ_name, offer.seasons_total])
 		gs.add_notification("High",
-			"%s: CR %s per season to race %s for %d seasons. Skip a season → repay that season's CR %s." % [
+			"%s: CR %s per season to race %s — register for it next season (%d-season deal). Skip a committed season → repay that season's CR %s." % [
 				offer.name, gs._fmt_int(offer.annual_payment), champ_name, offer.seasons_total,
 				gs._fmt_int(offer.annual_payment)],
 			"hq")
