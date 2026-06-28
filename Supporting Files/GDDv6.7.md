@@ -1,6 +1,14 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v6.6 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+**Version:** v6.7 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v6.7: (S37.31–S37.36) RESOURCE-BAR ROLLOUT COMPLETE + STANDARD HEADER finalized. The shared
+	ResourceBar component is now on Campus, all 20 building scenes, and all non-building scenes
+	(Drivers, StaffHub, Shortlist, Financialdept, ChampionshipSelect, Calendar — swapped from its
+	hand-rolled bar — plus BeginOfSeason/EndOfSeason ceremony screens). §15.3 rewritten with the
+	correct 'Main Hub concept' header: [Name·Level][Resource Bar][Back][Main Hub], scene-specific
+	controls in a SUB-ROW below the header. Campus remembers last-viewed zone (pending_campus_zone).
+	Key lesson recorded: header overflow came from oversized fonts + too many header elements, NOT
+	the stretch aspect; fix = minimal header (title absorbs width, bar compact, extras in sub-row). -->
 <!-- v6.6: (S37.31–S37.32) Reusable ResourceBar component + scene standard; part-purchase pricing.
 	NEW §15.3 STANDARD SCENE LAYOUT: [Building Name][Building Level][Resource Bar][Back][Main Hub] —
 	custom scenes (Main Hub, HQ team badge) may deviate. NEW §5.3 part PURCHASE pricing: unit_price =
@@ -1306,23 +1314,54 @@ GameState vars this way; re-run it after any batch of new state.
 
 ---
 
-## 15.3 STANDARD SCENE LAYOUT (header convention) — S37.31
+## 15.3 STANDARD SCENE LAYOUT — the "Main Hub concept" header (MANDATORY) — S37.36
 
-Every in-game scene's header follows this left-to-right order unless it has a documented reason to
-deviate:
+Every in-game scene uses the SAME minimal header. Scene-specific controls go in a SUB-ROW *below*
+the header, never inside it. This is the pattern the Main Hub itself uses, and it is mandatory.
 
 ```
-[ Building / Scene Name ] [ Building Level ] [ Resource Bar ] [ Back ] [ Main Hub ]
+HEADER  (one row, fixed set):   [ Scene Name · Level ]   [ Resource Bar ]   [ Back ]   [ Main Hub ]
+SUB-ROW (optional, below):      [ scene-specific labels / buttons … ]
+BODY:                           [ the scene content ]
 ```
 
-- **Resource Bar** is the shared component (`res://scenes/components/ResourceBar.gd`, §15) —
-  instantiate the SCRIPT (`ResourceBarScript.new()`, no `.tscn`, no `class_name`, untyped var), add
-  to the header, and call `_resource_bar.refresh()` from the scene's existing refresh path so values
-  update immediately after any resource change.
+### Header rules (never overflow if you follow these)
+- The header contains ONLY these four things, in this order: **title (Name · Level)**, **resource
+  bar**, **Back**, **Main Hub**. Nothing else.
+- The **title** is `SIZE_EXPAND_FILL` — it absorbs all the slack and forces the header to exactly the
+  viewport width, pinning the bar + buttons to the right edge ON SCREEN.
+- The **resource bar** is `SIZE_SHRINK_END` (compact, natural width). Do NOT make it EXPAND_FILL and
+  do NOT add an expanding spacer before it — that consumed all the width and pushed the buttons off
+  screen (the S37.34 mistake). The expanding *title* is what centres/pins everything.
 - **Back** returns to the previous screen (usually Campus); **Main Hub** jumps straight to the hub.
-- **Documented deviations are fine:** the **Main Hub** has its own bar + nav and no Back/Hub buttons;
-  **HQ** keeps its team-colour badge (team name) on the left with the bar centred. New scenes should
-  match the standard unless they have a similar reason.
+
+### Resource bar component
+The bar is the shared component `res://scenes/components/ResourceBar.gd` (§15). Instantiate the
+SCRIPT — `const ResourceBarScript = preload(...)`, `var bar = ResourceBarScript.new()` — with NO
+`.tscn`, NO `class_name`, and an UNTYPED var (a `class_name` + preload collides; a `.tscn` causes a
+PanelContainer/Control type-mismatch). Add it to the header, then call `_resource_bar.refresh()` from
+the scene's existing build/refresh function so values update immediately after any resource change.
+The bar is compact (font 22, no per-item min width) so it never crowds a header.
+
+### Scene-specific controls → SUB-ROW
+Anything that is NOT the four header items (status labels, tab strips, "Add event", "Racing World",
+"Shortlist", driver-slots/income, RP storage, blueprint counts, etc.) goes in a row BELOW the header,
+exactly like the Main Hub's nav row sits under its top bar. This keeps the header a fixed width that
+cannot overflow regardless of font size.
+
+### Documented exceptions (allowed)
+- **Main Hub** — has its own bar + nav and no Back/Main Hub buttons (it IS the hub).
+- **HQ** — keeps its team-colour **badge** (team name) on the far left: `[badge][Name·Level][bar][Back][Main Hub]`.
+- **BeginOfSeason / EndOfSeason** — ceremony screens: the bar sits top-right, and they keep their own
+  Start/Continue flow buttons instead of Back/Main Hub.
+
+### Why this exists (the overflow lesson)
+Headers were running off the right edge with the right-hand content (e.g. RacingDept's whole right
+column) cut off. Root cause was NOT the window stretch aspect (`expand` vs `keep` made no difference)
+— it was **oversized fonts** (theme base 32px + 905 per-element overrides, titles 44–72px) plus too
+many elements crammed into the header HBox, whose VBox parent then grew wider than the viewport and
+dragged the body with it. The fix is structural: a minimal, fixed header (above) + a sub-row. Apply
+it to every new scene.
 
 ---
 
@@ -1429,6 +1468,17 @@ the wildcards). Biggest risk: scope creep — keep saying "backlog."
 ## 20. IMPLEMENTATION CHANGELOG (recent — newest first)
 
 Historical record of what shipped; design facts above already reflect these.
+
+- **S37.31–S37.36 (resource-bar rollout + standard header):** the shared ResourceBar component
+  (script-instantiated, compact) is now on Campus + all 20 building scenes + all non-building scenes
+  (Drivers, StaffHub, Shortlist, Financialdept, ChampionshipSelect, Calendar [swapped from its own
+  bar], BeginOfSeason, EndOfSeason). Headers standardized to the Main Hub concept (§15.3):
+  [Name·Level][Resource Bar][Back][Main Hub], with scene-specific controls (Driver Slots, income,
+  RP storage, blueprint status, Racing World, Shortlist, Add-event) moved to sub-rows. Each bar
+  refreshes via the scene's build/refresh path. Campus now restores the last-viewed zone tab when
+  returning from a building (pending_campus_zone, transient — GameState S37.34). Overflow root cause
+  recorded: oversized fonts + overloaded headers, not the stretch aspect. MainHub still uses its own
+  bar (optional future swap to the shared component).
 
 - **S37.31–S37.32 (ResourceBar component · scene standard · part pricing):** reusable ResourceBar
   component (script-instantiated, no class_name/.tscn) added to building scenes with live refresh;
