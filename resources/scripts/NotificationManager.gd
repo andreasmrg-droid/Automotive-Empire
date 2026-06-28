@@ -1,4 +1,9 @@
 class_name NotificationManager
+## Version: S37.43 — BUGFIX (false GK-TP TDL for non-GK players): the TP readiness check keyed on
+##   "any GK championship is active" (GK/C-001 is ALWAYS in the world), so an SC/Rally/etc. player
+##   wrongly saw "no TP for GK" while their real championships went unchecked — and the non-GK branch
+##   iterated EVERY active championship. Now derived from the cars the player actually fields
+##   (player_champ_ids), GK shares one TP, non-GK each need their own.
 ## Version: S37.42 — Readiness gaps are now CRITICAL (red): missing driver / mechanic / Team Principal
 ##   all cause a DNS, so their TDL rows are prefixed with 🚫 (the UI's critical-color marker) instead
 ##   of ⚠/🔧/👤 which rendered orange. (Driver-on-car 🏎 and Pit Crew ⏱ were already red.) Routing
@@ -329,30 +334,41 @@ func get_pending_tasks() -> Array[String]:
 			if car.pit_crew_id == "" or car.pit_crew_id == "N/A":
 				tasks.append("⏱ %s [%s] — no Pit Crew. Assign in Pit Crew Arena." % [car_label, champ_name])
 
-	## Step 3 — Staff roles missing
-	## GK discipline: one TP for all tiers combined
-	var has_gk_active = false
-	var gk_tp_ok = false
-	for champ in gs.active_championships:
-		if champ.discipline == "GK":
-			has_gk_active = true
-			if gs._get_tp_for_championship(champ.id) != null:
-				gk_tp_ok = true
-	if has_gk_active and not gk_tp_ok:
-		var has_any_tp = gs.get_player_staff_by_role("Team Principal").size() > 0
-		if not has_any_tp:
-			tasks.append("🚫 No Team Principal — hire one from Staff screen (car will DNS).")
+	## Step 3 — Team Principal missing for a championship the PLAYER actually fields a car in.
+	## S37.43 — BUGFIX: the old check keyed on has_gk_active = "any GK championship is in
+	## active_championships", but GK (C-001) is ALWAYS in the world, so a non-GK player (e.g. SC Dev
+	## Cup) wrongly got a "no TP for GK" TDL while their real championships were never checked. And
+	## the non-GK branch iterated ALL active_championships (every AI series). Now we derive the
+	## player's championships from the cars they actually field and check a TP per discipline-group.
+	## GK shares ONE TP across all its tiers; non-GK championships each need their own.
+	var player_champ_ids: Array = []
+	for car in gs.player_team_cars:
+		if car.championship_id != "" and not car.championship_id in player_champ_ids:
+			player_champ_ids.append(car.championship_id)
+	var gk_player_champs: Array = []
+	var nongk_missing_tp: Array = []
+	for cid in player_champ_ids:
+		var creg = gs.CHAMPIONSHIP_REGISTRY.get(cid, {})
+		var cdisc = creg.get("discipline", "")
+		if cdisc == "GK":
+			gk_player_champs.append(cid)
 		else:
-			tasks.append("🚫 GK disciplines have no Team Principal assigned. Go to Racing Department (car will DNS).")
-	elif not has_gk_active:
-		## Non-GK: check each active championship
-		var non_gk_missing_tp: Array = []
-		for champ in gs.active_championships:
-			if champ.discipline == "GK": continue
-			if gs._get_tp_for_championship(champ.id) == null:
-				non_gk_missing_tp.append(champ.championship_name)
-		if non_gk_missing_tp.size() > 0:
-			tasks.append("🚫 No Team Principal for: %s (car will DNS)." % ", ".join(non_gk_missing_tp))
+			if gs._get_tp_for_championship(cid) == null:
+				nongk_missing_tp.append(creg.get("name", cid))
+	## GK: one TP covers all GK tiers the player fields.
+	if not gk_player_champs.is_empty():
+		var gk_tp_ok := false
+		for cid in gk_player_champs:
+			if gs._get_tp_for_championship(cid) != null:
+				gk_tp_ok = true
+				break
+		if not gk_tp_ok:
+			if gs.get_player_staff_by_role("Team Principal").size() == 0:
+				tasks.append("🚫 No Team Principal — hire one from Staff screen (car will DNS).")
+			else:
+				tasks.append("🚫 GK has no Team Principal assigned. Go to Racing Department (car will DNS).")
+	if nongk_missing_tp.size() > 0:
+		tasks.append("🚫 No Team Principal for: %s (car will DNS)." % ", ".join(nongk_missing_tp))
 	## CFO is OPTIONAL ("good to have"). It appears as a READ-ONLY TO-DO row while missing (the
 	## player can see the list; the TDL never fires notifications). The one-time "no CFO"
 	## notification is handled separately by notify_event("no_cfo", ..., "once") in GameState.

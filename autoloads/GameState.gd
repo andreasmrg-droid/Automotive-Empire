@@ -3440,7 +3440,12 @@ func advance_week() -> void:
 					if simulating_to_season_end:
 						cfo_auto_buy_for_race(champ)
 					_check_race_requirements_for(champ)
-				_simulate_race(race, champ)
+					## S37.43 — BUGFIX: _simulate_race is the PLAYER's race (it filters to
+					## player_team_cars for this champ). It was OUTSIDE this is_player_champ guard, so
+					## it ran for EVERY championship the player isn't in → spurious "DNS: No car
+					## assigned [RALLY3/TC/EPC…]" spam each race week. Gate it on is_player_champ; AI
+					## championships still advance via champ.current_round below and the AI/shadow path.
+					_simulate_race(race, champ)
 			## Sponsor race bonuses handled by apply_sponsor_race_bonuses()
 			champ.current_round += 1
 
