@@ -1,4 +1,9 @@
 class_name SeasonManager
+## Version: S37.43 — Notification & News Roadmap, Phase 3 (events→notify_event). All 13 SeasonManager
+##   notifications migrated: 4 departures → "news" at Normal (driver/staff contract-expiry leaves +
+##   driver/staff retirements — retirements dropped from Critical to Normal per design); the rest →
+##   "event" (rollover warnings: no champs registered, no/new car needed, academy turns-18, cadet/
+##   driver/staff contract expiry re-sign prompts), logistics/championship-routed where actionable.
 ## Version: S37.22 — #40: after applying pending staff assignments at season start, call
 ##   clear_stranded_player_championship_staff() so a player TP/Strategist left on a championship no
 ##   longer raced (e.g. GK after switching to Rally) is auto-unassigned (prevents the GK soft-lock).
@@ -269,8 +274,8 @@ func start_new_season() -> void:
 
 	## Notify player if not registered anywhere / missing a car
 	if gs.player_registered_championships.is_empty():
-		gs.add_notification("High",
-			"⚠ No championships registered for Season %d! Use the Championships screen to register." % gs.current_season)
+		gs.notify_event("no_champs_s%d" % gs.current_season, "High",
+			"⚠ No championships registered for Season %d! Use the Championships screen to register." % gs.current_season, "", "event")
 	else:
 		for champ_id in gs.player_registered_championships:
 			var has_car = false
@@ -278,17 +283,17 @@ func start_new_season() -> void:
 				if car.championship_id == champ_id: has_car = true; break
 			if not has_car:
 				var reg = gs.CHAMPIONSHIP_REGISTRY.get(champ_id, {})
-				gs.add_notification("High",
+				gs.notify_event("no_car_%s" % champ_id, "High",
 					"🏎 No car for %s — buy or manufacture one before Race 1." % reg.get("name", champ_id),
-					"logistics")
+					"logistics", "event")
 
 	## Delivery deadline notifications
 	for champ in gs.active_championships:
 		var delivery_wk = gs.get_car_delivery_week(champ.id)
 		var race1_wk    = gs.FIRST_RACE_WEEK.get(champ.id, 6)
-		gs.add_notification("High",
+		gs.notify_event("new_car_needed_%s_s%d" % [champ.id, gs.current_season], "High",
 			"Season %d [%s]: New car needed. Delivery: Week %d. Race 1: Week %d." % [
-			gs.current_season, champ.championship_name, delivery_wk, race1_wk])
+			gs.current_season, champ.championship_name, delivery_wk, race1_wk], "", "event")
 
 	## Re-register AI drivers and teams into championship standings (Season-1 JSON seed
 	## + the absorbed AI roster changes from Stage C).
@@ -348,9 +353,9 @@ func start_new_season() -> void:
 		gs._last_tp_proposals = gs.generate_tp_assignment_proposals()
 
 	if gs.player_registered_championships.is_empty():
-		gs.add_notification("Normal",
+		gs.notify_event("season_no_champs_s%d" % gs.current_season, "Normal",
 			"Season %d started with no championships. Register during this season for Season %d." % [
-			gs.current_season, gs.current_season + 1])
+			gs.current_season, gs.current_season + 1], "", "event")
 	gs.emit_signal("week_advanced", gs.current_week)
 	gs.emit_signal("log_updated")
 
@@ -382,22 +387,22 @@ func _process_off_season_aging() -> void:
 			## Academy bond ends at age 18 — notify player
 			if driver.contract_team == gs.player_team.id:
 				if driver.age == 17:
-					gs.add_notification("High",
-						"🎓 %s will turn 18 next season — offer a professional contract or release from the academy." % driver.full_name())
+					gs.notify_event("academy_18soon_%s" % driver.id, "High",
+						"🎓 %s will turn 18 next season — offer a professional contract or release from the academy." % driver.full_name(), "", "event")
 				elif driver.age >= 18:
-					gs.add_notification("Critical",
-						"🎓 %s has turned 18 — academy bond expired. Offer professional contract or they will leave." % driver.full_name())
+					gs.notify_event("academy_18_%s" % driver.id, "Critical",
+						"🎓 %s has turned 18 — academy bond expired. Offer professional contract or they will leave." % driver.full_name(), "", "event")
 			## Academy bond: seasons_remaining tracks seasons until 18
 			driver.contract_seasons_remaining = max(0, 18 - driver.age)
 		elif driver.contract_seasons_remaining > 0:
 			driver.contract_seasons_remaining -= 1
 			if driver.contract_seasons_remaining == 0 and driver.contract_team == gs.player_team.id:
 				if driver.contract_type == "cadet":
-					gs.add_notification("High",
-						"⚠ Cadet %s's contract has expired! Re-sign or they will leave." % driver.full_name())
+					gs.notify_event("cadet_expired_%s" % driver.id, "High",
+						"⚠ Cadet %s's contract has expired! Re-sign or they will leave." % driver.full_name(), "", "event")
 				else:
-					gs.add_notification("High",
-						"⚠ %s's contract has expired! Re-sign them or they will leave." % driver.full_name())
+					gs.notify_event("driver_expired_%s" % driver.id, "High",
+						"⚠ %s's contract has expired! Re-sign them or they will leave." % driver.full_name(), "", "event")
 
 	# ── Age staff + decrement staff contracts ─────────────────────────────
 	## Staff are aged here (this is the only place staff age advances) so the
@@ -410,9 +415,9 @@ func _process_off_season_aging() -> void:
 		if staff.contract_seasons_remaining > 0:
 			staff.contract_seasons_remaining -= 1
 			if staff.contract_seasons_remaining == 0 and staff.contract_team == gs.player_team.id:
-				gs.add_notification("High",
+				gs.notify_event("staff_expired_%s" % staff.id, "High",
 					"⚠ %s (%s) contract expired! Re-sign or they will leave." % [
-					staff.full_name(), staff.role])
+					staff.full_name(), staff.role], "", "event")
 
 	# ── Process player team expired contracts ────────────────────────────
 	var player_drivers_to_release: Array = []
@@ -424,7 +429,7 @@ func _process_off_season_aging() -> void:
 	for driver_id in player_drivers_to_release:
 		var driver = gs.all_drivers[driver_id]
 		gs.add_log("👋 %s's contract expired — left the team." % driver.full_name())
-		gs.add_notification("High", "%s has left — contract expired." % driver.full_name())
+		gs.notify_event("left_%s" % driver.id, "Normal", "%s has left — contract expired." % driver.full_name(), "", "news")
 		driver.contract_team = ""
 		driver.contract_seasons_remaining = 0
 		gs.player_team.drivers.erase(driver_id)
@@ -440,7 +445,7 @@ func _process_off_season_aging() -> void:
 	for sid in player_staff_to_release:
 		var s = gs.all_staff[sid]
 		gs.add_log("👋 %s (%s) contract expired — left the team." % [s.full_name(), s.role])
-		gs.add_notification("High", "%s (%s) has left — contract expired." % [s.full_name(), s.role])
+		gs.notify_event("left_%s" % s.id, "Normal", "%s (%s) has left — contract expired." % [s.full_name(), s.role], "", "news")
 		s.contract_team = ""
 		s.assigned_championship = ""
 
@@ -556,9 +561,9 @@ func _retire_person(person_id: String, pool: Dictionary, kind: String) -> void:
 			champ.standings.erase(person_id)
 		gs.add_log("🏁 %s has retired from racing at age %d." % [person.full_name(), person.age])
 		if is_player:
-			gs.add_notification("Critical",
+			gs.notify_event("retired_%s" % person.id, "Normal",
 				"🏁 Your driver %s has retired (age %d). Sign a replacement before Race 1." % [
-				person.full_name(), person.age])
+				person.full_name(), person.age], "", "news")
 	else:  ## staff
 		is_player = (person.contract_team == gs.player_team.id)
 		person.contract_team = ""
@@ -568,9 +573,9 @@ func _retire_person(person_id: String, pool: Dictionary, kind: String) -> void:
 			person.assigned_car_id = ""
 		gs.add_log("🏁 %s (%s) has retired at age %d." % [person.full_name(), person.role, person.age])
 		if is_player:
-			gs.add_notification("Critical",
+			gs.notify_event("retired_%s" % person.id, "Normal",
 				"🏁 Your %s %s has retired (age %d). Hire a replacement." % [
-				person.role, person.full_name(), person.age])
+				person.role, person.full_name(), person.age], "", "news")
 
 	## Archive for History / News (GDD §13, §19)
 	gs.retired_personnel.append({
