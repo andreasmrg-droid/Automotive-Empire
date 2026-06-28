@@ -1,356 +1,187 @@
 extends Control
-## Version: S37.9 — Renegotiation TDL X button: a "Negotiations open: NAME — make your opening
-##   offer." row now shows an ✕ that dismisses the un-submitted renegotiation
-##   (cancel_renegotiation_by_subject_name). Other negotiation tasks stay non-dismissible.
-## Version: S37.4 — Repair UX: added "Fix N% (max SP)" button to the My Cars repair row so the
-##   player can repair as much as current SP affords when a full repair is unaffordable.
-## Version: S36.4 — Bug #9/#19 (cluster A): Main Hub no longer reads the singular active_championship
-##   (= GK). Driver-stats now look up each driver's championship position in THEIR OWN car's
-##   championship (a Rally driver was wrongly shown "Not registered" because GK's standings were
-##   searched). The resource-bar SP/FU warning colours (both summary blocks) now use the worst-case
-##   need across the player's registered championships, not GK's. Uses new GameState helpers
-##   get_championship_by_id() / get_player_championships().
-## Version: S35.11b — TDL routing: the R&D→WRA "submit to WRA / Blueprint ready" task now opens
-##   HQ on the WRA tab (pending_hq_tab="wra"), not Overview (issue 2). Other HQ tasks unchanged.
-## Version: S35.11 — Top bar no longer overflows the viewport. Two parts: (1) the notification
-##   bell text grows with the count ("🔔" → "🔔 99 🔴9"), and custom_minimum_size is only a
-##   floor, so the growing button pushed TopBar past 1920 — pinned a fixed footprint + clip_text
-##   + SHRINK_CENTER so the count can't change the bar geometry. (2) The baseline TopBar minimum
-##   was itself near 1920 (4 resource labels at 130px + bell 150 + 30px separations), clipping
-##   both edges — reduced resource-label floor 130→95, bell→120, resource-bar separation 30→16
-##   so the expand-fill resource bar absorbs slack and the bar fits with wide margin.
-## Version: S35.10c — Added ⭐ Shortlist button to the top bar (opens the unified Shortlist screen).
-## Version: S34.2 — All negotiation/bond To-Do items route to HQ Overview. The go-button now
-##   sets pending_hq_tab="overview" for any HQ-bound negotiation task so HQ opens on the Pending
-##   Activity panel (with the Open button). Removed the earlier per-subject focus hint (bonds no
-##   longer route to Drivers/Staff). Bond-decide task wording → "in HQ".
-## Version: S34.1 — Bond TDL routing + live refresh. (1) The new "team wants CR X" bond-decide
-##   task routes to Drivers/Staff hub (where the Decide popup lives), not HQ; marked a
-##   non-dismissable negotiation task. (2) MainHub now connects approach_updated → _update_display
-##   so the TDL refreshes the instant a bond status changes, not only on the weekly tick.
-## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
-##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
-## Version: S28.1 — TDL panel wrapped in a height-capped ScrollContainer (220px) so a long
-##   to-do list scrolls internally and can never push Advance Week / Next Race / End of Season
-##   off-screen (shot 5 fix).
-## --- S22.1 — TDL pinned above log scroll (never buried by log messages).
-##                    Racing World button in top bar.
-##                    TDL routing: GK TP and TP assignment items → Racing Department.
+## Version: S37.27 — MAIN HUB REDESIGN (mockup-driven). Hard prerequisite for the notification loop.
+##   Layout: Row1 = team/player name · resource bar · Menu (BELL REMOVED). Row2 = Season|Week|Next
+##   Race strip. Row3 = nav (Campus · Calendar · Drivers · Staff · Shortlist · Racing World). Centre
+##   = three always-visible panels: TO-DO LIST · NOTIFICATIONS (now a permanent column, no bell/
+##   slide-in) · NEWS (doubles as the weekly event LOG until the news system is built). Bottom =
+##   a 5-WEEK STRIP (player-related events only, compact "+N more" overflow, from CalendarManager)
+##   + the three advance buttons (Advance Week / Next Race / End of Season). The side panel + its
+##   4 tabs (drivers/teams/my-driver/cars) are DELETED (standings live in Racing World).
+##   Calendar button → res://scenes/Calendar.tscn (this session's feature).
+## Prior (carried-over) version notes:
+## S37.9 — Renegotiation TDL X button; S37.4 repair UX; S36.4 cluster-A active_championship reads.
 
-@onready var title_label = $Layout/TitleLabel
-@onready var week_label = $Layout/WeekLabel
-@onready var balance_label = $Layout/BalanceLabel
-@onready var next_race_label = $Layout/NextRaceLabel
-@onready var log_container = $Layout/MainArea/LogContainer
-@onready var log_box = $Layout/MainArea/LogContainer/LogBox
-@onready var advance_button = $Layout/AdvanceButton
-@onready var side_panel = $Layout/MainArea/SidePanel
-@onready var tab_row = $Layout/MainArea/SidePanel/TabRow
-@onready var drivers_panel = $Layout/MainArea/SidePanel/DriversPanel
-@onready var drivers_box = $Layout/MainArea/SidePanel/DriversPanel/DriversBox
-@onready var teams_panel = $Layout/MainArea/SidePanel/TeamsPanel
-@onready var teams_box = $Layout/MainArea/SidePanel/TeamsPanel/TeamsBox
-@onready var driver_panel = $Layout/MainArea/SidePanel/DriverPanel
-@onready var driver_stats_label = $Layout/MainArea/SidePanel/DriverPanel/DriverStatsLabel
-
-var advance_to_race_button: Button
+# Built entirely in code from the simplified .tscn (root Control + Layout VBox).
 var top_bar: HBoxContainer
+var nameplate_label: Label
+var title_label: Label
+var week_label: Label
+var balance_label: Label
+var next_race_label: Label
 
-var tab_drivers_btn: Button
-var tab_teams_btn: Button
-var tab_driver_btn: Button
-var current_tab: String = "drivers"
+# Resource bar
 var resource_bar: HBoxContainer
 var cr_label: Label
 var rp_label: Label
 var sp_label: Label
 var fu_label: Label
-var notif_button: Button
-var notif_panel: PanelContainer
-var notif_box: VBoxContainer
-var notif_visible: bool = false
-var notif_dim: ColorRect = null
-var tab_cars_btn: Button
-var cars_panel: ScrollContainer
-var cars_box: VBoxContainer
+
+# Centre panels
+var tdl_box: VBoxContainer          ## To-Do list column body
+var notif_box: VBoxContainer        ## Notifications column body (permanent — no bell/slide-in)
+var log_box: VBoxContainer          ## News/Log column body
+var log_container: ScrollContainer  ## scroll wrapper for log_box
+
+# Bottom 5-week strip
+var week_strip: HBoxContainer
+
+# Advance buttons
+var advance_button: Button
+var advance_to_race_button: Button
+
+# Menu popup
 var menu_popup: PanelContainer
-var tdl_box: VBoxContainer  ## Fixed TDL panel — lives above the scroll log
+
+const WEEK_STRIP_COUNT := 5         ## weeks shown ahead on the hub strip
+const STRIP_MAX_CHIPS := 3          ## events shown per week before "+N more"
 
 
 func _ready() -> void:
-	## Fix E: if we navigated away from BeginOfSeason to a building, come back here
+	## Fix E: returning from BeginOfSeason to a building → come back here.
 	if GameState.pending_season_screen == "begin_of_season":
 		get_tree().change_scene_to_file("res://scenes/BeginOfSeason.tscn")
 		return
 
-	# Layout fills screen
-	$Layout.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var layout: VBoxContainer = $Layout
+	layout.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layout.add_theme_constant_override("separation", 10)
 
-	# Title
-	title_label.add_theme_font_size_override("font_size", 56)
-	title_label.add_theme_color_override("font_color", Color.WHITE)
+	# ═══ ROW 1: nameplate · resource bar · menu ═══
+	top_bar = HBoxContainer.new()
+	top_bar.add_theme_constant_override("separation", 16)
+	layout.add_child(top_bar)
 
-	# Top navigation bar
-	top_bar = $Layout/TopBar
+	nameplate_label = Label.new()
+	nameplate_label.add_theme_font_size_override("font_size", 30)
+	nameplate_label.custom_minimum_size = Vector2(300, 0)
+	top_bar.add_child(nameplate_label)
 
-	# ── TOP BAR ──────────────────────────────────────────────────────
-	var campus_btn = Button.new()
-	campus_btn.text = "🏛 Campus"
-	campus_btn.custom_minimum_size = Vector2(130, 35)
-	campus_btn.pressed.connect(_on_campus_pressed)
-	top_bar.add_child(campus_btn)
-
-	var drivers_btn = Button.new()
-	drivers_btn.text = "👤 Drivers"
-	drivers_btn.custom_minimum_size = Vector2(110, 35)
-	drivers_btn.pressed.connect(_on_drivers_pressed)
-	top_bar.add_child(drivers_btn)
-
-	var staff_btn = Button.new()
-	staff_btn.text = "🧑‍🔧 Staff"
-	staff_btn.custom_minimum_size = Vector2(100, 35)
-	staff_btn.pressed.connect(_on_staff_pressed)
-	top_bar.add_child(staff_btn)
-
-	## S35.10c — entry to the unified Shortlist screen.
-	var shortlist_btn = Button.new()
-	shortlist_btn.text = "⭐ Shortlist"
-	shortlist_btn.custom_minimum_size = Vector2(110, 35)
-	shortlist_btn.tooltip_text = "View your shortlisted drivers & staff"
-	shortlist_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/Shortlist.tscn"))
-	top_bar.add_child(shortlist_btn)
-
-	var racing_world_btn = Button.new()
-	racing_world_btn.text = Locale.t("rw_btn_short")
-	racing_world_btn.custom_minimum_size = Vector2(120, 35)
-	racing_world_btn.pressed.connect(func():
-		get_tree().change_scene_to_file("res://scenes/RacingWorld.tscn"))
-	top_bar.add_child(racing_world_btn)
-
-	# Resource bar
 	resource_bar = HBoxContainer.new()
 	resource_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	resource_bar.alignment = BoxContainer.ALIGNMENT_CENTER
 	resource_bar.add_theme_constant_override("separation", 16)
 	top_bar.add_child(resource_bar)
-
 	cr_label = _make_resource_label("💰 CR", Color(0.4, 0.9, 0.4))
 	rp_label = _make_resource_label("🔬 RP", Color(0.5, 0.7, 1.0))
 	sp_label = _make_resource_label("🔧 SP", Color(1.0, 0.8, 0.4))
 	fu_label = _make_resource_label("⛽ FU", Color(1.0, 0.5, 0.3))
-	resource_bar.add_child(cr_label)
-	resource_bar.add_child(rp_label)
-	resource_bar.add_child(sp_label)
-	resource_bar.add_child(fu_label)
+	for rl in [cr_label, rp_label, sp_label, fu_label]:
+		resource_bar.add_child(rl)
 
-	# Notification bell
-	## S35.11 — Fixed footprint. The text varies from "🔔" to "🔔 99 🔴9" (critical case,
-	## line ~464); custom_minimum_size is only a FLOOR, so the growing count was widening the
-	## button → pushing TopBar past the 1920 design width (the resource bar couldn't absorb it)
-	## → the whole hub overflowed off-screen when a number appeared next to the bell. Pin a
-	## width that fits the worst case and clip, so the count never changes the bar geometry.
-	notif_button = Button.new()
-	notif_button.text = "🔔 0"
-	notif_button.custom_minimum_size = Vector2(120, 35)
-	notif_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	notif_button.clip_text = true
-	notif_button.pressed.connect(_on_notif_pressed)
-	top_bar.add_child(notif_button)
+	var menu_btn := Button.new()
+	menu_btn.text = "☰ Menu"
+	menu_btn.custom_minimum_size = Vector2(110, 40)
+	menu_btn.pressed.connect(_show_menu_popup)
+	top_bar.add_child(menu_btn)
 
-	# Menu button — top right, opens centred popup overlay
-	var menu_top_btn = Button.new()
-	menu_top_btn.text = "☰ Menu"
-	menu_top_btn.custom_minimum_size = Vector2(90, 35)
-	menu_top_btn.pressed.connect(_show_menu_popup)
-	top_bar.add_child(menu_top_btn)
+	# hidden legacy labels still referenced by carried-over code
+	title_label = Label.new(); title_label.visible = false; layout.add_child(title_label)
+	week_label = Label.new(); week_label.visible = false; layout.add_child(week_label)
+	balance_label = Label.new(); balance_label.visible = false; layout.add_child(balance_label)
 
-	# ── NOTIFICATION PANEL (hidden by default) ────────────────────────
-	notif_panel = PanelContainer.new()
-	notif_panel.visible = false
-	notif_panel.custom_minimum_size = Vector2(560, 0)
-	notif_panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	# Center on screen
-	notif_panel.set_anchor(SIDE_LEFT,   0.5)
-	notif_panel.set_anchor(SIDE_RIGHT,  0.5)
-	notif_panel.set_anchor(SIDE_TOP,    0.5)
-	notif_panel.set_anchor(SIDE_BOTTOM, 0.5)
-	notif_panel.offset_left   = -280
-	notif_panel.offset_right  =  280
-	notif_panel.offset_top    = -320
-	notif_panel.offset_bottom =  320
-	add_child(notif_panel)
+	# ═══ ROW 2: Season | Week | Next Race strip ═══
+	var status_panel := PanelContainer.new()
+	status_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	next_race_label = Label.new()
+	next_race_label.add_theme_font_size_override("font_size", 26)
+	next_race_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status_panel.add_child(next_race_label)
+	layout.add_child(status_panel)
 
-	var notif_vbox = VBoxContainer.new()
-	notif_vbox.add_theme_constant_override("separation", 6)
-	notif_panel.add_child(notif_vbox)
+	# ═══ ROW 3: nav buttons ═══
+	var nav := HBoxContainer.new()
+	nav.add_theme_constant_override("separation", 6)
+	layout.add_child(nav)
+	for spec in [
+		["🏛 Campus",  _on_campus_pressed],
+		["📅 Calendar", func(): get_tree().change_scene_to_file("res://scenes/Calendar.tscn")],
+		["👤 Drivers",  _on_drivers_pressed],
+		["🧑‍🔧 Staff",   _on_staff_pressed],
+		["⭐ Shortlist", func(): get_tree().change_scene_to_file("res://scenes/Shortlist.tscn")],
+		[Locale.t("rw_btn_short"), func(): get_tree().change_scene_to_file("res://scenes/RacingWorld.tscn")],
+	]:
+		var b := Button.new()
+		b.text = spec[0]
+		b.custom_minimum_size = Vector2(140, 40)
+		b.pressed.connect(spec[1])
+		nav.add_child(b)
 
-	var notif_header = HBoxContainer.new()
-	notif_vbox.add_child(notif_header)
+	# ═══ CENTRE: three equal panels (To-Do · Notifications · News/Log) ═══
+	var centre := HBoxContainer.new()
+	centre.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	centre.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	centre.add_theme_constant_override("separation", 12)
+	layout.add_child(centre)
 
-	var notif_title = Label.new()
-	notif_title.text = "🔔 NOTIFICATIONS"
-	notif_title.add_theme_font_size_override("font_size", 32)
-	notif_title.add_theme_color_override("font_color", Color.WHITE)
-	notif_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	notif_header.add_child(notif_title)
+	tdl_box = _build_panel(centre, "📋 TO-DO LIST")
+	notif_box = _build_panel(centre, "🔔 NOTIFICATIONS")
+	var log_pair := _build_scroll_panel(centre, "📰 NEWS")
+	log_container = log_pair[0]
+	log_box = log_pair[1]
 
-	var clear_btn = Button.new()
-	clear_btn.text = "Mark all read"
-	clear_btn.custom_minimum_size = Vector2(110, 30)
-	clear_btn.pressed.connect(_on_clear_notifs_pressed)
-	notif_header.add_child(clear_btn)
+	# ═══ BOTTOM: 5-week strip + advance buttons ═══
+	var strip_panel := PanelContainer.new()
+	strip_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	week_strip = HBoxContainer.new()
+	week_strip.add_theme_constant_override("separation", 8)
+	week_strip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	strip_panel.add_child(week_strip)
+	layout.add_child(strip_panel)
 
-	var dismiss_all_btn = Button.new()
-	dismiss_all_btn.text = "Clear all"
-	dismiss_all_btn.custom_minimum_size = Vector2(75, 30)
-	dismiss_all_btn.modulate = Color(0.8, 0.5, 0.5)
-	dismiss_all_btn.pressed.connect(func():
-		GameState.notifications.clear()
-		GameState.unread_notification_count = 0
-		GameState.emit_signal("notifications_updated")
-		_refresh_notifications()
-		_update_display()
-	)
-	notif_header.add_child(dismiss_all_btn)
+	var adv_row := HBoxContainer.new()
+	adv_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	adv_row.add_theme_constant_override("separation", 14)
+	layout.add_child(adv_row)
 
-	var close_btn = Button.new()
-	close_btn.text = "✕"
-	close_btn.custom_minimum_size = Vector2(30, 30)
-	close_btn.pressed.connect(_on_close_notif_panel)
-	notif_header.add_child(close_btn)
-
-	var notif_scroll = ScrollContainer.new()
-	notif_scroll.custom_minimum_size = Vector2(480, 0)
-	notif_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	notif_vbox.add_child(notif_scroll)
-
-	notif_box = VBoxContainer.new()
-	notif_box.custom_minimum_size = Vector2(480, 0)
-	notif_box.add_theme_constant_override("separation", 6)
-	notif_scroll.add_child(notif_box)
-
-	var spacer = Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top_bar.add_child(spacer)
-
-	# MainArea
-	var main_area = $Layout/MainArea
-	main_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	main_area.add_theme_constant_override("separation", 20)
-
-	# Log area: TDL (fixed) + Log (scrollable) stacked in a VBoxContainer
-	var log_area = VBoxContainer.new()
-	log_area.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	log_area.size_flags_stretch_ratio = 0.6
-	log_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	log_area.add_theme_constant_override("separation", 0)
-	## Reparent log_container into log_area
-	main_area.remove_child(log_container)
-
-	## Fixed TDL panel — always visible at top
-	var tdl_panel = PanelContainer.new()
-	tdl_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tdl_panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	var tdl_style = StyleBoxFlat.new()
-	tdl_style.bg_color = Color(0.10, 0.11, 0.09)
-	tdl_style.border_width_bottom = 1
-	tdl_style.border_color = Color(0.3, 0.3, 0.2)
-	tdl_style.content_margin_left = 8; tdl_style.content_margin_right = 8
-	tdl_style.content_margin_top = 6; tdl_style.content_margin_bottom = 6
-	tdl_panel.add_theme_stylebox_override("panel", tdl_style)
-	## S28.1 (shot 5 fix): cap the TDL height and make it scroll internally.
-	## A long list (e.g. many "no car" / "unmet requirements" items) must never grow
-	## the panel enough to push Advance Week / Next Race / End of Season off-screen.
-	var tdl_scroll = ScrollContainer.new()
-	tdl_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tdl_scroll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	## Hard ceiling on TDL height; vertical scrollbar appears past this.
-	tdl_scroll.custom_minimum_size = Vector2(0, 220)
-	tdl_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	tdl_box = VBoxContainer.new()
-	tdl_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tdl_box.add_theme_constant_override("separation", 4)
-	tdl_scroll.add_child(tdl_box)
-	tdl_panel.add_child(tdl_scroll)
-	log_area.add_child(tdl_panel)
-
-	## Scrollable log below
-	log_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	log_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	log_area.add_child(log_container)
-	main_area.add_child(log_area)
-	## Move log_area before side_panel (insert at index 0)
-	main_area.move_child(log_area, 0)
-
-	log_box.custom_minimum_size = Vector2(400, 0)
-
-	# Side panel sizing
-	side_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	side_panel.size_flags_stretch_ratio = 0.4
-	side_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-
-	# Panel content sizing
-	drivers_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	teams_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	driver_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	drivers_box.custom_minimum_size = Vector2(300, 0)
-	teams_box.custom_minimum_size = Vector2(300, 0)
-	driver_stats_label.custom_minimum_size = Vector2(300, 0)
-	driver_stats_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-
-	# Side panel
-	side_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	side_panel.size_flags_stretch_ratio = 0.4
-	side_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	side_panel.add_theme_constant_override("separation", 5)
-
-	# Build tabs
-	_build_tabs()
-
-	# Advance button
-	advance_button.custom_minimum_size = Vector2(200, 50)
-	advance_button.add_theme_font_size_override("font_size", 36)
+	advance_button = Button.new()
+	advance_button.custom_minimum_size = Vector2(220, 52)
+	advance_button.add_theme_font_size_override("font_size", 32)
 	advance_button.text = "Advance Week ▶"
 	advance_button.pressed.connect(_on_advance_pressed)
+	adv_row.add_child(advance_button)
 
-	# Next Race button — sits next to Advance Week in the same parent
 	advance_to_race_button = Button.new()
-	advance_to_race_button.custom_minimum_size = Vector2(200, 50)
-	advance_to_race_button.add_theme_font_size_override("font_size", 36)
+	advance_to_race_button.custom_minimum_size = Vector2(220, 52)
+	advance_to_race_button.add_theme_font_size_override("font_size", 32)
 	advance_to_race_button.text = "⏭ Next Race"
 	advance_to_race_button.pressed.connect(_on_advance_to_race_pressed)
-	advance_button.get_parent().add_child(advance_to_race_button)
+	adv_row.add_child(advance_to_race_button)
 
-	# Skip to End of Season button
-	var skip_season_btn = Button.new()
-	skip_season_btn.custom_minimum_size = Vector2(220, 50)
-	skip_season_btn.add_theme_font_size_override("font_size", 32)
-	skip_season_btn.text = "⏩ End of Season"
-	skip_season_btn.modulate = Color(0.8, 0.8, 0.8)
-	skip_season_btn.pressed.connect(_on_skip_to_season_end)
-	advance_button.get_parent().add_child(skip_season_btn)
+	var skip_btn := Button.new()
+	skip_btn.custom_minimum_size = Vector2(220, 52)
+	skip_btn.add_theme_font_size_override("font_size", 30)
+	skip_btn.text = "⏩ End of Season"
+	skip_btn.modulate = Color(0.8, 0.8, 0.8)
+	skip_btn.pressed.connect(_on_skip_to_season_end)
+	adv_row.add_child(skip_btn)
 
-	# Championship Registration — always visible so deadlines are never missed
-	# Connect signals
+	# ═══ signals ═══
 	GameState.week_advanced.connect(_on_week_advanced)
 	GameState.season_ended.connect(_on_season_ended)
 	GameState.log_updated.connect(_refresh_log)
 	GameState.notifications_updated.connect(_on_notifications_updated)
 	GameState.bankruptcy_triggered.connect(_show_bankruptcy_screen)
-	## Refresh the TDL the instant a bond/approach status changes (e.g. team names its price),
-	## not only on the weekly tick — so a waiting bond decision surfaces immediately.
 	if GameState.has_signal("approach_updated") and not GameState.approach_updated.is_connected(_update_display):
 		GameState.approach_updated.connect(_update_display)
 
 	_update_display()
+	_refresh_todo()
 	_refresh_log()
-	_show_tab("drivers")
+	_refresh_notifications()
+	_refresh_week_strip()
 
-	balance_label.visible = false
-
-	## Restore advance button state if we're mid-season-transition
+	## Restore advance-button state mid-season-transition
 	if GameState.pending_season_screen == "end_of_season":
-		## Came back from EndOfSeason — show "Start Season N" button
 		advance_button.text = "Start Season %d ▶" % (GameState.current_season + 1)
 		advance_button.disabled = false
 		if advance_button.pressed.is_connected(_on_advance_pressed):
@@ -358,9 +189,7 @@ func _ready() -> void:
 		if not advance_button.pressed.is_connected(_on_new_season_pressed):
 			advance_button.pressed.connect(_on_new_season_pressed)
 		advance_to_race_button.disabled = true
-		advance_to_race_button.text = "⏭ Next Race"
 	elif GameState.pending_season_screen == "begin_of_season":
-		## Came back from BeginOfSeason — normal week advance mode
 		advance_button.text = "Advance Week ▶"
 		if advance_button.pressed.is_connected(_on_new_season_pressed):
 			advance_button.pressed.disconnect(_on_new_season_pressed)
@@ -369,71 +198,62 @@ func _ready() -> void:
 		advance_to_race_button.disabled = false
 		GameState.pending_season_screen = ""
 
-func _build_tabs() -> void:
-	tab_row.add_theme_constant_override("separation", 2)
+## Builds a titled panel with a header + a VBox body (returned for population).
+func _build_panel(parent: Control, title: String) -> VBoxContainer:
+	var panel := PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 6)
+	panel.add_child(vb)
+	var h := Label.new()
+	h.text = title
+	h.add_theme_font_size_override("font_size", 26)
+	h.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+	vb.add_child(h)
+	vb.add_child(HSeparator.new())
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var body := VBoxContainer.new()
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.add_theme_constant_override("separation", 6)
+	scroll.add_child(body)
+	vb.add_child(scroll)
+	parent.add_child(panel)
+	return body
 
-	tab_drivers_btn = Button.new()
-	tab_drivers_btn.text = "🏆 Drivers"
-	tab_drivers_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tab_drivers_btn.pressed.connect(func(): _show_tab("drivers"))
-	tab_row.add_child(tab_drivers_btn)
-
-	tab_teams_btn = Button.new()
-	tab_teams_btn.text = "🏭 Teams"
-	tab_teams_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tab_teams_btn.pressed.connect(func(): _show_tab("teams"))
-	tab_row.add_child(tab_teams_btn)
-
-	tab_driver_btn = Button.new()
-	tab_driver_btn.text = "👤 My Driver"
-	tab_driver_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tab_driver_btn.pressed.connect(func(): _show_tab("mydriver"))
-	tab_row.add_child(tab_driver_btn)
-
-	tab_cars_btn = Button.new()
-	tab_cars_btn.text = "🔩 Cars"
-	tab_cars_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tab_cars_btn.pressed.connect(func(): _show_tab("cars"))
-	tab_row.add_child(tab_cars_btn)
-
-	# Cars panel
-	cars_panel = ScrollContainer.new()
-	cars_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	cars_panel.visible = false
-	side_panel.add_child(cars_panel)
-
-	cars_box = VBoxContainer.new()
-	cars_box.add_theme_constant_override("separation", 10)
-	cars_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	cars_panel.add_child(cars_box)
-
-func _show_tab(tab: String) -> void:
-	current_tab = tab
-	drivers_panel.visible = (tab == "drivers")
-	teams_panel.visible   = (tab == "teams")
-	driver_panel.visible  = (tab == "mydriver")
-	cars_panel.visible    = (tab == "cars")
-
-	tab_drivers_btn.flat = (tab != "drivers")
-	tab_teams_btn.flat   = (tab != "teams")
-	tab_driver_btn.flat  = (tab != "mydriver")
-	tab_cars_btn.flat    = (tab != "cars")
-
-	match tab:
-		"drivers":  _refresh_driver_standings()
-		"teams":    _refresh_team_standings()
-		"mydriver": _refresh_driver_stats()
-		"cars":     _refresh_cars()
+## Like _build_panel but returns [ScrollContainer, body] so callers can autoscroll.
+func _build_scroll_panel(parent: Control, title: String) -> Array:
+	var panel := PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 6)
+	panel.add_child(vb)
+	var h := Label.new()
+	h.text = title
+	h.add_theme_font_size_override("font_size", 26)
+	h.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+	vb.add_child(h)
+	vb.add_child(HSeparator.new())
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var body := VBoxContainer.new()
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.add_theme_constant_override("separation", 6)
+	scroll.add_child(body)
+	vb.add_child(scroll)
+	parent.add_child(panel)
+	return [scroll, body]
 
 func _update_display() -> void:
-	title_label.text = "🏁 AUTOMOTIVE EMPIRE"
-	week_label.text = "Season %d   —   Week %d / 52" % [GameState.current_season, GameState.current_week]
-	week_label.add_theme_color_override("font_color", Color.WHITE)
-	balance_label.text = "💰 Balance: CR %.0f" % GameState.player_team.balance
-	if GameState.player_team.balance >= 0:
-		balance_label.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
-	else:
-		balance_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
+	nameplate_label.text = "%s\n%s" % [
+		GameState.player_team.team_name if GameState.player_team else "—",
+		GameState.player_team_name if "player_team_name" in GameState else ""]
 	# Find the soonest upcoming race across all active championships
 	var soonest_race = null
 	var soonest_champ = null
@@ -443,12 +263,11 @@ func _update_display() -> void:
 			if soonest_race == null or nr["week"] < soonest_race["week"]:
 				soonest_race = nr
 				soonest_champ = champ
-
 	if soonest_race:
 		var champ_tag = " [%s]" % soonest_champ.championship_name if GameState.active_championships.size() > 1 else ""
-		next_race_label.text = "🏎 Next Race: Round %d — %s%s   (Week %d)" % [
-			soonest_race["round"], soonest_race["name"], champ_tag, soonest_race["week"]
-		]
+		next_race_label.text = "Season %d  ·  Week %d / 52      🏎 Next Race: Round %d — %s%s  (Week %d)" % [
+			GameState.current_season, GameState.current_week,
+			soonest_race["round"], soonest_race["name"], champ_tag, soonest_race["week"]]
 		var weeks_away = soonest_race["week"] - GameState.current_week
 		if advance_to_race_button:
 			if weeks_away > 1:
@@ -461,7 +280,8 @@ func _update_display() -> void:
 				advance_to_race_button.text = "⏭ Race Week!"
 				advance_to_race_button.disabled = true
 	else:
-		next_race_label.text = "✅ No more races this season"
+		next_race_label.text = "Season %d  ·  Week %d / 52      ✅ No more races this season" % [
+			GameState.current_season, GameState.current_week]
 		if advance_to_race_button:
 			advance_to_race_button.text = "⏭ Next Race"
 			advance_to_race_button.disabled = true
@@ -475,9 +295,6 @@ func _update_display() -> void:
 	rp_label.text = "🔬 RP  %.0f" % GameState.research_points
 	sp_label.text = "🔧 SP  %d" % GameState.spare_parts
 	fu_label.text = "⛽ FU  %.0f kg" % GameState.fuel_kg
-
-	# SP/FU warning colors — worst-case need across the player's championships (shared pool).
-	# (Bug #9/#19 — was using GK's threshold via the singular active_championship.)
 	var sp_threshold = 0
 	var fu_threshold = 0.0
 	for champ in GameState.get_player_championships():
@@ -490,21 +307,6 @@ func _update_display() -> void:
 	fu_label.add_theme_color_override("font_color",
 		Color(1.0, 0.3, 0.3) if GameState.fuel_kg < fu_threshold else Color(1.0, 0.5, 0.3))
 
-	# Notification bell — shows critical count in red, total unread in badge
-	var unread = GameState.unread_notification_count
-	var critical = GameState.get_critical_count()
-	if critical > 0:
-		notif_button.text = "🔔 %d 🔴%d" % [unread, critical]
-		notif_button.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
-	elif unread > 0:
-		notif_button.text = "🔔 %d" % unread
-		notif_button.add_theme_color_override("font_color", Color(1.0, 0.65, 0.2))
-	else:
-		notif_button.text = "🔔"
-		notif_button.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
-
-	# Also remove the old balance label update since cr_label handles it now
-
 func _format_number(n: float) -> String:
 	if abs(n) >= 1000000:
 		return "%.1fM" % (n / 1000000.0)
@@ -513,40 +315,6 @@ func _format_number(n: float) -> String:
 	else:
 		return "%.0f" % n
 
-func _on_notif_pressed() -> void:
-	notif_visible = !notif_visible
-	notif_panel.visible = notif_visible
-	if notif_visible:
-		# Add dim overlay behind panel
-		notif_dim = ColorRect.new()
-		notif_dim.color = Color(0, 0, 0, 0.55)
-		notif_dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		notif_dim.gui_input.connect(func(event):
-			if event is InputEventMouseButton and event.pressed:
-				_on_close_notif_panel()
-		)
-		add_child(notif_dim)
-		move_child(notif_dim, get_child_count() - 2)  # dim behind panel
-		_refresh_notifications()
-		_update_display()
-		GameState.mark_all_notifications_read()
-	else:
-		if notif_dim:
-			notif_dim.queue_free()
-			notif_dim = null
-
-func _on_clear_notifs_pressed() -> void:
-	GameState.mark_all_notifications_read()
-	_refresh_notifications()
-	_update_display()
-
-func _on_close_notif_panel() -> void:
-	notif_visible = false
-	notif_panel.visible = false
-	if notif_dim:
-		notif_dim.queue_free()
-		notif_dim = null
-	
 func _refresh_notifications() -> void:
 	for child in notif_box.get_children():
 		child.queue_free()
@@ -691,151 +459,7 @@ func _refresh_notifications() -> void:
 
 		notif_box.add_child(card)
 
-func _refresh_driver_standings() -> void:
-	for child in drivers_box.get_children():
-		child.queue_free()
-
-	# Show standings for ALL active championships
-	for champ in GameState.active_championships:
-		var title = Label.new()
-		title.text = "🏆 %s" % champ.championship_name.to_upper()
-		title.add_theme_font_size_override("font_size", 28)
-		title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
-		drivers_box.add_child(title)
-
-		var sorted = champ.get_standings_sorted()
-		var player_drivers = GameState.player_team.drivers
-
-		for i in range(sorted.size()):
-			var entry = sorted[i]
-			var driver = GameState.all_drivers.get(entry["driver_id"])
-			if not driver:
-				continue
-			var pos = i + 1
-			var is_player = entry["driver_id"] in player_drivers
-			var medal = "🥇" if pos == 1 else ("🥈" if pos == 2 else ("🥉" if pos == 3 else "  %d." % pos))
-			var label = Label.new()
-			label.text = "%s %s — %d pts" % [medal, driver.full_name(), entry["points"]]
-			label.custom_minimum_size = Vector2(300, 0)
-			label.add_theme_color_override("font_color",
-				Color(0.4, 0.8, 1.0) if is_player else
-				(Color(1.0, 0.84, 0.0) if pos == 1 else
-				(Color(0.75, 0.75, 0.75) if pos == 2 else
-				(Color(0.8, 0.5, 0.2) if pos == 3 else Color.WHITE))))
-			if is_player:
-				label.add_theme_font_size_override("font_size", 30)
-			drivers_box.add_child(label)
-
-		# Separator between championships
-		if GameState.active_championships.size() > 1:
-			drivers_box.add_child(HSeparator.new())
-
-func _refresh_team_standings() -> void:
-	for child in teams_box.get_children():
-		child.queue_free()
-
-	for champ in GameState.active_championships:
-		var title = Label.new()
-		title.text = "🏭 %s — TEAMS" % champ.championship_name.to_upper()
-		title.add_theme_font_size_override("font_size", 28)
-		title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
-		teams_box.add_child(title)
-
-		var sorted = champ.get_team_standings_sorted()
-		for i in range(sorted.size()):
-			var entry = sorted[i]
-			var team_name = "Unknown"
-			var is_player = false
-			for team in GameState.all_teams:
-				if team.id == entry["team_id"]:
-					team_name = team.team_name
-					is_player = team.is_player_team
-					break
-			var pos = i + 1
-			var medal = "🥇" if pos == 1 else ("🥈" if pos == 2 else ("🥉" if pos == 3 else "  %d." % pos))
-			var label = Label.new()
-			label.text = "%s %s — %d pts" % [medal, team_name, entry["points"]]
-			label.custom_minimum_size = Vector2(300, 0)
-			label.add_theme_color_override("font_color",
-				Color(0.4, 0.8, 1.0) if is_player else
-				(Color(1.0, 0.84, 0.0) if pos == 1 else
-				(Color(0.75, 0.75, 0.75) if pos == 2 else
-				(Color(0.8, 0.5, 0.2) if pos == 3 else Color.WHITE))))
-			if is_player:
-				label.add_theme_font_size_override("font_size", 30)
-			teams_box.add_child(label)
-
-
-		if GameState.active_championships.size() > 1:
-			teams_box.add_child(HSeparator.new())
-
-func _refresh_driver_stats() -> void:
-	if GameState.player_team.drivers.size() == 0:
-		driver_stats_label.text = "No drivers signed.\nGo to the Drivers screen to hire a driver."
-		driver_stats_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
-		return
-
-	var lines = []
-
-	for idx in range(GameState.player_team.drivers.size()):
-		var driver_id = GameState.player_team.drivers[idx]
-		var driver = GameState.all_drivers.get(driver_id)
-		if not driver:
-			continue
-
-		var car = GameState.get_car_for_driver(driver_id)
-		## Bug #9/#19 (cluster A): look up the driver's standing in THEIR OWN car's
-		## championship, not the global active_championship (= GK). A Rally driver was
-		## showing "Not registered" because we searched GK's standings.
-		var player_position = 0
-		var player_points = 0
-		if car and car.championship_id != "":
-			var champ = GameState.get_championship_by_id(car.championship_id)
-			if champ:
-				var sorted = champ.get_standings_sorted()
-				for i in range(sorted.size()):
-					if sorted[i]["driver_id"] == driver_id:
-						player_position = i + 1
-						player_points = sorted[i]["points"]
-						break
-
-		var active_adapt = driver.get_active_adaptation()
-
-		if idx > 0:
-			lines.append("")
-			lines.append("")
-
-		lines.append("👤 %s" % ("YOUR DRIVER" if idx == 0 else "DRIVER %d" % (idx + 1)))
-		lines.append("━━━━━━━━━━━━━━━━━━━")
-		lines.append("%s | Age: %d | %s | %s" % [
-			driver.full_name(), driver.age, driver.nationality, driver.sex])
-		lines.append("Car: %s" % ("Car %d" % car.car_number if car else "⚠ Unassigned"))
-		lines.append("")
-		lines.append("Championship: %s" % (
-			"P%d — %d pts" % [player_position, player_points] if player_position > 0 else "Not registered"))
-		lines.append("")
-		lines.append("RACING ATTRIBUTES")
-		lines.append("━━━━━━━━━━━━━━━━━━━")
-		lines.append("🚀 Pace:             %.1f  (eff: %.1f)" % [driver.pace, driver.get_effective_pace()])
-		lines.append("🌧 Car Control / Traction:   %.1f  (eff: %.1f)" % [driver.car_control, driver.get_effective_wet()])
-		lines.append("🎯 Focus:            %.1f  (eff: %.1f)" % [driver.focus, driver.get_effective_focus()])
-		lines.append("⚔ Race Craft:       %.1f  (eff: %.1f)" % [driver.race_craft, driver.get_effective_race_craft()])
-		lines.append("🔄 Consistency:      %.1f  (eff: %.1f)" % [driver.consistency, driver.get_effective_consistency()])
-		lines.append("💬 Feedback:         %.1f" % driver.feedback)
-		lines.append("")
-		lines.append("🔄 %s Adapt:        %.1f / 100" % [driver.active_discipline, active_adapt])
-		lines.append("")
-		lines.append("STATUS")
-		lines.append("━━━━━━━━━━━━━━━━━━━")
-		lines.append("💪 Fitness:          %.1f" % driver.fitness)
-		lines.append("😊 Morale:           %.1f" % driver.morale)
-		lines.append("📣 Marketability:    %.1f" % driver.marketability)
-		lines.append("⭐ Overall:          %.1f" % driver.get_overall_skill())
-
-	driver_stats_label.text = "\n".join(lines)
-	driver_stats_label.add_theme_color_override("font_color", Color.WHITE)
-
-func _refresh_log() -> void:
+func _refresh_todo() -> void:
 	## ── TDL (fixed panel, always visible) ────────────────────────────────────
 	for child in tdl_box.get_children():
 		child.queue_free()
@@ -934,6 +558,9 @@ func _refresh_log() -> void:
 						GameState.dismiss_todo_item(tt))
 				task_row.add_child(btn_x)
 
+func _refresh_log() -> void:
+	_refresh_todo()
+	_refresh_week_strip()
 	## ── Log (scrollable below TDL) ────────────────────────────────────────────
 	for child in log_box.get_children():
 		child.queue_free()
@@ -988,12 +615,75 @@ func _refresh_log() -> void:
 		if is_inside_tree():
 			log_container.scroll_vertical = log_container.get_v_scroll_bar().max_value
 
+func _refresh_week_strip() -> void:
+	if week_strip == null: return
+	for c in week_strip.get_children():
+		c.queue_free()
+	var cal = GameState.get_calendar_manager()
+	var reg: Array = GameState.player_registered_championships
+	for i in range(WEEK_STRIP_COUNT):
+		var wk: int = GameState.current_week + i
+		if wk > GameState.max_weeks:
+			break
+		var cell := PanelContainer.new()
+		cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var cs := StyleBoxFlat.new()
+		cs.bg_color = Color(0.16, 0.18, 0.24) if i == 0 else Color(0.11, 0.12, 0.15)
+		cs.set_corner_radius_all(6)
+		cs.set_content_margin_all(6)
+		if i == 0:
+			cs.set_border_width_all(2); cs.border_color = Color(0.3, 0.6, 0.9)
+		cell.add_theme_stylebox_override("panel", cs)
+		var vb := VBoxContainer.new()
+		vb.add_theme_constant_override("separation", 3)
+		cell.add_child(vb)
+		var wl := Label.new()
+		wl.text = "Wk %d%s" % [wk, "  · now" if i == 0 else ""]
+		wl.add_theme_font_size_override("font_size", 18)
+		wl.modulate = Color(0.5, 0.75, 1.0) if i == 0 else Color(0.6, 0.6, 0.6)
+		vb.add_child(wl)
+		# player-related events only: my races + deadlines for my champs + my building/rnd/cnc + custom
+		var evs: Array = []
+		for ev in cal.get_events_for_week(wk):
+			var t: String = ev["type"]
+			var keep := false
+			if t == "race_mine" or t == "building" or t == "rnd" or t == "cnc" or t == "custom":
+				keep = true
+			elif t == "deadline" and ev.get("champ_id", "") in reg:
+				keep = true
+			if keep:
+				evs.append(ev)
+		if evs.is_empty():
+			var none := Label.new()
+			none.text = "—"
+			none.modulate = Color(0.4, 0.4, 0.4)
+			none.add_theme_font_size_override("font_size", 16)
+			vb.add_child(none)
+		else:
+			var shown := 0
+			for ev in evs:
+				if shown >= STRIP_MAX_CHIPS:
+					break
+				var cl := Label.new()
+				cl.text = ev["title"]
+				cl.add_theme_font_size_override("font_size", 15)
+				cl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				cl.tooltip_text = ev.get("tooltip", "")
+				vb.add_child(cl)
+				shown += 1
+			if evs.size() > STRIP_MAX_CHIPS:
+				var more := Label.new()
+				more.text = "+%d more" % (evs.size() - STRIP_MAX_CHIPS)
+				more.add_theme_font_size_override("font_size", 14)
+				more.modulate = Color(0.55, 0.7, 0.95)
+				vb.add_child(more)
+		week_strip.add_child(cell)
+
 func _on_advance_pressed() -> void:
 	var tasks = GameState.get_pending_tasks()
 	if tasks.is_empty():
 		GameState.advance_week()
 		_update_display()
-		_show_tab(current_tab)
 	else:
 		_show_pending_tasks_dialog(tasks)
 
@@ -1025,7 +715,6 @@ func _on_advance_to_race_pressed() -> void:
 				var inner_news = _skip_weeks_collect_news(weeks_to_skip - 1)
 				_update_display()
 				_refresh_log()
-				_show_tab(current_tab)
 				if not inner_news.is_empty():
 					_show_modal("📰 News While You Were Away", "", inner_news, "OK", "", func(): pass, null),
 			null
@@ -1034,7 +723,6 @@ func _on_advance_to_race_pressed() -> void:
 	var news = _skip_weeks_collect_news(weeks_to_skip - 1)
 	_update_display()
 	_refresh_log()
-	_show_tab(current_tab)
 	if not news.is_empty():
 		_show_modal("📰 News While You Were Away", "Events during the skip:", news, "OK", "", func(): pass, null)
 
@@ -1046,12 +734,12 @@ func _on_skip_to_season_end() -> void:
 	var news = _skip_weeks_collect_news(weeks_remaining)
 	_update_display()
 	_refresh_log()
-	_show_tab(current_tab)
 	if not news.is_empty():
 		_show_modal("📰 Season Summary", "Events during the skip:", news, "OK", "", func(): pass, null)
 
 ## Advances N weeks silently, collecting notable events (building completions, race results).
 ## Returns an Array of strings for the news modal.
+
 func _skip_weeks_collect_news(n: int) -> Array:
 	var news: Array = []
 	## S35.3: mark that we're fast-forwarding so the CFO auto-buys race logistics during the
@@ -1086,14 +774,14 @@ func _show_pending_tasks_dialog(tasks: Array) -> void:
 		"Go Back and Review",
 		func():
 			GameState.advance_week()
-			_update_display()
-			_show_tab(current_tab),
+			_update_display(),
 		null
 	)
 
 ## Show a large centred modal panel with a title, subtitle, optional item list,
 ## and two action buttons. on_confirm fires on the left button, on_cancel on the right.
 ## Pass null for on_cancel to just close the modal.
+
 func _show_modal(title: String, subtitle: String, items: Array,
 		confirm_text: String, cancel_text: String,
 		on_confirm: Callable, on_cancel) -> void:
@@ -1250,11 +938,11 @@ func _show_confirmation(message: String, on_confirm: Callable) -> void:
 
 func _on_notifications_updated() -> void:
 	_update_display()
+	_refresh_notifications()
 
 func _on_week_advanced(_week: int) -> void:
 	_update_display()
 	_refresh_log()
-	_show_tab(current_tab)
 
 func _on_season_ended(_season: int) -> void:
 	## Show EndOfSeason screen instead of just updating the button
@@ -1305,7 +993,6 @@ func _on_load_pressed() -> void:
 			GameState.load_game()
 			_update_display()
 			_refresh_log()
-			_show_tab("drivers")
 	)
 
 func _on_quit_pressed() -> void:
@@ -1460,7 +1147,6 @@ func _make_resource_label(_prefix: String, color: Color) -> Label:
 	label.custom_minimum_size = Vector2(95, 0)
 	return label
 
-
 func _read_save_meta(path: String) -> Dictionary:
 	if not FileAccess.file_exists(path): return {}
 	var file = FileAccess.open(path, FileAccess.READ)
@@ -1480,7 +1166,6 @@ func _read_save_meta(path: String) -> Dictionary:
 			if data.get("player_team") is Dictionary else "?",
 		"modified": FileAccess.get_modified_time(path),
 	}
-
 
 func _show_load_picker() -> void:
 	if menu_popup != null and is_instance_valid(menu_popup):
@@ -1612,7 +1297,7 @@ func _show_load_picker() -> void:
 				GameState.load_game(load_path)
 				_update_display()
 				_refresh_log()
-				_show_tab("drivers"))
+				_refresh_notifications())
 			row.add_child(btn)
 
 		vbox.add_child(sp)
@@ -1624,238 +1309,6 @@ func _show_load_picker() -> void:
 		lbl_none.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		vbox.add_child(lbl_none)
 
-func _refresh_cars() -> void:
-	for child in cars_box.get_children():
-		child.queue_free()
-
-	# ── Header ───────────────────────────────────────────────
-	var title = Label.new()
-	title.text = "🔩 MY CARS"
-	title.add_theme_font_size_override("font_size", 30)
-	title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.0))
-	cars_box.add_child(title)
-
-	cars_box.add_child(HSeparator.new())
-
-	# ── Resource summary ─────────────────────────────────────
-	# Worst-case need across the player's championships (shared pool). (Bug #9/#19 — was GK only.)
-	var sp_threshold = 0
-	var fu_threshold = 0.0
-	for champ in GameState.get_player_championships():
-		sp_threshold = max(sp_threshold, champ.sp_per_10_pct_damage)
-		fu_threshold = max(fu_threshold, champ.fuel_per_car_per_race)
-	if sp_threshold == 0: sp_threshold = 120
-	if fu_threshold == 0.0: fu_threshold = 15.0
-	var sp_icon = "🟢" if GameState.spare_parts >= sp_threshold else ("🟠" if GameState.spare_parts >= sp_threshold / 2.0 else "🔴")
-	var fu_icon = "🟢" if GameState.fuel_kg >= fu_threshold else "🔴"
-	var res_label = Label.new()
-	res_label.text = "%s SP: %d units   %s FU: %.0f kg" % [sp_icon, GameState.spare_parts, fu_icon, GameState.fuel_kg]
-	res_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
-	res_label.add_theme_font_size_override("font_size", 26)
-	cars_box.add_child(res_label)
-
-	if GameState.fuel_kg < fu_threshold:
-		var warn = Label.new()
-		warn.text = "⛽ WARNING: Fuel below %.0f kg — car will DNS!" % fu_threshold
-		warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		warn.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
-		warn.add_theme_font_size_override("font_size", 24)
-		cars_box.add_child(warn)
-
-	cars_box.add_child(HSeparator.new())
-
-	# ── One card per Car object ───────────────────────────────
-	if GameState.player_team_cars.is_empty():
-		var no_car = Label.new()
-		no_car.text = "No cars assigned yet."
-		no_car.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
-		cars_box.add_child(no_car)
-		return
-
-	for car in GameState.player_team_cars:
-		var driver = GameState.all_drivers.get(car.driver_id)
-		var mechanic = GameState.get_mechanic_for_car(car.id)
-		var condition = car.condition
-		var damage = 100.0 - condition
-
-		# ── Card ─────────────────────────────────────────────
-		var card = PanelContainer.new()
-		var card_style = StyleBoxFlat.new()
-		card_style.bg_color = Color(0.13, 0.13, 0.16, 1.0)
-		card_style.border_width_left = 3
-		card_style.content_margin_left = 10
-		card_style.content_margin_right = 10
-		card_style.content_margin_top = 10
-		card_style.content_margin_bottom = 10
-		card_style.corner_radius_top_left = 4
-		card_style.corner_radius_bottom_left = 4
-		if condition >= 70.0:
-			card_style.border_color = Color(0.2, 0.85, 0.2)
-		elif condition >= 40.0:
-			card_style.border_color = Color(1.0, 0.7, 0.1)
-		else:
-			card_style.border_color = Color(1.0, 0.25, 0.25)
-		card.add_theme_stylebox_override("panel", card_style)
-		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		cars_box.add_child(card)
-
-		var vbox = VBoxContainer.new()
-		vbox.add_theme_constant_override("separation", 6)
-		vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		card.add_child(vbox)
-
-		# Car title + driver
-		var name_row = HBoxContainer.new()
-		vbox.add_child(name_row)
-		var car_lbl = Label.new()
-		car_lbl.text = "🏎  %s" % (car.car_name if car.car_name != "" else "Car %d" % car.car_number)
-		car_lbl.add_theme_font_size_override("font_size", 28)
-		car_lbl.add_theme_color_override("font_color", Color.WHITE)
-		car_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		name_row.add_child(car_lbl)
-		var drv_lbl = Label.new()
-		drv_lbl.text = driver.full_name() if driver else "⚠ No Driver"
-		drv_lbl.add_theme_font_size_override("font_size", 26)
-		drv_lbl.add_theme_color_override("font_color",
-			Color(0.4, 0.8, 1.0) if driver else Color(1.0, 0.4, 0.4))
-		name_row.add_child(drv_lbl)
-
-		# Mechanic row
-		var mech_lbl = Label.new()
-		mech_lbl.text = "🔧 Mechanic: %s" % (mechanic.full_name() if mechanic else "⚠ None assigned")
-		mech_lbl.add_theme_font_size_override("font_size", 24)
-		mech_lbl.add_theme_color_override("font_color",
-			Color(0.7, 0.9, 0.7) if mechanic else Color(1.0, 0.6, 0.2))
-		vbox.add_child(mech_lbl)
-
-		# Condition bar
-		var cond_row = HBoxContainer.new()
-		cond_row.add_theme_constant_override("separation", 8)
-		vbox.add_child(cond_row)
-		var cond_title = Label.new()
-		cond_title.text = "Condition:"
-		cond_title.add_theme_font_size_override("font_size", 24)
-		cond_title.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
-		cond_title.custom_minimum_size = Vector2(80, 0)
-		cond_row.add_child(cond_title)
-		var bar = ProgressBar.new()
-		bar.min_value = 0
-		bar.max_value = 100
-		bar.value = condition
-		bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		bar.custom_minimum_size = Vector2(0, 18)
-		bar.show_percentage = false
-		var bar_style = StyleBoxFlat.new()
-		bar_style.bg_color = Color(0.15, 0.75, 0.15) if condition >= 70.0 \
-			else (Color(0.85, 0.55, 0.05) if condition >= 40.0 else Color(0.85, 0.15, 0.15))
-		bar.add_theme_stylebox_override("fill", bar_style)
-		cond_row.add_child(bar)
-		var pct_lbl = Label.new()
-		pct_lbl.text = "%.0f%%" % condition
-		pct_lbl.add_theme_font_size_override("font_size", 26)
-		pct_lbl.custom_minimum_size = Vector2(40, 0)
-		pct_lbl.add_theme_color_override("font_color",
-			Color(0.3, 1.0, 0.3) if condition >= 70.0
-			else (Color(1.0, 0.75, 0.2) if condition >= 40.0 else Color(1.0, 0.3, 0.3)))
-		cond_row.add_child(pct_lbl)
-
-		# Fuel row
-		var fuel_row = HBoxContainer.new()
-		vbox.add_child(fuel_row)
-		var fuel_title = Label.new()
-		fuel_title.text = "Fuel:"
-		fuel_title.add_theme_font_size_override("font_size", 24)
-		fuel_title.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
-		fuel_title.custom_minimum_size = Vector2(80, 0)
-		fuel_row.add_child(fuel_title)
-		var fuel_ok = GameState.fuel_kg >= fu_threshold
-		var fuel_val = Label.new()
-		fuel_val.text = "%.0f kg available  (need %.0f kg)  %s" % [
-			GameState.fuel_kg, fu_threshold,
-			"✅ OK" if fuel_ok else "🚫 DNS RISK"]
-		fuel_val.add_theme_font_size_override("font_size", 24)
-		fuel_val.add_theme_color_override("font_color",
-			Color(0.3, 1.0, 0.3) if fuel_ok else Color(1.0, 0.3, 0.3))
-		fuel_row.add_child(fuel_val)
-
-		# SP repair cost preview
-		if damage > 0.0:
-			var sp_for_full = int(ceil(damage / 10.0) * sp_threshold)
-			var sp_preview = Label.new()
-			sp_preview.text = "Full repair cost: %d SP  (have: %d SP)" % [
-				sp_for_full, GameState.spare_parts]
-			sp_preview.add_theme_font_size_override("font_size", 24)
-			sp_preview.add_theme_color_override("font_color",
-				Color(0.6, 0.9, 1.0) if GameState.spare_parts >= sp_for_full else Color(1.0, 0.5, 0.3))
-			vbox.add_child(sp_preview)
-
-		# Repair buttons
-		var btn_row = HBoxContainer.new()
-		btn_row.add_theme_constant_override("separation", 6)
-		vbox.add_child(btn_row)
-
-		var _car_id = car.id
-		var driver_id = car.driver_id
-
-		var repair10_btn = Button.new()
-		repair10_btn.text = "Fix 10%%  (-%d SP)" % sp_threshold
-		repair10_btn.custom_minimum_size = Vector2(140, 30)
-		repair10_btn.disabled = damage <= 0.0 or GameState.spare_parts < sp_threshold
-		repair10_btn.pressed.connect(func():
-			if GameState.repair_car(driver_id, 10.0):
-				_refresh_cars()
-				_update_display()
-		)
-		btn_row.add_child(repair10_btn)
-
-		var repair50_btn = Button.new()
-		repair50_btn.text = "Fix 50%%  (-%d SP)" % (sp_threshold * 5)
-		repair50_btn.custom_minimum_size = Vector2(140, 30)
-		repair50_btn.disabled = damage <= 0.0 or GameState.spare_parts < sp_threshold * 5
-		repair50_btn.pressed.connect(func():
-			if GameState.repair_car(driver_id, 50.0):
-				_refresh_cars()
-				_update_display()
-		)
-		btn_row.add_child(repair50_btn)
-
-		var full_btn = Button.new()
-		full_btn.text = "Full Repair"
-		full_btn.custom_minimum_size = Vector2(110, 30)
-		var sp_full = int(ceil(damage / 10.0) * sp_threshold)
-		full_btn.disabled = damage <= 0.0 or GameState.spare_parts < sp_full
-		full_btn.pressed.connect(func():
-			if GameState.repair_car_full(driver_id):
-				_refresh_cars()
-				_update_display()
-		)
-		btn_row.add_child(full_btn)
-
-		## Repair UX — "Fix affordable": repair as many whole 10% chunks as current SP allows,
-		## so the player is never fully blocked when they can't afford a full repair. Shown only
-		## when damaged, a full repair is NOT affordable, but at least a 10% chunk IS.
-		var afford_pct = GameState.get_affordable_repair_pct(driver_id)
-		if damage > 0.0 and GameState.spare_parts < sp_full and afford_pct >= 10.0:
-			var afford_btn = Button.new()
-			afford_btn.text = "Fix %d%% (max SP)" % int(afford_pct)
-			afford_btn.custom_minimum_size = Vector2(170, 30)
-			afford_btn.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
-			afford_btn.pressed.connect(func():
-				if GameState.repair_car_affordable(driver_id):
-					_refresh_cars()
-					_update_display()
-			)
-			btn_row.add_child(afford_btn)
-
-	# Bottom hint
-	var hint = Label.new()
-	hint.text = "Buy SP, FU and parts at the Logistics Center on Campus."
-	hint.add_theme_font_size_override("font_size", 22)
-	hint.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	cars_box.add_child(hint)
-
-## Returns scene path for a to-do item based on its content
 func _get_todo_destination(task: String) -> String:
 	## TP proposals — route to Racing Department
 	if "GK TP" in task or "TP suggests" in task or "TPs have" in task \
