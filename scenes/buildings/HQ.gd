@@ -88,10 +88,6 @@ func _build_ui() -> void:
 	var header = HBoxContainer.new()
 	header.add_theme_constant_override("separation", 12)
 	root.add_child(header)
-	# Shared resource bar (S37.31)
-	_resource_bar = ResourceBarScript.new()
-	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
-	header.add_child(_resource_bar)
 
 
 	## S28.3 (Bug 5): team badge using the team's primary/secondary colors.
@@ -114,11 +110,15 @@ func _build_ui() -> void:
 	badge.add_child(badge_lbl)
 	header.add_child(badge)
 
+	# Shared resource bar (S37.31) — centered: team badge stays left, bar expands to centre.
+	_resource_bar = ResourceBarScript.new()
+	_resource_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(_resource_bar)
+
 	var lbl_title = Label.new()
 	lbl_title.text = "🏛  HEADQUARTERS"
 	lbl_title.add_theme_font_size_override("font_size", 44)
 	lbl_title.add_theme_color_override("font_color", Color.WHITE)
-	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(lbl_title)
 
 	var building = GameState.campus_buildings.get("Headquarters", {})

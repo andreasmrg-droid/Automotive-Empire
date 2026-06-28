@@ -365,7 +365,7 @@ func _make_warehouse_champ_card(champ_id: String) -> PanelContainer:
 	var disc  = reg.get("discipline", "GK")
 	var cname = reg.get("name", champ_id)
 	var inv   = GameState.part_inventory.get(champ_id, {})
-	var costs = GameState.PART_COSTS.get(champ_id, {})
+	var costs = GameState.get_part_prices(champ_id)   ## S37.32 — JSON-backed purchase prices
 
 	var panel = _card_panel()
 	var style = panel.get_theme_stylebox("panel").duplicate()

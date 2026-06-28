@@ -1,0 +1,352 @@
+{
+  "_meta": {
+    "source": "Master_Championship_Variables_Map_v2_9.xlsx \u00b7 CNC sheet (Base_*_Cost columns)",
+    "version": "v1 (S37.32) \u2014 part PURCHASE prices = Base_Cost \u00d7 (1 + Manufacturer_Profit) \u00d7 Manufacturer_Quality.",
+    "manufacturer_profit": 0.08,
+    "manufacturer_quality": 1.0,
+    "formula": "unit_price = base_cost * (1 + manufacturer_profit) * manufacturer_quality",
+    "note": "Player buys parts from another team's manufacturing, hence the profit margin. base_costs kept for reference/recompute if multipliers change."
+  },
+  "manufacturer_profit": 0.08,
+  "manufacturer_quality": 1.0,
+  "base_costs": {
+    "C-001": {
+      "Engine": 4800,
+      "Aero": 4000,
+      "Brakes": 1200,
+      "Suspension": 1600,
+      "Chassis": 2800,
+      "Gearbox": 1600
+    },
+    "C-005": {
+      "Engine": 25500,
+      "Aero": 21250,
+      "Brakes": 6375,
+      "Suspension": 8500,
+      "Chassis": 14875,
+      "Gearbox": 8500
+    },
+    "C-006": {
+      "Engine": 37500,
+      "Aero": 31250,
+      "Brakes": 9375,
+      "Suspension": 12500,
+      "Chassis": 21875,
+      "Gearbox": 12500
+    },
+    "C-007": {
+      "Engine": 102000,
+      "Aero": 85000,
+      "Brakes": 25500,
+      "Suspension": 34000,
+      "Chassis": 59500,
+      "Gearbox": 34000
+    },
+    "C-008": {
+      "Engine": 420000,
+      "Aero": 350000,
+      "Brakes": 105000,
+      "Suspension": 140000,
+      "Chassis": 245000,
+      "Gearbox": 140000
+    },
+    "C-009": {
+      "Engine": 78000,
+      "Aero": 65000,
+      "Brakes": 19500,
+      "Suspension": 26000,
+      "Chassis": 45500,
+      "Gearbox": 26000
+    },
+    "C-010": {
+      "Engine": 240000,
+      "Aero": 200000,
+      "Brakes": 60000,
+      "Suspension": 80000,
+      "Chassis": 140000,
+      "Gearbox": 80000
+    },
+    "C-011": {
+      "Engine": 43500,
+      "Aero": 36250,
+      "Brakes": 10875,
+      "Suspension": 14500,
+      "Chassis": 25375,
+      "Gearbox": 14500
+    },
+    "C-012": {
+      "Engine": 85500,
+      "Aero": 71250,
+      "Brakes": 21375,
+      "Suspension": 28500,
+      "Chassis": 49875,
+      "Gearbox": 28500
+    },
+    "C-013": {
+      "Engine": 225000,
+      "Aero": 187500,
+      "Brakes": 56250,
+      "Suspension": 75000,
+      "Chassis": 131250,
+      "Gearbox": 75000
+    },
+    "C-014": {
+      "Engine": 42000,
+      "Aero": 35000,
+      "Brakes": 10500,
+      "Suspension": 14000,
+      "Chassis": 24500,
+      "Gearbox": 14000
+    },
+    "C-015": {
+      "Engine": 55500,
+      "Aero": 46250,
+      "Brakes": 13875,
+      "Suspension": 18500,
+      "Chassis": 32375,
+      "Gearbox": 18500
+    },
+    "C-016": {
+      "Engine": 73500,
+      "Aero": 61250,
+      "Brakes": 18375,
+      "Suspension": 24500,
+      "Chassis": 42875,
+      "Gearbox": 24500
+    },
+    "C-017": {
+      "Engine": 165000,
+      "Aero": 137500,
+      "Brakes": 41250,
+      "Suspension": 55000,
+      "Chassis": 96250,
+      "Gearbox": 55000
+    },
+    "C-018": {
+      "Engine": 94500,
+      "Aero": 78750,
+      "Brakes": 23625,
+      "Suspension": 31500,
+      "Chassis": 55125,
+      "Gearbox": 31500
+    },
+    "C-019": {
+      "Engine": 207000,
+      "Aero": 172500,
+      "Brakes": 51750,
+      "Suspension": 69000,
+      "Chassis": 120750,
+      "Gearbox": 69000
+    },
+    "C-020": {
+      "Engine": 1800000,
+      "Aero": 1500000,
+      "Brakes": 450000,
+      "Suspension": 600000,
+      "Chassis": 1050000,
+      "Gearbox": 600000
+    },
+    "C-021": {
+      "Engine": 33000,
+      "Aero": 27500,
+      "Brakes": 8250,
+      "Suspension": 11000,
+      "Chassis": 19250,
+      "Gearbox": 11000
+    },
+    "C-022": {
+      "Engine": 49500,
+      "Aero": 41250,
+      "Brakes": 12375,
+      "Suspension": 16500,
+      "Chassis": 28875,
+      "Gearbox": 16500
+    },
+    "C-023": {
+      "Engine": 195000,
+      "Aero": 162500,
+      "Brakes": 48750,
+      "Suspension": 65000,
+      "Chassis": 113750,
+      "Gearbox": 65000
+    },
+    "C-024": {
+      "Engine": 6000000,
+      "Aero": 5000000,
+      "Brakes": 1500000,
+      "Suspension": 2000000,
+      "Chassis": 3500000,
+      "Gearbox": 2000000
+    }
+  },
+  "unit_prices": {
+    "C-001": {
+      "Engine": 5184,
+      "Aero": 4320,
+      "Brakes": 1296,
+      "Suspension": 1728,
+      "Chassis": 3024,
+      "Gearbox": 1728
+    },
+    "C-005": {
+      "Engine": 27540,
+      "Aero": 22950,
+      "Brakes": 6885,
+      "Suspension": 9180,
+      "Chassis": 16065,
+      "Gearbox": 9180
+    },
+    "C-006": {
+      "Engine": 40500,
+      "Aero": 33750,
+      "Brakes": 10125,
+      "Suspension": 13500,
+      "Chassis": 23625,
+      "Gearbox": 13500
+    },
+    "C-007": {
+      "Engine": 110160,
+      "Aero": 91800,
+      "Brakes": 27540,
+      "Suspension": 36720,
+      "Chassis": 64260,
+      "Gearbox": 36720
+    },
+    "C-008": {
+      "Engine": 453600,
+      "Aero": 378000,
+      "Brakes": 113400,
+      "Suspension": 151200,
+      "Chassis": 264600,
+      "Gearbox": 151200
+    },
+    "C-009": {
+      "Engine": 84240,
+      "Aero": 70200,
+      "Brakes": 21060,
+      "Suspension": 28080,
+      "Chassis": 49140,
+      "Gearbox": 28080
+    },
+    "C-010": {
+      "Engine": 259200,
+      "Aero": 216000,
+      "Brakes": 64800,
+      "Suspension": 86400,
+      "Chassis": 151200,
+      "Gearbox": 86400
+    },
+    "C-011": {
+      "Engine": 46980,
+      "Aero": 39150,
+      "Brakes": 11745,
+      "Suspension": 15660,
+      "Chassis": 27405,
+      "Gearbox": 15660
+    },
+    "C-012": {
+      "Engine": 92340,
+      "Aero": 76950,
+      "Brakes": 23085,
+      "Suspension": 30780,
+      "Chassis": 53865,
+      "Gearbox": 30780
+    },
+    "C-013": {
+      "Engine": 243000,
+      "Aero": 202500,
+      "Brakes": 60750,
+      "Suspension": 81000,
+      "Chassis": 141750,
+      "Gearbox": 81000
+    },
+    "C-014": {
+      "Engine": 45360,
+      "Aero": 37800,
+      "Brakes": 11340,
+      "Suspension": 15120,
+      "Chassis": 26460,
+      "Gearbox": 15120
+    },
+    "C-015": {
+      "Engine": 59940,
+      "Aero": 49950,
+      "Brakes": 14985,
+      "Suspension": 19980,
+      "Chassis": 34965,
+      "Gearbox": 19980
+    },
+    "C-016": {
+      "Engine": 79380,
+      "Aero": 66150,
+      "Brakes": 19845,
+      "Suspension": 26460,
+      "Chassis": 46305,
+      "Gearbox": 26460
+    },
+    "C-017": {
+      "Engine": 178200,
+      "Aero": 148500,
+      "Brakes": 44550,
+      "Suspension": 59400,
+      "Chassis": 103950,
+      "Gearbox": 59400
+    },
+    "C-018": {
+      "Engine": 102060,
+      "Aero": 85050,
+      "Brakes": 25515,
+      "Suspension": 34020,
+      "Chassis": 59535,
+      "Gearbox": 34020
+    },
+    "C-019": {
+      "Engine": 223560,
+      "Aero": 186300,
+      "Brakes": 55890,
+      "Suspension": 74520,
+      "Chassis": 130410,
+      "Gearbox": 74520
+    },
+    "C-020": {
+      "Engine": 1944000,
+      "Aero": 1620000,
+      "Brakes": 486000,
+      "Suspension": 648000,
+      "Chassis": 1134000,
+      "Gearbox": 648000
+    },
+    "C-021": {
+      "Engine": 35640,
+      "Aero": 29700,
+      "Brakes": 8910,
+      "Suspension": 11880,
+      "Chassis": 20790,
+      "Gearbox": 11880
+    },
+    "C-022": {
+      "Engine": 53460,
+      "Aero": 44550,
+      "Brakes": 13365,
+      "Suspension": 17820,
+      "Chassis": 31185,
+      "Gearbox": 17820
+    },
+    "C-023": {
+      "Engine": 210600,
+      "Aero": 175500,
+      "Brakes": 52650,
+      "Suspension": 70200,
+      "Chassis": 122850,
+      "Gearbox": 70200
+    },
+    "C-024": {
+      "Engine": 6480000,
+      "Aero": 5400000,
+      "Brakes": 1620000,
+      "Suspension": 2160000,
+      "Chassis": 3780000,
+      "Gearbox": 2160000
+    }
+  }
+}

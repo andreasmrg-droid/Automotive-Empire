@@ -1,6 +1,12 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v6.5 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+**Version:** v6.6 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v6.6: (S37.31–S37.32) Reusable ResourceBar component + scene standard; part-purchase pricing.
+	NEW §15.3 STANDARD SCENE LAYOUT: [Building Name][Building Level][Resource Bar][Back][Main Hub] —
+	custom scenes (Main Hub, HQ team badge) may deviate. NEW §5.3 part PURCHASE pricing: unit_price =
+	Base_Cost (Excel CNC) × (1 + Manufacturer_Profit) × Manufacturer_Quality; Profit=8%%, Quality=1.0
+	for now (both TUNABLE). Loaded from res://data/part_costs.json. Fixed the 'buying parts doesn't
+	deduct credits' bug (hardcoded PART_COSTS had GK at 0). -->
 <!-- v6.5: STATE-HANDLER DISCIPLINE (S37.28–S37.29). #52 fixed (New-Game state leak + load bleed)
 	and a FULL audit of all 129 GameState vars vs the three handlers (setup_new_game / save_game /
 	load_game) closed the remaining leaks: WRA pipeline (active_wra_submissions, wra_approved/
@@ -290,6 +296,30 @@ weekly income stream. The Pillar-5 "Commercial Cars" R&D button already exists a
 ---
 
 ## 5. CNC PART PRODUCTION & RELIABILITY
+
+### 5.3 Part PURCHASE pricing (player buying from another team) — S37.32
+
+When the player BUYS ready-made parts (Logistics warehouse) rather than manufacturing them, they
+are buying from another team's production, so a manufacturer margin applies:
+
+```
+unit_price = Base_Cost × (1 + Manufacturer_Profit) × Manufacturer_Quality
+```
+
+- **Base_Cost** — per part, per championship, from the Excel **CNC** sheet (`Base_*_Cost` columns).
+- **Manufacturer_Profit** — the selling team's margin. **= 0.08 (8%) for now — TUNABLE / future:**
+  could vary by manufacturer reputation, supply/demand, or a relationship discount.
+- **Manufacturer_Quality** — a quality multiplier. **= 1.0 (neutral) for now — TUNABLE / future:**
+  higher-quality manufacturers charge more (and could yield better part reliability).
+
+Data lives in `res://data/part_costs.json` (generated from the CNC sheet), holding both `base_costs`
+and the computed `unit_prices`, plus the two multipliers, so prices recompute if the multipliers
+change. `GameState.get_part_unit_price(champ_id, part)` / `get_part_prices(champ_id)` are the
+accessors; `buy_part()` uses them, then applies the Logistics Center discount on top. **FLAG (per
+player request): the profit/quality split is a deliberate future tuning hook — when manufacturer
+identity/relationships are modelled, wire them here.** This fixed the S37.32 bug where the old
+hardcoded `PART_COSTS` priced GK parts at 0, so buying deducted nothing.
+
 
 Base Reliability starts at **60** in Season 1 of a new WRA rules cycle and increases by **+10**
 each subsequent season (until the next 4-season regulation reset, §11).
@@ -1276,6 +1306,26 @@ GameState vars this way; re-run it after any batch of new state.
 
 ---
 
+## 15.3 STANDARD SCENE LAYOUT (header convention) — S37.31
+
+Every in-game scene's header follows this left-to-right order unless it has a documented reason to
+deviate:
+
+```
+[ Building / Scene Name ] [ Building Level ] [ Resource Bar ] [ Back ] [ Main Hub ]
+```
+
+- **Resource Bar** is the shared component (`res://scenes/components/ResourceBar.gd`, §15) —
+  instantiate the SCRIPT (`ResourceBarScript.new()`, no `.tscn`, no `class_name`, untyped var), add
+  to the header, and call `_resource_bar.refresh()` from the scene's existing refresh path so values
+  update immediately after any resource change.
+- **Back** returns to the previous screen (usually Campus); **Main Hub** jumps straight to the hub.
+- **Documented deviations are fine:** the **Main Hub** has its own bar + nav and no Back/Hub buttons;
+  **HQ** keeps its team-colour badge (team name) on the left with the bar centred. New scenes should
+  match the standard unless they have a similar reason.
+
+---
+
 ## 16. LOCALIZATION (Rule 3)
 
 Every user-facing string MUST go through `Locale.t("key")` or `Locale.tf("key", [args])`
@@ -1379,6 +1429,13 @@ the wildcards). Biggest risk: scope creep — keep saying "backlog."
 ## 20. IMPLEMENTATION CHANGELOG (recent — newest first)
 
 Historical record of what shipped; design facts above already reflect these.
+
+- **S37.31–S37.32 (ResourceBar component · scene standard · part pricing):** reusable ResourceBar
+  component (script-instantiated, no class_name/.tscn) added to building scenes with live refresh;
+  Campus + Group-1 buildings (Logistics, HQ, Garage, RnDStudio) done. Standard scene header layout
+  defined (§15.3). Part purchase pricing moved to data (`part_costs.json` from Excel CNC, ×1.08
+  profit ×1.0 quality, §5.3) via get_part_unit_price/get_part_prices — fixes the GK-parts-free bug
+  (buying now deducts credits). GameState → S37.32.
 
 - **S37.28–S37.29 (#52 state leak + full handler audit):** `setup_new_game` now clears leaked
   session state (sponsors/offers/approaches/notifications/SP/fuel/pending_*/fresh GK); `load_game`

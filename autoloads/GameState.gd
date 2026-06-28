@@ -1,3 +1,6 @@
+## Version: S37.32 — Part purchase prices: load res://data/part_costs.json (Excel CNC base costs ×
+##   manufacturer profit 8% × quality 1.0) via get_part_unit_price/get_part_prices; buy_part uses
+##   it. Fixes the 'buying parts doesn't deduct credits' bug (hardcoded PART_COSTS had GK at 0).
 ## Version: S37.29 — #52 full audit: ALL 129 GameState vars cross-checked vs the 3 state handlers.
 ##   Added save/load + new-game resets for the remaining leaks: WRA pipeline (active_wra_submissions,
 ##   wra_approved/rejected_blueprints), bankruptcy counters (weeks_in_negative, bankruptcy_screen_shown),
@@ -878,6 +881,10 @@ var cnc_production_queue: Array = []
 ## custom_calendar_events: the ONLY persisted calendar state. Player-created reminders.
 ##   Each entry: { "week": int, "title": String, "note": String }.
 var race_calendar_data: Dictionary = {}
+## S37.32 — part PURCHASE prices (Base_Cost × (1+Manufacturer_Profit) × Manufacturer_Quality),
+## loaded from res://data/part_costs.json (generated from Excel CNC sheet). Replaces the
+## stale hardcoded PART_COSTS (which had GK at 0 → the 'parts don't cost credits' bug).
+var part_costs_data: Dictionary = {}
 var custom_calendar_events: Array = []
 const _CalendarManagerScript = preload("res://resources/scripts/CalendarManager.gd")
 var _calendar_manager = null   ## CalendarManager (untyped — avoids global-class parse-order error)
@@ -1571,6 +1578,7 @@ func _ready() -> void:
 	_tp_engine = TPProposalEngine.new(self)
 	_calendar_manager = _CalendarManagerScript.new(self)   ## S37.26
 	_load_race_calendar()                                  ## S37.26
+	_load_part_costs()                                     ## S37.32
 	_sponsor_manager = SponsorManager.new(self)
 	_staff_manager = StaffManager.new(self)
 	_car_manager = CarManager.new(self)
@@ -2419,13 +2427,13 @@ func get_part_stock(part_name: String, champ_id: String = "") -> int:
 func buy_part(part_name: String, quantity: int, champ_id: String = "") -> bool:
 	if champ_id == "":
 		champ_id = active_championship.id
-	var costs = PART_COSTS.get(champ_id, {})
-	if part_name not in costs:
+	var base_unit_price = get_part_unit_price(champ_id, part_name)
+	if base_unit_price <= 0:
 		add_notification("High", "No part cost data for %s in this championship." % part_name)
 		return false
 	# Apply Logistics Center discount (-1% per level, max -50%)
 	var discount = get_logistics_parts_discount()
-	var unit_cost = int(round(costs[part_name] * discount))
+	var unit_cost = int(round(base_unit_price * discount))
 	var total_cost = unit_cost * quantity
 	if player_team.balance < total_cost:
 		add_notification("High", "Not enough credits to buy %d× %s (need CR %d, have CR %d)." % [
@@ -3698,6 +3706,34 @@ func _autosave() -> void:
 
 ## S37.26 — loads the static race calendar (all championships' schedules) from the data JSON.
 ## Called once at engine init. Safe no-op if the file is missing.
+func _load_part_costs() -> void:
+	var path := "res://data/part_costs.json"
+	if not FileAccess.file_exists(path):
+		push_warning("part_costs.json not found — falling back to hardcoded PART_COSTS.")
+		return
+	var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if typeof(parsed) == TYPE_DICTIONARY:
+		part_costs_data = parsed
+	else:
+		push_warning("part_costs.json did not parse to a Dictionary.")
+
+## Per-unit PURCHASE price for a part in a championship (already includes manufacturer
+## profit + quality). Falls back to the legacy hardcoded PART_COSTS if the JSON is absent.
+func get_part_unit_price(champ_id: String, part_name: String) -> int:
+	if not part_costs_data.is_empty():
+		var prices: Dictionary = part_costs_data.get("unit_prices", {})
+		if champ_id in prices and part_name in prices[champ_id]:
+			return int(prices[champ_id][part_name])
+	return int(PART_COSTS.get(champ_id, {}).get(part_name, 0))
+
+## Full per-championship price map { part: unit_price } (for warehouse display).
+func get_part_prices(champ_id: String) -> Dictionary:
+	if not part_costs_data.is_empty():
+		var prices: Dictionary = part_costs_data.get("unit_prices", {})
+		if champ_id in prices:
+			return prices[champ_id].duplicate()
+	return PART_COSTS.get(champ_id, {}).duplicate()
+
 func _load_race_calendar() -> void:
 	var path := "res://data/race_calendar.json"
 	if not FileAccess.file_exists(path):
