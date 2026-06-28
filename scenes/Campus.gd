@@ -1,6 +1,10 @@
 extends Control
-## Version: S29.2 — Font sizes scaled ×2.0 from original (large readability pass).
-##   Supersedes the ×1.3 attempt; all add_theme_font_size_override values ×2, hierarchy kept.
+## Version: S37.30 — CAMPUS REDESIGN: category TABS (one per zone, tinted in zone colours). Clicking a
+##   tab shows ONLY that zone's building cards (was: all 6 zones stacked in one long scroll). Adds the
+##   shared ResourceBar component (GDD §15 mandate). Default tab: Command. _build_card + all build/
+##   upgrade/sell handlers carried over verbatim from S29.2.
+
+const ResourceBarScript = preload("res://scenes/components/ResourceBar.gd")
 
 @onready var title_label = $Layout/HeaderRow/TitleLabel
 @onready var back_button = $Layout/HeaderRow/BackButton
@@ -38,6 +42,12 @@ const BUILDING_ICONS = {
 	"Race Track":             "🔴",
 }
 
+var _resource_bar  ## ResourceBar instance (untyped — loaded via preload, no class_name)
+var _tab_row: HBoxContainer
+var _zone_buttons: Dictionary = {}        ## zone_name -> Button
+var _current_zone: String = "Command"
+
+
 func _ready() -> void:
 	anchor_right = 1.0
 	anchor_bottom = 1.0
@@ -49,6 +59,7 @@ func _ready() -> void:
 	layout.offset_top = 12
 	layout.offset_right = -12
 	layout.offset_bottom = -12
+	layout.add_theme_constant_override("separation", 10)
 
 	# Header
 	title_label.text = "🏗 CAMPUS"
@@ -59,35 +70,96 @@ func _ready() -> void:
 	back_button.custom_minimum_size = Vector2(150, 36)
 	back_button.pressed.connect(_on_back_pressed)
 
+	# Resource bar (shared component) — inserted into the header row, right of the title.
+	_resource_bar = ResourceBarScript.new()
+	_resource_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	$Layout/HeaderRow.add_child(_resource_bar)
+	$Layout/HeaderRow.move_child(_resource_bar, 1)   ## title · bar · back
+
+	# Zone tab row (built once)
+	_tab_row = HBoxContainer.new()
+	_tab_row.add_theme_constant_override("separation", 6)
+	layout.add_child(_tab_row)
+	layout.move_child(_tab_row, 2)                    ## header · separator · tabs · scroll
+	_build_tabs()
+
 	# ScrollContainer — expand both axes
 	var scroll = $Layout/ScrollContainer
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_vertical   = Control.SIZE_EXPAND_FILL
 
-	# ZonesBox — no forced minimum width, let it fill the screen
 	zones_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	zones_box.add_theme_constant_override("separation", 14)
 
-	_build_campus()
+	_show_zone(_current_zone)
+
+## Builds one tab button per zone, tinted in the zone's colour. Active = full colour, inactive = dim.
+func _build_tabs() -> void:
+	for child in _tab_row.get_children():
+		child.queue_free()
+	_zone_buttons.clear()
+	for zone_name in GameState.campus_zones:
+		var btn = Button.new()
+		var n_built := 0
+		var n_total := 0
+		for bid in GameState.campus_zones[zone_name]:
+			n_total += 1
+			var b = GameState.get_building(bid)
+			if b and b.get("built", false):
+				n_built += 1
+		btn.text = "%s  (%d/%d)" % [zone_name, n_built, n_total]
+		btn.add_theme_font_size_override("font_size", 24)
+		btn.custom_minimum_size = Vector2(0, 44)
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.pressed.connect(_show_zone.bind(zone_name))
+		_tab_row.add_child(btn)
+		_zone_buttons[zone_name] = btn
+	_style_tabs()
+
+## Applies active/inactive zone-colour styling to the tab buttons.
+func _style_tabs() -> void:
+	for zone_name in _zone_buttons:
+		var btn: Button = _zone_buttons[zone_name]
+		var zc: Color = ZONE_COLORS.get(zone_name, Color(0.4, 0.4, 0.4))
+		var active: bool = (zone_name == _current_zone)
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = zc if active else zc.darkened(0.55)
+		sb.set_corner_radius_all(6)
+		sb.content_margin_top = 4; sb.content_margin_bottom = 4
+		sb.content_margin_left = 8; sb.content_margin_right = 8
+		if active:
+			sb.set_border_width_all(2)
+			sb.border_color = zc.lightened(0.4)
+		btn.add_theme_stylebox_override("normal", sb)
+		var hover := sb.duplicate()
+		hover.bg_color = zc.lightened(0.1) if active else zc.darkened(0.35)
+		btn.add_theme_stylebox_override("hover", hover)
+		btn.add_theme_stylebox_override("pressed", sb)
+		btn.add_theme_color_override("font_color",
+			Color.WHITE if active else Color(0.7, 0.7, 0.7))
 
 func _build_campus() -> void:
-	# Clear existing
+	## Rebuild the CURRENT zone (used by build/upgrade/sell handlers after a state change).
+	_build_tabs()
+	if _resource_bar: _resource_bar.refresh()
+	_show_zone(_current_zone)
+
+## Shows only the selected zone's building cards; updates tab highlight.
+func _show_zone(zone_name: String) -> void:
+	_current_zone = zone_name
+	_style_tabs()
 	for child in zones_box.get_children():
 		child.queue_free()
 
-	for zone_name in GameState.campus_zones:
-		_build_zone(zone_name, GameState.campus_zones[zone_name])
+	var buildings: Array = GameState.campus_zones.get(zone_name, [])
+	var zone_color: Color = ZONE_COLORS.get(zone_name, Color(0.5, 0.5, 0.5))
 
-func _build_zone(zone_name: String, buildings: Array) -> void:
-	# Zone header
-	var zone_label = Label.new()
-	zone_label.text = "━━━  %s  ━━━" % zone_name.to_upper()
-	zone_label.add_theme_font_size_override("font_size", 32)
-	var zone_color = ZONE_COLORS.get(zone_name, Color(0.5, 0.5, 0.5))
-	zone_label.add_theme_color_override("font_color", zone_color)
-	zones_box.add_child(zone_label)
+	var header = Label.new()
+	header.text = "━━━  %s  ━━━" % zone_name.to_upper()
+	header.add_theme_font_size_override("font_size", 32)
+	header.add_theme_color_override("font_color", zone_color)
+	zones_box.add_child(header)
 
-	# Building cards in a horizontal wrap
 	var grid = HFlowContainer.new()
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid.add_theme_constant_override("h_separation", 8)
@@ -95,8 +167,7 @@ func _build_zone(zone_name: String, buildings: Array) -> void:
 	zones_box.add_child(grid)
 
 	for building_id in buildings:
-		var card = _build_card(building_id)
-		grid.add_child(card)
+		grid.add_child(_build_card(building_id))
 
 func _build_card(building_id: String) -> PanelContainer:
 	var building = GameState.get_building(building_id)

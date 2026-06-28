@@ -1,0 +1,9 @@
+[gd_scene format=3 uid="uid://by51f8xo5oe7u"]
+
+[node name="ResourceBar" type="Control" unique_id=702527577]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
