@@ -1,4 +1,8 @@
 extends Control
+## Version: S37.38 — Notification panel: removed per-notification Snooze buttons; added "Mark All as
+##   Read" + "Delete All" buttons in the panel header next to the NOTIFICATIONS title (new
+##   _build_notifications_panel). The per-notification nav "Go →" button is preserved (now in
+##   action_row). Calls GameState.clear_all_notifications() / mark_all_notifications_read().
 ## Version: S37.37 — MainHub now uses the shared ResourceBar component (res://scenes/components/
 ##   ResourceBar.gd) instead of its own hand-rolled CR/RP/SP/FU labels — single source of truth for
 ##   the bar across every scene. removed the now-dead _make_resource_label helper.
@@ -127,7 +131,7 @@ func _ready() -> void:
 	layout.add_child(centre)
 
 	tdl_box = _build_panel(centre, "📋 TO-DO LIST")
-	notif_box = _build_panel(centre, "🔔 NOTIFICATIONS")
+	notif_box = _build_notifications_panel(centre)
 	var log_pair := _build_scroll_panel(centre, "📰 NEWS")
 	log_container = log_pair[0]
 	log_box = log_pair[1]
@@ -227,7 +231,60 @@ func _build_panel(parent: Control, title: String) -> VBoxContainer:
 	parent.add_child(panel)
 	return body
 
-## Like _build_panel but returns [ScrollContainer, body] so callers can autoscroll.
+## Like _build_panel but the header row carries "Mark All as Read" + "Delete All" buttons next to
+## the NOTIFICATIONS title (S37.38). Returns the body VBox (same contract as _build_panel).
+func _build_notifications_panel(parent: Control) -> VBoxContainer:
+	var panel := PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 6)
+	panel.add_child(vb)
+
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 6)
+	vb.add_child(header)
+
+	var h := Label.new()
+	h.text = "🔔 NOTIFICATIONS"
+	h.add_theme_font_size_override("font_size", 26)
+	h.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+	h.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(h)
+
+	var btn_read_all := Button.new()
+	btn_read_all.text = "Mark All as Read"
+	btn_read_all.add_theme_font_size_override("font_size", 20)
+	btn_read_all.tooltip_text = "Mark every notification as read."
+	btn_read_all.pressed.connect(func():
+		GameState.mark_all_notifications_read()
+		_refresh_notifications()
+		_update_display())
+	header.add_child(btn_read_all)
+
+	var btn_delete_all := Button.new()
+	btn_delete_all.text = "Delete All"
+	btn_delete_all.add_theme_font_size_override("font_size", 20)
+	btn_delete_all.add_theme_color_override("font_color", Color(0.95, 0.5, 0.5))
+	btn_delete_all.tooltip_text = "Remove all notifications."
+	btn_delete_all.pressed.connect(func():
+		GameState.clear_all_notifications()
+		_refresh_notifications()
+		_update_display())
+	header.add_child(btn_delete_all)
+
+	vb.add_child(HSeparator.new())
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var body := VBoxContainer.new()
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.add_theme_constant_override("separation", 6)
+	scroll.add_child(body)
+	vb.add_child(scroll)
+	parent.add_child(panel)
+	return body
 func _build_scroll_panel(parent: Control, title: String) -> Array:
 	var panel := PanelContainer.new()
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -401,29 +458,11 @@ func _refresh_notifications() -> void:
 		msg.text = n["message"]
 		vbox.add_child(msg)
 
-		# Snooze row — only for unread notifications
+		# Action row — only for unread notifications (S37.38: snooze removed; nav button kept)
 		if not n["read"]:
-			var snooze_row = HBoxContainer.new()
-			snooze_row.add_theme_constant_override("separation", 4)
-			vbox.add_child(snooze_row)
-			var snooze_lbl = Label.new()
-			snooze_lbl.text = "Snooze:"
-			snooze_lbl.add_theme_font_size_override("font_size", 20)
-			snooze_lbl.modulate = Color(0.5, 0.5, 0.5)
-			snooze_row.add_child(snooze_lbl)
-			for weeks in [1, 2, 4]:
-				var btn_snooze = Button.new()
-				btn_snooze.text = "%d wk" % weeks
-				btn_snooze.custom_minimum_size = Vector2(44, 22)
-				btn_snooze.add_theme_font_size_override("font_size", 20)
-				var ci = idx
-				var cw = weeks
-				btn_snooze.pressed.connect(func():
-					GameState.snooze_notification(ci, cw)
-					_refresh_notifications()
-					_update_display()
-				)
-				snooze_row.add_child(btn_snooze)
+			var action_row = HBoxContainer.new()
+			action_row.add_theme_constant_override("separation", 4)
+			vbox.add_child(action_row)
 
 			## Navigation action button (S20)
 			var dest = notifs[idx].get("destination", "")
@@ -441,7 +480,7 @@ func _refresh_notifications() -> void:
 						GameState.pending_hq_tab = "wra"
 					get_tree().change_scene_to_file(
 						GameState.NOTIFICATION_DESTINATIONS[capture_dest]))
-				snooze_row.add_child(btn_goto)
+				action_row.add_child(btn_goto)
 
 		notif_box.add_child(card)
 

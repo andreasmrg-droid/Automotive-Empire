@@ -1,4 +1,7 @@
 class_name NotificationManager
+## Version: S37.38 — clear_all_notifications() added (Main Hub "Delete All" button); Main Hub
+##   notification panel: snooze removed, "Mark All as Read" + "Delete All" buttons added next to
+##   the panel title.
 ## Version: S37.9 — Renegotiation TDL: the round-1 "make your opening offer" task is now suppressed
 ##   for player-initiated renegotiations until an offer is actually submitted (player_initiated +
 ##   offer_submitted flags from ContractEngine). Opening the Renegotiate dialog no longer creates a
@@ -160,6 +163,12 @@ func dismiss_notification(index: int) -> void:
 			if not n["read"]:
 				gs.unread_notification_count += 1
 		gs.emit_signal("notifications_updated")
+
+## S37.38 — Delete ALL notifications at once (Main Hub "Delete All" button).
+func clear_all_notifications() -> void:
+	gs.notifications.clear()
+	gs.unread_notification_count = 0
+	gs.emit_signal("notifications_updated")
 
 ## Snooze a notification — pushes its week forward so it won't show until then.
 

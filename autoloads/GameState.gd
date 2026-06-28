@@ -1,3 +1,4 @@
+## Version: S37.38 — clear_all_notifications() wrapper (Main Hub "Delete All").
 ## Version: S37.37 — show_popup() added: shared AcceptDialog for on-the-spot blocking-error feedback
 ##   (Notification & News Roadmap, Phase 0). Engines/scenes call gs.show_popup(message, title);
 ##   parented to get_tree().current_scene so RefCounted engines can pop it. Phase 1 (started):
@@ -2059,6 +2060,9 @@ func mark_all_notifications_read() -> void:
 
 func dismiss_notification(index: int) -> void:
 	_notification_manager.dismiss_notification(index)
+
+func clear_all_notifications() -> void:
+	_notification_manager.clear_all_notifications()
 
 func snooze_notification(index: int, weeks: int) -> void:
 	_notification_manager.snooze_notification(index, weeks)
