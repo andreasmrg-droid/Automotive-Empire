@@ -1,6 +1,6 @@
 # Automotive Empire — Original 51-Item List, Reconciled Against Shipped Code
 
-**Reconciled:** 2026-06-28 · against repo HEAD `6dc2bc6` (S37.27) + GDD v6.4 changelog (S28–S37.27).
+**Reconciled:** 2026-06-29 · against repo HEAD `f891f27` (S37.50) + GDD v6.8 changelog (S28–S37.50).
 **Status legend:** ✅ Fixed (incl. player-confirmed in play) · 🟡 Fixed–needs in-engine verification · 🟠 Known/latent (partial or no-op until data added) · 🔵 Backlog/feature (design-approved, sequenced later) · ⚪ Open/unassigned.
 
 > Note: GitHub is authoritative. This maps your ORIGINAL numbered list (1–51) onto the work that
@@ -23,7 +23,7 @@
 | 9 | Next race wrong week; S1 player appears registered in ALL championships | 🟡 | **Cluster A core.** A-CP4 (S37.0) getter rewrite; A-CP4b (S37.1) GK group-0 seeding gated. Needs keyboard verification. |
 | 10 | HQ contract-negotiation entry frozen; walk-away didn't remove it | 🟡 | Negotiation entry lifecycle (S35.7). Verify frozen-entry + walk-away-clear. |
 | 11 | Race results columns stacked right; need a skip button | ✅ | **S37.10** "Skip All ⏭" button added (header, shows when >1 race queued the same week) — applies each remaining race's repairs + sponsor bonuses and jumps to the Main Hub. **S37.11–S37.13** results + standings column layout reworked: Driver column expands to fill the container, Laps/Time/Gap/Pts spread across the remaining width (Driver ≈ 2/5), Laps/Time/Gap centered, Pts/Prize handled separately, Prize fixed far right; header + rows share identical sizing + alignment per column (+clip_contents) so headers sit above data. Driver standings name/team no longer jam. **Confirmed in play.** |
-| 12 | No TDL/notification for a new sponsor offer | ⚪ Open | Candidate for the notify_event framework (S37.7) — not yet migrated. UNBLOCKED by the S37.27 hub redesign (the notification column now exists); part of the upcoming notification-loop migration. |
+| 12 | No TDL/notification for a new sponsor offer | ✅ | **S37.49** Phase-3 migration: SponsorManager's offer notices now run through `notify_event` (event mode) — sponsor offers surface as proper notifications. Verify the offer notice appears + routes correctly. |
 | 13 | Sponsor offers below the championship entry fee | ✅ | **S37.10** SponsorManager commitment (type-3) sponsors REDESIGNED: a sponsor wants the team to race a SPECIFIC championship for N seasons, chosen from a REPUTATION BAND near the team's rep (no GK→GP1 / GP1→Rally4 offers). Payment is ANNUAL (~1 season's entry+car ±variation) paid at the START of each registered season; offer expires before the championship's registration deadline; skipping a season = repay only that season's amount and the deal cancels. Fixed the "all offers exactly 20K" flat-floor bug (varied floor + cost band). active_sponsors/sponsor_offers now persist in save/load (were lost on reload). Verify offer amounts + tiering. |
 | 14 | 891k active fans for a brand-new garage | ✅ | S36.0: get_team_active_fans()/marketability derive from player_registered_championships via _player_global_fan_pool(). Verify the starting number. |
 | 15 | FU (fuel) not deducted after a race unless CFO buys | 🟡 | Fuel scoping fixed in Cluster A (RaceSimulator threads the raced champ, S37.0). Verify fuel drops per race without a CFO. |
@@ -37,26 +37,26 @@
 | 23 | Two identical SP notifications from different sources | ✅ | **S37.5** the post-race "SP insufficient to fully repair Car N" emitter (RaceSimulator) now carries the res_spare_parts subject, collapsing to one with the weekly SP warning. Verify only one shows. |
 | 24 | No notification advancing to GK round 2 / 3 | 🟡 | Exists (GameState "GK Round X complete — advancing to Round Y!"), gated on player_in_gk (S37.1). Verify it fires for a GK career. |
 | 25 | "Buy a car before week X" at registration is misleading; carry to new season | 🟡 | Season-transition rework (S35.0); buy-car advisory fires at season start. Verify timing. |
-| 26 | Building built/upgraded: no notification + no TDL | ⚪ Open | Prime candidate for notify_event ("event" mode + Garage/Campus destination button). Not yet done. |
+| 26 | Building built/upgraded: no notification + no TDL | ✅ | **S37.49** Phase-3 migration: building/R&D/CNC completion events now run through `notify_event` (event mode) with destination routing (RnDEngine → cnc_plant where a TDL exists; CampusManager building-sold → event). Verify a building-complete event fires with the right button. |
 | 27 | Pit crew shown as one name but is multiple people | 🔵 Backlog | crew_number model exists (Staff §C); whether it satisfies "multi-person" is a design call. |
 | 28 | GK rounds 3 & 4 teams earn no points; need a team champion | ✅ | S36.15 + GK final-weekend redesign (S36.18–S36.20): team champion via a flat cumulative table across all 22 races; driver champion via the elimination ladder. |
 | 29 | No RP earned from races | 🟡 | earn_race_rp() exists (RaceSimulator), gated to player championships. Verify RP increases after a race. |
 | 30 | Check the text written in all campus buildings | ✅ | **S37.20** Audited all 20 building scenes. Fixed: OvalTrack "IndyCar"→"Open-Wheel" (real trademark + not a discipline); FitnessClinic removed stale "boosts active driver stats" (code only does fitness recovery + fatigue reduction); KartingTrack "Go-Kart"→"Go-Karting"; Logistics provider names fictionalized (IndyCar/WRC/NASCAR/WEC/Formula → discipline-based names) per IP rule. Other building descs verified accurate vs code (Museum income, Academy −15% discount, Wind Tunnel aero, etc.). |
 | 31 | After last GK round, all driver+team standings wiped | ✅ | S36.14: save/load persists ALL championships' standings keyed by id; survive round transitions + season end. Plus S37.2 RacingWorld GK read. |
-| 32 | Racing World must show ALL championships, not only the player's | 🟡 | RacingWorld builds a card per championship; S37.2 added GK world results to the world card. Verify all appear. (Living-world depth = F-AICHAMP backlog.) |
+| 32 | Racing World must show ALL championships, not only the player's | ✅ | **S37.47–S37.48** The `AIChampionshipSim` engine (§14) now runs every non-player, non-GK championship each race week, so all 21 championships have live, moving driver AND team standings (was: empty tables). Racing World cards show driver + team leader; the GK card shows the driver + team champion even for a player racing a different discipline. Player-confirmed in play (screenshots: AI championships show moving leaders + points; GK shows champion + teams). The deeper "scout/browse/history" intent remains in the living-world backlog (§19). |
 | 33 | EOS says "didn't run in any championship"; remove the registration button | ✅ | S36.12: registration button removed from EOS; raced-only standings filter correct. Downstream display ties to Cluster A. |
 | 34 | Beginning-of-Season should be informational only (remove TDLs) | ✅ | **S37.21** Made informational-only: removed the TDL row "→" buttons, the readiness "Fix →" buttons, and the "Championship Registration" button. Checklist / readiness / finances remain as a read-only season summary; the START SEASON exit stays. NOTE: scene flagged by player for a FULL redesign later (like Main Hub + Campus). |
 | 35 | Renewed driver vanished next season while still counted (1 shown, 2 counted) | 🟡 | Season Transition Pipeline ordering fix (S35.0). Verify the shown-vs-counted desync is gone. |
-| 36 | 3 TP notifications "cars lacking crew" same week | 🟡 | Notification collapse with subject (S35.1–S35.4). Verify duplicates collapse to one. |
+| 36 | 3 TP notifications "cars lacking crew" same week | ✅ | **S37.45/S37.49** The car-readiness criticals (no driver / no mechanic / no TP / no strategist) now fire via `notify_event` in **standing** mode, keyed per-car/per-championship — one live instance that refreshes weekly instead of stacking duplicates. The persistent chore also shows as a read-only TDL row. Verify three lacking-crew cars produce collapsed, not stacked, notices. |
 | 37 | Garage driver/mechanic assignments show "none" | 🟡 | Assignment rebuild (S30–S32) + per-car reads (Cluster A). S37.x Garage screenshot showed driver/mechanic assigned correctly — verify across championships. |
 | 38 | Garage: Rally4 has no 2nd-driver slot; EPC needs 3 | 🟠 | drivers_per_car exists (canonical slots rule S33.2). Rally4-2 / EPC-3 specifics — verify the slots render. |
-| 39 | No notification to hire a new TP when one is needed | 🟡 | NotificationManager appends "No Team Principal" tasks. CFO (the optional analogue) reworked S37.6–S37.7. Verify TP-missing fires. |
+| 39 | No notification to hire a new TP when one is needed | 🟡 | **S37.43/S37.45** TP readiness rewritten to derive from the player's actually-fielded cars (per discipline-group; GK shares one TP, non-GK each need their own) — a missing TP yields a Critical readiness TDL AND is now a hard DNS in `can_car_race`. The new-game roster also provisions a starting TP (§7.3). Verify TP-missing fires + DNS enforces. |
 | 40 | Changing current TP assignment GK → Rally4 does nothing | ✅ | **S37.22** ROOT CAUSE: assign_staff_to_championship() QUEUED TP/Strategist moves to 'next week' (pending_staff_assignments) instead of applying — so assigned_championship stayed on GK, the HQ card showed the old series, the new championship read as no-TP → DNS → the game soft-locked into GK. Now applies IMMEDIATELY (matches driver/mechanic) + invalidates the staff cache so HQ refreshes at once. Added per-role one-per-championship slot guard and a hard strategist GK/Rally block. BONUS: clear_stranded_player_championship_staff() at rollover auto-unassigns a player TP/Strategist left on a no-longer-raced championship (HQ then shows 'Not assigned'). Strategist GK/Rally skip verified consistent across HQ/StaffHub/optimiser/warnings; TP optimiser correctly covers Rally (no skip). |
 | 41 | Driver failing age requirement should show a popup | ✅ | **S37.16** assign_driver_to_car() now returns a player-facing reason string; the Garage, Racing Dept and Driver-card assign flows show a modal "Cannot Assign Driver" popup on age-limit failure (was silent except a missable notification). Verify the popup fires for an under/over-age driver. |
-| 42 | Starting from Rally, a TDL says "GK has no principal" (stale GK ref) | 🟡 | GK-gating (S31, S37.1 player_in_gk). Verify the stale GK TDL is gone for a Rally career. |
+| 42 | Starting from Rally, a TDL says "GK has no principal" (stale GK ref) | ✅ | **S37.43** ROOT CAUSE found + fixed: the readiness check keyed on `has_gk_active` = "any GK championship is in active_championships", but GK/C-001 is ALWAYS in the world → a non-GK player wrongly saw "no TP for GK" while their real championships went unchecked. Rewrote to derive from the player's fielded cars. The false GK TDL is gone for a Rally/SC/etc. career. |
 | 43 | Staff hub "Available Staff" button has a static count; remove counts | ⚪ Open | Still present (StaffHub "(%d)" buttons). Not yet removed. |
 | 44 | Only Rally4 but code still thinks player is in GK (driver shown, DNS) | 🟡 | **Cluster A core** (A-CP4/A-CP4b, S37.0–S37.1). Headline symptom — needs keyboard verification. |
-| 45 | "No TP for Rally4" notification while one is assigned | 🟡 | GK-gating + HQ TP-slot fix (S36.6, S37.1). Verify the false no-TP notification is gone. |
+| 45 | "No TP for Rally4" notification while one is assigned | ✅ | **S37.43** Fixed by the same readiness rewrite as #42 — the TP check is now per-fielded-championship via the player-scoped `_get_tp_for_championship`, so an assigned TP resolves correctly and the false "no TP" is gone. Same resolver used by both the TDL and the DNS enforcement, so the two always agree. |
 | 46 | Code thinks no mechanic → no repairs although one is assigned | 🟡 | Per-car SP/repair reads (A-SP, S37.0). Verify repairs run with a mechanic assigned. |
 | 47 | Add a "fix the car" button in the Garage | ✅ | **S37.3–S37.5** Garage car-card "Repair" button: full repair when SP allows, else PROPORTIONAL repair spending all held SP (repair_car_max_sp) so it's usable even when one 10% chunk isn't affordable (GK 110 SP/10%). **Confirmed in play.** |
 | 48 | Season 2 registered only in Rally3 but got "buy car" notifications for every championship | 🟡 | Season-transition + registration-scope fixes (S35.0, Cluster A). Verify next-season car prompts are scoped to registered championships. |
@@ -75,20 +75,57 @@ A 1-event model now governs notifications (built this session; CFO + deadline mi
 2. The notification may carry a **destination button** (e.g. "staff_hub", "hq", "garage", "logistics") that leads to where you act, and/or the **read-only TO-DO list** reflects the standing task. **The TDL never emits notifications** (you can already see it).
 3. **Meaningful** world events (mode `news`) also post to a news feed (hook stubbed; full news system = Brainstorm thread 2).
 
-**Migrated so far:** CFO (read-only TDL row + one-time `notify_event("no_cfo", once)` with a Staff button), registration deadline. **Pending migration:** TP (#39/#42/#45), fuel/SP (#15/#23), building completion (#26), sponsor offer (#12), signings/titles/top-tier entry (news).
+**MIGRATION COMPLETE (Phase 3, S37.37–S37.49):** every `add_notification` across all engines and
+scenes is now on `notify_event` (or `show_popup` for blocking errors). Classification: signings &
+departures → `news`; recurring chores/distress → `standing`; blocking errors → `show_popup`; discrete
+one-offs → `event` with destination routing; redundant-with-popup → deleted. Files: ContractEngine,
+RnDEngine, SponsorManager, CarManager, SeasonManager, RaceSimulator, GameState, FinancialEngine,
+DriverManager, StaffManager, TPProposalEngine, CampusManager, ChampionshipSelect, Logistics, MainHub.
+The news SOUNDWAVE FILTER (Brainstorm thread 2) is still a separate design pass — news is currently
+"everything visible." Full per-file ledger: `Notification_News_Roadmap_v1.md`.
 
 ---
 
-## Quick tallies (S37.13)
+## Quick tallies (updated S37.50)
 
-- **✅ Fixed:** #2, #5, #8, #11, #13, #14, #19, #20, #23, #28, #31, #33, #47, #49. (Confirmed in play: #5, #11, #20, #47; rest by changelog — verify the S37.9–S37.13 batch in-engine: #2 interest count, #8 salary units, #13 sponsor amounts.)
-- **🟡 Fixed–needs in-engine verification:** #4, #6, #7, #9, #10, #15, #21, #24, #25, #29, #32, #35, #36, #37, #39, #42, #44, #45, #46, #48, #51.
-- **🟠 Known/latent or partial:** #22, #38. (#40 done S37.22; #3 verified-closed S37.21; #34 done S37.21; #50 done S37.19.)
-- **🔵 Backlog/feature (design work):** #27. (#17 hub revamp done S37.27.)
-- **⚪ Still open / not started:** #12, #26 (deferred — notification loop being redesigned). (#43 done S37.9; #18 done S37.14–15; #41 done S37.16; #1 done S37.17–18; #16 done S37.17; #50 done S37.19; #30 done S37.20.)
+- **✅ Fixed:** #2, #5, #8, #11, #12, #13, #14, #19, #20, #23, #26, #28, #31, #32, #33, #36, #42, #45,
+  #47, #49. (Newly closed this session: #12 + #26 sponsor/building notifications migrated; #32 Racing
+  World all-championships via the AIChampionshipSim build — player-confirmed; #36 readiness duplicates
+  collapse via standing mode; #42 + #45 false/stale GK-TP TDLs fixed at root S37.43.)
+- **🟡 Fixed–needs in-engine verification:** #4, #6, #7, #9, #10, #15, #21, #24, #25, #29, #35, #37,
+  #39, #44, #46, #48, #51. (#39 advanced — TP readiness rewritten + TP-DNS enforced; still verify it
+  fires in play.)
+- **🟠 Known/latent or partial:** #22, #38.
+- **🔵 Backlog/feature (design work):** #27.
+- **⚪ Still open / not started:** #43 (StaffHub static counts — remove). *(#12 and #26 are no longer
+  open — migrated this session.)*
 
-## Suggested next batch (the ⚪ Open, lowest-risk)
-Mechanical, no re-fix risk: **#18** (starting-driver balance), **#41** (age-requirement popup), **#43** (remove hub button counts), **#30** (campus building text audit), **#1** (CFO all-0 attributes). Then notification-framework migrations: **#12, #26** (sponsor offer / building completion as `notify_event` with buttons).
+## Suggested next batch
+With the notification migration (Phase 3) and the living-world build complete, the lowest-risk
+remaining items are: **#43** (remove StaffHub static button counts — mechanical), **#21** (finish the
+two user-facing "Formula"→"GP" strings in NewGame.gd + HQ.gd), and the **🟡 verification sweep** —
+many Cluster-A items (#9, #44, #46, #48) and TP items (#39) are code-fixed but still need keyboard
+confirmation. Larger design passes queued: the **news soundwave filter** (Brainstorm thread 2), the
+**Phase-5 economic strength model** for the AI sim, the **designer-model rework** (GDD §22/§19), and
+the **NewGame card-text** cosmetic (§7.3 — GP4 card understates its real provisioning).
+
+## S37.37–S37.50 session summary (living world + notification migration + new-game)
+- **Notification/News Phase 3 COMPLETE** — every `add_notification` migrated to `notify_event` /
+  `show_popup` across 15 files (closes #12, #26; advances #36, #39). See the framework section above.
+- **AIChampionshipSim BUILT** (closes #32) — new RefCounted engine runs all non-player, non-GK
+  championships each race week via a lightweight `car_strength` scalar → finishing order → existing
+  points table; populates driver + team standings. `car_strength()` is the Phase-5 economic swap-point.
+- **Racing World display** — AI cards show driver + team leader; GK card shows driver + team CHAMPION
+  even for a player racing a different discipline (shadow standings + CP3 team table).
+- **New-game provisioning** (GDD §7.3) — Ops Sim key typo fixed (`"Ops Sim"`→`"Ops Sim & Telemetry"`),
+  un-stranding the SC/GP starting Strategist; GP now starts with R&D Design Studio + CNC Parts Plant +
+  a Designer.
+- **Strategist = DNS** (closes the strategist half of the readiness gap) — a missing Race Strategist
+  now DNS's the car (parity with the S37.45 TP-DNS), enforced in `can_car_race` + a readiness TDL, for
+  every discipline except GK & Rally.
+- **Bug run** — release-staff now unassigns mechanic/pit-crew from the car (was driver-only); false
+  "no TP for GK" TDL for non-GK players fixed (#42, #45); "DNS for every championship" + season-rollover
+  "new car needed" spam gated to player championships; stale "24 championships" → 21.
 
 ## S37.9–S37.13 session summary (this chat)
 - **#8** annual-salary negotiation with live weekly read-out (S37.9).

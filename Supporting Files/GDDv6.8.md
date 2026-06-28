@@ -1,6 +1,29 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v6.7 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+**Version:** v6.8 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v6.8: (S37.37–S37.50) LIVING WORLD + NOTIFICATION MIGRATION COMPLETE + NEW-GAME PROVISIONING.
+	(1) NOTIFICATION/NEWS PHASE 3 COMPLETE: every add_notification across all engines + scenes migrated
+	to the notify_event framework (event / standing / news / once) or show_popup — see §15.1. Signings &
+	departures → news; recurring chores → standing (weekly-collapse); blocking errors → show_popup.
+	(2) AI CHAMPIONSHIP SIM BUILT (§14 flipped DEFERRED→BUILT): new AIChampionshipSim RefCounted engine
+	(resources/scripts/) runs every non-player, non-GK championship each race week via a lightweight
+	strength scalar → finishing order → existing points table. car_strength() is an isolated pure
+	function (driver effective_pace spine + consistency/race_craft + car index×condition × mechanic
+	mult) — the SWAP-POINT for the Phase-5 economic model. Field = ai_cars[champ_id] (real rosters from
+	car_assignments.json — multi-car teams, multi-driver EPC cars). Populates driver AND team standings.
+	(3) RACING WORLD display: AI championship cards now show driver + team leader; GK card shows the
+	driver+team CHAMPION even when the player raced a DIFFERENT discipline (reads GKDiscipline shadow
+	standings + the CP3 cumulative team table). (4) NEW-GAME PROVISIONING FIX (§7.2): the Ops Sim key
+	typo ("Ops Sim" → canonical "Ops Sim & Telemetry") meant SC Dev/GP4 never built the building → the
+	starting Strategist was stranded (no slot). Fixed. GP now also starts with R&D Design Studio + CNC
+	Parts Plant + a starting Designer (design+produce from week 1; budgets tuned manually for upkeep).
+	(5) STRATEGIST = DNS (§9-G): a missing Race Strategist now DNS's the car (same ruling as the S37.45
+	TP-DNS), enforced in can_car_race + flagged by a new readiness TDL, for every discipline except GK
+	& Rally. (6) Bug run: release-staff now unassigns the mechanic/pit-crew from the car; false "no TP
+	for GK" TDL for non-GK players fixed; "DNS for every championship" + "new car needed" season-rollover
+	spam gated to player championships; 21-championships count corrected (was stale "24"). NOTE: §22
+	manual idea — RECONSIDER the designer model (1-per-principle + per-special-project + 1 commercial)
+	— is now live-relevant since GP starts with a Designer; carried in §19. -->
 <!-- v6.7: (S37.31–S37.36) RESOURCE-BAR ROLLOUT COMPLETE + STANDARD HEADER finalized. The shared
 	ResourceBar component is now on Campus, all 20 building scenes, and all non-building scenes
 	(Drivers, StaffHub, Shortlist, Financialdept, ChampionshipSelect, Calendar — swapped from its
@@ -605,7 +628,37 @@ explicit field → a safe **dummy** championship (so callers never get null). Co
   RacingWorld reads the GK champion/leader from the shadow standings so GK remains visible in the
   world view.
 
+### 7.3 New-game starting assets — per-discipline provisioning (S37.50)
+
+`GameState._give_starting_assets(champ_id)` provisions the starting campus, staff and car for the
+chosen Tier-1 championship. Buildings and staff are gated by the championship's **discipline**:
+
+| Discipline | Buildings built at start | Starting staff (beyond TP + Driver) |
+| --- | --- | --- |
+| GK | Standard Campus | — (GK uses no Strategist/Pit-Crew) |
+| Rally | + Pit Crew Arena | Pit Crew |
+| SC | + Pit Crew Arena, Ops Sim & Telemetry | Pit Crew, Race Strategist |
+| GP | + Pit Crew Arena, Ops Sim & Telemetry, **R&D Design Studio, CNC Parts Plant** | Pit Crew, Race Strategist, **Designer** |
+
+Every career also starts with a Team Principal and a starting Driver assigned to the car.
+
+**Two fixes that shipped here:**
+- **Ops Sim key typo (the stranded-strategist bug).** The provisioning checked `"Ops Sim"` but the
+  canonical building key is `"Ops Sim & Telemetry"` everywhere else, so the `in campus_buildings`
+  test was always false → SC Dev / GP4 never built the building → the starting Strategist (created
+  right after) had no slot and was stranded/unresolvable. Corrected to the canonical key; the
+  strategist already sets `assigned_championship`, so it now resolves correctly once its slot exists.
+- **GP gets the full design+manufacturing chain.** A GP4 career now starts with the R&D Design Studio
+  + CNC Parts Plant built and a starting Designer (team-level, occupying the R&D-Studio slot; no
+  discipline adaptation, §9-F), so it can design and produce parts from week 1. The other Tier-1 paths
+  build these later. Starting budgets were tuned manually to cover the added upkeep.
+
+> **§22 cross-ref:** the manual "reconsider the designer model" idea (1-per-principle + per-special-
+> project + 1 commercial, instead of many) is now live-relevant — GP starting with a Designer is the
+> current 1-per-team baseline. Revisit when the designer rework is scheduled (§19).
+
 ---
+
 
 ## 8. R&D SYSTEM
 
@@ -790,7 +843,11 @@ equal ±10–15 random variance — specialised designers emerge organically.
 `race_strategy` (primary), `race_pace_reading` (driving-mode recommendations),
 `practice_scheduling`, `qualifying_timing`, `track_knowledge`. **Assigned per championship** (one
 strategist shared across that championship's cars; via `Staff.assigned_championship`). Skipped for GK
-and Rally. Included in the player's TP assignment proposal (§9-I).
+and Rally. Included in the player's TP assignment proposal (§9-I). The strategist occupies an **Ops
+Sim & Telemetry** building slot. **A missing Strategist is a DNS** (S37.50 — same design ruling as the
+TP-DNS, §9-A / S37.45): enforced in `RaceSimulator.can_car_race()` and surfaced by a readiness TDL
+("No Race Strategist for: … (car will DNS)"), for every discipline EXCEPT GK & Rally. The new-game
+starting roster provisions one for SC/GP careers (§7.2).
 
 ### 9-H. Effective-stat floor (adaptation, muscle memory)
 Adaptation never drops below a floor representing muscle memory.
@@ -1101,15 +1158,37 @@ prices — each adjusting Reputation and Marketability.
 
 ---
 
-## 14. AI CHAMPIONSHIP SIM — the "living world" (DEFERRED; full spec in FEATURE_AI_Championship_Sim.md)
+## 14. AI CHAMPIONSHIP SIM — the "living world" (BUILT, lightweight v1 — S37.47)
 
-Today only the player's raced championship gets standings. Future: every championship runs
-each season via a LIGHTWEIGHT result model — one strength scalar per car from existing stats
-(driver × car index × staff multipliers × race-day noise) → finishing order → existing points
-table. NOT the full lap-by-lap sim (too expensive for 20+ championships weekly). New
-`AIChampionshipSim` RefCounted engine, Python-portable. Build AFTER the economy (AI car
-strength should read economic outputs / budgets). Pairs with the Transfer Market (P51) to make
-the AI world fully alive.
+**Status: BUILT.** Every non-player, non-GK championship now runs each race week via the
+`AIChampionshipSim` RefCounted engine (`resources/scripts/`, Python-portable), so all 21
+championships have live, moving standings instead of the old empty tables. (GK runs through
+GKDiscipline's shadow sim; the player's championship through the real RaceSimulator.)
+
+**How it works.** `car_strength(car)` → a single race-day scalar collapsing the inputs the real
+lap-time model weights most heavily (driver `get_effective_pace()` as the spine + consistency +
+race_craft, plus car `baseline_performance_index × condition`, × a mechanic `car_setup` multiplier)
+— NOT the full lap-by-lap physics (too expensive for 20+ championships weekly). `simulate_round(champ)`
+sorts strength + ±8% race-day noise → finishing order → awards points via the championship's existing
+`points_system` / `add_points` / `add_team_points`, so it populates BOTH driver and team standings and
+the EOS / Racing World screens need no data changes. Field source = `ai_cars[champ_id]` — the real
+rosters loaded from `car_assignments.json` (multi-car teams, multi-driver EPC cars). Skips the player's
+own car (real sim owns that result) and GK (shadow sim).
+
+**Wiring.** Runs in the GameState weekly race loop as the `elif champ.id != "C-001"` branch after the
+player `is_player_champ` branch — it does NOT reopen the S37.43 Bug-3 gate (no DNS spam). Engine
+declared + instantiated at all 3 init sites (new-game / load / setup).
+
+**`car_strength()` is the deliberate SWAP-POINT for Phase 5.** The strength model is currently a pure
+function of existing stats. When the economy phases land, swap its internals to read economic outputs
+(team budgets / character) so AI car strength reflects each team's financial state — without touching
+the plumbing. Pairs with the Transfer Market (P51) for the fully-alive AI world. Full spec:
+`FEATURE_AI_Championship_Sim.md`.
+
+**Racing World display (S37.48).** AI championship cards show driver + team leader. The GK card shows
+the driver AND team CHAMPION even when the player raced a different discipline (reads GKDiscipline
+shadow standings for the driver champion + the CP3 cumulative `team_standings` table for the team
+champion). The player's own championship uses the richer active card (full driver + team columns).
 
 ---
 
@@ -1220,19 +1299,29 @@ condition every race — so the player saw the same notice at W8/W10/W12. Under 
 single read-only TDL row plus one `notify_event("no_cfo", once)` with a Staff-screen button. (CFO is
 explicitly OPTIONAL — good-to-have, not required to field a team.)
 
-**Migration status.** Migrated: CFO, registration-deadline warning. Pending (still on the legacy
-`add_notification`): TP-missing (#39/#42/#45), fuel/SP (#15/#23), building completion (#26), sponsor
-offer (#12), and the news-mode events (signings/titles/top-tier entry). Each migration adds the
-proper destination button or news flag.
+**Migration status — PHASE 3 COMPLETE (S37.37–S37.49).** Every `add_notification` across all engines
+and scenes has been migrated to `notify_event` (or `show_popup` for blocking errors). Files migrated:
+ContractEngine, RnDEngine, SponsorManager, CarManager, SeasonManager, RaceSimulator, GameState,
+FinancialEngine, DriverManager, StaffManager, TPProposalEngine, CampusManager, ChampionshipSelect,
+Logistics, MainHub (the four already-Phase-1 scenes — RacingDept, Garage, StaffHub, Drivers — had
+nothing left). Classification rules applied consistently:
+- **Signings & departures → `news`** (driver/staff hired, signed, released, retired).
+- **Recurring chores / distress → `standing`** (financial insolvency/bankruptcy/low-funds; DNS
+  readiness gaps; resource shortfalls) — one live instance refreshed weekly, never a growing stack.
+- **Blocking "can't do this" errors → `show_popup`** (an on-the-spot AcceptDialog).
+- **Discrete one-offs → `event`** (loans, building sold, car purchased, R&D/CNC ready), routed to the
+  relevant building via `destination`.
+- **Redundant-with-popup notices → deleted.**
+Framework-internal `add_notification` (inside `notify_event` itself) and pre-existing subject-collapsed
+resource warnings are intentionally retained. The full per-file ledger lives in
+`Supporting Files/Notification_News_Roadmap_v1.md`. The news soundwave/propagation FILTER (§13.2)
+remains a separate design pass — for now news is "everything visible."
 
-**SEQUENCING — MAIN HUB REDESIGN IS A HARD PREREQUISITE.** Before the notification loop is
-constructed/finished (the framework above and the remaining migrations), the **Main Hub must be
-redesigned first — this is mandatory, not optional.** The bell, unread badge, slide-in panel,
-critical banner, and the read-only To-Do List all live on the Main Hub, so the notification loop's
-surfaces depend on the redesigned hub. Building the loop against the current hub would mean wiring
-notification UI into a layout that is about to change. Order is therefore fixed: (1) Main Hub
-redesign → (2) notification loop construction + legacy-`add_notification` migrations. Do not begin
-the notification loop work until the hub redesign lands.
+**SEQUENCING — DONE.** This was a hard ordering: the Main Hub redesign (the bell/badge/panel/banner/
+TDL surfaces) had to land before the notification loop could be built against it. Both are now
+complete — Main Hub redesign (S37.27) → notification framework + full legacy-`add_notification`
+migration (S37.7 → Phase 3 complete S37.49). The remaining notification-adjacent work is the news
+SOUNDWAVE FILTER (§13.2), a separate design pass.
 
 ### Resource bar visibility (design rule — MANDATORY)
 The persistent top resource bar is a **required, always-present element of every in-game scene.**
@@ -1446,9 +1535,20 @@ the wildcards). Biggest risk: scope creep — keep saying "backlog."
 - **Bankruptcy-continue crash:** appeared fixed via the end-of-season "raced-only" standings
   filter, but observed surviving only once — re-test deliberately; if it recurs, capture the
   Godot error line (possible second cause).
-- **AI Championship Sim / living world:** all 23 non-GK championships must simulate for all teams
-  every season (currently only GK shadow-sims). Deferred — full spec in
-  `FEATURE_AI_Championship_Sim.md` (§14). Player requirement, OK to defer.
+- **AI Championship Sim / living world:** ~~all non-GK championships must simulate for all teams every
+  season (currently only GK shadow-sims)~~ **STRUCK (BUILT, S37.47, §14):** `AIChampionshipSim` now
+  runs every non-player, non-GK championship each race week (lightweight strength scalar). *Remaining
+  for the FULL living world:* (a) Phase-5 economic strength model — swap `car_strength()` internals to
+  read team budgets/character; (b) Transfer Market (P51) so AI rosters move between seasons; (c) the
+  news SOUNDWAVE FILTER (§13.2) so champion/result news is filtered by reach instead of "everything
+  visible" (champion news currently fires for player + GK only).
+- **Designer model reconsideration (§22):** the current model gives each team many Designers, and the
+  new-game GP path now starts with one (§7.3). Manual §22 idea: move to **1 Designer per principle +
+  1 per special project + 1 for commercial cars** instead. Open — schedule a Designer-rework pass; it
+  touches generation, hiring slots (R&D Studio), and the new-game starting roster.
+- **New-game card display vs. provisioning (S37.50):** `NewGame.gd` per-championship `buildings` list
+  (lines 94/99) is DISPLAY-ONLY and now understates GP4 (real provisioning adds R&D Studio + CNC Plant
+  + Designer, §7.3). Cosmetic — update the card text to match what the player actually receives.
 - **TP Assignment — Phase 2 (AI):** ~~`ai_auto_assign` incl. TP reassignment at season start /
   roster change~~ **STRUCK (resolved, S35.0):** `ai_auto_assign_all_teams()` is built and wired
   into the Season Transition Pipeline at Stage C (§7.1) — `compute_optimal_assignments(team, cars,
@@ -1468,6 +1568,27 @@ the wildcards). Biggest risk: scope creep — keep saying "backlog."
 ## 20. IMPLEMENTATION CHANGELOG (recent — newest first)
 
 Historical record of what shipped; design facts above already reflect these.
+
+- **S37.37–S37.50 (LIVING WORLD + notification migration + new-game provisioning):**
+  - *Notification/News Phase 3 COMPLETE* — every `add_notification` in all engines + scenes migrated
+	to `notify_event` / `show_popup` (§15.1 for the classification rules and full file list). Signings
+	& departures → news; recurring chores/distress → standing; blocking errors → popup; one-offs →
+	event with destination routing.
+  - *AIChampionshipSim BUILT* (§14) — new RefCounted engine runs every non-player, non-GK championship
+	each race week via a lightweight `car_strength` scalar → finishing order → existing points table.
+	Populates driver + team standings for all 21 championships. `car_strength()` is the isolated
+	Phase-5 swap-point. Root cause it solves: the S37.43 Bug-3 gate (which stopped the per-championship
+	DNS spam) had also stopped non-player championships getting points, leaving Racing World empty.
+  - *Racing World display* (§14) — AI cards show driver + team leader; GK card shows driver + team
+	CHAMPION even for a player who raced a different discipline (shadow standings + CP3 team table).
+  - *New-game provisioning* (§7.3) — Ops Sim key typo fixed (`"Ops Sim"` → `"Ops Sim & Telemetry"`),
+	un-stranding the SC/GP starting Strategist; GP now starts with R&D Design Studio + CNC Parts Plant
+	+ a Designer.
+  - *Strategist = DNS* (§9-G) — a missing Race Strategist now DNS's the car (parity with the S37.45
+    TP-DNS), enforced in `can_car_race` + a readiness TDL, for all disciplines except GK & Rally.
+  - *Bug run* — release-staff now unassigns mechanic/pit-crew from the car (was driver-only); false
+    "no TP for GK" TDL for non-GK players fixed; "DNS for every championship" + season-rollover "new
+    car needed" spam gated to player championships; stale "24 championships" comments corrected to 21.
 
 - **S37.31–S37.36 (resource-bar rollout + standard header):** the shared ResourceBar component
   (script-instantiated, compact) is now on Campus + all 20 building scenes + all non-building scenes
@@ -1708,6 +1829,15 @@ open. The remaining high-leverage clusters:
 When a fix ships, update the relevant section above AND mark the item in both tracker files.
 
 ## 22. Manual inserted Updates and ideas.
+
+> *Reconciliation note (v6.8): these are the owner's raw design ideas. Items now reflected elsewhere
+> in the GDD: the **designer-model reconsideration** is cross-referenced in §7.3 + §19; **"make Racing
+> World deeper"** is partially addressed by the §14 living-world build (driver/team standings now
+> populate) but the deeper intent (browse/scout, history) remains open. Still un-actioned and carried
+> as design intent: team-colour window borders, parts-JSON↔Logistics/CnC/sponsor cost wiring, the
+> per-addition event/TDL/save-load checklist (a process rule — see §15.2), the Academy cadet
+> supply/cap rule, and the bankruptcy-screen review. None are lost; they live here as the backlog.*
+
 - They UI bordering of windows to follow the Team Colours, if it is to diiffult to implemetn, we will use a combination of red/black or blue/black 
 - The parts JSON must include the base Unit cost and this must be connected with the logistcs center and sponsors offers. The CnC must also be connected to the JSON
 - For every addition, we must check if it is an event that must be classified and news or notification and also if it leads to tdl entry or needs a building button
@@ -1718,7 +1848,7 @@ When a fix ships, update the relevant section above AND mark the item in both tr
 - Make the Racing world deeper
 ---
 
-*End of GDD v6.0. Companion files: `Brainstorm_Threads.md` (vision/strategy),
+*End of GDD v6.8. Companion files: `Brainstorm_Threads.md` (vision/strategy),
 `FEATURE_AI_Championship_Sim.md` (deferred feature spec), `TP_Assignment_System_Spec_v2.md` (TP
 assignment design), `Season_Transition_Pipeline_Spec_v1.md` (§7.1 rollout detail),
 `Master_Calculation___Formula_Document` (formula reference), `BUGLIST.md` +
