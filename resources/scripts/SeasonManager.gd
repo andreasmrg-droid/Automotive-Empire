@@ -1,9 +1,11 @@
 class_name SeasonManager
-## Version: S37.43 — Notification & News Roadmap, Phase 3 (events→notify_event). All 13 SeasonManager
-##   notifications migrated: 4 departures → "news" at Normal (driver/staff contract-expiry leaves +
-##   driver/staff retirements — retirements dropped from Critical to Normal per design); the rest →
-##   "event" (rollover warnings: no champs registered, no/new car needed, academy turns-18, cadet/
-##   driver/staff contract expiry re-sign prompts), logistics/championship-routed where actionable.
+## Version: S37.44 — BUGFIX (new-car-needed spam): the season-start "Delivery deadline" loop iterated
+##   active_championships (all 21 in the world), so a player registered nowhere got "Season N [GP1/
+##   GP2/EPC…]: New car needed" for championships they never entered (same root as the GK-TP / DNS
+##   all-champ bugs). Now gated to player_registered_championships. Also corrected stale "24
+##   championships" comments → 21. PLUS Phase 3 (events→notify_event): all 13 SeasonManager
+##   notifications migrated — 4 departures → "news" at Normal (contract-leaves + retirements,
+##   retirements dropped Critical→Normal), the rest → "event".
 ## Version: S37.22 — #40: after applying pending staff assignments at season start, call
 ##   clear_stranded_player_championship_staff() so a player TP/Strategist left on a championship no
 ##   longer raced (e.g. GK after switching to Rally) is auto-unassigned (prevents the GK soft-lock).
@@ -267,7 +269,7 @@ func start_new_season() -> void:
 	gs.add_log("🏎 All cars retired for Season %d. Buy or build new cars before Race 1." % gs.current_season)
 
 	# ── Reset all championships for new season ───────────────────────────
-	## ALL 24 championships reset and stay active — the world keeps running.
+	## ALL 21 championships reset and stay active — the world keeps running.
 	for champ in gs.active_championships:
 		champ.reset_for_new_season()
 	gs._sync_gk_group0_to_standings()
@@ -287,8 +289,14 @@ func start_new_season() -> void:
 					"🏎 No car for %s — buy or manufacture one before Race 1." % reg.get("name", champ_id),
 					"logistics", "event")
 
-	## Delivery deadline notifications
-	for champ in gs.active_championships:
+	## Delivery deadline notifications — S37.44 BUGFIX: was iterating active_championships (all 21
+	## in the world), so at season start a player registered nowhere got "New car needed" for GP1-4,
+	## EPC, etc. — championships they never entered (same root as the GK-TP / DNS all-champ bugs).
+	## Gate to player_registered_championships. (This is also why it duplicated the "No car for X"
+	## block above; now both are player-scoped.)
+	for champ_id in gs.player_registered_championships:
+		var champ = gs.get_championship_by_id(champ_id)
+		if champ == null: continue
 		var delivery_wk = gs.get_car_delivery_week(champ.id)
 		var race1_wk    = gs.FIRST_RACE_WEEK.get(champ.id, 6)
 		gs.notify_event("new_car_needed_%s_s%d" % [champ.id, gs.current_season], "High",
