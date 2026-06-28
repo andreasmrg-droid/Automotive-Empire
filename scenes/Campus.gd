@@ -160,10 +160,11 @@ func _show_zone(zone_name: String) -> void:
 	header.add_theme_color_override("font_color", zone_color)
 	zones_box.add_child(header)
 
-	var grid = HFlowContainer.new()
+	var grid = GridContainer.new()
+	grid.columns = 3
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	grid.add_theme_constant_override("h_separation", 8)
-	grid.add_theme_constant_override("v_separation", 8)
+	grid.add_theme_constant_override("h_separation", 12)
+	grid.add_theme_constant_override("v_separation", 12)
 	zones_box.add_child(grid)
 
 	for building_id in buildings:
@@ -172,10 +173,24 @@ func _show_zone(zone_name: String) -> void:
 func _build_card(building_id: String) -> PanelContainer:
 	var building = GameState.get_building(building_id)
 	var card = PanelContainer.new()
-	card.custom_minimum_size = Vector2(240, 0)
+	## Uniform card size — fixed width AND height so all cards form a clean grid
+	## regardless of how much text each building has. Content is top-aligned; the
+	## action button(s) sit at the bottom via a spacer.
+	card.custom_minimum_size = Vector2(0, 340)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var card_style := StyleBoxFlat.new()
+	card_style.bg_color = Color(0.12, 0.13, 0.16)
+	card_style.set_corner_radius_all(8)
+	card_style.set_border_width_all(1)
+	card_style.border_color = Color(0.25, 0.27, 0.32)
+	card_style.content_margin_left = 12; card_style.content_margin_right = 12
+	card_style.content_margin_top = 10; card_style.content_margin_bottom = 10
+	card.add_theme_stylebox_override("panel", card_style)
 
 	var vbox = VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 6)
+	vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	card.add_child(vbox)
 
 	# Building name row
@@ -210,15 +225,27 @@ func _build_card(building_id: String) -> PanelContainer:
 		status_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 	vbox.add_child(status_label)
 
-	# Effects — show for built buildings, or L1 preview for unbuilt
+	# Effects — show for built buildings, or L1 preview for unbuilt.
+	# Wrapped in a FIXED-HEIGHT scroll region so the variable amount of effect text
+	# never changes the card's height — every card stays identical; long text scrolls.
+	var effects_scroll = ScrollContainer.new()
+	effects_scroll.custom_minimum_size = Vector2(0, 150)
+	effects_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	effects_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var effects_inner = VBoxContainer.new()
+	effects_inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	effects_inner.add_theme_constant_override("separation", 4)
+	effects_scroll.add_child(effects_inner)
+	vbox.add_child(effects_scroll)
+
 	if building["built"] and building["construction_weeks_remaining"] == 0:
 		var effects_label = Label.new()
 		effects_label.text = building["effects"]
 		effects_label.add_theme_font_size_override("font_size", 22)
 		effects_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 		effects_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		effects_label.custom_minimum_size = Vector2(260, 0)
-		vbox.add_child(effects_label)
+		effects_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		effects_inner.add_child(effects_label)
 	elif not building["built"]:
 		# Show what building provides at L1 once built
 		var preview_label = Label.new()
@@ -226,8 +253,8 @@ func _build_card(building_id: String) -> PanelContainer:
 		preview_label.add_theme_font_size_override("font_size", 22)
 		preview_label.add_theme_color_override("font_color", Color(0.5, 0.65, 0.5))
 		preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		preview_label.custom_minimum_size = Vector2(260, 0)
-		vbox.add_child(preview_label)
+		preview_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		effects_inner.add_child(preview_label)
 		# L1 upkeep/income preview
 		var maint = building["weekly_maintenance"]
 		var income = building["weekly_income"]
@@ -239,7 +266,7 @@ func _build_card(building_id: String) -> PanelContainer:
 			fp_label.text = finance_preview
 			fp_label.add_theme_font_size_override("font_size", 22)
 			fp_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
-			vbox.add_child(fp_label)
+			effects_inner.add_child(fp_label)
 
 	# Finance row — current level values for built buildings
 	var finance_label = Label.new()
@@ -254,7 +281,13 @@ func _build_card(building_id: String) -> PanelContainer:
 	if finance_text != "":
 		finance_label.text = finance_text
 		finance_label.add_theme_font_size_override("font_size", 22)
-		vbox.add_child(finance_label)
+		effects_inner.add_child(finance_label)
+
+	# Spacer — pushes the action button(s) to the bottom so all cards look uniform
+	# even when a building has little descriptive text.
+	var spacer = Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(spacer)
 
 	# Separator
 	var sep = HSeparator.new()
@@ -262,14 +295,13 @@ func _build_card(building_id: String) -> PanelContainer:
 
 	# Action button
 	var action_btn = Button.new()
-	action_btn.custom_minimum_size = Vector2(260, 35)
+	action_btn.custom_minimum_size = Vector2(0, 38)
+	action_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	if not building["built"]:
 		var can_afford = GameState.player_team.balance >= building["build_cost"]
 		action_btn.text = "Build — $%d (%d wks)" % [building["build_cost"], building["build_time"]]
 		action_btn.disabled = not can_afford
-		if not can_afford:
-			action_btn.text += " [Need $%d more]" % (building["build_cost"] - GameState.player_team.balance)
 		action_btn.pressed.connect(_on_build_pressed.bind(building_id))
 
 	elif building["construction_weeks_remaining"] > 0:
@@ -310,7 +342,8 @@ func _build_card(building_id: String) -> PanelContainer:
 	if building["name"] == "Logistics Center" and building["built"] and building["level"] >= 1:
 		var open_btn = Button.new()
 		open_btn.text = "📦 Enter Logistics Center"
-		open_btn.custom_minimum_size = Vector2(260, 35)
+		open_btn.custom_minimum_size = Vector2(0, 38)
+		open_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		open_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/buildings/Logistics.tscn"))
 		vbox.add_child(open_btn)
 
@@ -318,7 +351,8 @@ func _build_card(building_id: String) -> PanelContainer:
 	if building["name"] == "Headquarters" and building["built"] and building["level"] >= 1:
 		var hq_btn = Button.new()
 		hq_btn.text = "🏛 Enter HQ"
-		hq_btn.custom_minimum_size = Vector2(260, 35)
+		hq_btn.custom_minimum_size = Vector2(0, 38)
+		hq_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		hq_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/buildings/HQ.tscn"))
 		vbox.add_child(hq_btn)
 
@@ -326,7 +360,8 @@ func _build_card(building_id: String) -> PanelContainer:
 	if building["name"] == "Garage" and building["built"] and building["level"] >= 1:
 		var garage_btn = Button.new()
 		garage_btn.text = "🔧 Enter Garage"
-		garage_btn.custom_minimum_size = Vector2(260, 35)
+		garage_btn.custom_minimum_size = Vector2(0, 38)
+		garage_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		garage_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/buildings/Garage.tscn"))
 		vbox.add_child(garage_btn)
 
@@ -334,7 +369,8 @@ func _build_card(building_id: String) -> PanelContainer:
 	if building["name"] == "Racing Department" and building["built"] and building["level"] >= 1:
 		var rd_btn = Button.new()
 		rd_btn.text = "🏎 Enter Racing Department"
-		rd_btn.custom_minimum_size = Vector2(260, 35)
+		rd_btn.custom_minimum_size = Vector2(0, 38)
+		rd_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		rd_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/buildings/RacingDept.tscn"))
 		vbox.add_child(rd_btn)
 
@@ -362,7 +398,8 @@ func _build_card(building_id: String) -> PanelContainer:
 		var info = EXTRA_SCENES[bname]
 		var enter_btn = Button.new()
 		enter_btn.text = info[0]
-		enter_btn.custom_minimum_size = Vector2(260, 35)
+		enter_btn.custom_minimum_size = Vector2(0, 38)
+		enter_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var scene_path = info[1]
 		enter_btn.pressed.connect(func(): get_tree().change_scene_to_file(scene_path))
 		vbox.add_child(enter_btn)
