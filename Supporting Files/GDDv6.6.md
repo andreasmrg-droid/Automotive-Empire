@@ -1659,6 +1659,7 @@ When a fix ships, update the relevant section above AND mark the item in both tr
 
 ## 22. Manual inserted Updates and ideas.
 - They UI bordering of windows to follow the Team Colours, if it is to diiffult to implemetn, we will use a combination of red/black or blue/black 
+- The parts JSON must include the base Unit cost and this must be connected with the logistcs center and sponsors offers. The CnC must also be connected to the JSON
 ---
 
 *End of GDD v6.0. Companion files: `Brainstorm_Threads.md` (vision/strategy),
