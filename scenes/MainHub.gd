@@ -1,4 +1,7 @@
 extends Control
+## Version: S37.37 — MainHub now uses the shared ResourceBar component (res://scenes/components/
+##   ResourceBar.gd) instead of its own hand-rolled CR/RP/SP/FU labels — single source of truth for
+##   the bar across every scene. removed the now-dead _make_resource_label helper.
 ## Version: S37.27 — MAIN HUB REDESIGN (mockup-driven). Hard prerequisite for the notification loop.
 ##   Layout: Row1 = team/player name · resource bar · Menu (BELL REMOVED). Row2 = Season|Week|Next
 ##   Race strip. Row3 = nav (Campus · Calendar · Drivers · Staff · Shortlist · Racing World). Centre
@@ -20,11 +23,9 @@ var balance_label: Label
 var next_race_label: Label
 
 # Resource bar
-var resource_bar: HBoxContainer
-var cr_label: Label
-var rp_label: Label
-var sp_label: Label
-var fu_label: Label
+var resource_bar: HBoxContainer        ## wrapper kept for layout; bar is the shared component now
+var _resource_bar = null               ## S37.37 shared ResourceBar component
+const ResourceBarScript = preload("res://scenes/components/ResourceBar.gd")
 
 # Centre panels
 var tdl_box: VBoxContainer          ## To-Do list column body
@@ -71,17 +72,14 @@ func _ready() -> void:
 	nameplate_label.custom_minimum_size = Vector2(300, 0)
 	top_bar.add_child(nameplate_label)
 
+	# Shared ResourceBar component (S37.37) — replaces the hand-rolled CR/RP/SP/FU labels.
 	resource_bar = HBoxContainer.new()
 	resource_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	resource_bar.alignment = BoxContainer.ALIGNMENT_CENTER
-	resource_bar.add_theme_constant_override("separation", 16)
 	top_bar.add_child(resource_bar)
-	cr_label = _make_resource_label("💰 CR", Color(0.4, 0.9, 0.4))
-	rp_label = _make_resource_label("🔬 RP", Color(0.5, 0.7, 1.0))
-	sp_label = _make_resource_label("🔧 SP", Color(1.0, 0.8, 0.4))
-	fu_label = _make_resource_label("⛽ FU", Color(1.0, 0.5, 0.3))
-	for rl in [cr_label, rp_label, sp_label, fu_label]:
-		resource_bar.add_child(rl)
+	_resource_bar = ResourceBarScript.new()
+	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	resource_bar.add_child(_resource_bar)
 
 	var menu_btn := Button.new()
 	menu_btn.text = "☰ Menu"
@@ -291,26 +289,9 @@ func _update_display() -> void:
 			advance_to_race_button.text = "⏭ Next Race"
 			advance_to_race_button.disabled = true
 	next_race_label.add_theme_color_override("font_color", Color.WHITE)
-	# Resources
-	cr_label.text = "💰 CR  %s" % _format_number(GameState.player_team.balance)
-	if GameState.player_team.balance >= 0:
-		cr_label.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
-	else:
-		cr_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
-	rp_label.text = "🔬 RP  %.0f" % GameState.research_points
-	sp_label.text = "🔧 SP  %d" % GameState.spare_parts
-	fu_label.text = "⛽ FU  %.0f kg" % GameState.fuel_kg
-	var sp_threshold = 0
-	var fu_threshold = 0.0
-	for champ in GameState.get_player_championships():
-		sp_threshold = max(sp_threshold, champ.sp_per_10_pct_damage)
-		fu_threshold = max(fu_threshold, champ.fuel_per_car_per_race)
-	if sp_threshold == 0: sp_threshold = 120
-	if fu_threshold == 0.0: fu_threshold = 15.0
-	sp_label.add_theme_color_override("font_color",
-		Color(1.0, 0.3, 0.3) if GameState.spare_parts < sp_threshold else Color(1.0, 0.8, 0.4))
-	fu_label.add_theme_color_override("font_color",
-		Color(1.0, 0.3, 0.3) if GameState.fuel_kg < fu_threshold else Color(1.0, 0.5, 0.3))
+	# Resources — shared component handles values + warning colors (S37.37).
+	if _resource_bar != null and _resource_bar.has_method("refresh"):
+		_resource_bar.refresh()
 
 func _format_number(n: float) -> String:
 	if abs(n) >= 1000000:
@@ -1144,13 +1125,6 @@ func _on_menu_action(action: String) -> void:
 			_show_confirmation(
 				Locale.t("menu_quit_confirm"),
 				func(): get_tree().quit())
-
-func _make_resource_label(_prefix: String, color: Color) -> Label:
-	var label = Label.new()
-	label.add_theme_font_size_override("font_size", 30)
-	label.add_theme_color_override("font_color", color)
-	label.custom_minimum_size = Vector2(95, 0)
-	return label
 
 func _read_save_meta(path: String) -> Dictionary:
 	if not FileAccess.file_exists(path): return {}
