@@ -1,4 +1,8 @@
 class_name CarManager
+## Version: S37.41 — Notification & News Roadmap, Phase 3 (events→notify_event). The 4 remaining
+##   CarManager notifications migrated to "event": pit-crew-DNS heads-up (→ pit_arena button; pairs
+##   with the persistent "no Pit Crew" TDL), car ready (→ garage), car in-build (→ garage), and CNC
+##   part installed. New pit_arena destination added to GameState.NOTIFICATION_DESTINATIONS.
 ## Version: S37.37 — Notification & News Roadmap, Phase 1: blocking-error add_notification calls
 ##   converted to gs.show_popup() — garage full, invalid car name, already-full-condition repairs,
 ##   not-enough-SP repairs, no CNC inventory, no provider parts in stock. Age-limit assign block
@@ -141,14 +145,15 @@ func add_car(for_champ_id: String = "", silent: bool = false) -> bool:
 	## TP proposals here produces stale warnings. `silent` suppresses them in that case.
 	if not silent:
 		if gs.get_pit_crew_required(champ_id):
-			gs.add_notification("High",
-				"🔧 %s needs a Pit Crew assigned before Race 1 or it will DNS. Hire at Pit Crew Arena." % car.car_name)
+			gs.notify_event("car_needs_crew_%s" % car.id, "High",
+				"🔧 %s needs a Pit Crew assigned before Race 1 or it will DNS. Hire at Pit Crew Arena." % car.car_name,
+				"pit_arena", "event")
 		if car.delivered:
-			gs.add_notification("Normal", "%s ready. Assign a driver via the Garage." % car.car_name)
+			gs.notify_event("car_ready_%s" % car.id, "Normal", "%s ready. Assign a driver via the Garage." % car.car_name, "garage", "event")
 		else:
-			gs.add_notification("Normal",
+			gs.notify_event("car_inbuild_%s" % car.id, "Normal",
 				"🏎 %s in build — arrives Week %d. Pre-assign a driver via the Garage so it's race-ready on delivery." % [
-				car.car_name, car.delivery_week], "garage")
+				car.car_name, car.delivery_week], "garage", "event")
 		gs._fire_assignment_proposals()
 	gs.emit_signal("log_updated")
 	return true
@@ -495,7 +500,7 @@ func install_part_on_car(car_id: String, champ_id: String, pcode: String) -> boo
 	var cname = car.car_name if car.car_name != "" else "Car %d" % car.car_number
 	gs.add_log("🔩 %s CNC part installed on %s. Rel:%.0f%% Qual:%.2f×" % [
 		pcode, cname, item.get("reliability", 60.0), item.get("quality", 1.0)])
-	gs.add_notification("Normal", "%s installed on %s." % [pcode, cname])
+	gs.notify_event("part_installed_%s_%s" % [pcode, cname], "Normal", "%s installed on %s." % [pcode, cname], "", "event")
 	gs.emit_signal("log_updated")
 	return true
 

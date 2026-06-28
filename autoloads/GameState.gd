@@ -1,3 +1,5 @@
+## Version: S37.41 — Added "pit_arena" to NOTIFICATION_DESTINATIONS/_LABELS (Phase 3: CarManager's
+##   pit-crew-DNS event routes there).
 ## Version: S37.39 — DRAFT negotiations: discard_draft_negotiation() wrapper; save strips draft
 ##   approaches from active_approaches so an un-acted draft never persists.
 ## Version: S37.38 — clear_all_notifications() wrapper (Main Hub "Delete All").
@@ -1049,6 +1051,7 @@ const NOTIFICATION_DESTINATIONS: Dictionary = {
 	"racing_center":  "res://scenes/buildings/RacingDept.tscn",
 	"campus":         "res://scenes/campus.tscn",
 	"financial_dept": "res://scenes/FinancialDept.tscn",
+	"pit_arena":      "res://scenes/buildings/PitCrewArena.tscn",
 }
 const NOTIFICATION_DESTINATION_LABELS: Dictionary = {
 	"hq":             "Go to HQ \u2192",
@@ -1062,6 +1065,7 @@ const NOTIFICATION_DESTINATION_LABELS: Dictionary = {
 	"racing_center":  "Go to Racing Center \u2192",
 	"campus":         "Go to Campus \u2192",
 	"financial_dept": "Go to Financial Dept \u2192",
+	"pit_arena":      "Go to Pit Crew Arena \u2192",
 }
 
 ## Championship short codes — used in RnD task ID generation
