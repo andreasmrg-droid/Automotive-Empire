@@ -1,3 +1,5 @@
+## Version: S37.36 — Added the shared ResourceBar (top-right). Ceremony screen: keeps its own
+##   Start/Continue flow buttons, so no Back/Main Hub in this header (documented exception).
 extends Control
 ## Version: S36.19 — GK EOS fix: the champion is the Grand Final WINNER (get_champion), which can
 ##   differ from the points leader when drivers tie on points. The driver-standings list now pins
@@ -21,6 +23,9 @@ extends Control
 ## Shows: standings, driver/staff improvement, R&D progress, financial status.
 ## "Continue to Season N" → MainHub (which shows Start Season button).
 
+var _resource_bar = null   ## S37.36 shared ResourceBar
+const ResourceBarScript = preload("res://scenes/components/ResourceBar.gd")
+
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_ui()
@@ -43,6 +48,16 @@ func _build_ui() -> void:
 	var root = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 16)
 	margin.add_child(root)
+
+	# Resource bar (top row — these ceremony screens keep their own flow buttons; no back/hub).
+	var _topbar = HBoxContainer.new()
+	root.add_child(_topbar)
+	var _topspacer = Control.new()
+	_topspacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_topbar.add_child(_topspacer)
+	_resource_bar = ResourceBarScript.new()
+	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
+	_topbar.add_child(_resource_bar)
 
 	# ── Title ─────────────────────────────────────────────────────────────────
 	var lbl_title = Label.new()

@@ -1,3 +1,5 @@
+## Version: S37.36 — Standard minimal header [Name][Resource Bar][Back][Main Hub]; Shortlist entry
+##   moved to a sub-row below the header (Main Hub concept).
 ## Version: S37.24 — popup-position: staff cards CENTERED on screen (anchors 0.5, symmetric
 ##   offsets) instead of hugging the right edge; both card builders updated.
 ## Version: S37.18 — #1 screenshot follow-ups: CFO row "Fin Mgmt 0" (read removed
@@ -88,6 +90,9 @@ var filter_btns: Dictionary = {}
 var card_overlay: PanelContainer = null
 var sort_row_node: HBoxContainer = null  ## ref for dynamic sort bar rebuild
 
+var _resource_bar = null   ## S37.36 shared ResourceBar
+const ResourceBarScript = preload("res://scenes/components/ResourceBar.gd")
+
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_ui()
@@ -116,20 +121,35 @@ func _build_ui() -> void:
 	title.add_theme_color_override("font_color", Color.WHITE)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
-	## S35.10c — entry to the unified Shortlist screen.
+	# Standard header: [Name][Resource Bar][Back][Main Hub]
+	_resource_bar = ResourceBarScript.new()
+	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
+	header.add_child(_resource_bar)
+
+	var back_btn = Button.new()
+	back_btn.text = "← Back"
+	back_btn.custom_minimum_size = Vector2(100, 40)
+	back_btn.pressed.connect(_on_back_pressed)
+	header.add_child(back_btn)
+
+	var btn_hub = Button.new()
+	btn_hub.text = "🏠 Main Hub"
+	btn_hub.custom_minimum_size = Vector2(140, 40)
+	btn_hub.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/MainHub.tscn"))
+	header.add_child(btn_hub)
+
+	layout.add_child(HSeparator.new())
+
+	# Sub-header row: scene-specific Shortlist entry below the header (Main Hub concept)
+	var subrow = HBoxContainer.new()
+	subrow.add_theme_constant_override("separation", 12)
+	layout.add_child(subrow)
 	var shortlist_btn = Button.new()
 	shortlist_btn.text = "⭐ Shortlist"
 	shortlist_btn.custom_minimum_size = Vector2(140, 40)
 	shortlist_btn.tooltip_text = "View your shortlisted drivers & staff"
 	shortlist_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/Shortlist.tscn"))
-	header.add_child(shortlist_btn)
-	var back_btn = Button.new()
-	back_btn.text = "← Back to Hub"
-	back_btn.custom_minimum_size = Vector2(150, 40)
-	back_btn.pressed.connect(_on_back_pressed)
-	header.add_child(back_btn)
-
-	layout.add_child(HSeparator.new())
+	subrow.add_child(shortlist_btn)
 
 	# Tabs
 	var tab_row = HBoxContainer.new()

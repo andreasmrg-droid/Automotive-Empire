@@ -1,3 +1,5 @@
+## Version: S37.36 — Added the shared ResourceBar (top-right). Ceremony screen: keeps its own
+##   Start/Continue flow buttons, so no Back/Main Hub in this header (documented exception).
 extends Control
 ## Version: S37.21 — #34 Beginning-of-Season is now INFORMATIONAL ONLY: removed the TDL row "→"
 ##   buttons, the readiness-panel "Fix →" buttons, and the "Championship Registration" button. The
@@ -10,6 +12,9 @@ extends Control
 ##   (player_registered_championships), not just owned-car championships. Fixes the
 ##   "No championships registered" false display at season start (cars are wiped then).
 ## --- S17.1 — Fix E: navigating to buildings sets pending_season_screen so MainHub redirects back.
+
+var _resource_bar = null   ## S37.36 shared ResourceBar
+const ResourceBarScript = preload("res://scenes/components/ResourceBar.gd")
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -33,6 +38,16 @@ func _build_ui() -> void:
 	var root = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 18)
 	margin.add_child(root)
+
+	# Resource bar (top row — these ceremony screens keep their own flow buttons; no back/hub).
+	var _topbar = HBoxContainer.new()
+	root.add_child(_topbar)
+	var _topspacer = Control.new()
+	_topspacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_topbar.add_child(_topspacer)
+	_resource_bar = ResourceBarScript.new()
+	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
+	_topbar.add_child(_resource_bar)
 
 	# ── Title ─────────────────────────────────────────────────────────────────
 	var lbl_season = Label.new()

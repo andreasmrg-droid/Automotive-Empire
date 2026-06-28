@@ -1,3 +1,6 @@
+## Version: S37.36 — Swapped the hand-rolled resource bar for the shared ResourceBar component in a
+##   standard header [Name][Resource Bar][Back][Main Hub]; Add-event moved to a sub-row. (_build_
+##   resource_bar/_res_label left in place but unused — safe to remove later.)
 extends Control
 ## Version: S37.26 — NEW. Season Calendar viewer scene.
 ##   Read-only full-season agenda: a vertical scroll of 4-week BLOCKS (Weeks 1–4, 5–8, …), each
@@ -33,6 +36,9 @@ var _scroll_root: VBoxContainer
 var _popup_layer: CanvasLayer
 
 
+var _resource_bar = null   ## S37.36 shared ResourceBar
+const ResourceBarScript = preload("res://scenes/components/ResourceBar.gd")
+
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_cal = GameState.get_calendar_manager()
@@ -55,10 +61,7 @@ func _build_ui() -> void:
 	root.add_theme_constant_override("separation", 12)
 	margin.add_child(root)
 
-	# ── Resource bar (mandatory, v6.2 §15) ──
-	root.add_child(_build_resource_bar())
-
-	# ── Header ──
+	# ── Header: [Name][Resource Bar][Back][Main Hub] (shared component, S37.36) ──
 	var header := HBoxContainer.new()
 	header.add_theme_constant_override("separation", 16)
 	root.add_child(header)
@@ -69,18 +72,34 @@ func _build_ui() -> void:
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
 
+	_resource_bar = ResourceBarScript.new()
+	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
+	header.add_child(_resource_bar)
+
+	var btn_back := Button.new()
+	btn_back.text = "← Back"
+	btn_back.custom_minimum_size = Vector2(100, 40)
+	btn_back.pressed.connect(_on_back)
+	header.add_child(btn_back)
+
+	var btn_hub := Button.new()
+	btn_hub.text = "🏠 Main Hub"
+	btn_hub.custom_minimum_size = Vector2(140, 40)
+	btn_hub.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/MainHub.tscn"))
+	header.add_child(btn_hub)
+
+	# ── Sub-header row: Add-event (scene-specific) below the header ──
+	var subrow := HBoxContainer.new()
+	root.add_child(subrow)
+	var _subspacer := Control.new()
+	_subspacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	subrow.add_child(_subspacer)
 	var btn_add := Button.new()
 	btn_add.text = "＋ Add event"
 	btn_add.tooltip_text = "Create a custom reminder on any upcoming week."
 	btn_add.custom_minimum_size = Vector2(170, 40)
 	btn_add.pressed.connect(func(): _open_add_popup(GameState.current_week))
-	header.add_child(btn_add)
-
-	var btn_back := Button.new()
-	btn_back.text = "← Back"
-	btn_back.custom_minimum_size = Vector2(110, 40)
-	btn_back.pressed.connect(_on_back)
-	header.add_child(btn_back)
+	subrow.add_child(btn_add)
 
 	# ── Legend ──
 	root.add_child(_build_legend())

@@ -1,3 +1,4 @@
+## Version: S37.36 — Standard header: added shared ResourceBar + Main Hub button. Bar refreshes via _build_ui.
 extends Control
 ## Version: S29.12 — Localized header title + action buttons (creg_* keys).
 ## --- S29.7 — Header split into title row + button row, and per-champ details
@@ -18,12 +19,17 @@ var _filter_discipline: String = "All"
 var _filter_tier: int = 0  # 0 = all tiers
 var _reg_count_label: Label  ## ref so _refresh_list can update without full rebuild
 
+var _resource_bar = null   ## S37.36 shared ResourceBar
+const ResourceBarScript = preload("res://scenes/components/ResourceBar.gd")
+
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_ui()
 	_refresh_list()
 
 func _build_ui() -> void:
+	if _resource_bar != null and _resource_bar.has_method("refresh"):
+		_resource_bar.refresh()
 	var margin = MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	margin.add_theme_constant_override("margin_left",   28)
@@ -54,6 +60,10 @@ func _build_ui() -> void:
 	lbl_week.add_theme_font_size_override("font_size", 26)
 	header.add_child(lbl_week)
 
+	_resource_bar = ResourceBarScript.new()
+	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
+	header.add_child(_resource_bar)
+
 	## Button row — below the title, so the three actions always fit
 	var btn_row = HBoxContainer.new()
 	btn_row.add_theme_constant_override("separation", 16)
@@ -64,6 +74,12 @@ func _build_ui() -> void:
 	btn_back.custom_minimum_size = Vector2(140, 36)
 	btn_back.pressed.connect(_on_back)
 	btn_row.add_child(btn_back)
+
+	var btn_hub = Button.new()
+	btn_hub.text = "🏠 Main Hub"
+	btn_hub.custom_minimum_size = Vector2(140, 36)
+	btn_hub.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/MainHub.tscn"))
+	btn_row.add_child(btn_hub)
 
 	# Register all affordable championships not yet registered
 	var btn_reg_all = Button.new()

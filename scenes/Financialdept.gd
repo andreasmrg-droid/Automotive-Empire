@@ -1,3 +1,4 @@
+## Version: S37.36 — Standard header [Name][Resource Bar][Back][Main Hub]; standalone balance label replaced by the bar.
 ## Automotive Empire — FinancialDept.gd
 ## Version: S37.3 — Bug #49: weekly income panel now itemizes income PER BUILDING (one row each)
 ##   under a "Building Income" sub-header, instead of a single lumped "Building Income" total.
@@ -10,12 +11,17 @@ var _current_tab: String = "finances"
 var _tab_btns: Dictionary = {}
 var _content: ScrollContainer
 
+var _resource_bar = null   ## S37.36 shared ResourceBar
+const ResourceBarScript = preload("res://scenes/components/ResourceBar.gd")
+
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_ui()
 	GameState.log_updated.connect(func(): _show_tab(_current_tab))
 
 func _build_ui() -> void:
+	if _resource_bar != null and _resource_bar.has_method("refresh"):
+		_resource_bar.refresh()
 	for c in get_children(): c.queue_free()
 	await get_tree().process_frame
 
@@ -41,19 +47,21 @@ func _build_ui() -> void:
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(lbl)
 
-	var bal = GameState.player_team.balance
-	var lbl_bal = Label.new()
-	lbl_bal.text = "Balance: CR %s" % _fmt(int(bal))
-	lbl_bal.add_theme_font_size_override("font_size", 32)
-	lbl_bal.add_theme_color_override("font_color",
-		Color(0.4, 0.9, 0.4) if bal >= 0 else Color(1.0, 0.3, 0.3))
-	header.add_child(lbl_bal)
+	_resource_bar = ResourceBarScript.new()
+	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
+	header.add_child(_resource_bar)
 
 	var btn_back = Button.new()
 	btn_back.text = "← Back"
 	btn_back.custom_minimum_size = Vector2(90, 34)
 	btn_back.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/MainHub.tscn"))
 	header.add_child(btn_back)
+
+	var btn_hub = Button.new()
+	btn_hub.text = "🏠 Main Hub"
+	btn_hub.custom_minimum_size = Vector2(130, 34)
+	btn_hub.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/MainHub.tscn"))
+	header.add_child(btn_hub)
 
 	root.add_child(HSeparator.new())
 

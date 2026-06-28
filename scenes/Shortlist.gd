@@ -1,3 +1,4 @@
+## Version: S37.36 — Standard header [Name][Resource Bar][Back][Main Hub].
 extends Control
 ## Version: S35.10d — Added an "All" tab (first): one combined view of every shortlisted person
 ##   (drivers + all staff), with a Role column to tell them apart and universal sort fields
@@ -26,6 +27,9 @@ var list_container: VBoxContainer
 var tab_bar: HBoxContainer
 var sort_fields_box: HBoxContainer
 
+var _resource_bar = null   ## S37.36 shared ResourceBar
+const ResourceBarScript = preload("res://scenes/components/ResourceBar.gd")
+
 func _ready() -> void:
 	var layout = VBoxContainer.new()
 	layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -44,11 +48,21 @@ func _ready() -> void:
 	title.add_theme_font_size_override("font_size", 48)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
+	_resource_bar = ResourceBarScript.new()
+	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
+	header.add_child(_resource_bar)
+
 	var back_btn = Button.new()
-	back_btn.text = "← Back to Hub"
+	back_btn.text = "← Back"
 	back_btn.add_theme_font_size_override("font_size", 26)
 	back_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/MainHub.tscn"))
 	header.add_child(back_btn)
+
+	var btn_hub = Button.new()
+	btn_hub.text = "🏠 Main Hub"
+	btn_hub.add_theme_font_size_override("font_size", 26)
+	btn_hub.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/MainHub.tscn"))
+	header.add_child(btn_hub)
 
 	layout.add_child(HSeparator.new())
 
@@ -152,6 +166,8 @@ func _rebuild_sort_buttons() -> void:
 
 ## ── List build ───────────────────────────────────────────────────────────────
 func _refresh() -> void:
+	if _resource_bar != null and _resource_bar.has_method("refresh"):
+		_resource_bar.refresh()
 	_rebuild_sort_buttons()
 	for c in list_container.get_children():
 		c.queue_free()
