@@ -1,4 +1,11 @@
 class_name ContractEngine
+## Version: S37.41 — Notification & News Roadmap, Phase 3 (events→notify_event). All 33 ContractEngine
+##   add_notification calls migrated: 5 leftover blocking errors → show_popup (slots/CFO/deal-fell-
+##   through); 3 redundant gate notices DELETED (caller already pops a modal — not-interested/team-
+##   refused, Q4); 5 signings/pre-signings → "news" (everything visible until the soundwave filter
+##   exists, Q1); 2 recurring "respond to Round N" reminders → "standing" (collapse to latest week,
+##   Q3); remainder → "event" (approach/bond lifecycle, HQ-routed where actionable). Walk-away →
+##   event, not news (failed approach ≠ departure, Q5). No logic change beyond the surface swap.
 ## Version: S37.39 — DRAFT negotiations: opening the panel (renegotiation, free-at-join approach,
 ##   and legacy/sponsor active_negotiation) marks the round draft=true so it does NOT appear in HQ /
 ##   TDL / save until the player acts. Submit / Accept / Walk Away clear the draft (Walk Away applies
@@ -368,8 +375,7 @@ func submit_negotiation_offer(player_offer: Dictionary) -> String:
 						gs.active_negotiation["waiting_week"] = 0
 						gs.emit_signal("negotiation_concluded", false,
 							gs.active_negotiation["subject_id"], gs.active_negotiation["subject_type"])
-						gs.add_notification("High",
-							"Deal fell through — no driver slots available for immediate signing. Sign for next season instead.")
+						gs.show_popup("Deal fell through — no driver slots available for immediate signing. Sign for next season instead.", "No Slot")
 						gs.active_negotiation = {}
 						gs.emit_signal("log_updated")
 						return "no_slot"
@@ -381,7 +387,7 @@ func submit_negotiation_offer(player_offer: Dictionary) -> String:
 							gs.active_negotiation["waiting_week"] = 0
 							gs.emit_signal("negotiation_concluded", false,
 								gs.active_negotiation["subject_id"], gs.active_negotiation["subject_type"])
-							gs.add_notification("High", "Deal fell through — TP slots full. Sign for next season.")
+							gs.show_popup("Deal fell through — TP slots full. Sign for next season.", "No Slot")
 							gs.active_negotiation = {}
 							gs.emit_signal("log_updated")
 							return "no_slot"
@@ -411,7 +417,7 @@ func abandon_negotiation() -> void:
 	if subject_id != "":
 		gs.walked_away_subjects[subject_id] = gs.current_season + 2
 		var name_str = _get_subject_display_name(subject_id, subject_type)
-		gs.add_notification("Normal", "%s is no longer interested for 2 seasons." % name_str)
+		gs.notify_event("walkaway_result_%s" % name_str, "Normal", "%s is no longer interested for 2 seasons." % name_str, "", "event")
 		## Dismiss any TDL items referencing this subject
 		for item in gs.custom_todo_items.duplicate():
 			if name_str in item:
@@ -813,9 +819,7 @@ func initiate_approach(subject_id: String, subject_type: String,
 	if not is_team_refusal_cooled_down(subject_id):
 		var weeks_left: int = gs.team_refused_subjects[subject_id] - _absolute_week()
 		var nm = _get_subject_display_name(subject_id, subject_type)
-		gs.add_notification("Normal",
-			"%s's team recently refused to release them. Try again in %d week%s." % [
-			nm, weeks_left, "s" if weeks_left != 1 else ""])
+		## S37.41 — notification removed (Q4): the caller already pops a modal for team-refusal.
 		return "team_refused_cooldown"
 
 	## S35.9 — PERSON interest (deterministic). This matches exactly what the "Interested Only"
@@ -831,8 +835,7 @@ func initiate_approach(subject_id: String, subject_type: String,
 			if tp:
 				tp_hint = " %s's assessment: not the right time." % tp.full_name()
 				break
-		gs.add_notification("Normal",
-			"%s is not interested in joining your team at this time.%s" % [name_str, tp_hint])
+		## S37.41 — notification removed (Q4): the caller already pops a modal for "not interested".
 		gs.add_log("📋 Approach to %s: declined (not interested)." % name_str)
 		return "not_interested"
 
@@ -847,10 +850,7 @@ func initiate_approach(subject_id: String, subject_type: String,
 			var nm = _get_subject_display_name(subject_id, subject_type)
 			var team_name = _team_display_name(current_team_id)
 			var role_str = _subject_role_label(subject_id, subject_type)
-			gs.add_notification("High",
-				"%s is not willing to release their %s. Try again in %d weeks." % [
-				team_name, role_str, TEAM_REFUSAL_COOLDOWN_WEEKS],
-				"drivers" if subject_type == "driver" else "staff_hub")
+			## S37.41 — notification removed (Q4): the caller already pops a modal for team-refusal.
 			gs.add_log("🚫 %s refused to release %s (%s). Cooldown: %d weeks." % [
 				team_name, nm, role_str, TEAM_REFUSAL_COOLDOWN_WEEKS])
 			return "team_refused"
@@ -888,9 +888,9 @@ func initiate_approach(subject_id: String, subject_type: String,
 		ap["bond_round"] = 0
 		gs.add_log("📋 Approach sent to %s's team. CFO estimate: CR %s (±%d%%). Their team replies next week." % [
 			name_str, gs._fmt_int(bond_info["estimate"]), int(bond_info["accuracy"] * 100.0)])
-		gs.add_notification("Normal",
+		gs.notify_event("approach_sent_%s" % subject_id, "Normal",
 			"Approach sent for %s. Their team will name a buyout price next week." % name_str,
-			"drivers" if subject_type == "driver" else "staff_hub")
+			"drivers" if subject_type == "driver" else "staff_hub", "event")
 
 	gs.active_approaches.append(ap)
 	gs.emit_signal("approach_updated")
@@ -917,9 +917,9 @@ func respond_bond_counter(neg_id: String, accept: bool, counter_amount: float = 
 		ap["status"] = "negotiating"
 		_start_contract_phase(ap)
 		var name_str = ap["subject_name"]
-		gs.add_notification("Normal",
+		gs.notify_event("bond_agreed_%s" % ap["subject_id"], "Normal",
 			"Bond agreed for %s (CR %s). Contract negotiation begins." % [
-			name_str, gs._fmt_int(int(ap["bond_team_ask"]))])
+			name_str, gs._fmt_int(int(ap["bond_team_ask"]))], "hq", "event")
 		gs.emit_signal("approach_updated")
 	elif counter_amount > 0:
 		ap["bond_player_offer"] = counter_amount
@@ -930,7 +930,7 @@ func respond_bond_counter(neg_id: String, accept: bool, counter_amount: float = 
 	else:
 		ap["bond_status"] = "rejected"
 		ap["status"] = "rejected"
-		gs.add_notification("Normal", "Bond negotiation with %s's team failed." % ap["subject_name"])
+		gs.notify_event("bond_failed_%s" % ap["subject_id"], "Normal", "Bond negotiation with %s's team failed." % ap["subject_name"], "hq", "event")
 		gs.emit_signal("approach_updated")
 
 ## ── Player's own staff approached by AI ──────────────────────────────────────
@@ -956,11 +956,11 @@ func handle_incoming_approach(subject_id: String, subject_type: String,
 	}
 	gs.active_approaches.append(ap)
 	gs.emit_signal("approach_updated")
-	gs.add_notification("High",
+	gs.notify_event("ai_approach_%s" % subject_id, "High",
 		"%s (%s) wants to approach %s. Proposed bond: CR %s — respond in HQ." % [
 		ai_team_name, ai_team_id,
 		_get_subject_display_name(subject_id, subject_type),
-		gs._fmt_int(int(proposed_bond))], "hq")
+		gs._fmt_int(int(proposed_bond))], "hq", "event")
 
 ## Player responds to an incoming approach for their own staff.
 func respond_incoming_approach(neg_id: String, accept: bool, counter_amount: float = 0.0) -> void:
@@ -973,17 +973,17 @@ func respond_incoming_approach(neg_id: String, accept: bool, counter_amount: flo
 		var bond = ap["bond_team_ask"]
 		gs.player_team.balance += bond
 		gs.add_log("💰 Bond received: CR %s for %s transfer." % [gs._fmt_int(int(bond)), ap["subject_name"]])
-		gs.add_notification("Normal",
-			"Bond accepted: CR %s received for %s." % [gs._fmt_int(int(bond)), ap["subject_name"]])
+		gs.notify_event("bond_accepted_%s" % ap["subject_id"], "Normal",
+			"Bond accepted: CR %s received for %s." % [gs._fmt_int(int(bond)), ap["subject_name"]], "hq", "event")
 		## The subject will leave at the agreed start_date — handled in advance_week
 	elif counter_amount > 0:
 		ap["bond_team_ask"] = counter_amount
 		ap["bond_status"] = "countered"
 		ap["reply_due_week"] = gs.current_week + 1
-		gs.add_notification("Normal", "Counter-bond sent for %s. Awaiting reply." % ap["subject_name"])
+		gs.notify_event("counterbond_%s" % ap["subject_id"], "Normal", "Counter-bond sent for %s. Awaiting reply." % ap["subject_name"], "", "event")
 	else:
 		ap["status"] = "rejected"
-		gs.add_notification("Normal", "Approach for %s rejected." % ap["subject_name"])
+		gs.notify_event("approach_rejected_%s" % ap["subject_id"], "Normal", "Approach for %s rejected." % ap["subject_name"], "", "event")
 	gs.emit_signal("approach_updated")
 
 ## ── Contract phase ────────────────────────────────────────────────────────────
@@ -1056,7 +1056,7 @@ func submit_approach_contract_offer(neg_id: String,
 	elif outcome == "rejected" or ap["contract_round"] >= ap["max_contract_rounds"]:
 		ap["status"] = "failed"
 		var name_str = ap["subject_name"]
-		gs.add_notification("Normal", "Contract negotiations with %s have broken down." % name_str)
+		gs.notify_event("nego_brokedown_%s" % name_str, "Normal", "Contract negotiations with %s have broken down." % name_str, "", "event")
 		gs.emit_signal("approach_updated")
 		return "rejected"
 	else:
@@ -1111,8 +1111,8 @@ func walk_away_approach(neg_id: String) -> void:
 	ap["walked_away_week"] = gs.current_week
 	ap["walked_away_season"] = gs.current_season
 	gs.walked_away_subjects[ap["subject_id"]] = gs.current_season + 2
-	gs.add_notification("Normal",
-		"You walked away from negotiations with %s." % ap["subject_name"])
+	gs.notify_event("walkaway_%s" % ap["subject_id"], "Normal",
+		"You walked away from negotiations with %s." % ap["subject_name"], "", "event")
 	gs.emit_signal("approach_updated")
 
 ## ── Evaluate approach offer ───────────────────────────────────────────────────
@@ -1177,9 +1177,9 @@ func _apply_approach_result(ap: Dictionary) -> void:
 		ap["signed_season"] = gs.current_season
 		ap["status"] = "agreed"
 		gs.add_log("✅ %s pre-signed — joins Season %d." % [name_str, gs.current_season + 1])
-		gs.add_notification("Normal",
+		gs.notify_event("presigned_%s" % name_str, "Normal",
 			"%s pre-signed and will join at the start of Season %d." % [name_str, gs.current_season + 1],
-			"hq")
+			"hq", "news")
 		return
 
 	## Sponsor renegotiation — update existing active_sponsor in place
@@ -1190,7 +1190,7 @@ func _apply_approach_result(ap: Dictionary) -> void:
 					if key in sp: sp[key] = ap["terms"][key]["player_offer"]
 				break
 		gs.add_log("🤝 Sponsor deal renegotiated: %s." % name_str)
-		gs.add_notification("Normal", "Sponsor deal with %s updated." % name_str, "hq")
+		gs.notify_event("sponsor_updated_%s" % name_str, "Normal", "Sponsor deal with %s updated." % name_str, "hq", "event")
 		gs.emit_signal("log_updated")
 		return
 
@@ -1231,8 +1231,8 @@ func _advance_approaches() -> void:
 			## Auto-reject after 2 weeks of silence
 			if gs.current_week >= ap.get("reply_due_week", 0) + 2:
 				ap["status"] = "rejected"
-				gs.add_notification("Normal",
-					"Incoming approach for %s auto-rejected (no response)." % ap["subject_name"])
+				gs.notify_event("autoreject_%s" % ap["subject_id"], "Normal",
+					"Incoming approach for %s auto-rejected (no response)." % ap["subject_name"], "", "event")
 				changed = true
 
 		## ── Contract negotiation: patience / round advancement ──────────────
@@ -1242,8 +1242,8 @@ func _advance_approaches() -> void:
 			if weeks_silent >= ap["patience_weeks"]:
 				## Player ignored too long — expired
 				ap["status"] = "expired"
-				gs.add_notification("High",
-					"Negotiations with %s have expired — no response given." % ap["subject_name"])
+				gs.notify_event("nego_expired_%s" % ap["subject_id"], "High",
+					"Negotiations with %s have expired — no response given." % ap["subject_name"], "", "event")
 				changed = true
 
 			elif weeks_silent >= 1:
@@ -1251,9 +1251,9 @@ func _advance_approaches() -> void:
 					## Player's turn but hasn't responded — remind them, don't advance round
 					## Just update last_action_week so we don't fire every week
 					ap["last_action_week"] = gs.current_week
-					gs.add_notification("High",
+					gs.notify_event("nego_round_%s" % ap["subject_id"], "High",
 						"Reminder: Contract Round %d/%d with %s — respond from HQ." % [
-						ap["contract_round"], ap["max_contract_rounds"], ap["subject_name"]], "hq")
+						ap["contract_round"], ap["max_contract_rounds"], ap["subject_name"]], "hq", "standing")
 					changed = true
 				else:
 					## Player submitted, other side has had time to reply — advance round
@@ -1263,12 +1263,12 @@ func _advance_approaches() -> void:
 					ap["last_action_week"] = gs.current_week
 					if ap["contract_round"] >= ap["max_contract_rounds"]:
 						ap["status"] = "failed"
-						gs.add_notification("Normal",
-							"Contract negotiations with %s have concluded without a deal." % ap["subject_name"])
+						gs.notify_event("nego_nodeal_%s" % ap["subject_id"], "Normal",
+							"Contract negotiations with %s have concluded without a deal." % ap["subject_name"], "", "event")
 					else:
-						gs.add_notification("High",
+						gs.notify_event("nego_round_%s" % ap["subject_id"], "High",
 							"Contract Round %d/%d with %s — respond from HQ." % [
-							ap["contract_round"], ap["max_contract_rounds"], ap["subject_name"]], "hq")
+							ap["contract_round"], ap["max_contract_rounds"], ap["subject_name"]], "hq", "standing")
 					changed = true
 
 		## ── Pre-signed: activation is handled by _activate_presigned_contracts() below,
@@ -1336,11 +1336,11 @@ func _generate_team_bond_ask(ap: Dictionary) -> void:
 	ap["bond_reply_week"] = gs.current_week + 1
 	gs.add_log("💰 %s's team will release them for CR %s. Accept, counter, or walk away." % [
 		ap["subject_name"], gs._fmt_int(ask)])
-	gs.add_notification("High",
+	gs.notify_event("bond_ask_%s" % ap["subject_id"], "High",
 		"%s's team wants CR %s to let them go. Decide from %s." % [
 			ap["subject_name"], gs._fmt_int(ask),
 			"Drivers" if ap["subject_type"] == "driver" else "Staff"],
-		"drivers" if ap["subject_type"] == "driver" else "staff_hub")
+		"drivers" if ap["subject_type"] == "driver" else "staff_hub", "event")
 	gs.emit_signal("approach_updated")
 
 ## ── Bond reply from AI team ───────────────────────────────────────────────────
@@ -1356,25 +1356,25 @@ func _process_bond_reply(ap: Dictionary) -> void:
 		ap["bond_amount_final"] = offer
 		ap["status"] = "negotiating"
 		_start_contract_phase(ap)
-		gs.add_notification("Normal",
+		gs.notify_event("bond_team_accept_%s" % ap["subject_id"], "Normal",
 			"%s's team accepted the bond (CR %s). Contract negotiation begins." % [
 			ap["subject_name"], gs._fmt_int(int(offer))],
-			"drivers" if ap["subject_type"] == "driver" else "staff_hub")
+			"drivers" if ap["subject_type"] == "driver" else "staff_hub", "event")
 	elif ratio >= 0.50 and ap["bond_round"] < 2:
 		## Counter: ask for estimate × 1.1
 		ap["bond_team_ask"] = int(estimate * 1.1)
 		ap["bond_status"] = "countered"
 		ap["bond_round"] += 1
 		ap["bond_reply_week"] = gs.current_week + 1
-		gs.add_notification("High",
+		gs.notify_event("bond_team_counter_%s" % ap["subject_id"], "High",
 			"%s's team countered: CR %s for the bond. Accept, counter or reject in Drivers/Staff Hub." % [
 			ap["subject_name"], gs._fmt_int(int(ap["bond_team_ask"]))],
-			"drivers" if ap["subject_type"] == "driver" else "staff_hub")
+			"drivers" if ap["subject_type"] == "driver" else "staff_hub", "event")
 	else:
 		ap["bond_status"] = "rejected"
 		ap["status"] = "rejected"
-		gs.add_notification("Normal",
-			"%s's team rejected the bond offer." % ap["subject_name"])
+		gs.notify_event("bond_team_reject_%s" % ap["subject_id"], "Normal",
+			"%s's team rejected the bond offer." % ap["subject_name"], "", "event")
 
 ## ── Helpers ───────────────────────────────────────────────────────────────────
 func _get_approach(neg_id: String) -> Dictionary:
@@ -1554,7 +1554,7 @@ func _apply_negotiation_result(neg: Dictionary, accepted: bool) -> void:
 			var max_d = gs.get_max_drivers()
 			if driver.contract_team == "" and gs.player_team.drivers.size() >= max_d \
 					and start_date == "immediate" and not is_presigned:
-				gs.add_notification("High", "Racing Dept full — can't sign %s immediately. Sign for next season instead." % driver.full_name())
+				gs.show_popup("Racing Dept full — can't sign %s immediately. Sign for next season instead." % driver.full_name(), "Slots Full")
 				return
 			## Next-season signing — mark as pre_signed, don't apply yet
 			if start_date == "next_season":
@@ -1566,9 +1566,9 @@ func _apply_negotiation_result(neg: Dictionary, accepted: bool) -> void:
 						ap["signed_season"] = gs.current_season
 						break
 				gs.add_log("✅ %s pre-signed — joins Season %d." % [driver.full_name(), gs.current_season + 1])
-				gs.add_notification("Normal",
+				gs.notify_event("presigned_%s" % driver.full_name(), "Normal",
 					"%s pre-signed and will join at the start of Season %d." % [
-					driver.full_name(), gs.current_season + 1], "hq")
+					driver.full_name(), gs.current_season + 1], "hq", "news")
 				gs.emit_signal("log_updated")
 				return
 			## Immediate signing
@@ -1587,7 +1587,7 @@ func _apply_negotiation_result(neg: Dictionary, accepted: bool) -> void:
 			gs.add_log("✅ %s signed: CR %.0f/wk, %d seasons, Win:CR %s, Podium:CR %s" % [
 				driver.full_name(), driver.weekly_salary, driver.contract_seasons_remaining,
 				gs._fmt_int(driver.win_bonus), gs._fmt_int(driver.podium_bonus)])
-			gs.add_notification("Normal", "%s signed. Assign them to a car in the Garage." % driver.full_name())
+			gs.notify_event("signed_%s" % driver.full_name(), "Normal", "%s signed. Assign them to a car in the Garage." % driver.full_name(), "garage", "news")
 			gs._fire_assignment_proposals()
 		"staff":
 			var staff = gs.all_staff.get(neg["subject_id"])
@@ -1601,9 +1601,9 @@ func _apply_negotiation_result(neg: Dictionary, accepted: bool) -> void:
 						ap["signed_season"] = gs.current_season
 						break
 				gs.add_log("✅ %s pre-signed — joins Season %d." % [staff.full_name(), gs.current_season + 1])
-				gs.add_notification("Normal",
+				gs.notify_event("presigned_%s" % staff.full_name(), "Normal",
 					"%s pre-signed and will join at the start of Season %d." % [
-					staff.full_name(), gs.current_season + 1], "hq")
+					staff.full_name(), gs.current_season + 1], "hq", "news")
 				gs.emit_signal("log_updated")
 				return
 			## Slot checks for immediate (same as hire_staff)
@@ -1611,10 +1611,10 @@ func _apply_negotiation_result(neg: Dictionary, accepted: bool) -> void:
 				if staff.role == "Team Principal":
 					var existing = gs.get_player_staff_by_role("Team Principal")
 					if existing.size() >= gs.get_hq_tp_slots():
-						gs.add_notification("High", "TP slots full. Upgrade HQ."); return
+						gs.show_popup("TP slots full. Upgrade HQ.", "Slots Full"); return
 				elif staff.role == "CFO":
 					if gs.get_player_staff_by_role("CFO").size() >= 1:
-						gs.add_notification("High", "You already have a CFO."); return
+						gs.show_popup("You already have a CFO.", "Already Have a CFO"); return
 			staff.contract_team = gs.player_team.id
 			staff.contract_seasons_remaining = terms.get("duration_seasons", 1)
 			staff.weekly_salary        = terms.get("weekly_salary", staff.weekly_salary)
@@ -1625,7 +1625,7 @@ func _apply_negotiation_result(neg: Dictionary, accepted: bool) -> void:
 				staff.crew_number = gs.get_player_staff_by_role("Pit Crew").size()
 			gs.add_log("✅ %s (%s) signed: CR %.0f/wk, %d seasons" % [
 				staff.full_name(), staff.role, staff.weekly_salary, staff.contract_seasons_remaining])
-			gs.add_notification("Normal", "%s (%s) joined your team." % [staff.full_name(), staff.role])
+			gs.notify_event("joined_%s" % staff.full_name(), "Normal", "%s (%s) joined your team." % [staff.full_name(), staff.role], "", "news")
 			gs.invalidate_player_staff_cache()  ## S35.6 — roster changed
 			if staff.role in ["Race Mechanic", "Team Principal", "Race Strategist"]:
 				gs._fire_assignment_proposals()
