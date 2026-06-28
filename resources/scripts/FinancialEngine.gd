@@ -1,4 +1,9 @@
 class_name FinancialEngine
+## Version: S37.49 — Notification & News Roadmap, Phase 3 (events→notify_event). All 8 FinancialEngine
+##   notifications migrated: the 4 recurring financial-distress warnings (insolvent / bankruptcy-risk /
+##   negative-balance / low-funds) → "standing" so each week's state supersedes the last instead of
+##   stacking a fresh Critical every week; supply penalty + the 3 loan-lifecycle events (approved /
+##   repaid-with-penalty / cleared) → "event", HQ-routed.
 ## Version: S35.7 — PERF: get_weekly_expenses() (called on every HQ open) and the weekly salary
 ##   deduction now read the cached player-staff list instead of scanning all 5000+ staff.
 ## Version: S27.0 — Extracted from GameState.gd (P57 Phase 2)
@@ -54,16 +59,16 @@ func apply_weekly_expenses() -> void:
 	if gs.player_team.balance < 0:
 		gs.weeks_in_negative += 1
 		if gs.weeks_in_negative >= 6:
-			gs.add_notification("Critical",
+			gs.notify_event("fin_insolvent", "Critical",
 				"🚨 CRITICAL: %d weeks insolvent (CR %s). Team collapse imminent!" % [
-					gs.weeks_in_negative, gs._fmt_int(int(gs.player_team.balance))])
+					gs.weeks_in_negative, gs._fmt_int(int(gs.player_team.balance))], "", "standing")
 		elif gs.weeks_in_negative >= 3:
-			gs.add_notification("Critical",
+			gs.notify_event("fin_bankruptcy_risk", "Critical",
 				"🚨 BANKRUPTCY RISK: %d weeks negative (CR %s). Sell assets or find sponsors now." % [
-					gs.weeks_in_negative, gs._fmt_int(int(gs.player_team.balance))])
+					gs.weeks_in_negative, gs._fmt_int(int(gs.player_team.balance))], "", "standing")
 		else:
-			gs.add_notification("High",
-				"⚠ Balance negative (CR %s). Address this urgently." % gs._fmt_int(int(gs.player_team.balance)))
+			gs.notify_event("fin_negative", "High",
+				"⚠ Balance negative (CR %s). Address this urgently." % gs._fmt_int(int(gs.player_team.balance)), "", "standing")
 		if gs.weeks_in_negative >= 8 and not gs.bankruptcy_screen_shown:
 			gs.bankruptcy_screen_shown = true
 			gs.emit_signal("bankruptcy_triggered")
@@ -71,10 +76,10 @@ func apply_weekly_expenses() -> void:
 		gs.weeks_in_negative = 0
 		gs.bankruptcy_screen_shown = false
 		if player_expenses > 0 and gs.player_team.balance < player_expenses * 4:
-			gs.add_notification("High",
+			gs.notify_event("fin_low_funds", "High",
 				"⚠ Low funds: CR %s covers ~%d weeks. Consider selling assets or finding sponsors." % [
 					gs._fmt_int(int(gs.player_team.balance)),
-					int(gs.player_team.balance / player_expenses)])
+					int(gs.player_team.balance / player_expenses)], "", "standing")
 
 	# AI teams — simple salary model (unchanged)
 	for team in gs.all_teams:
@@ -151,9 +156,9 @@ func process_supply_contracts_season_end() -> void:
 			var shortfall = sc.parts_per_season - sc.parts_delivered
 			var penalty = shortfall * sc.penalty_per_dns
 			gs.player_team.balance -= penalty
-			gs.add_notification("High",
+			gs.notify_event("supply_penalty_%s" % sc.ai_team_name, "High",
 				"Supply penalty: CR %s. Short %d parts to %s." % [
-					gs._fmt_int(penalty), shortfall, sc.ai_team_name])
+					gs._fmt_int(penalty), shortfall, sc.ai_team_name], "", "event")
 		sc.parts_delivered = 0
 		sc.seasons_remaining -= 1
 		if sc.seasons_remaining <= 0:
@@ -268,9 +273,9 @@ func take_loan(amount: float, seasons: int) -> String:
 
 	gs.add_log("🏦 Loan taken: CR %s over %d seasons @ %.1f%% p.a. (CR %s/wk)." % [
 		gs._fmt_int(int(amount)), seasons, annual_rate, gs._fmt_int(int(weekly_pay))])
-	gs.add_notification("High",
+	gs.notify_event("loan_approved", "High",
 		"Loan of CR %s approved. Weekly repayment: CR %s." % [
-			gs._fmt_int(int(amount)), gs._fmt_int(int(weekly_pay))], "hq")
+			gs._fmt_int(int(amount)), gs._fmt_int(int(weekly_pay))], "hq", "event")
 	return ""
 
 
@@ -287,7 +292,7 @@ func repay_loan_early(loan_id: int) -> String:
 		gs.player_team.balance -= total_due
 		gs.active_loans.remove_at(i)
 		gs.add_log("🏦 Loan #%d repaid early. Penalty: CR %s." % [loan_id, gs._fmt_int(int(penalty))])
-		gs.add_notification("Normal", "Loan fully repaid. Penalty: CR %s." % gs._fmt_int(int(penalty)), "hq")
+		gs.notify_event("loan_repaid", "Normal", "Loan fully repaid. Penalty: CR %s." % gs._fmt_int(int(penalty)), "hq", "event")
 		return ""
 	return "Loan not found."
 
@@ -308,7 +313,7 @@ func process_loans_weekly() -> void:
 	for loan in finished:
 		gs.active_loans.erase(loan)
 		gs.add_log("🏦 Loan #%d fully repaid." % loan["id"])
-		gs.add_notification("Normal", "Loan fully repaid! Financial obligations cleared.", "hq")
+		gs.notify_event("loan_cleared", "Normal", "Loan fully repaid! Financial obligations cleared.", "hq", "event")
 
 
 # ═══════════════════════════════════════════════════════════════════════════

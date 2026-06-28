@@ -1714,6 +1714,8 @@ When a fix ships, update the relevant section above AND mark the item in both tr
 - For every addition, we must check if it needs to be added in the save/load file
 - We must recosnider the designers approach, I am start thinking that haveing so many designers it is probably overwhelming, maybe an approach of 1 designer per principle plus one needed per special projects and 1 for the commercial cars
 - The Academy must provide cadets as long as there are empty spots in the garage for their cars and the racind department for their drivers. The max level of cadets is capped by the Academy building level, but if there is no space in the racing department or the garage fo field drivers, no cadets will appear. this will also be a notification and tdl
+- Review the Backruptcy screen and how it works
+- Make the Racing world deeper
 ---
 
 *End of GDD v6.0. Companion files: `Brainstorm_Threads.md` (vision/strategy),
