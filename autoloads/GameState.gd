@@ -1,3 +1,6 @@
+## Version: S37.28 — #52 fix: setup_new_game now clears leaked session state (sponsors/offers/
+##   approaches/notifications/SP/fuel/pending_* + fresh GK); load_game clears transient routing and
+##   restores notifications (now also saved). Prevents New-Game state leak + cross-load bleed.
 ## Version: S37.26 — Calendar: race_calendar.json loader (_load_race_calendar) +
 ##   custom_calendar_events store (save/load/new-game reset) + get_calendar_manager()
 ##   accessor (preload-based, no class_name dependency).
@@ -3032,6 +3035,25 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 	dismissed_todo_items = []
 	custom_todo_items    = []
 	custom_calendar_events = []   ## S37.26
+	## ── S37.28 (#52): clear leaked session state so a New Game doesn't inherit the previous one. ──
+	## These persistent collections had no reset → they carried over from a prior game in-session.
+	active_sponsors           = []
+	sponsor_offers            = []
+	active_approaches         = []
+	pending_staff_assignments = {}
+	notifications             = []
+	unread_notification_count = 0
+	spare_parts               = 300     ## starting SP (matches var default)
+	fuel_kg                   = 30.0    ## starting fuel — 2 races worth (matches var default)
+	## Transient routing strings — must not survive into a fresh game.
+	pending_season_screen     = ""
+	pending_hq_tab            = ""
+	pending_staff_filter      = ""
+	pending_rnd_champ_id      = ""
+	pending_rnd_pillar        = 1
+	pending_cnc_blueprint     = ""
+	## GK state is recreated fresh below (the old `if gk_discipline == null` left stale GK data).
+	gk_discipline             = null
 	active_rnd_tasks = []
 	completed_rnd_tasks = []
 	completed_bp_tasks  = []
@@ -3749,6 +3771,8 @@ func save_game() -> void:
 		"gk_discipline":             gk_discipline.serialize() if gk_discipline else {},
 		"custom_todo_items":         custom_todo_items,
 		"custom_calendar_events":    custom_calendar_events,   ## S37.26
+		"notifications":             notifications,                 ## S37.28 (#52)
+		"unread_notification_count": unread_notification_count,     ## S37.28 (#52)
 	}
 
 	# Save all teams
@@ -3896,6 +3920,17 @@ func load_game(path: String = "user://save_game.json") -> void:
 		gk_discipline.deserialize(data["gk_discipline"])
 	if "custom_todo_items" in data: custom_todo_items = data["custom_todo_items"]
 	if "custom_calendar_events" in data: custom_calendar_events = data["custom_calendar_events"]   ## S37.26
+	## ── S37.28 (#52): clear transient session state the save does NOT carry, so a loaded game
+	## doesn't inherit the CURRENT session's leftovers. Notifications + the pending_* routing
+	## strings aren't serialized; without this they'd bleed across a load.
+	notifications             = data.get("notifications", [])
+	unread_notification_count = int(data.get("unread_notification_count", 0))
+	pending_season_screen     = ""
+	pending_hq_tab            = ""
+	pending_staff_filter      = ""
+	pending_rnd_champ_id      = ""
+	pending_rnd_pillar        = 1
+	pending_cnc_blueprint     = ""
 
 	# Restore championship standings (all championships, keyed by id — see _serialize_all_…).
 	_setup_championship()
