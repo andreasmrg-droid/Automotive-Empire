@@ -318,6 +318,22 @@ func _build_gk_active_card(cid: String, champ: Championship,
 		lbl_next.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
 		vb.add_child(lbl_next)
 
+	## S37.48 — GK DRIVER CHAMPION banner. The GK title is decided by the elimination system
+	## (GKDiscipline.get_champion()), NOT champ.standings, so when the player is eliminated or out
+	## of the final, "YOUR GROUP" is empty and the card otherwise never shows who actually won the
+	## drivers' title. Surface the champion here once it's decided (same source as the world card).
+	if gkd != null:
+		var gk_champ: Dictionary = gkd.get_champion()
+		if not gk_champ.is_empty():
+			var champ_d = GameState.all_drivers.get(gk_champ.get("driver_id", ""))
+			var lbl_champion = Label.new()
+			lbl_champion.text = "🏆 Champion: %s  ·  %d pts" % [
+				champ_d.full_name() if champ_d else gk_champ.get("driver_id", "Unknown"),
+				gk_champ.get("points", 0)]
+			lbl_champion.add_theme_font_size_override("font_size", 24)
+			lbl_champion.add_theme_color_override("font_color", Color(0.95, 0.82, 0.35))
+			vb.add_child(lbl_champion)
+
 	vb.add_child(HSeparator.new())
 
 	## Group 1 standings — the PLAYER's group only, from GKDiscipline (authoritative).
