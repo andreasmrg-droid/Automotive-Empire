@@ -1,4 +1,9 @@
 class_name SponsorManager
+## Version: S37.41 — Notification & News Roadmap, Phase 3 (events→notify_event). All 17 SponsorManager
+##   notifications migrated: 2 blocking errors → show_popup (no-CFO defensive guard, slots full); the
+##   rest → "event" (sponsor offers found/received, signed, expired, fulfilled, paid, cancelled,
+##   commitment terms, CFO search status; the non-race penalty stays Critical-priority event). No
+##   news here — sponsor lifecycle is player-facing, not world-feed material.
 ## Version: S37.40 — Commitment (type-3) sponsor is now a forward commitment: _pick_commitment_
 ##   championship excludes championships already in next_season_registrations (so the deal always
 ##   asks the player to register for a championship they have NOT yet committed to next season).
@@ -257,7 +262,7 @@ func _generate_passive_sponsor_offers() -> void:
 		var offer = _generate_sponsor_offer(randi_range(1, 3), randi_range(1, max_tier))
 		gs.sponsor_offers.append(offer)
 		gs.pending_hq_tab = "sponsors"
-		gs.add_notification("Normal", "New sponsor offer: %s. View in Sponsors tab." % offer.name, "hq")
+		gs.notify_event("sponsor_offer_%s" % offer.sponsor_id, "Normal", "New sponsor offer: %s. View in Sponsors tab." % offer.name, "hq", "event")
 
 
 func start_cfo_sponsor_search() -> bool:
@@ -269,7 +274,7 @@ func start_cfo_sponsor_search() -> bool:
 			cfo = s
 			break
 	if not cfo:
-		gs.add_notification("High", "No CFO hired. Hire a CFO to search for sponsors.")
+		gs.show_popup("No CFO hired. Hire a CFO to search for sponsors.", "No CFO")
 		return false
 	## Rolling search — weeks_remaining is the interval between offers, not a one-time countdown
 	## CFO skill determines how quickly each offer arrives (1-3 weeks between offers)
@@ -279,7 +284,7 @@ func start_cfo_sponsor_search() -> bool:
 	gs.cfo_search_weeks_remaining = weeks
 	gs.cfo_search_results = []
 	gs.add_log("🔍 CFO sponsor search started. New offers every %d week%s." % [weeks, "s" if weeks != 1 else ""])
-	gs.add_notification("Normal", "CFO sponsor search active. Offers will arrive every %d week%s. Stop search in HQ." % [weeks, "s" if weeks != 1 else ""])
+	gs.notify_event("cfo_search_on", "Normal", "CFO sponsor search active. Offers will arrive every %d week%s. Stop search in HQ." % [weeks, "s" if weeks != 1 else ""], "", "event")
 	return true
 
 
@@ -287,7 +292,7 @@ func stop_cfo_sponsor_search() -> void:
 	gs.cfo_search_active = false
 	gs.cfo_search_weeks_remaining = 0
 	gs.add_log("🔍 CFO sponsor search stopped.")
-	gs.add_notification("Normal", "CFO sponsor search stopped.")
+	gs.notify_event("cfo_search_off", "Normal", "CFO sponsor search stopped.", "", "event")
 
 
 func _advance_cfo_search() -> void:
@@ -305,11 +310,11 @@ func _advance_cfo_search() -> void:
 	## Notify player each time a new offer arrives
 	gs.pending_hq_tab = "sponsors"
 	if num == 1:
-		gs.add_notification("High",
-			"CFO found a new sponsor offer: %s. View in Sponsors tab." % gs.sponsor_offers[-1].name, "hq")
+		gs.notify_event("cfo_found_%s" % gs.sponsor_offers[-1].sponsor_id, "High",
+			"CFO found a new sponsor offer: %s. View in Sponsors tab." % gs.sponsor_offers[-1].name, "hq", "event")
 	else:
-		gs.add_notification("High",
-			"CFO found %d new sponsor offers this week. View in Sponsors tab." % num, "hq")
+		gs.notify_event("cfo_found_batch", "High",
+			"CFO found %d new sponsor offers this week. View in Sponsors tab." % num, "hq", "event")
 	gs.add_log("📋 CFO: %d new sponsor offer%s this week." % [num, "s" if num != 1 else ""])
 	## Reset countdown for next offer cycle
 	var cfo = null
@@ -324,7 +329,7 @@ func _advance_cfo_search() -> void:
 	else:
 		## CFO was released — stop search
 		gs.cfo_search_active = false
-		gs.add_notification("Normal", "CFO sponsor search stopped — CFO no longer on team.")
+		gs.notify_event("cfo_search_off", "Normal", "CFO sponsor search stopped — CFO no longer on team.", "", "event")
 
 
 func dismiss_sponsor_offer(sponsor_id: String) -> void:
@@ -347,9 +352,8 @@ func sign_sponsor(sponsor_id: String) -> bool:
 	## Enforce HQ sponsor slot cap
 	var max_slots = gs.get_hq_sponsor_slots()
 	if gs.active_sponsors.size() >= max_slots:
-		gs.add_notification("High",
-			"Sponsor slots full (%d/%d). Upgrade HQ to unlock more slots." % [
-				gs.active_sponsors.size(), max_slots])
+		gs.show_popup("Sponsor slots full (%d/%d). Upgrade HQ to unlock more slots." % [
+				gs.active_sponsors.size(), max_slots], "Slots Full")
 		return false
 	if offer.type == 3 and offer.championship_id != "":
 		var champ_name = offer.championship_id
@@ -368,15 +372,15 @@ func sign_sponsor(sponsor_id: String) -> bool:
 		else:
 			gs.add_log("🤝 %s signed: pays CR %s/season once you race %s (first instalment at next season start). %d-season deal." % [
 				offer.name, gs._fmt_int(offer.annual_payment), champ_name, offer.seasons_total])
-		gs.add_notification("High",
+		gs.notify_event("commit_sponsor_%s" % offer.sponsor_id, "High",
 			"%s: CR %s per season to race %s — register for it next season (%d-season deal). Skip a committed season → repay that season's CR %s." % [
 				offer.name, gs._fmt_int(offer.annual_payment), champ_name, offer.seasons_total,
 				gs._fmt_int(offer.annual_payment)],
-			"hq")
+			"hq", "event")
 	gs.active_sponsors.append(offer)
 	gs.sponsor_offers.remove_at(offer_idx)
 	gs.add_log("🤝 Sponsor signed: %s (Type %d)." % [offer.name, offer.type])
-	gs.add_notification("High", "Sponsor signed: %s." % offer.name, "hq")
+	gs.notify_event("sponsor_signed_%s" % offer.sponsor_id, "High", "Sponsor signed: %s." % offer.name, "hq", "event")
 	return true
 
 ## Cancel an active sponsor deal early. Applies rep and marketability penalty.
@@ -409,9 +413,9 @@ func cancel_sponsor(sponsor_id: String) -> void:
 
 	gs.add_log("❌ Sponsor deal cancelled: %s. Rep −%d, Marketability −%d." % [
 		sp.get("name", "?"), rep_penalty, mktg_penalty])
-	gs.add_notification("High",
+	gs.notify_event("sponsor_cancelled_%s" % sp.get("sponsor_id", "?"), "High",
 		"Cancelled %s deal. Penalty: −%d reputation, −%d marketability." % [
-		sp.get("name", "?"), rep_penalty, mktg_penalty], "hq")
+		sp.get("name", "?"), rep_penalty, mktg_penalty], "hq", "event")
 	gs.emit_signal("log_updated")
 
 
@@ -480,7 +484,7 @@ func _process_sponsors_season_end() -> void:
 		sp.seasons_remaining -= 1
 		if sp.seasons_remaining <= 0:
 			to_remove.append(sp)
-			gs.add_notification("Normal", "Sponsor contract expired: %s." % sp.name)
+			gs.notify_event("sponsor_expired_%s" % sp.sponsor_id, "Normal", "Sponsor contract expired: %s." % sp.name, "", "event")
 	for sp in to_remove:
 		gs.active_sponsors.erase(sp)
 	gs.sponsor_offers = gs.sponsor_offers.filter(func(o): return o.expires_season > gs.current_season)
@@ -501,7 +505,7 @@ func _process_sponsor_annual_payments() -> void:
 		var total: int = sp.get("seasons_total", 0)
 		if paid >= total:
 			to_remove.append(sp)
-			gs.add_notification("Normal", "Sponsor contract fulfilled & ended: %s." % sp.name)
+			gs.notify_event("sponsor_fulfilled_%s" % sp.sponsor_id, "Normal", "Sponsor contract fulfilled & ended: %s." % sp.name, "", "event")
 			continue
 		var cn = gs.CHAMPIONSHIP_REGISTRY.get(sp.championship_id, {}).get("name", sp.championship_id)
 		var registered: bool = sp.championship_id in gs.player_registered_championships
@@ -510,19 +514,19 @@ func _process_sponsor_annual_payments() -> void:
 			sp.seasons_paid = paid + 1
 			gs.add_log("💰 %s: +CR %s (Season %d of %d for racing %s)." % [
 				sp.name, gs._fmt_int(sp.annual_payment), sp.seasons_paid, total, cn])
-			gs.add_notification("Normal", "%s paid CR %s for racing %s this season." % [
-				sp.name, gs._fmt_int(sp.annual_payment), cn], "hq")
+			gs.notify_event("sponsor_paid_%s" % sp.sponsor_id, "Normal", "%s paid CR %s for racing %s this season." % [
+				sp.name, gs._fmt_int(sp.annual_payment), cn], "hq", "event")
 			if sp.seasons_paid >= total:
 				to_remove.append(sp)
-				gs.add_notification("Normal", "Sponsor contract fulfilled & ended: %s." % sp.name)
+				gs.notify_event("sponsor_fulfilled_%s" % sp.sponsor_id, "Normal", "Sponsor contract fulfilled & ended: %s." % sp.name, "", "event")
 		else:
 			## Penalty = repay only THIS season's unfulfilled instalment; contract terminates.
 			gs.player_team.balance -= sp.annual_payment
 			gs.add_log("⚠ Sponsor penalty: −CR %s. You did not register for %s — %s commitment broken." % [
 				gs._fmt_int(sp.annual_payment), cn, sp.name])
-			gs.add_notification("Critical",
+			gs.notify_event("sponsor_penalty_%s" % sp.sponsor_id, "Critical",
 				"Sponsor penalty CR %s: %s — you didn't race %s this season. Deal cancelled." % [
-					gs._fmt_int(sp.annual_payment), sp.name, cn], "hq")
+					gs._fmt_int(sp.annual_payment), sp.name, cn], "hq", "event")
 			to_remove.append(sp)
 	for sp in to_remove:
 		gs.active_sponsors.erase(sp)
@@ -540,6 +544,6 @@ func _maybe_generate_race_sponsor_offer(player_position: int) -> void:
 	var offer = _generate_sponsor_offer(randi_range(1, 2), randi_range(1, max_tier))
 	offer.expires_season = gs.current_season + 1
 	gs.sponsor_offers.append(offer)
-	gs.add_notification("Normal",
+	gs.notify_event("race_sponsor_%s" % offer.sponsor_id, "Normal",
 		"Your P%d finish attracted %s — sponsor offer received." % [player_position, offer.name],
-		"hq")
+		"hq", "event")
