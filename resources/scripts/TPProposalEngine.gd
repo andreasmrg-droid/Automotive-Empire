@@ -1,4 +1,6 @@
 class_name TPProposalEngine
+## Version: S37.49 — Phase 3 (events→notify_event): TP-proposals-ready → "event"; the 2 car-readiness
+##   criticals (no driver / no mechanic) → "standing" (collapse weekly; pair with their add_todo_item TDL).
 ## Version: S37.23 — DEDUPE: compute_optimal_assignments() now collapses identical proposals
 ##   (type|car|champ|person) before returning, killing the doubled TP-proposal rows seen when
 ##   player_team_cars holds a stale/orphan duplicate car (root: season-transition rebuild — #52).
@@ -387,7 +389,7 @@ func _fire_tp_proposal_notification(proposals: Array) -> void:
 			total_assigns, "s" if total_assigns != 1 else ""]
 		priority = "High"
 
-	gs.add_notification(priority, msg, "racing_dept")
+	gs.notify_event("tp_proposals_ready", priority, msg, "racing_dept", "event")
 	## ONE TDL item, identifiable by the "TP has … ready" text (dismissed in apply_tp_proposals).
 	var tdl_msg = "🏁 TP has %d assignment%s ready — Racing Department" % [
 		total_assigns, "s" if total_assigns != 1 else ""]
@@ -708,13 +710,13 @@ func _check_tp_proposal_notifications() -> void:
 				var msg = "🚫 %s [%s] — no driver. Race in %d week%s!" % [
 					car_label, champ.championship_name, weeks_until,
 					"s" if weeks_until != 1 else ""]
-				gs.add_notification("Critical", msg, "garage")
+				gs.notify_event("tp_dns_driver_%s" % car.id, "Critical", msg, "garage", "standing")
 				gs.add_todo_item(msg)
 			if car.mechanic_id == "":
 				var msg = "🚫 %s [%s] — no mechanic. Race in %d week%s!" % [
 					car_label, champ.championship_name, weeks_until,
 					"s" if weeks_until != 1 else ""]
-				gs.add_notification("Critical", msg, "garage")
+				gs.notify_event("tp_dns_mechanic_%s" % car.id, "Critical", msg, "garage", "standing")
 				gs.add_todo_item(msg)
 
 	## Regenerate TP proposals only when player race is approaching

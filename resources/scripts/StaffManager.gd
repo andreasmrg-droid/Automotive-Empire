@@ -1,4 +1,5 @@
 class_name StaffManager
+## Version: S37.49 — Phase 3 (events→notify_event): 2 hires (pit crew / staff joined) + release → "news".
 ## Version: S37.42 — BUGFIX (release doesn't unassign): release_staff() now clears the CAR-side
 ##   assignment (car.mechanic_id / car.pit_crew_id) for the released staff, mirroring release_driver.
 ##   Previously only the staff object was cleared, so a released mechanic/pit-crew stayed wired to
@@ -247,10 +248,10 @@ func hire_staff(staff_id: String) -> bool:
 		var existing_crews = get_player_staff_by_role("Pit Crew")
 		staff.crew_number = existing_crews.size() + 1
 		gs.add_log("✅ Hired %s — CR %.0f/week" % [staff.display_name(), staff.weekly_salary])
-		gs.add_notification("Normal", "Pit Crew #%d hired. Assign them to a non-GK car in the Pit Crew Arena." % staff.crew_number)
+		gs.notify_event("hired_%s" % staff.id, "Normal", "Pit Crew #%d hired. Assign them to a non-GK car in the Pit Crew Arena." % staff.crew_number, "pit_arena", "news")
 	else:
 		gs.add_log("✅ Hired %s (%s) — CR %.0f/week" % [staff.full_name(), staff.role, staff.weekly_salary])
-		gs.add_notification("Normal", "%s (%s) joined your team." % [staff.full_name(), staff.role])
+		gs.notify_event("joined_%s" % staff.id, "Normal", "%s (%s) joined your team." % [staff.full_name(), staff.role], "", "news")
 		gs._clear_notifications_containing("No CFO hired")
 		gs._clear_notifications_containing("No Team Principal")
 	## Fire assignment proposals for roles that affect car racing
@@ -268,8 +269,7 @@ func release_staff(staff_id: String) -> void:
 	if clause > 0 and staff.contract_seasons_remaining > 0:
 		gs.player_team.balance -= clause
 		gs.add_log("💰 Release clause paid: CR %s for %s." % [gs._fmt_int(clause), staff.full_name()])
-		gs.add_notification("High",
-			"Released %s — CR %s release clause paid." % [staff.full_name(), gs._fmt_int(clause)])
+		gs.notify_event("released_%s" % staff.id, "Normal", "Released %s — CR %s release clause paid." % [staff.full_name(), gs._fmt_int(clause)], "", "news")
 	staff.contract_team = ""
 	staff.assigned_championship = ""
 	staff.assigned_car_id = ""

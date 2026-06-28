@@ -1,4 +1,5 @@
 class_name DriverManager
+## Version: S37.49 — Phase 3 (events→notify_event): driver signing + release → "news"; rest done.
 ## Version: S37.37 — Notification & News Roadmap, Phase 1: blocking-error add_notification calls
 ##   converted to gs.show_popup() (on-the-spot AcceptDialog). Genuine events (hired / signed /
 ##   released) left as notifications for Phase 3.
@@ -82,7 +83,7 @@ func hire_driver(driver_id: String) -> bool:
 	## championship's standings when assigned to a car (CarManager.assign_driver_to_car). Writing
 	## GK here was the source of non-GK drivers polluting the GK table.
 	gs.add_log("✅ Signed %s — contract: 5 seasons. Assign them to a car in the Drivers screen." % driver.full_name())
-	gs.add_notification("Normal", "%s signed. Build a car in the Garage, then assign them." % driver.full_name())
+	gs.notify_event("signed_%s" % driver.id, "Normal", "%s signed. Build a car in the Garage, then assign them." % driver.full_name(), "garage", "news")
 	gs._fire_assignment_proposals()
 	gs.emit_signal("log_updated")
 	return true
@@ -99,8 +100,7 @@ func release_driver(driver_id: String) -> void:
 	if clause > 0 and driver.contract_seasons_remaining > 0:
 		gs.player_team.balance -= clause
 		gs.add_log("💰 Release clause paid: CR %s for %s." % [gs._fmt_int(clause), driver.full_name()])
-		gs.add_notification("High",
-			"Released %s — CR %s release clause paid." % [driver.full_name(), gs._fmt_int(clause)])
+		gs.notify_event("released_%s" % driver.id, "Normal", "Released %s — CR %s release clause paid." % [driver.full_name(), gs._fmt_int(clause)], "", "news")
 	driver.contract_team = ""
 	driver.contract_seasons_remaining = 0
 	driver.release_clause = 0

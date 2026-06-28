@@ -1,4 +1,5 @@
 extends Control
+## Version: S37.49 — Phase 3 (events→notify_event): the 2 "coming soon" placeholders → "event".
 ## Version: S37.40 — TDL routing: commitment-sponsor "requires racing X" task routes to HQ and
 ##   opens the WRA tab (registration), matching the R&D→WRA submit task.
 ## Version: S37.38 — Notification panel: removed per-notification Snooze buttons; added "Mark All as
@@ -1469,8 +1470,8 @@ func _show_bankruptcy_screen() -> void:
 	btn_hire.pressed.connect(func():
 		overlay.queue_free()
 		## CEO Job Market scene — coming in future build
-		GameState.add_notification("Normal",
-			"CEO Job Market coming in a future update."))
+		GameState.notify_event("ceo_market_soon", "Normal",
+			"CEO Job Market coming in a future update.", "", "event"))
 	center.add_child(btn_hire)
 
 	## Option 3 — Start new team (requires CEO wealth)
@@ -1489,8 +1490,8 @@ func _show_bankruptcy_screen() -> void:
 	btn_start.pressed.connect(func():
 		overlay.queue_free()
 		## New team start — coming in future build
-		GameState.add_notification("Normal",
-			"New Team start coming in a future update."))
+		GameState.notify_event("new_team_soon", "Normal",
+			"New Team start coming in a future update.", "", "event"))
 	center.add_child(btn_start)
 
 	## Dismiss — temporary, allows continue

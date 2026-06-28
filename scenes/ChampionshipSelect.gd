@@ -1,3 +1,4 @@
+## Version: S37.49 — Phase 3 (events→notify_event): re-register done/failed + no-new-champs → "event".
 ## Version: S37.36 — Standard header: added shared ResourceBar + Main Hub button. Bar refreshes via _build_ui.
 extends Control
 ## Version: S29.12 — Localized header title + action buttons (creg_* keys).
@@ -387,11 +388,11 @@ func _on_reregister_all() -> void:
 			failed.append(reg.get("name", cid))
 	_refresh_list()
 	if registered_count > 0:
-		GameState.add_notification("Normal",
-			"Re-registered for %d championship%s." % [registered_count, "s" if registered_count != 1 else ""])
+		GameState.notify_event("rereg_done", "Normal",
+			"Re-registered for %d championship%s." % [registered_count, "s" if registered_count != 1 else ""], "", "event")
 	if not failed.is_empty():
-		GameState.add_notification("High",
-			"Could not re-register for: %s (check deadline/funds)." % ", ".join(failed))
+		GameState.notify_event("rereg_failed", "High",
+			"Could not re-register for: %s (check deadline/funds)." % ", ".join(failed), "", "event")
 
 func _on_back() -> void:
 	get_tree().change_scene_to_file("res://scenes/MainHub.tscn")
@@ -416,5 +417,5 @@ func _on_register_all_pressed() -> void:
 				if GameState.register_for_championship(champ_id):
 					registered_any = true
 	if not registered_any:
-		GameState.add_notification("Normal", "No new championships to register for (check funds or deadlines).")
+		GameState.notify_event("no_new_champs", "Normal", "No new championships to register for (check funds or deadlines).", "", "event")
 	_refresh_list()

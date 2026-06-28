@@ -1,4 +1,5 @@
 class_name CampusManager
+## Version: S37.49 — Phase 3 (events→notify_event): building-sold → "event".
 ## Version: S37.3 — Bug #5: HQ sponsor slots now increase at ODD levels (1,3,5...) not even —
 ##   get_hq_sponsor_slots() = 1 + int((level-1)/2). L1=1, L3=2, L5=3, ... L26=13.
 ## Version: S27.0 — Extracted from GameState.gd (P57)
@@ -376,7 +377,7 @@ func sell_building(building_id: String) -> void:
 	building["level"] = 0
 	building["construction_weeks_remaining"] = 0
 	gs.add_log("🏚 %s sold — CR %s refunded (30%% of build cost)." % [building["name"], gs._fmt_int(refund)])
-	gs.add_notification("Normal", "%s sold for CR %s." % [building["name"], gs._fmt_int(refund)])
+	gs.notify_event("building_sold_%s" % building["name"], "Normal", "%s sold for CR %s." % [building["name"], gs._fmt_int(refund)], "", "event")
 	gs.emit_signal("log_updated")
 
 ## Returns true if the player has a blueprint (completed R&D) for a part type.

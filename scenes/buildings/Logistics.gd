@@ -1,3 +1,4 @@
+## Version: S37.49 — Phase 3 (events→notify_event): car-purchased → "event" (garage); GP1-engine → "event" (cnc).
 ## Version: S37.31 — Resource bar: replaced hand-rolled CR/SP/FU header badges with the shared
 ##   ResourceBar component (res://scenes/components/ResourceBar.gd); _refresh_header_labels() now
 ##   drives it, so every existing buy-action refresh updates the shared bar immediately.
@@ -819,7 +820,7 @@ func _on_buy_car_pressed(car_cost: int, provider: String, champ_id: String) -> v
 	GameState.player_team.balance -= car_cost
 	GameState.add_car(champ_id)
 	GameState.add_log("🏎 Car purchased for %s from %s — CR %s" % [reg.get("name", champ_id), provider, _fmt(float(car_cost))])
-	GameState.add_notification("Normal", "🏎 %s car purchased! Assign a driver in the Garage." % reg.get("name", champ_id))
+	GameState.notify_event("car_purchased_%s" % champ_id, "Normal", "🏎 %s car purchased! Assign a driver in the Garage." % reg.get("name", champ_id), "garage", "event")
 	_switch_tab(_active_tab)
 
 func _on_buy_engine_contract_pressed(engine_cost: int, provider: String, _champ_id: String) -> void:
@@ -828,7 +829,7 @@ func _on_buy_engine_contract_pressed(engine_cost: int, provider: String, _champ_
 		return
 	GameState.player_team.balance -= engine_cost
 	GameState.add_log("🔧 GP1 Engine contract signed with %s — CR %s/season" % [provider, _fmt(float(engine_cost))])
-	GameState.add_notification("Normal", "GP1 engine secured. Now build your chassis at the CNC Plant.")
+	GameState.notify_event("gp1_engine_secured", "Normal", "GP1 engine secured. Now build your chassis at the CNC Plant.", "cnc_plant", "event")
 	_switch_tab(_active_tab)
 
 func _on_back_pressed() -> void:
