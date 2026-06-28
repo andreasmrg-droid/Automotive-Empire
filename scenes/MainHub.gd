@@ -53,7 +53,12 @@ func _ready() -> void:
 		return
 
 	var layout: VBoxContainer = $Layout
+	## Inset 10px from every screen edge (small gap so content doesn't touch the bezel).
 	layout.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layout.offset_left = 10
+	layout.offset_top = 10
+	layout.offset_right = -10
+	layout.offset_bottom = -10
 	layout.add_theme_constant_override("separation", 10)
 
 	# ═══ ROW 1: nameplate · resource bar · menu ═══
@@ -253,7 +258,7 @@ func _build_scroll_panel(parent: Control, title: String) -> Array:
 func _update_display() -> void:
 	nameplate_label.text = "%s\n%s" % [
 		GameState.player_team.team_name if GameState.player_team else "—",
-		GameState.player_team_name if "player_team_name" in GameState else ""]
+		GameState.player_name if "player_name" in GameState else ""]
 	# Find the soonest upcoming race across all active championships
 	var soonest_race = null
 	var soonest_champ = null

@@ -1,6 +1,15 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v6.3 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+**Version:** v6.4 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v6.4: MAIN HUB REDESIGN shipped (S37.27) — the §18 hard-prerequisite is DONE, unblocking
+	the notification-loop migration. New mockup-driven layout: Row1 nameplate (team + player name) ·
+	resource bar · Menu (BELL REMOVED); Row2 Season|Week|Next-Race strip; Row3 nav (Campus · Calendar ·
+	Drivers · Staff · Shortlist · Racing World); CENTRE three always-visible panels — TO-DO ·
+	NOTIFICATIONS (now a permanent column, no bell/slide-in) · NEWS (doubles as the weekly event LOG
+	until the news system exists); BOTTOM a 5-week strip (player-related events only, "+N more" overflow,
+	from CalendarManager) + the three advance buttons. The side panel + its 4 tabs (drivers/teams/
+	my-driver/cars) are DELETED — standings live in Racing World. MainHub.tscn simplified to root +
+	Layout (body built in code); 10px screen-edge inset. Buglist #17 (hub total revamp) → done. -->
 <!-- v6.3: SEASON CALENDAR feature (S37.26). NEW §14.1 — a read-only full-season agenda scene
 	(res://scenes/Calendar.tscn) showing all 21 championships' races plus every other DATED event,
 	laid out in 4-week blocks down a vertical scroll. Data-driven: NEW res://data/race_calendar.json
@@ -294,9 +303,9 @@ Installed CNC parts give the car a lap-time bonus, computed in `RnDEngine.get_cn
 ```
 per installed part:  part_bonus = value × quality
    value   = the R&D performance magnitude (already bakes in level via the P2 carry-over
-             chain + designer lift — do NOT multiply by level again, that double-counts)
+			 chain + designer lift — do NOT multiply by level again, that double-counts)
    quality = the reverse-engineering penalty (1.0 own-design, ~0.75 RE) — makes the RE
-             penalty matter on track
+			 penalty matter on track
 total bonus = clamp(Σ part_bonus, 0.0, CNC_BONUS_CAP=0.15)
 applied in-race as:  lap_time /= (1.0 + total_bonus)
 ```
@@ -950,22 +959,22 @@ contracted at the join date — will their TEAM let them go (the CEO/owner-team'
    the team agreed to release in step 4):
    - 1 week per round, **max 3 rounds**: owner team replies accept / counter / reject.
    - CFO sets estimate accuracy shown to player: **±8% with CFO, ±30% without**. Informational
-     only — **no hard cap**; the market sets it.
+	 only — **no hard cap**; the market sets it.
    - **Bond (calculated AT THE JOIN DATE):** `weekly_salary × weeks_remaining × talent_factor`,
-     `weeks_remaining` counted from the season the contract STARTS.
+	 `weeks_remaining` counted from the season the contract STARTS.
    - `talent_factor`: 0–30 = ×0.8, 31–60 = ×1.0, 61–80 = ×1.3, 81–100 = ×1.8.
    - **Immediate mid-contract transfer:** **1.5× bond + 25% disruption fee.** Rare/expensive by
-     design — most signings are next-season.
+	 design — most signings are next-season.
    - If bond rejected / player walks → approach ends, no bond paid.
 
 6. **Contract negotiation with the PERSON** (after bond agreed, or directly for free-at-join):
    - **1 round per week.** Player submits offer → other side replies next week.
    - **Per-item lock buttons** (🔓/🔒): lock agreed terms, counter the rest. The other side may
-     **unlock** a previously agreed item if the package becomes unacceptable.
+	 **unlock** a previously agreed item if the package becomes unacceptable.
    - **Patience:** 3 weeks of no response → expires ("Lapsed due to no response").
    - **Close** = closes the window, leaves the negotiation untouched in Pending Activity.
-     **Walk Away** = leaves a "you have walked away" entry that persists until the next week
-     advance, then clears.
+	 **Walk Away** = leaves a "you have walked away" entry that persists until the next week
+	 advance, then clears.
 
 7. **Bond paid ONLY on successful signing** (never when negotiations start). On success: bond
    paid to owner team, person transfers at the chosen start date (immediate or pre-signed).
@@ -1287,7 +1296,7 @@ RefCounted engine classes for headless multi-season testing.
   the living world.
 
 **UI/UX prerequisites (cross-cutting, not a phase):**
-- **Main Hub redesign — MANDATORY BEFORE the notification loop construction.** The notification
+- **Main Hub redesign — ✅ DONE (S37.27), was the mandatory prerequisite for the notification loop.** The notification
   loop's surfaces (bell, badge, slide-in panel, critical banner, read-only TDL) all live on the
   Main Hub, so the hub must be redesigned first; only then build/finish the notification framework
   and migrate the legacy `add_notification` callers (§15.1). Fixed order: Main Hub redesign →
@@ -1333,6 +1342,16 @@ the wildcards). Biggest risk: scope creep — keep saying "backlog."
 
 Historical record of what shipped; design facts above already reflect these.
 
+- **S37.27 (Main Hub redesign — §15.1/§18 prerequisite, buglist #17):** mockup-driven rebuild.
+  Nameplate (team + player name) · resource bar · Menu in row 1 (notification BELL removed);
+  Season|Week|Next-Race strip; nav row with the new Calendar button; three always-visible centre
+  panels (To-Do · Notifications · News/Log) replacing the side panel + 4 tabs (deleted — standings
+  now in Racing World); a 5-week strip (player-only events, +N more overflow, from CalendarManager)
+  above the three advance buttons. Notification column reuses the existing card UI (priority sort,
+  dismiss, snooze, go-to); the slide-in panel + bell are gone. MainHub.tscn simplified to root +
+  Layout; 10px edge inset. All advance/season-transition/menu/save-load/modal/bankruptcy logic
+  carried over verbatim. NEXT: notification-loop migration (the ~218 legacy add_notification calls).
+
 - **S37.26 (Season Calendar — §14.1):** new read-only full-season agenda scene
   (`Calendar.tscn`/`Calendar.gd`) in 4-week blocks showing all 21 championships' races (chip =
   `Championship · Round X/N` + city), registration deadlines, building/R&D/CNC completions, and
@@ -1356,37 +1375,37 @@ Historical record of what shipped; design facts above already reflect these.
     Low-talent (≤35) free agents are always reachable so a new team can field a car. Simulated against
     the real driver pool: rep-0 → ~13 reachable, rep-50 → ~371, rep-75+ → full grid.
   - **Sponsor commitment redesign (S37.10, #13):** type-3 (commitment) sponsors now pick a championship
-    from a REPUTATION BAND near the team's rep (REP_BAND_DOWN 18 / REP_BAND_UP 22 on the champ `rep`
-    scale 15=GK…100=GP1) — no GK→GP1 or GP1→Rally4 offers. Payment is ANNUAL (~1 season's entry+car
+	from a REPUTATION BAND near the team's rep (REP_BAND_DOWN 18 / REP_BAND_UP 22 on the champ `rep`
+	scale 15=GK…100=GP1) — no GK→GP1 or GP1→Rally4 offers. Payment is ANNUAL (~1 season's entry+car
     ±variation, rounded to 500) paid at the START of each registered season via
     `_process_sponsor_annual_payments()` (called from SeasonManager Stage A2, after the registration
-    ledger is promoted). The offer expires before the championship's registration deadline. Penalty for
-    skipping the committed championship = repay only that season's amount, and the deal cancels.
+	ledger is promoted). The offer expires before the championship's registration deadline. Penalty for
+	skipping the committed championship = repay only that season's amount, and the deal cancels.
     `seasons_total`/`seasons_paid` track progress; a fully-paid deal ends cleanly. Fixed the "all offers
     exactly 20K" flat-floor bug. **Save/load now persist `active_sponsors` + `sponsor_offers`** (were
     never serialized, so a signed multi-season commitment vanished on reload; back-compatible defaults).
   - **Race results "Skip All" + column layout (S37.10–S37.13, #11):** added a "Skip All ⏭" header button
-    (shown when >1 race is queued the same week) that applies each remaining race's repairs + sponsor
-    bonuses and returns to the Main Hub (`pending_race_result_count()` drives visibility). Results +
-    standings tables re-laid-out: the Driver column EXPANDS to fill the container (≈2/5 of width), then
-    Laps/Time/Gap/Pts spread across the rest with equal stretch ratios and Prize fixed at the far right;
-    Laps/Time/Gap centered, Pts/Prize right-aligned. Header and rows share IDENTICAL sizing mode +
-    alignment per column (+`clip_contents`) so headers always sit above their data. Driver-standings
-    name/team no longer jam together. **Confirmed in play.**
+	(shown when >1 race is queued the same week) that applies each remaining race's repairs + sponsor
+	bonuses and returns to the Main Hub (`pending_race_result_count()` drives visibility). Results +
+	standings tables re-laid-out: the Driver column EXPANDS to fill the container (≈2/5 of width), then
+	Laps/Time/Gap/Pts spread across the rest with equal stretch ratios and Prize fixed at the far right;
+	Laps/Time/Gap centered, Pts/Prize right-aligned. Header and rows share IDENTICAL sizing mode +
+	alignment per column (+`clip_contents`) so headers always sit above their data. Driver-standings
+	name/team no longer jam together. **Confirmed in play.**
   - **DEFERRED / FLAGGED (not fixed — pick up next):** (1) "starting a new game continues the previous
-    game" — `setup_new_game` does not reset many persistent collections (active_sponsors, sponsor_offers,
-    active_approaches, player_registered_championships, next_season_registrations, active_championships,
-    player_team_cars, notifications, weeks_in_negative, pending_* screens, _pending_race_results) and
-    `gk_discipline` is only recreated `if null`, so a second new game reuses stale state. (2) Load-game
-    starts at the pre-load week — `load_game` DOES restore `current_week` correctly and `_autosave` saves
-    after the week increment, so the likely cause is transient session state (pending race/season screens)
-    not being cleared on load, or the MainHub week label not refreshing. Both share the same root cause
-    (neither `setup_new_game` nor `load_game` fully clears transient state) and were investigated but not
-    yet fixed. Staff-hire slot validation (#2-adjacent) was deferred — the existing "no slot" path works.
+	game" — `setup_new_game` does not reset many persistent collections (active_sponsors, sponsor_offers,
+	active_approaches, player_registered_championships, next_season_registrations, active_championships,
+	player_team_cars, notifications, weeks_in_negative, pending_* screens, _pending_race_results) and
+	`gk_discipline` is only recreated `if null`, so a second new game reuses stale state. (2) Load-game
+	starts at the pre-load week — `load_game` DOES restore `current_week` correctly and `_autosave` saves
+	after the week increment, so the likely cause is transient session state (pending race/season screens)
+	not being cleared on load, or the MainHub week label not refreshing. Both share the same root cause
+	(neither `setup_new_game` nor `load_game` fully clears transient state) and were investigated but not
+	yet fixed. Staff-hire slot validation (#2-adjacent) was deferred — the existing "no slot" path works.
 
 - **S37.0–S37.8 (Cluster A close-out + repair UX + notification framework — §7.2/§6.11/§15.1):**
   - **CP4 — the `active_championship` getter (S37.0):** the singular getter used to return GK
-    (`active_championships[0]`) for everyone. It now resolves the player's REAL championship:
+	(`active_championships[0]`) for everyone. It now resolves the player's REAL championship:
     player_registered_championships → the championship of an owned car → legacy field → a safe dummy.
     `RaceSimulator` threads the raced championship through per-race fuel / SP / condition / adaptation
     reads (no more GK-rate math on a Rally car). Standings registration follows Rule #6 — a driver is
@@ -1396,70 +1415,70 @@ Historical record of what shipped; design facts above already reflect these.
     stray GK races, results, round-advance or elimination notices. RacingWorld reads the GK champion/
     leader from the shadow standings so GK results are visible in the world view.
   - **Repair UX (S37.3–S37.5, §6.11):** manual `repair_car()` reads the SP-per-10%-damage rate from
-    THIS car's championship. Added `repair_car_max_sp()` — a PROPORTIONAL repair spending all held SP
-    (not floored to 10% chunks) so a player short of one full chunk (GK = 110 SP/10%) can still
-    repair. Garage car-card "Repair" button uses it (full when affordable, else proportional);
-    disabled only at 0 SP.
+	THIS car's championship. Added `repair_car_max_sp()` — a PROPORTIONAL repair spending all held SP
+	(not floored to 10% chunks) so a player short of one full chunk (GK = 110 SP/10%) can still
+	repair. Garage car-card "Repair" button uses it (full when affordable, else proportional);
+	disabled only at 0 SP.
   - **Notification framework (S37.6–S37.8, §15.1):** added `notify_event()` (modes once/standing/
-    event/news) + `_fired_once` + `_push_news`. CFO migrated: removed the per-race "No CFO" emitter
-    (the real spam source) and the recurring TDL task; CFO is now a read-only TDL row + a one-time
-    `notify_event("no_cfo", once)` with a Staff button. **Root-cause fix:** the CFO-hint and
-    registration-deadline blocks sat AFTER the race-result early-return in `advance_week()`, so on any
-    week the player raced they were skipped — that is why no deadline notification ever appeared. Both
-    moved BEFORE the return; the deadline warning now fires "this week or next" for any championship
-    (no budget filter — the player can loan), with a 🔔 weekly-log line for verification.
+	event/news) + `_fired_once` + `_push_news`. CFO migrated: removed the per-race "No CFO" emitter
+	(the real spam source) and the recurring TDL task; CFO is now a read-only TDL row + a one-time
+	`notify_event("no_cfo", once)` with a Staff button. **Root-cause fix:** the CFO-hint and
+	registration-deadline blocks sat AFTER the race-result early-return in `advance_week()`, so on any
+	week the player raced they were skipped — that is why no deadline notification ever appeared. Both
+	moved BEFORE the return; the deadline warning now fires "this week or next" for any championship
+	(no budget filter — the player can loan), with a 🔔 weekly-log line for verification.
   - **Misc fixes:** sponsor slots increase at ODD HQ levels (1+int((level-1)/2)) and the HQ EFFECTS
-    panel now calls that function (was a hardcoded 1+lv/2 showing 2 at L2); the Financial weekly-income
-    panel itemizes income PER BUILDING; the post-race "SP insufficient" notice carries the
-    res_spare_parts subject so it collapses to one. BUGLIST reconciled — 10 fixed, see
-    `Buglist_51_Reconciled.md`.
+	panel now calls that function (was a hardcoded 1+lv/2 showing 2 at L2); the Financial weekly-income
+	panel itemizes income PER BUILDING; the post-race "SP insufficient" notice carries the
+	res_spare_parts subject so it collapses to one. BUGLIST reconciled — 10 fixed, see
+	`Buglist_51_Reconciled.md`.
 
 - **S35.16–S35.21 (R&D Studio polish + P4 gating + localization — §8.5/§16):**
   - **Scroll fixes (S35.16–S35.17):** the centre catalog and right Blueprint Status columns weren't
-    scrolling (Status had no ScrollContainer at all; the catalog's bar was hidden under full-width
-    content). Fixed via a shared `_make_scroll_column(stretch, min_w)` helper + a right-side
-    `MarginContainer` gutter giving the scrollbar a clear lane; the gutter convention was also
-    applied to CNC Plant's matching helper.
+	scrolling (Status had no ScrollContainer at all; the catalog's bar was hidden under full-width
+	content). Fixed via a shared `_make_scroll_column(stretch, min_w)` helper + a right-side
+	`MarginContainer` gutter giving the scrollbar a clear lane; the gutter convention was also
+	applied to CNC Plant's matching helper.
   - **Pillar-1-only tabs (S35.17):** the championship tab strip now renders on Pillar 1 only — P2/P3
-    iterate the player's cars and P4 is champ-agnostic, so the tabs did nothing there.
+	iterate the player's cars and P4 is champ-agnostic, so the tabs did nothing there.
   - **P4 building + Studio gate (S35.18–S35.19):** P4 lock messages now state the real reason
-    (build/upgrade the target building); AND `Required_RnD_Studio_Level` is now ENFORCED in
-    `RnDEngine.rnd_task_unlocked` (was dead data). Gate order: prerequisite → building → Studio.
+	(build/upgrade the target building); AND `Required_RnD_Studio_Level` is now ENFORCED in
+	`RnDEngine.rnd_task_unlocked` (was dead data). Gate order: prerequisite → building → Studio.
   - **Consolidated requirement line (S35.21):** one "Required: 🏢 Building Lv X & 🔬 Studio Lv Y"
-    line (green/amber) replaced the old two-chip row + duplicate lock sentence.
+	line (green/amber) replaced the old two-chip row + duplicate lock sentence.
   - **Localization (S35.20–S35.21):** the whole R&D Studio + all 100 Special Project names/descs
-    localized (sp_{id}_name / sp_{id}_desc + ~49 UI keys; dead keys removed). Licensing: user-facing
-    "Formula" → "GP" in the Studio + Locale (NewGame/HQ still pending — BUGLIST #21).
+	localized (sp_{id}_name / sp_{id}_desc + ~49 UI keys; dead keys removed). Licensing: user-facing
+	"Formula" → "GP" in the Studio + Locale (NewGame/HQ still pending — BUGLIST #21).
 
 - **S35.10 (Personnel hub UX overhaul + Shortlist — §15):**
   - **Hub readability/layout:** available rows at 24px with 100s emphasised; columns switched from
-    fixed pixel widths to PROPORTIONAL stretch ratios (full-width aligned grid, no clipping, header
-    matches row card border/margins); Team + Contract split into two columns.
+	fixed pixel widths to PROPORTIONAL stretch ratios (full-width aligned grid, no clipping, header
+	matches row card border/margins); Team + Contract split into two columns.
   - **Sort clarity:** active sort button highlighted + ▼/▲ direction arrow; a plain-language
-    "Showing: …" summary of the active filter + sort. Staff hub gained a "Free Agents Only" toggle
-    (Drivers-hub parity).
+	"Showing: …" summary of the active filter + sort. Staff hub gained a "Free Agents Only" toggle
+	(Drivers-hub parity).
   - **Shortlist feature:** persisted `is_shortlisted` on Driver + Staff (saved/loaded, old-save
-    default false); ★ icon toggle on each hub row and in the View Card popup (synced); a unified
-    role-tabbed Shortlist screen (`Shortlist.tscn`/`.gd`) — **All** (mixed, with Role column +
-    universal sorts) + Driver + the 6 staff roles, count badges, ★-to-remove. Reachable from Staff
-    hub, Drivers hub, Main Hub top bar, HQ nav. GameState API: `toggle_shortlist`, `is_shortlisted`,
-    `get_shortlisted_by_role`, `get_shortlist_counts`.
+	default false); ★ icon toggle on each hub row and in the View Card popup (synced); a unified
+	role-tabbed Shortlist screen (`Shortlist.tscn`/`.gd`) — **All** (mixed, with Role column +
+	universal sorts) + Driver + the 6 staff roles, count badges, ★-to-remove. Reachable from Staff
+	hub, Drivers hub, Main Hub top bar, HQ nav. GameState API: `toggle_shortlist`, `is_shortlisted`,
+	`get_shortlisted_by_role`, `get_shortlist_counts`.
 - **S35.5–S35.9 (SP pricing, hub perf, negotiation semantics, interest rework):**
   - **Living SP price (§3, S35.5):** `get_sp_cost_per_unit()` = BASE 1.0 × economy mult (tight
-    0.6–1.5 manufactured-goods band) × `sp_market_pressure` (gentle mean-reverting wobble, far
-    calmer than fuel). Buy-only. Saved/loaded.
+	0.6–1.5 manufactured-goods band) × `sp_market_pressure` (gentle mean-reverting wobble, far
+	calmer than fuel). Buy-only. Saved/loaded.
   - **Player-staff cache (S35.6) + hub-filter & lookup hoisting (S35.7):** removed the per-render
-    full scans of ~5000 staff (HQ/WRA lag, "Interested" button lag). Walk-Away leaves a persistent
-    entry cleared next week; Close is a no-op (S35.7).
+	full scans of ~5000 staff (HQ/WRA lag, "Interested" button lag). Walk-Away leaves a persistent
+	entry cleared next week; Close is a no-op (S35.7).
   - **HQ preload (S35.8):** heavy scenes preloaded at startup so first HQ open doesn't hitch.
   - **Interest model rework (§12-A, S35.9):** deterministic binary person-interest shared by the
 	filter + approach; random team-release gate + 26-week refusal cooldown; `_is_free_at_join`
 	(last-year/next-season = no gate/bond); team-won't-release popup. The "try again in the future"
-    popup wording + the noted-for-future AI-poaching warning belong to this line.
+	popup wording + the noted-for-future AI-poaching warning belong to this line.
 - **S35.1–S35.4 (notification cleanup + living fuel + CFO auto-buy):**
   - **Recurring-notification collapse (§15):** `add_notification` gains a `subject` key; a new
-    notification supersedes any earlier same-subject one, so standing weekly/race reminders keep
-    only the current instance (text-independent). Tagged: resource warnings, pre-race DNS reasons,
+	notification supersedes any earlier same-subject one, so standing weekly/race reminders keep
+	only the current instance (text-independent). Tagged: resource warnings, pre-race DNS reasons,
 	economy alerts. The S31.1 identical-text dedup only caught messages whose text didn't change.
   - **GK one-shot elimination (§15):** `player_elimination_announced` flag (reset each season) so
 	the "season over for GK" notice fires once, not at every later round after a Round-1 exit.
@@ -1468,7 +1487,7 @@ Historical record of what shipped; design facts above already reflect these.
   - **Living fuel price (§3):** `get_fuel_cost_per_kg()` = BASE 2.0 × economy `Fuel_Price_Multiplier`
 	(0.5–3.0, neutral 1.0). `buy_fuel` now charges it (was a dead hardcoded CR 2/kg); the Logistics
 	card header and the input cost preview both show the live rate (the preview's `× 2` hardcode was
-    the S35.4 fix).
+	the S35.4 fix).
   - **CFO race-logistics auto-buy (§3/§9-E):** `cfo_auto_buy_for_race(champ)` tops fuel + SP to the
 	next race's exact need at the living price — only if a CFO is hired + affordable, and ONLY while
 	`simulating_to_season_end` (Skip-to-End). Never negative; never during hands-on weekly play.
@@ -1489,13 +1508,13 @@ Historical record of what shipped; design facts above already reflect these.
   - **S31 housekeeping:** Bug 9 (GK discipline bleed — GK round notifications gated on the player
 	being registered in GK; `_regenerate_ai_team_cars` no longer hardcodes C-001); Bug 8 (next-season
 	blueprint can't be manufactured in the current season — `start_cnc_job` season gate); Bug 7 (CNC
-    shows blueprint target season + locks future cards); Bug 5 (notification cross-week dedup);
-    Bug 4 (TP proposals roster-snapshot refresh on accept).
+	shows blueprint target season + locks future cards); Bug 5 (notification cross-week dedup);
+	Bug 4 (TP proposals roster-snapshot refresh on accept).
   - **TP Assignment System rebuild** (§9-I, spec v2): shared prestige-ordered optimiser for
-    driver/mechanic/pit-crew/strategist/TP; commitment rule; GK multi-tier exception removed;
-    consolidated single-source proposal; skip-already-assigned (stale-panel fix); read-only
-    `peek_tp_proposals` for display; `Staff.get_overall_skill()` for TP ranking; popup renders all 4
-    player roles. Old `get_tp_proposals_all` path retired to dead code.
+	driver/mechanic/pit-crew/strategist/TP; commitment rule; GK multi-tier exception removed;
+	consolidated single-source proposal; skip-already-assigned (stale-panel fix); read-only
+	`peek_tp_proposals` for display; `Staff.get_overall_skill()` for TP ranking; popup renders all 4
+	player roles. Old `get_tp_proposals_all` path retired to dead code.
 - **S29 (UI/UX overhaul + data integrity):** Inter font (OFL) + ×2 font scaling + window
   stretch; ScrollContainer+pinned-footer layout pattern across NewGame / BeginOfSeason / etc.;
   NewGame champ-select reworked (Select button on card top, budget summary above the grid as a

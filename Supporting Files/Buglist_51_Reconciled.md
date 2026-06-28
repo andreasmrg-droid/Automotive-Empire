@@ -1,6 +1,6 @@
 # Automotive Empire — Original 51-Item List, Reconciled Against Shipped Code
 
-**Reconciled:** 2026-06-25 · against repo HEAD `52a7206` (S37.13) + GDD v6.0 changelog (S28–S37.13).
+**Reconciled:** 2026-06-28 · against repo HEAD `6dc2bc6` (S37.27) + GDD v6.4 changelog (S28–S37.27).
 **Status legend:** ✅ Fixed (incl. player-confirmed in play) · 🟡 Fixed–needs in-engine verification · 🟠 Known/latent (partial or no-op until data added) · 🔵 Backlog/feature (design-approved, sequenced later) · ⚪ Open/unassigned.
 
 > Note: GitHub is authoritative. This maps your ORIGINAL numbered list (1–51) onto the work that
@@ -23,12 +23,12 @@
 | 9 | Next race wrong week; S1 player appears registered in ALL championships | 🟡 | **Cluster A core.** A-CP4 (S37.0) getter rewrite; A-CP4b (S37.1) GK group-0 seeding gated. Needs keyboard verification. |
 | 10 | HQ contract-negotiation entry frozen; walk-away didn't remove it | 🟡 | Negotiation entry lifecycle (S35.7). Verify frozen-entry + walk-away-clear. |
 | 11 | Race results columns stacked right; need a skip button | ✅ | **S37.10** "Skip All ⏭" button added (header, shows when >1 race queued the same week) — applies each remaining race's repairs + sponsor bonuses and jumps to the Main Hub. **S37.11–S37.13** results + standings column layout reworked: Driver column expands to fill the container, Laps/Time/Gap/Pts spread across the remaining width (Driver ≈ 2/5), Laps/Time/Gap centered, Pts/Prize handled separately, Prize fixed far right; header + rows share identical sizing + alignment per column (+clip_contents) so headers sit above data. Driver standings name/team no longer jam. **Confirmed in play.** |
-| 12 | No TDL/notification for a new sponsor offer | ⚪ Open | Candidate for the notify_event framework (S37.7) — not yet migrated. Still to do. |
+| 12 | No TDL/notification for a new sponsor offer | ⚪ Open | Candidate for the notify_event framework (S37.7) — not yet migrated. UNBLOCKED by the S37.27 hub redesign (the notification column now exists); part of the upcoming notification-loop migration. |
 | 13 | Sponsor offers below the championship entry fee | ✅ | **S37.10** SponsorManager commitment (type-3) sponsors REDESIGNED: a sponsor wants the team to race a SPECIFIC championship for N seasons, chosen from a REPUTATION BAND near the team's rep (no GK→GP1 / GP1→Rally4 offers). Payment is ANNUAL (~1 season's entry+car ±variation) paid at the START of each registered season; offer expires before the championship's registration deadline; skipping a season = repay only that season's amount and the deal cancels. Fixed the "all offers exactly 20K" flat-floor bug (varied floor + cost band). active_sponsors/sponsor_offers now persist in save/load (were lost on reload). Verify offer amounts + tiering. |
 | 14 | 891k active fans for a brand-new garage | ✅ | S36.0: get_team_active_fans()/marketability derive from player_registered_championships via _player_global_fan_pool(). Verify the starting number. |
 | 15 | FU (fuel) not deducted after a race unless CFO buys | 🟡 | Fuel scoping fixed in Cluster A (RaceSimulator threads the raced champ, S37.0). Verify fuel drops per race without a CFO. |
 | 16 | HQ-Financial: "Balance" label visible on all graph tabs | ✅ | **S37.17** Reported solved in play (player-confirmed). |
-| 17 | News + main-hub standings not useful; main hub needs total revamp | 🔵 Backlog | Design revamp, not a point fix. |
+| 17 | News + main-hub standings not useful; main hub needs total revamp | ✅ | **S37.27** Main Hub REDESIGNED (mockup-driven): nameplate (team+player) · resource bar · Menu (bell removed); Season|Week|Next-Race strip; nav row + new Calendar button; three always-visible panels TO-DO · NOTIFICATIONS (permanent column, no bell/slide-in) · NEWS (doubles as the weekly LOG until the news system exists); a 5-week player-events strip (+N more) above the advance buttons. Side panel + its 4 tabs deleted (standings → Racing World). Was the §18 hard-prerequisite for the notification loop — now unblocked. |
 | 18 | Starting driver too strong for a brand-new GK team | ✅ | **S37.14–S37.15** GK cadets age from 8 (no age skill bonus) + GK prodigy damping (raw entry band, high potential); potential now wide-normal across ALL pools; NEW TP `talent_scouting` stat drives a fuzzy Raw/Promising/Special read on the driver card (accuracy scales with the TP's eye, grows per season). |
 | 19 | HQ-WRA "not racing any" while in GK; news says racing all; false next-season reminder | ✅ | S36.6: HQ Overview + TP-slot panels now read player_registered_championships (were reading player_team_cars). Plus A-CP4 getter. Cluster-A display contradiction resolved. |
 | 20 | No notification for the last week to register for championships | ✅ | **S37.7** relocated the deadline block BEFORE the race-result early-return in advance_week() (root cause: race weeks skipped it). **S37.8** widened trigger to "this week or next", removed budget filter, added a 🔔 weekly-log line. **Confirmed in play.** |
@@ -84,7 +84,7 @@ A 1-event model now governs notifications (built this session; CFO + deadline mi
 - **✅ Fixed:** #2, #5, #8, #11, #13, #14, #19, #20, #23, #28, #31, #33, #47, #49. (Confirmed in play: #5, #11, #20, #47; rest by changelog — verify the S37.9–S37.13 batch in-engine: #2 interest count, #8 salary units, #13 sponsor amounts.)
 - **🟡 Fixed–needs in-engine verification:** #4, #6, #7, #9, #10, #15, #21, #24, #25, #29, #32, #35, #36, #37, #39, #42, #44, #45, #46, #48, #51.
 - **🟠 Known/latent or partial:** #22, #38. (#40 done S37.22; #3 verified-closed S37.21; #34 done S37.21; #50 done S37.19.)
-- **🔵 Backlog/feature (design work):** #17, #27.
+- **🔵 Backlog/feature (design work):** #27. (#17 hub revamp done S37.27.)
 - **⚪ Still open / not started:** #12, #26 (deferred — notification loop being redesigned). (#43 done S37.9; #18 done S37.14–15; #41 done S37.16; #1 done S37.17–18; #16 done S37.17; #50 done S37.19; #30 done S37.20.)
 
 ## Suggested next batch (the ⚪ Open, lowest-risk)
