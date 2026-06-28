@@ -1,3 +1,4 @@
+## Version: S37.31 — Added shared ResourceBar component to the header; refresh hooked into _refresh_header so resource changes update immediately.
 extends Control
 ## Version: S37.17 — #1: mechanic stat chips read REMOVED fields car_setup_skill/pit_stop_skill/
 ##   car_knowledge (always fell back to placeholder 50). Now read car_setup/pit_stops/parts_knowledge.
@@ -78,6 +79,9 @@ var _content:    VBoxContainer   ## swapped per tab
 var _tab_btns:   Dictionary = {} ## champ_id → Button
 
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
+var _resource_bar = null   ## S37.31 shared ResourceBar component
+const ResourceBarScript = preload("res://scenes/components/ResourceBar.gd")
+
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	## Default tab = first active championship that has a car, else first champ
@@ -102,6 +106,11 @@ func _build_ui() -> void:
 	var hdr = HBoxContainer.new()
 	hdr.add_theme_constant_override("separation", 14)
 	root.add_child(hdr)
+	# Shared resource bar (S37.31)
+	_resource_bar = ResourceBarScript.new()
+	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
+	hdr.add_child(_resource_bar)
+
 
 	_lbl_level = Label.new()
 	_lbl_level.add_theme_font_size_override("font_size", 44)
@@ -214,6 +223,8 @@ func _build_ui() -> void:
 
 # ── Header refresh ────────────────────────────────────────────────────────────
 func _refresh_header() -> void:
+	if _resource_bar != null and _resource_bar.has_method("refresh"):
+		_resource_bar.refresh()
 	var bld = GameState.campus_buildings.get("Garage", {})
 	_lbl_level.text  = "🔧 GARAGE  ·  Level %d" % bld.get("level", 1)
 	_lbl_slots.text  = "Cars: %d / %d" % [GameState.player_team_cars.size(), GameState.get_max_cars()]

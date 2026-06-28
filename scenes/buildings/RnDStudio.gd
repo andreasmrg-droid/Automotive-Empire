@@ -1,3 +1,4 @@
+## Version: S37.31 — Added shared ResourceBar component to the header; refresh hooked into _rebuild_studio so resource changes update immediately.
 extends Control
 ## Version: S35.21 — (1) P4 requirement messaging CONSOLIDATED: one "Required: 🏢 {Building} Lv X
 ##   &  🔬 Studio Lv Y" line (green if met, amber if not) replaces the old two-chip row + the
@@ -107,6 +108,9 @@ const PART_NAMES = ["Aero", "Engine", "Gearbox", "Suspension", "Brakes", "Chassi
 var _selected_pillar: int = 1
 var _selected_champ_id: String = ""   ## S35.12 — active championship tab
 
+var _resource_bar = null   ## S37.31 shared ResourceBar component
+const ResourceBarScript = preload("res://scenes/components/ResourceBar.gd")
+
 func _ready() -> void:
 	print(">>> RnDStudio S35.15 LOADED (scroll wraps blueprints only) <<<")
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -132,6 +136,11 @@ func _build_ui() -> void:
 	var header = HBoxContainer.new()
 	header.add_theme_constant_override("separation", 14)
 	root.add_child(header)
+	# Shared resource bar (S37.31)
+	_resource_bar = ResourceBarScript.new()
+	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
+	header.add_child(_resource_bar)
+
 
 	var lbl_title = Label.new()
 	lbl_title.text = Locale.t("rnd_title")
@@ -1166,6 +1175,8 @@ func _build_champ_tab_strip() -> Control:
 ## S35.12 — Rebuild the Studio in place (preserves _selected_champ_id + _selected_pillar)
 ## after a championship tab change.
 func _rebuild_studio() -> void:
+	if _resource_bar != null and _resource_bar.has_method("refresh"):
+		_resource_bar.refresh()
 	for c in get_children(): c.queue_free()
 	_build_ui()
 

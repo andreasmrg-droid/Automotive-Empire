@@ -1,3 +1,6 @@
+## Version: S37.31 — Resource bar: replaced hand-rolled CR/SP/FU header badges with the shared
+##   ResourceBar component (res://scenes/components/ResourceBar.gd); _refresh_header_labels() now
+##   drives it, so every existing buy-action refresh updates the shared bar immediately.
 extends Control
 ## Version: S37.20 — #30 text audit: fictionalized real-world trademark provider names
 ##   (IndyCar/WRC/NASCAR/WEC/Formula) to discipline-based fictional names per the IP rule.
@@ -42,6 +45,8 @@ var _active_tab:   int = 0
 var _lbl_cr:       Label
 var _lbl_sp:       Label
 var _lbl_fu:       Label
+var _resource_bar = null   ## S37.31 shared ResourceBar component
+const ResourceBarScript = preload("res://scenes/components/ResourceBar.gd")
 
 const DISC_COLORS = {
 	"GK":    Color(0.2, 0.8, 0.2), "Rally": Color(0.8, 0.5, 0.1),
@@ -80,13 +85,10 @@ func _build_ui() -> void:
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
 
-	# Stock badges in header — stored as vars so _switch_tab can refresh them
-	_lbl_cr = Label.new()
-	_lbl_sp = Label.new()
-	_lbl_fu = Label.new()
-	for lbl in [_lbl_cr, _lbl_sp, _lbl_fu]:
-		lbl.add_theme_font_size_override("font_size", 28)
-		header.add_child(lbl)
+	# Shared resource bar (S37.31) — replaces the old hand-rolled CR/SP/FU badges.
+	_resource_bar = ResourceBarScript.new()
+	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
+	header.add_child(_resource_bar)
 	_refresh_header_labels()
 
 	var back_btn = Button.new()
@@ -137,6 +139,9 @@ func _player_championships() -> Array:
 	return GameState.get_player_championships()
 
 func _refresh_header_labels() -> void:
+	## S37.31 — drives the shared ResourceBar (the old _lbl_cr/_sp/_fu badges were replaced).
+	if _resource_bar != null and _resource_bar.has_method("refresh"):
+		_resource_bar.refresh()
 	if not is_instance_valid(_lbl_cr): return
 	var cr_col = Color(0.4,0.9,0.4) if GameState.player_team.balance >= 0 else Color(1.0,0.3,0.3)
 	## SP/FU are POOLED totals shared across every championship the player races. Warn (red)

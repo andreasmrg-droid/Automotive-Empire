@@ -1,3 +1,4 @@
+## Version: S37.31 — Added shared ResourceBar component to the header; refresh hooked into _show_tab so resource changes update immediately.
 ## Version: S37.25 — popup-position: TP-assign popup CENTERED (symmetric ±210, was -250..0).
 extends Control
 ## Version: S37.10 — Type-3 sponsor card updated for the ANNUAL commitment model: shows
@@ -50,6 +51,9 @@ var _current_tab: String = "overview"
 var _tab_buttons: Dictionary = {}
 var _content_area: ScrollContainer
 
+var _resource_bar = null   ## S37.31 shared ResourceBar component
+const ResourceBarScript = preload("res://scenes/components/ResourceBar.gd")
+
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	## If a notification routed us here with a specific tab, set it before building
@@ -84,6 +88,11 @@ func _build_ui() -> void:
 	var header = HBoxContainer.new()
 	header.add_theme_constant_override("separation", 12)
 	root.add_child(header)
+	# Shared resource bar (S37.31)
+	_resource_bar = ResourceBarScript.new()
+	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
+	header.add_child(_resource_bar)
+
 
 	## S28.3 (Bug 5): team badge using the team's primary/secondary colors.
 	var badge = PanelContainer.new()
@@ -155,6 +164,8 @@ func _build_ui() -> void:
 
 
 func _show_tab(tab: String) -> void:
+	if _resource_bar != null and _resource_bar.has_method("refresh"):
+		_resource_bar.refresh()
 	_current_tab = tab
 
 	# Update tab button styles
