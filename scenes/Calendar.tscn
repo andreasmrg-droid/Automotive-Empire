@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://6c0ljf1e24cb"]
+
+[ext_resource type="Script" uid="uid://b7vqbsdpk4po5" path="res://scenes/Calendar.gd" id="1_r8h5a"]
+
+[node name="Calendar" type="Control" unique_id=1949389715]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_r8h5a")

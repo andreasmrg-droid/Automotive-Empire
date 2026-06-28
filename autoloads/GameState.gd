@@ -1,3 +1,6 @@
+## Version: S37.26 — Calendar: race_calendar.json loader (_load_race_calendar) +
+##   custom_calendar_events store (save/load/new-game reset) + get_calendar_manager()
+##   accessor (preload-based, no class_name dependency).
 ## Version: S37.19 — #50: _setup_part_inventory() removed the 3 free starting parts (seeds EMPTY)
 ##   and fixed a GK relic (seeded active_championship=legacy GK; now seeds the player's real
 ##   starting + car championships).
@@ -860,6 +863,16 @@ var pending_season_screen: String = ""
 ## CNC Production Queue: Array of Dicts
 ## {id, part, championship_id, weeks_total, weeks_remaining, cr_cost, quantity}
 var cnc_production_queue: Array = []
+
+## ── Season Calendar (S37.26) ─────────────────────────────────────────────────────
+## race_calendar_data: loaded once from res://data/race_calendar.json (static schedule for all
+##   21 championships). Read-only at runtime, NOT saved (reloaded from JSON each launch).
+## custom_calendar_events: the ONLY persisted calendar state. Player-created reminders.
+##   Each entry: { "week": int, "title": String, "note": String }.
+var race_calendar_data: Dictionary = {}
+var custom_calendar_events: Array = []
+const _CalendarManagerScript = preload("res://resources/scripts/CalendarManager.gd")
+var _calendar_manager = null   ## CalendarManager (untyped — avoids global-class parse-order error)
 ## Manufactured parts inventory: {"Aero": 2, "Engine": 1, ...}
 var cnc_parts_inventory: Dictionary = {}
 
@@ -1548,6 +1561,8 @@ func _ready() -> void:
 	_car_manager = CarManager.new(self)
 	_driver_manager = DriverManager.new(self)
 	_tp_engine = TPProposalEngine.new(self)
+	_calendar_manager = _CalendarManagerScript.new(self)   ## S37.26
+	_load_race_calendar()                                  ## S37.26
 	_sponsor_manager = SponsorManager.new(self)
 	_staff_manager = StaffManager.new(self)
 	_car_manager = CarManager.new(self)
@@ -3016,6 +3031,7 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 	retired_personnel = []
 	dismissed_todo_items = []
 	custom_todo_items    = []
+	custom_calendar_events = []   ## S37.26
 	active_rnd_tasks = []
 	completed_rnd_tasks = []
 	completed_bp_tasks  = []
@@ -3645,6 +3661,26 @@ func _autosave() -> void:
 	add_log("💾 Autosave slot %d — S%d W%d" % [slot, current_season, current_week])
 	add_notification("Normal", "💾 Game autosaved (slot %d)." % slot)
 
+## S37.26 — loads the static race calendar (all championships' schedules) from the data JSON.
+## Called once at engine init. Safe no-op if the file is missing.
+func _load_race_calendar() -> void:
+	var path := "res://data/race_calendar.json"
+	if not FileAccess.file_exists(path):
+		push_warning("race_calendar.json not found at %s — calendar races will be empty." % path)
+		return
+	var txt := FileAccess.get_file_as_string(path)
+	var parsed = JSON.parse_string(txt)
+	if typeof(parsed) == TYPE_DICTIONARY:
+		race_calendar_data = parsed
+	else:
+		push_warning("race_calendar.json did not parse to a Dictionary.")
+
+## S37.26 — cached CalendarManager accessor (preload-based, no class_name dependency).
+func get_calendar_manager():
+	if _calendar_manager == null:
+		_calendar_manager = _CalendarManagerScript.new(self)
+	return _calendar_manager
+
 func save_game() -> void:
 	var save_data = {
 		"version": 1,
@@ -3712,6 +3748,7 @@ func save_game() -> void:
 		"consecutive_win_counts":    consecutive_win_counts,
 		"gk_discipline":             gk_discipline.serialize() if gk_discipline else {},
 		"custom_todo_items":         custom_todo_items,
+		"custom_calendar_events":    custom_calendar_events,   ## S37.26
 	}
 
 	# Save all teams
@@ -3858,6 +3895,7 @@ func load_game(path: String = "user://save_game.json") -> void:
 	if "gk_discipline" in data and not data["gk_discipline"].is_empty():
 		gk_discipline.deserialize(data["gk_discipline"])
 	if "custom_todo_items" in data: custom_todo_items = data["custom_todo_items"]
+	if "custom_calendar_events" in data: custom_calendar_events = data["custom_calendar_events"]   ## S37.26
 
 	# Restore championship standings (all championships, keyed by id — see _serialize_all_…).
 	_setup_championship()

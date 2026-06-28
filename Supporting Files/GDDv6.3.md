@@ -1,6 +1,18 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v6.2 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+**Version:** v6.3 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v6.3: SEASON CALENDAR feature (S37.26). NEW §14.1 — a read-only full-season agenda scene
+	(res://scenes/Calendar.tscn) showing all 21 championships' races plus every other DATED event,
+	laid out in 4-week blocks down a vertical scroll. Data-driven: NEW res://data/race_calendar.json
+	(generated from the Excel "Race Calendar" sheet — all 295 rounds, keyed by championship id) is
+	the new single source of truth for schedules; the hardcoded CHAMPIONSHIP_CALENDARS in GameState
+	is now redundant (retire later). NEW CalendarManager engine (RefCounted, loaded via preload — no
+	class_name) aggregates races + registration deadlines + building/R&D/CNC completions + custom
+	player reminders into one week-indexed model. Custom reminders (＋ add / − remove, both with
+	tooltips) are the ONLY persisted calendar state (custom_calendar_events on GameState, save/load).
+	Race chip = "Championship · Round X/N" + city; GK = 21 rounds, Round 21 is the Week-46 two-race
+	weekend (Le Mans). Centered modal add-event popup. Next: Calendar button on the hub + the hub's
+	own 4–5-weeks-ahead strip (reuses CalendarManager.get_events_for_week). -->
 <!-- v6.2: two design rules added (S37.25). §15 — RESOURCE BAR is now MANDATORY in every in-game
 	scene (exceptions: modals + the four full-screen flow states); a scene missing it is a bug, and
 	wiring it in is part of "done." §15.1 + §18 — the MAIN HUB REDESIGN is a HARD PREREQUISITE
@@ -1048,6 +1060,53 @@ the AI world fully alive.
 
 ---
 
+## 14.1 SEASON CALENDAR — full-season agenda (S37.26)
+
+A read-only planning screen (`res://scenes/Calendar.tscn` + `Calendar.gd`) that aggregates every
+DATED thing in the world onto one week-indexed view. Reached from the Main Hub (Calendar nav
+button — *wiring pending*). Mandatory resource bar present (§15).
+
+**Layout.** A vertical scroll of 4-week BLOCKS (Weeks 1–4, 5–8, … 49–52); each block is a row of
+four week-cells. Every event in a week is a colored chip. The current week is highlighted. All 21
+championships are shown in full (no collapsing) — the player may eventually field cars in all of
+them, so "other" races are not hidden.
+
+**Event types & colors.**
+- **Your race** (blue) / **Other championship race** (gray) — `"Championship · Round X/N"` with the
+  city as subtitle. "Your race" = a championship in `player_registered_championships`.
+- **Registration deadline** (red) — from `get_entry_deadline_week(champ_id)`; these spread across
+  the back half of the season (Wk 11 GP1 … Wk 49 GK) because each championship's `design_weeks`
+  differs.
+- **Building / R&D / CNC completion** (amber) — derived live as `current_week + weeks_remaining`
+  from `campus_buildings`, `active_rnd_tasks`, `cnc_production_queue`.
+- **Custom reminder** (teal) — player-created.
+
+**Custom events.** A ＋ button (global, and per-week in each cell header) opens a CENTERED modal
+(week picker + title + optional note). Custom chips carry a − button to remove them. Both ＋ and −
+have tooltips. Custom reminders are **the only persisted calendar state** —
+`GameState.custom_calendar_events` (saved/loaded; cleared on new game). Everything else is
+recomputed on read, so it is never stale.
+
+**Data source — `res://data/race_calendar.json`.** Generated from the Excel *Race Calendar* sheet
+(all 295 rounds across 21 championships), keyed by championship id. Each round carries week, round,
+city, track_id, laps, hours, rain_probability, audience, points_scheme, and the sprint/playoff/
+double-race flags. This JSON is the intended single source of truth for schedules and is reused by
+the race sim and the AI Championship Sim (§14); the hardcoded `CHAMPIONSHIP_CALENDARS` in
+`GameState` is now redundant and should be retired in a focused pass. **GK** is 21 rounds; Round 21
+is the Week-46 two-race weekend (Le Mans) — follow the Excel exactly (per Rule #4 the Excel/code is
+truth, not an invented "Round 22").
+
+**Engine — `CalendarManager` (RefCounted).** Pure/headless-testable. `get_events_by_week()` /
+`get_all_events()` / `get_events_for_week(week)` build the unified event list; `add_custom_event` /
+`remove_custom_event` mutate the store. Loaded via `preload(...)` from `GameState.get_calendar_
+manager()` and the scene (no `class_name`, to avoid global-class parse-order errors). No new
+autoload — engine class + scene + a store on the existing `GameState` autoload.
+
+**Pending.** Add the Calendar button to the Main Hub nav; build the hub's own compact 4–5-weeks-
+ahead strip (same `CalendarManager.get_events_for_week()` source, no new data work).
+
+---
+
 ## 15. PLAYER NOTIFICATION & UI CONVENTIONS
 
 ### Notification system
@@ -1236,6 +1295,9 @@ RefCounted engine classes for headless multi-season testing.
 - **Resource bar everywhere (§15).** The shared top resource bar is required in every in-game
   scene (exceptions: modals + the four full-screen flow states). Wiring it in is part of "done"
   for any new or reworked scene.
+- **Season Calendar (§14.1, built S37.26).** Full-season agenda scene shipped; remaining wiring is
+  the hub Calendar button + the hub 4–5-week strip. `race_calendar.json` is the new schedule source
+  of truth (retire hardcoded `CHAMPIONSHIP_CALENDARS` later).
 
 **Realistic timeline:** playable balanced ECONOMIC sim (no race) ~3–5 months at a few focused
 sessions/week; full game with race integrated + balanced ~8–14 months (race sim + balance are
@@ -1270,6 +1332,17 @@ the wildcards). Biggest risk: scope creep — keep saying "backlog."
 ## 20. IMPLEMENTATION CHANGELOG (recent — newest first)
 
 Historical record of what shipped; design facts above already reflect these.
+
+- **S37.26 (Season Calendar — §14.1):** new read-only full-season agenda scene
+  (`Calendar.tscn`/`Calendar.gd`) in 4-week blocks showing all 21 championships' races (chip =
+  `Championship · Round X/N` + city), registration deadlines, building/R&D/CNC completions, and
+  custom player reminders (＋/− with tooltips, centered modal add popup). New data file
+  `res://data/race_calendar.json` generated from the Excel Race Calendar sheet (295 rounds, keyed
+  by champ id) — the intended schedule source of truth. New `CalendarManager` RefCounted engine
+  (preload-loaded, no `class_name`) aggregates all dated events; `custom_calendar_events` added to
+  `GameState` save/load/new-game-reset. GameState bumped S37.26 (loader + accessor + store). GK
+  kept at 21 rounds per the Excel (Round 21 = Wk 46 two-race weekend). Verified in-engine; popup
+  re-centered as a CanvasLayer modal; resource bar null-guarded for editor-direct runs.
 
 - **S37.9–S37.13 (salary units · interest rebalance · sponsor commitment redesign · results UI — bugs #8/#2/#13/#11):**
   - **Annual salary negotiation (S37.9, #8):** ContractNegotiation now negotiates salary as an ANNUAL
