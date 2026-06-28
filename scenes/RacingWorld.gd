@@ -508,6 +508,9 @@ func _build_world_card(cid: String, champ,
 				lbl_champ.add_theme_font_size_override("font_size", 22)
 				lbl_champ.modulate = Color(0.65, 0.6, 0.45)
 				info.add_child(lbl_champ)
+				## S37.48 — GK team champion: the cumulative GK constructors table (CP3) lives in
+				## champ.team_standings (preserved across the season, not the per-round driver wipe).
+				_add_gk_team_leader(info, champ, "🏆 Team Champion")
 			else:
 				## Mid-season: show GK round progress + an indicative leader (top driver across all
 				## shadow groups in the current round). GK is elimination-based, so this is the
@@ -524,6 +527,8 @@ func _build_world_card(cid: String, champ,
 					lbl_leader.add_theme_font_size_override("font_size", 22)
 					lbl_leader.modulate = Color(0.6, 0.6, 0.6)
 					info.add_child(lbl_leader)
+				## S37.48 — GK team leader (cumulative constructors table) mid-season too.
+				_add_gk_team_leader(info, champ, "Team")
 		else:
 			lbl_sub.text = "Round %d/%d" % [champ.current_round, champ.num_races]
 			info.add_child(lbl_sub)
@@ -569,6 +574,24 @@ func _build_world_card(cid: String, champ,
 	return panel
 
 ## ── Helpers ───────────────────────────────────────────────────────────────────
+
+## S37.48 — Adds a GK team (constructors) leader line to a world-card info column, reading the
+## cumulative GK team table (champ.team_standings, CP3). `prefix` labels it ("Team" / "Team Champion").
+func _add_gk_team_leader(info: VBoxContainer, champ, prefix: String) -> void:
+	var team_sorted = champ.get_team_standings_sorted()
+	if team_sorted.is_empty():
+		return
+	var t_name: String = team_sorted[0]["team_id"]
+	for t in GameState.all_teams:
+		if t.id == team_sorted[0]["team_id"]:
+			t_name = t.team_name; break
+	if team_sorted[0]["team_id"] == GameState.player_team.id:
+		t_name = GameState.player_team.team_name
+	var lbl_team = Label.new()
+	lbl_team.text = "%s: %s  ·  %d pts" % [prefix, t_name, team_sorted[0]["points"]]
+	lbl_team.add_theme_font_size_override("font_size", 22)
+	lbl_team.modulate = Color(0.55, 0.6, 0.55)
+	info.add_child(lbl_team)
 
 ## GK indicative leader for the world card: the top-points driver across ALL shadow groups in the
 ## current round (GK is elimination-based, so this is the current front-runner, not a season table).
