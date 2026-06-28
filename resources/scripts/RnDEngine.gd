@@ -1,4 +1,9 @@
 class_name RnDEngine
+## Version: S37.41 — Notification & News Roadmap, Phase 3 (events→notify_event). All 10 remaining
+##   RnDEngine notifications migrated: WRA regulation change → "news" (world event, whole grid);
+##   WRA approval → "event" routed to CNC Plant (actionable; the persistent "queue manufacturing"
+##   TDL covers the chore); the rest (CNC in production / ready / installed, R&D started / complete,
+##   RE complete, blueprint submitted) → "event", HQ/Garage/WRA-routed where actionable.
 ## Version: S37.37 — Notification & News Roadmap, Phase 1: blocking-error add_notification calls
 ##   converted to gs.show_popup() (on-the-spot AcceptDialog) — CNC manufacture guards (no blueprint /
 ##   plant not built / insufficient funds / not WRA-approved / season-locked), install guards (car
@@ -321,8 +326,8 @@ func _apply_wra_regulation_change() -> void:
 			to_wipe.append(bp_id)
 	for bp_id in to_wipe:
 		gs.known_blueprints.erase(bp_id)
-	gs.add_notification("Critical",
-		"WRA NEW REGULATIONS — Season %d! All Design and RE blueprints invalidated. %d blueprints lost. Teams must redesign from scratch." % [gs.current_season, wiped])
+	gs.notify_event("wra_regs_s%d" % gs.current_season, "Critical",
+		"WRA NEW REGULATIONS — Season %d! All Design and RE blueprints invalidated. %d blueprints lost. Teams must redesign from scratch." % [gs.current_season, wiped], "", "news")
 	gs.add_log("WRA Regulation Change — Season %d. %d blueprints wiped." % [gs.current_season, wiped])
 
 
@@ -379,7 +384,7 @@ func start_cnc_production(part: String, champ_id: String, quantity: int = 1) -> 
 	})
 	gs.add_log("⚙ CNC production started: %dx %s for %s (%d wks)" % [
 		quantity, part, gs.CHAMPIONSHIP_REGISTRY.get(champ_id,{}).get("name", champ_id), weeks])
-	gs.add_notification("Normal", "CNC: %dx %s in production. Ready in %d weeks." % [quantity, part, weeks])
+	gs.notify_event("cnc_prod_%s" % part, "Normal", "CNC: %dx %s in production. Ready in %d weeks." % [quantity, part, weeks], "", "event")
 	gs.emit_signal("log_updated")
 	return true
 
@@ -432,9 +437,9 @@ func _advance_cnc_production() -> void:
 		## approval being deleted, so it still clears correctly (see NotificationManager 8b).
 		gs.add_log("✅ CNC complete: %dx %s (%s) — Rel:%.0f%% Qual:%.2f× → warehouse." % [
 			qty, part, pcode, rel, qual])
-		gs.add_notification("High",
+		gs.notify_event("cnc_ready_%s" % part, "High",
 			"CNC complete: %dx %s ready in warehouse. Go to Garage to install it." % [qty, part],
-			"garage")
+			"garage", "event")
 	if not finished.is_empty():
 		gs.emit_signal("log_updated")
 
@@ -460,7 +465,7 @@ func assign_cnc_part_to_car(car_id: String, part: String) -> bool:
 	gs.car_installed_parts[car_id][part] = gs.car_installed_parts[car_id].get(part, 0) + 1
 	var cname = car.car_name if car.car_name != "" else "Car %d" % car.car_number
 	gs.add_log("🔩 %s CNC part installed on %s." % [part, cname])
-	gs.add_notification("Normal", "%s CNC part installed on %s." % [part, cname])
+	gs.notify_event("cnc_installed_%s" % part, "Normal", "%s CNC part installed on %s." % [part, cname], "", "event")
 	gs.emit_signal("log_updated")
 	return true
 
@@ -640,8 +645,8 @@ func start_cnc_job(blueprint_id: String, quantity: int = 1,
 	})
 	gs.add_log("⚙ CNC job queued: %dx %s — %dwks, CR %s, Rel %.0f%%, Qual %.2f×" % [
 		quantity, bp.get("name", blueprint_id), weeks, gs._fmt_int(total_cr), reliability, quality])
-	gs.add_notification("Normal", "CNC: %dx %s in production. Ready in %d weeks." % [
-		quantity, bp.get("part", blueprint_id), weeks])
+	gs.notify_event("cnc_prod_%s" % bp.get("part", blueprint_id), "Normal", "CNC: %dx %s in production. Ready in %d weeks." % [
+		quantity, bp.get("part", blueprint_id), weeks], "", "event")
 	gs.emit_signal("log_updated")
 	return true
 
@@ -870,7 +875,7 @@ func start_rnd_task(task_id: String, designer_id: String, championship_id: Strin
 		champ_label = " [%s]" % reg.get("name", championship_id)
 
 	gs.add_log("🔬 R&D started: %s%s (%d weeks)" % [task["name"], champ_label, task["weeks"]])
-	gs.add_notification("Normal", "R&D started: %s%s. Est. completion: Week %d." % [
+	gs.notify_event("rnd_started_%s" % task_id, "Normal", "R&D started: %s%s. Est. completion: Week %d." % [
 		task["name"], champ_label, gs.current_week + task["weeks"]])
 	gs.emit_signal("log_updated")
 	return true
@@ -969,11 +974,11 @@ func _advance_rnd_tasks() -> void:
 		gs.add_log("✅ R&D complete: %s%s" % [task["name"], champ_label])
 		if pillar == 3:
 			## RE complete — notify that WRA submission is now available AND P1 L2 is unlocked
-			gs.add_notification("High",
+			gs.notify_event("re_complete_%s" % task["id"], "High",
 				"RE complete: '%s'%s. Blueprint ready — submit to WRA Office in HQ. Also unlocks P1 Design L2 for this part." % [task["name"], champ_label],
-				"wra_office")
+				"wra_office", "event")
 		else:
-			gs.add_notification("High", "R&D complete: '%s'%s. Submit to WRA Office in HQ to manufacture." % [task["name"], champ_label], "wra_office")
+			gs.notify_event("rnd_complete_%s" % task["id"], "High", "R&D complete: '%s'%s. Submit to WRA Office in HQ to manufacture." % [task["name"], champ_label], "wra_office", "event")
 	gs.emit_signal("log_updated")
 
 ## S35.11 — Maps a part name to the Designer stat that governs its design quality.
@@ -1132,9 +1137,11 @@ func _advance_wra_submissions() -> void:
 		})
 		var bp = gs.known_blueprints.get(sub.blueprint_id, {})
 		gs.add_log("✅ WRA approved: %s" % bp.get("name", sub.blueprint_id))
-		gs.add_notification("High",
+		## S37.41 — WRA approval is ACTIONABLE: notification routes to the CNC Plant (not just WRA),
+		## and the persistent "queue manufacturing" TDL (NotificationManager) covers the chore.
+		gs.notify_event("wra_approved_%s" % sub.blueprint_id, "High",
 			"WRA approved: '%s'. Ready for CNC manufacturing." % bp.get("name", sub.blueprint_id),
-			"wra_office")
+			"cnc_plant", "event")
 
 
 func submit_to_wra(blueprint_id: String) -> bool:
@@ -1158,9 +1165,9 @@ func submit_to_wra(blueprint_id: String) -> bool:
 	})
 	gs.add_log("📋 WRA submission: %s. Decision in %d weeks." % [
 		bp.get("name", blueprint_id), weeks])
-	gs.add_notification("Normal",
+	gs.notify_event("wra_submitted_%s" % blueprint_id, "Normal",
 		"Blueprint submitted to WRA: '%s'. Decision in %d weeks." % [
-			bp.get("name", blueprint_id), weeks])
+			bp.get("name", blueprint_id), weeks], "", "event")
 	gs.emit_signal("log_updated")
 	return true
 
