@@ -1,4 +1,4 @@
-Project Structure - 2026-06-29T17:32:22
+Project Structure - 2026-06-29T20:46:43
 =====================================
 
 📁 data/
@@ -67,6 +67,8 @@ Project Structure - 2026-06-29T17:32:22
         📄 CalendarManager.gd.uid
         📄 AIChampionshipSim.gd
         📄 AIChampionshipSim.gd.uid
+        📄 CommercialMarketSim.gd
+        📄 CommercialMarketSim.gd.uid
     📄 AppTheme.tres
     📁 fonts/
         📄 InterVariable.ttf.import
@@ -193,6 +195,8 @@ Project Structure - 2026-06-29T17:32:22
         📄 ResourceBar.tscn
         📄 ResourceBar.gd
         📄 ResourceBar.gd.uid
+        📄 SharePie.gd
+        📄 SharePie.gd.uid
 📄 export_presets.cfg
 📄 FileStructureExporter.gd
 📄 FileStructureExporter.gd.uid
@@ -212,4 +216,4 @@ Project Structure - 2026-06-29T17:32:22
     📄 Notification_News_Roadmap_v1.md
     📄 GDD_Addition_S29.md
     📄 FEATURE_AI_Championship_Sim.md
-📄 project_structure.txt23892919350.tmp
+📄 project_structure.txt35553306530.tmp

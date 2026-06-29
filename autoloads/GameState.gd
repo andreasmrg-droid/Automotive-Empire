@@ -1,3 +1,27 @@
+## Version: S38.7 — News/notification routing fix (per design owner): segment-UNLOCK breadcrumb →
+##   notification (event), not news; START OF PRODUCTION (build_commercial_line) → news (a team
+##   entering a market). Blueprint-research-complete stays a notification (RnDEngine).
+## Version: S38.5 — Pillar-5 commercial models: championships_ever_raced ledger (permanent unlock
+##   breadcrumb; recorded at new-game/season-activation, saved/loaded, backfilled on old saves) +
+##   unlock notification. Commercial line API: build_commercial_line / facelift / nextgen /
+##   set_commercial_marketing + is_commercial_segment_unlocked / _blueprint_researched /
+##   commercial_free_lines. RnDEngine holds the 12 P5 blueprints; this owns the lines they create.
+## Version: S38.4 — Economy RE-TUNE (GDD §4.5, Option A): replaced the flat mean-reversion-to-50 drift
+##   in _update_economy_and_fuel with a slow ~5-season sine regime (centre ~28..72) + light noise +
+##   rare shocks, pulling the index toward the moving regime centre. The index now genuinely reaches
+##   Boom(>70)/Recession(<30) ~3–4× each per 25-season career (~92% Normal), reviving the dormant
+##   fuel/loan/speculation systems AND the commercial demand swings. _economy_phase0 desyncs careers;
+##   saved/loaded (pre-S38.4 saves get a fresh phase). Boom/recession state notifications now fire.
+## Version: S38.3 — Phase 3 cap anchor: rolling 4-week racing-income window (sponsors + race prizes
+##   + EOS) via register_racing_income() at every payout (RaceSimulator prize, all 5 SponsorManager
+##   sites) + get_avg_weekly_racing_income(); FinancialEngine's Factory 2× cap now tracks TOTAL
+##   racing income, not sponsor-only. Window saved/loaded. Also S38.2: commercial_lines + weekly
+##   market tick + CFO sales_factor; S38.1: owns/persists CommercialMarketSim.
+## Version: S38.1 — Phase 3 wiring: GameState now owns CommercialMarketSim (_commercial_market).
+##   Instantiated in _ready (restored via load) and in setup_new_game (seed_market(true) → staggered
+##   mid-life AI models). Serialized into save under "commercial_market"; load restores it, or seeds a
+##   fresh market for pre-Phase-3 saves so an in-progress career still gains the road-car industry.
+##   No income/UI yet — FinancialEngine (next) reads the engine's credits.
 ## Version: S37.64 — Week divider removed from NEWS (empty "--- Week N ---" lines were noise);
 ##   weekly dividers stay in the operational log only.
 ## Version: S37.63 — NEWS vs LOG split: added news_feed (curated world-news the NEWS panel renders)
@@ -322,6 +346,9 @@ var _financial_engine: FinancialEngine = null
 var _race_simulator: RaceSimulator = null
 ## S37.47 AI Championship Sim — lightweight result model for non-player, non-GK championships
 var _ai_championship_sim: AIChampionshipSim = null
+## S38.1 Commercial Market Sim — Phase 3 road-car market engine (attractiveness/redistribution,
+## 12 segments, lifecycle, demand). Pure RefCounted; GameState owns it and persists it via save/load.
+var _commercial_market: CommercialMarketSim = null
 ## P57 Contract Engine — owns negotiation, approach/bond, contracts
 var _contract_engine: ContractEngine = null
 ## P57 R&D Engine — owns R&D tasks, WRA, CNC production
@@ -660,6 +687,26 @@ var _dummy_championship: Championship = null
 
 var active_championships: Array = []           # All Championship objects running this season
 var player_registered_championships: Array = [] # IDs the player RACES this season (current). Activated from the ledger at season transition.
+
+## S38.5 — Pillar-5 unlock breadcrumb ledger: every championship the player has EVER raced (persists
+## across seasons/tier moves). Racing a championship with a Factory_Unlock permanently unlocks that
+## segment's commercial blueprint — so a player who climbed past RALLY4 keeps Economy Hatchbacks.
+var championships_ever_raced: Array = []
+
+## Record current registrations into the permanent ever-raced ledger (call whenever the player's
+## active registrations are (re)established — new game, season activation, mid-season registration).
+func _record_ever_raced() -> void:
+	for cid in player_registered_championships:
+		if not cid in championships_ever_raced:
+			championships_ever_raced.append(cid)
+			## Unlock breadcrumb: if this championship unlocks a commercial segment, nudge the player.
+			if _commercial_market != null:
+				var seg: String = _commercial_market.segment_for_championship(cid)
+				if seg != "":
+					notify_event("commercial_unlock_%s" % seg, "Normal",
+						"🏭 Racing %s unlocked the %s commercial segment — research its blueprint in the R&D Studio to build it on a Factory line." % [
+							CHAMPIONSHIP_REGISTRY.get(cid, {}).get("name", cid),
+							_commercial_market.segment_name(seg)], "rnd_studio", "event")
 ## NextSeasonLedger (S28.1, GDD §23.1): IDs the player has registered + paid for NEXT season.
 ## Populated by register_for_championship() during the current season. At start_new_season()
 ## this is copied into player_registered_championships, then cleared. NEVER raced from directly.
@@ -787,6 +834,9 @@ var simulating_to_season_end: bool = false
 
 ## Economy fluctuation internals
 var _economy_momentum:      float  = 0.0   ## carries weekly drift direction
+## S38.4 — random phase offset for the economy regime sine, so careers don't share a cycle.
+## Set once at new-game; persisted in save/load.
+var _economy_phase0:        float  = 0.0
 
 ## Derived read-only property: economy state label from economy_index
 var global_economy_state: String:
@@ -809,21 +859,156 @@ var _loan_next_id: int = 1
 ##
 ## Fuel: base = 800 + economy_index × 8 (range 800-1600 normally).
 ## Weekly move ±1-2% normally, ±5% shock at 3% chance. Hard cap 600-2000 CR.
+## S38.2 — CFO sales_factor for commercial income & share growth (GDD §4.0).
+## sales_factor = 0.75 + sales_skill/200  → 0.75 (no/weak CFO band) … 1.0 @50 … 1.25 @100.
+## NO CFO → Factory is OFF (handled by FinancialEngine: full upkeep, zero output), so this returns
+## the 0.75 floor only as a safe default; callers gate on get_cfo() != null first.
+func get_commercial_sales_factor() -> float:
+	var cfo := get_cfo()
+	if cfo == null:
+		return 0.75
+	return 0.75 + cfo.sales_skill / 200.0
+
+
+## S38.2 — Weekly commercial-market tick. Builds the player's per-segment inputs from the active
+## production lines and advances the attractiveness/redistribution engine one week. Pure share
+## dynamics only; credits are realized separately by FinancialEngine.process_weekly().
+func _tick_commercial_market() -> void:
+	if _commercial_market == null:
+		return
+	var sales_factor := get_commercial_sales_factor()
+	## No CFO → the Factory produces nothing and earns no share growth (GDD §4.0): advance the
+	## world market with NO player inputs so AI/giants still evolve, but the player stays static.
+	var player_inputs: Dictionary = {}
+	if get_cfo() != null:
+		var team_rep: float = float(player_team.reputation) if player_team != null else 50.0
+		for line in commercial_lines:
+			var seg: String = line.get("segment", "")
+			if seg == "":
+				continue
+			var age: float = float(line.get("age_seasons", 0.0))
+			player_inputs[seg] = {
+				"reputation": team_rep,
+				"marketing": float(line.get("marketing", 1.0)),
+				"age_seasons": age,
+				"freshness": CommercialMarketSim._freshness_for_age(age),
+				"active": true
+			}
+	_commercial_market.advance_week(player_inputs, sales_factor)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PILLAR-5 — COMMERCIAL LINE MANAGEMENT  (build / facelift / next-gen)  (S38.5)
+# ═══════════════════════════════════════════════════════════════════════════
+## A segment is UNLOCKED for commercial production once the player has raced its Factory_Unlock
+## championship (permanent, via the ever-raced ledger).
+func is_commercial_segment_unlocked(seg_key: String) -> bool:
+	if _commercial_market == null:
+		return false
+	var cid: String = _commercial_market.unlock_championship(seg_key)
+	return cid != "" and cid in championships_ever_raced
+
+## True once the Pillar-5 base blueprint for this segment has been researched (R&D task done).
+func is_commercial_blueprint_researched(seg_key: String) -> bool:
+	return ("P5_MODEL_%s" % seg_key) in completed_rnd_tasks
+
+## Free production lines = Factory level − lines already in use.
+func commercial_free_lines() -> int:
+	var factory = campus_buildings.get("Vehicle Assembly Factory", {})
+	if not factory.get("built", false) or factory.get("level", 0) < 1:
+		return 0
+	return int(factory.get("level", 1)) - commercial_lines.size()
+
+func has_commercial_line_for(seg_key: String) -> bool:
+	for line in commercial_lines:
+		if line.get("segment", "") == seg_key:
+			return true
+	return false
+
+## Build a new production line for a researched, unlocked segment (needs a CFO + a free line).
+## Returns "" on success or an error string for the caller to surface.
+func build_commercial_line(seg_key: String, model_name: String = "") -> String:
+	if _commercial_market == null or not _commercial_market.SEGMENTS.has(seg_key):
+		return "Unknown segment."
+	if get_cfo() == null:
+		return "A CFO is required to operate the Factory."
+	if not is_commercial_segment_unlocked(seg_key):
+		return "Segment locked — race its linked championship first."
+	if not is_commercial_blueprint_researched(seg_key):
+		return "Research the model blueprint in the R&D Studio first."
+	if has_commercial_line_for(seg_key):
+		return "A line is already running this segment."
+	if commercial_free_lines() <= 0:
+		return "No free production lines — upgrade the Factory."
+	var nm: String = model_name if model_name != "" else _commercial_market.segment_name(seg_key)
+	commercial_lines.append({
+		"segment": seg_key, "model_name": nm, "age_seasons": 0.0,
+		"marketing": 1.0, "researched_unlock": _commercial_market.unlock_championship(seg_key)
+	})
+	notify_event("commercial_line_built_%s" % seg_key, "Normal",
+		"🏭 New production line: %s (%s) is now manufacturing." % [nm, _commercial_market.segment_name(seg_key)],
+		"commercial_dept", "news")
+	return ""
+
+## Facelift — cheap mid-life refresh: knocks the model's age back, restoring competitiveness (§4.2).
+func facelift_commercial_line(seg_key: String) -> String:
+	for line in commercial_lines:
+		if line.get("segment", "") == seg_key:
+			line["age_seasons"] = max(0.0, float(line.get("age_seasons", 0.0)) - 6.0)
+			return ""
+	return "No line for that segment."
+
+## Next-Gen — expensive successor: fully resets the lifecycle clock (Escort→Focus).
+func nextgen_commercial_line(seg_key: String, new_model_name: String = "") -> String:
+	for line in commercial_lines:
+		if line.get("segment", "") == seg_key:
+			line["age_seasons"] = 0.0
+			if new_model_name != "":
+				line["model_name"] = new_model_name
+			return ""
+	return "No line for that segment."
+
+## Set the per-model marketing ratio (1.0 = recommended spend); clamped to a sane band.
+func set_commercial_marketing(seg_key: String, ratio: float) -> void:
+	for line in commercial_lines:
+		if line.get("segment", "") == seg_key:
+			line["marketing"] = clamp(ratio, 0.0, 2.0)
+			return
+
+
 func _update_economy_and_fuel() -> void:
 	## ── Economy index drift ───────────────────────────────────────────────────
 	var prev_state = global_economy_state  ## read derived property before update
 
-	## Mean-reversion pull toward 50 — stronger when further away
-	var mean_pull = (50.0 - economy_index) * 0.008
+	## S38.4 — Economy RE-TUNE (GDD §4.5, Option A). The old pure mean-reversion-to-50 kept the index
+	## trapped in a 35–67 band — it never reached Boom(>70) or Recession(<30) across a career, leaving
+	## the economy (and the fuel/loan/speculation systems that read it) practically flat. Replaced with
+	## a slow ~5-season sine "regime" whose CENTRE drifts between ~28 and ~72, plus light weekly noise
+	## and rare shocks. The index is pulled toward the moving regime centre rather than a fixed 50.
+	## Validated over 25-season careers: ~3–4 booms + ~3–4 recessions, ~92% of weeks Normal — genuine
+	## but rare cycles. Constants below are the tuned values; re-validate if changed.
+	const REGIME_PERIOD_WEEKS: float = 5.0 * 52.0   ## ~5 in-game seasons per full economic wave
+	const REGIME_AMPLITUDE: float    = 22.0          ## centre swings 50 ± 22 → ~28..72
+	const REGIME_PULL: float         = 0.05          ## how hard the index tracks the regime centre
+	const SHOCK_CHANCE: float        = 0.012         ## ~rare; a sharp ±7 jolt on top of the noise
 
-	## Random weekly drift ±0.5 with occasional shock week (2% chance) ±3-5
-	var drift = randf_range(-0.5, 0.5)
-	if randf() < 0.02:
-		drift = randf_range(-5.0, 5.0)   ## shock week
+	## Continuous global week drives the sine phase. _economy_phase0 (set at new-game) desyncs careers
+	## so two playthroughs don't share the same cycle.
+	var global_week: float = float((current_season - 1) * 52 + current_week)
+	var phase: float = _economy_phase0 + (global_week / REGIME_PERIOD_WEEKS) * TAU
+	var regime_centre: float = 50.0 + REGIME_AMPLITUDE * sin(phase)
+
+	## Pull toward the slowly-moving regime centre (replaces the old fixed-50 mean-reversion).
+	var pull: float = (regime_centre - economy_index) * REGIME_PULL
+
+	## Light weekly noise, with a rare shock week.
+	var noise: float = randf_range(-0.5, 0.5)
+	if randf() < SHOCK_CHANCE:
+		noise += randf_range(-7.0, 7.0)   ## shock week
 
 	## Momentum carries direction (smooths out jitter)
-	_economy_momentum = _economy_momentum * 0.85 + drift * 0.15
-	economy_index = clamp(economy_index + mean_pull + _economy_momentum, 0.0, 100.0)
+	_economy_momentum = _economy_momentum * 0.8 + noise * 0.2
+	economy_index = clamp(economy_index + pull + _economy_momentum, 0.0, 100.0)
 	current_loan_rate = clamp(4.0 + (economy_index / 100.0) * 8.0, 1.0, 12.0)
 	current_loan_rate = round(current_loan_rate * 10.0) / 10.0
 
@@ -960,6 +1145,45 @@ var fuel_kg: float = 30.0         # kg, starts with 2 races worth (15 kg × 1 ca
 
 # Car objects — replaces car_conditions dictionary
 var player_team_cars: Array = []  # Array of Car objects
+
+## S38.2 — Phase 3 player commercial production lines (the road-car business).
+## Factory level = number of available lines; each entry here is ONE active line running ONE model.
+## Populated by the Commercial Department screen (later unit) when the player researches a Pillar-5
+## blueprint and assigns it to a free line. Read by FinancialEngine for weekly income + company value.
+##   commercial_lines = [ {
+##      "segment": "supercars",        # CommercialMarketSim segment key
+##      "model_name": "Aria GT",       # player-named model (flavor)
+##      "age_seasons": 0.0,            # model lifecycle age (drives freshness)
+##      "marketing": 1.0,             # marketing_ratio the player set (1.0 = recommended spend)
+##      "researched_unlock": "C-010"  # the championship that unlocked it (breadcrumb/validation)
+##   }, ... ]
+var commercial_lines: Array = []
+
+## S38.3 — Rolling racing-income window (sponsors + race prizes + EOS), used by FinancialEngine to
+## anchor the Factory's hard 2× cap (GDD §4.4) to TOTAL racing income rather than sponsor-only.
+## register_racing_income() is called at every racing-credit payout; advance_week rolls the window.
+## A 4-week sum smooths out lumpy per-race/EOS payouts so the cap doesn't jump week to week.
+var _racing_income_window: Array = [0.0, 0.0, 0.0, 0.0]   ## last 4 weeks; [0] = current week
+var _racing_income_this_week: float = 0.0
+
+## Add a racing-income credit to the current week's tally (call AT each payout site).
+func register_racing_income(amount: float) -> void:
+	if amount > 0.0:
+		_racing_income_this_week += amount
+
+## Average weekly racing income over the rolling window (used as the cap anchor).
+func get_avg_weekly_racing_income() -> float:
+	var total: float = _racing_income_this_week
+	for v in _racing_income_window:
+		total += v
+	return total / float(_racing_income_window.size() + 1)
+
+## Roll the window forward one week (called once per advance_week, before income is registered).
+func _roll_racing_income_window() -> void:
+	_racing_income_window.push_front(_racing_income_this_week)
+	if _racing_income_window.size() > 4:
+		_racing_income_window.resize(4)
+	_racing_income_this_week = 0.0
 ## AI Team Manager — instantiated in _ready(), owns all AI generation logic
 var ai_manager: RefCounted = null
 
@@ -1636,6 +1860,7 @@ func _ready() -> void:
 	_financial_engine = FinancialEngine.new(self)
 	_race_simulator = RaceSimulator.new(self)
 	_ai_championship_sim = AIChampionshipSim.new(self)
+	_commercial_market = CommercialMarketSim.new()   ## S38.1 — seeded in setup_new_game / restored in load_game
 	_contract_engine = ContractEngine.new(self)
 	_rnd_engine = RnDEngine.new(self)
 	_notification_manager = NotificationManager.new(self)
@@ -3291,6 +3516,8 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 	_financial_engine = FinancialEngine.new(self)
 	_race_simulator = RaceSimulator.new(self)
 	_ai_championship_sim = AIChampionshipSim.new(self)
+	_commercial_market = CommercialMarketSim.new()   ## S38.1
+	_commercial_market.seed_market(true)             ## staggered mid-life AI models → mature industry on day one
 	_contract_engine = ContractEngine.new(self)
 	_rnd_engine = RnDEngine.new(self)
 	_notification_manager = NotificationManager.new(self)
@@ -3310,6 +3537,7 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 	## (next_season_registrations is the ledger for NEXT season; S1 needs this active now.)
 	if not _starting_champ_id in player_registered_championships:
 		player_registered_championships.append(_starting_champ_id)
+	_record_ever_raced()   ## S38.5 — seed the Pillar-5 unlock ledger
 	add_log("Welcome to Automotive Empire!")
 	var start_champ_name = CHAMPIONSHIP_REGISTRY.get(_starting_champ_id, {}).get("name", "Championship")
 	add_log("Season %d — %s" % [current_season, start_champ_name])
@@ -3440,6 +3668,7 @@ func _setup_player_team() -> void:
 	## Initialise economy — start at Normal (50)
 	economy_index = 50.0
 	_economy_momentum = 0.0
+	_economy_phase0 = randf() * TAU   ## S38.4 — desync each career's economic cycle
 	current_fuel_price = 1200.0
 	sp_market_pressure = 1.0   ## S35.5 — neutral SP market at game start
 	current_loan_rate = 5.0
@@ -3475,6 +3704,9 @@ func advance_week() -> void:
 
 	current_week += 1
 
+	## S38.3 — roll the racing-income window so this week's prizes/sponsor credits accumulate fresh.
+	_roll_racing_income_window()
+
 	## S35.7 — clear any "you walked away" entries from last week now that a week has passed.
 	clear_walked_away_approaches()
 	## Sponsor negotiation: fire counter notification when waiting week arrives
@@ -3494,6 +3726,8 @@ func advance_week() -> void:
 
 	## Update economy state and fuel price fluctuations
 	_update_economy_and_fuel()
+	## S38.2 — advance the commercial market AFTER the economy updates (demand reads economy_index).
+	_tick_commercial_market()
 	## S35.5 — weekly SP market-pressure drift (gentle supply/demand wobble on top of the economy).
 	_update_sp_market_pressure()
 
@@ -3788,6 +4022,12 @@ func _end_season() -> void:
 
 func start_new_season() -> void:
 	_season_manager.start_new_season()
+	## S38.2 — age the commercial market one season (AI auto-refresh near end-of-life) and age the
+	## player's own models so their freshness/lifecycle advances (§4.2).
+	if _commercial_market != null:
+		_commercial_market.advance_season()
+	for line in commercial_lines:
+		line["age_seasons"] = float(line.get("age_seasons", 0.0)) + 1.0
 
 func _create_championship(champ_id: String) -> Championship:
 	var reg = CHAMPIONSHIP_REGISTRY.get(champ_id, {})
@@ -4052,6 +4292,12 @@ func save_game() -> void:
 		"current_loan_rate":         current_loan_rate,
 		"economy_index":             economy_index,
 		"economy_momentum":          _economy_momentum,
+		"economy_phase0":            _economy_phase0,   ## S38.4
+		"commercial_market":         _commercial_market.to_dict() if _commercial_market else {},   ## S38.1
+		"commercial_lines":          commercial_lines,   ## S38.2 — player production lines
+		"championships_ever_raced":  championships_ever_raced,   ## S38.5 — Pillar-5 unlock ledger
+		"racing_income_window":      _racing_income_window,   ## S38.3 — cap anchor window
+		"racing_income_this_week":   _racing_income_this_week,
 		"sp_market_pressure":        sp_market_pressure,
 		"active_loans":              active_loans,
 		"loan_next_id":              _loan_next_id,
@@ -4210,6 +4456,24 @@ func load_game(path: String = "user://save_game.json") -> void:
 	if "current_loan_rate"         in data: current_loan_rate         = data["current_loan_rate"]
 	if "economy_index"             in data: economy_index             = float(data["economy_index"])
 	if "economy_momentum"          in data: _economy_momentum         = float(data["economy_momentum"])
+	## S38.4 — regime phase; pre-S38.4 saves get a fresh random phase so their economy starts cycling.
+	_economy_phase0 = float(data["economy_phase0"]) if "economy_phase0" in data else randf() * TAU
+	## S38.1 — Commercial market: restore if present; pre-Phase-3 saves get a fresh staggered seed
+	## so an in-progress career still gains the road-car industry.
+	if _commercial_market == null:
+		_commercial_market = CommercialMarketSim.new()
+	if "commercial_market" in data and data["commercial_market"] is Dictionary and not data["commercial_market"].is_empty():
+		_commercial_market.from_dict(data["commercial_market"])
+	else:
+		_commercial_market.seed_market(true)
+	commercial_lines = data.get("commercial_lines", [])   ## S38.2 (empty for pre-Phase-3 / no-Factory saves)
+	## S38.5 — Pillar-5 unlock ledger; backfill from current registrations for pre-S38.5 saves.
+	championships_ever_raced = data.get("championships_ever_raced", [])
+	for cid in player_registered_championships:
+		if not cid in championships_ever_raced:
+			championships_ever_raced.append(cid)
+	_racing_income_window = data.get("racing_income_window", [0.0, 0.0, 0.0, 0.0])   ## S38.3
+	_racing_income_this_week = float(data.get("racing_income_this_week", 0.0))
 	## S35.5 — SP market pressure; default 1.0 (neutral) for saves predating it.
 	sp_market_pressure = float(data.get("sp_market_pressure", 1.0))
 	if "active_loans"              in data: active_loans              = data["active_loans"]

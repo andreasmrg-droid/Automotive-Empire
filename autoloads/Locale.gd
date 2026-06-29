@@ -726,7 +726,7 @@ const STRINGS: Dictionary = {
 	"p_desc_2": { "en": "Upgrade Open parts on your owned cars.\nIn-season improvements carry to next season.", },
 	"p_desc_3": { "en": "Reverse-engineer Spec parts you own.\nTeam must have the part in the warehouse.", },
 	"p_desc_4": { "en": "Building-linked special projects.\nUnlocks unique team capabilities and bonuses.", },
-	"p_desc_5": { "en": "Research for the commercial car business.\nComing in a future update.", },
+	"p_desc_5": { "en": "Research road-car blueprints for the commercial business.\nRace a segment's championship to unlock it, then build it on a Factory line.", },
 }
 
 # ── Public API ────────────────────────────────────────────────────────────────

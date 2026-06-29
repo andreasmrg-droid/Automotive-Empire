@@ -1,4 +1,12 @@
 class_name FinancialEngine
+## Version: S38.3 — Factory 2× cap now anchored to TOTAL racing income (sponsors+prizes+EOS) via
+##   gs.get_avg_weekly_racing_income() (rolling window), replacing the sponsor-only anchor.
+## Version: S38.2 — Phase 3 Factory income. apply_commercial_income() (called in process_weekly after
+##   campus income) realizes per-line road-car sales: units=min(demand,capacity), credits=units×margin
+##   ×CREDIT_SCALE×sales_factor, minus per-model marketing (player ratio × 18%-of-gross recommended).
+##   CFO MANDATORY (no CFO → zero output; upkeep still charged via campus maintenance). Pillar-4
+##   "weekly_commercial_output" boosts capacity. calculate_company_value() now folds in commercial
+##   line asset value (~10× weekly gross per line). Reads gs._commercial_market + gs.commercial_lines.
 ## Version: S37.49 — Notification & News Roadmap, Phase 3 (events→notify_event). All 8 FinancialEngine
 ##   notifications migrated: the 4 recurring financial-distress warnings (insolvent / bankruptcy-risk /
 ##   negative-balance / low-funds) → "standing" so each week's state supersedes the last instead of
@@ -27,6 +35,7 @@ func _init(game_state) -> void:
 ## Master weekly financial tick — call this once from advance_week().
 func process_weekly() -> void:
 	apply_campus_income()
+	apply_commercial_income()   ## S38.2 — Phase 3 Factory road-car income
 	apply_weekly_expenses()
 	process_supply_contracts_weekly()
 	process_loans_weekly()
@@ -117,6 +126,62 @@ func apply_campus_income() -> void:
 		gs.player_team.balance += total_income
 	gs.player_team.balance -= total_maintenance
 	## Suppressed from log — shown as part of weekly P&L summary instead
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# COMMERCIAL CAR FACTORY INCOME  (Phase 3 — GDD §4.4 / §1 Commercial_Car_Sales_Income)
+# ═══════════════════════════════════════════════════════════════════════════
+## Weekly road-car business income. Each active production line realizes
+## sales = min(demand, capacity); credits = units × margin × CREDIT_SCALE × sales_factor.
+## Marketing (≈18% of gross at recommended) is netted out per line. CFO is MANDATORY: with no CFO
+## the Factory produces nothing but still burns building upkeep (campus maintenance already charges
+## that), so this simply earns zero. Pillar-4 "weekly_commercial_output" boosts capacity.
+func apply_commercial_income() -> void:
+	var market = gs._commercial_market
+	if market == null:
+		return
+	# CFO gate — no CFO → zero output (GDD §4.0). Upkeep is charged via apply_campus_income().
+	if gs.get_cfo() == null:
+		return
+	if gs.commercial_lines.is_empty():
+		return
+	var factory = gs.campus_buildings.get("Vehicle Assembly Factory", {})
+	if not factory.get("built", false) or factory.get("level", 0) < 1:
+		return
+	var factory_level: int = int(factory.get("level", 1))
+	var sales_factor: float = gs.get_commercial_sales_factor()
+	# Pillar-4 capacity bonus (smart-factory / monocoque projects), 0.0 if none completed.
+	var output_bonus: float = gs._rnd_engine.get_rnd_bonus("weekly_commercial_output")
+
+	var gross_total: float = 0.0
+	var marketing_total: float = 0.0
+	for line in gs.commercial_lines:
+		var seg: String = line.get("segment", "")
+		if seg == "":
+			continue
+		var gross: float = market.line_weekly_credits(
+			seg, gs.economy_index, factory_level, sales_factor, output_bonus)
+		# Marketing spend: player's marketing_ratio × the recommended (18%-of-gross) budget.
+		var marketing_ratio: float = float(line.get("marketing", 1.0))
+		var recommended: float = market.recommended_marketing(
+			seg, gs.economy_index, factory_level, sales_factor)
+		var spend: float = recommended * marketing_ratio
+		gross_total += gross
+		marketing_total += spend
+
+	var net: float = gross_total - marketing_total
+	## S38.3 — Hard 2× racing-income CAP (GDD §4.4), now anchored to TOTAL racing income (sponsors +
+	## race prizes + EOS) via GameState's rolling 4-week accumulator, not sponsor-only. This makes the
+	## cap track the full racing curve — including the GP1 prize-dominated pinnacle — and auto-scale
+	## across the career. A floor covers early weeks before the window has filled.
+	var racing_ref: float = gs.get_avg_weekly_racing_income()
+	racing_ref = max(racing_ref, 50000.0)   ## floor: a representative early/mid racing income
+	var cap: float = racing_ref * market.FACTORY_CAP_MULT
+	if net > cap:
+		net = cap
+	gs.player_team.balance += net
+	## Logged as part of the weekly P&L summary; a dedicated commercial breakdown lives in the
+	## Commercial Department screen (later unit).
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -330,6 +395,20 @@ func calculate_company_value() -> float:
 		var car_value = gs.get_provider_car_cost(car.championship_id) * 0.6 \
 			if car.championship_id != "" else 10000
 		value += car_value
+	## S38.2 — Commercial line asset value (GDD §1 Value_of_Commercial_Inventory): each active
+	## production line is a going concern worth ~10 weeks of its current gross output.
+	var market = gs._commercial_market
+	if market != null and not gs.commercial_lines.is_empty() and gs.get_cfo() != null:
+		var factory = gs.campus_buildings.get("Vehicle Assembly Factory", {})
+		if factory.get("built", false) and factory.get("level", 0) >= 1:
+			var flevel: int = int(factory.get("level", 1))
+			var sfactor: float = gs.get_commercial_sales_factor()
+			var obonus: float = gs._rnd_engine.get_rnd_bonus("weekly_commercial_output")
+			for line in gs.commercial_lines:
+				var seg: String = line.get("segment", "")
+				if seg == "":
+					continue
+				value += market.line_weekly_credits(seg, gs.economy_index, flevel, sfactor, obonus) * 10.0
 	return value
 
 

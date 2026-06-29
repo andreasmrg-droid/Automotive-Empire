@@ -1,3 +1,9 @@
+## Version: S38.8 — P5 card requirements line: Factory removed as a research blocker (shown only as
+##   a "then build on a Factory line" hint); matches the engine gate (research needs Studio + raced
+##   champ only). Locked cards still show the cost preview.
+## Version: S38.7 — P5 locked cards now show a cost preview (RP/CR/weeks) so the player can plan
+##   toward an unlock (generic cost chips only render once unlocked). Pairs with calibrated costs.
+## Version: S38.6 — Pillar 5 (Commercial Cars R&D) is now LIVE. The P5 tab is selectable; _build_p5_catalog lists the 12 P5_MODEL blueprints via the generic task card; a P5 requirements line shows the unlock-champ + Factory + Studio gate status; the redundant lock sentence is suppressed for P5 (Required line covers it). Removed the coming-soon stub path. Research flow (RP/CR/designer) reuses the existing P4-style plumbing.
 ## Version: S37.35 — Standard minimal header [Name][Resource Bar][Back][Main Hub]; RP storage box +
 ##   balance moved to a sub-row below the header (Main Hub concept). Refresh hooked into _rebuild_studio.
 extends Control
@@ -221,15 +227,11 @@ func _build_ui() -> void:
 		if p == _selected_pillar:
 			btn.modulate = PILLAR_COLORS[p]
 		var pid = p
-		if pid == 5:
-			## S29.10 — Pillar 5 (Commercial Cars R&D) is a stub for a future update.
-			btn.modulate = PILLAR_COLORS[5].darkened(0.15)
-			btn.pressed.connect(_show_p5_coming_soon)
-		else:
-			btn.pressed.connect(func():
-				GameState.pending_rnd_pillar = pid
-				get_tree().change_scene_to_file("res://scenes/buildings/RnDStudio.tscn")
-			)
+		## S38.6 — Pillar 5 (Commercial Cars R&D) is now LIVE: select it like any other tab.
+		btn.pressed.connect(func():
+			GameState.pending_rnd_pillar = pid
+			get_tree().change_scene_to_file("res://scenes/buildings/RnDStudio.tscn")
+		)
 		tab_bar.add_child(btn)
 
 	root.add_child(_hsep())
@@ -546,7 +548,7 @@ func _build_catalog_column(parent: VBoxContainer) -> void:
 		2: _build_p2_catalog(inner, free_designers)
 		3: _build_p3_catalog(inner, free_designers)
 		4: _build_p4_catalog(inner, free_designers)
-		5: inner.add_child(_lbl_empty(Locale.t("p5_catalog_stub")))
+		5: _build_p5_catalog(inner, free_designers)
 
 
 
@@ -870,6 +872,36 @@ func _build_p4_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 		parent.add_child(_lbl_empty(Locale.t("rnd_no_special")))
 
 
+# ── P5: Commercial Cars R&D (model blueprints) ────────────────────────────────
+## S38.6 — Pillar 5 catalog: the 12 commercial-model blueprints. Each is gated on having RACED the
+## segment's unlock championship + the Factory + the Studio level (the requirements line on each card
+## explains what's missing). Researching one lets the player build that model on a Factory line in the
+## Commercial Department. Cards reuse the generic _build_task_card (same costs/designer/assign flow).
+func _build_p5_catalog(parent: VBoxContainer, free_designers: Array) -> void:
+	## Short intro so the player understands the race→research→build loop.
+	var intro = Label.new()
+	intro.text = "Commercial model blueprints. Race a segment's linked championship to unlock it, research the blueprint here, then build it on a production line in the Commercial Department (needs a CFO)."
+	intro.add_theme_font_size_override("font_size", 20)
+	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	intro.add_theme_color_override("font_color", Color(0.7, 0.72, 0.78))
+	parent.add_child(intro)
+	parent.add_child(_hsep())
+
+	var any = false
+	## Order the 12 models by their unlock championship id for a stable, sensible list.
+	var p5_ids: Array = []
+	for task_id in GameState.RND_TASKS:
+		if GameState.RND_TASKS[task_id].get("pillar", 0) == 5:
+			p5_ids.append(task_id)
+	p5_ids.sort_custom(func(a, b):
+		return GameState.RND_TASKS[a].get("unlock_champ", "") < GameState.RND_TASKS[b].get("unlock_champ", ""))
+	for task_id in p5_ids:
+		parent.add_child(_build_task_card(task_id, GameState.RND_TASKS[task_id], free_designers, ""))
+		any = true
+	if not any:
+		parent.add_child(_lbl_empty("No commercial models available."))
+
+
 # ── Generic task card ──────────────────────────────────────────────────────────
 func _build_task_card(task_id: String, task: Dictionary, free_designers: Array, champ_id: String, extra_tasks: Dictionary = {}) -> PanelContainer:
 	return _build_task_card_with_unlock(task_id, task, free_designers, champ_id, extra_tasks, GameState.rnd_task_unlocked(task_id))
@@ -973,6 +1005,46 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 				Color(0.45, 0.88, 0.45) if all_ok else Color(0.85, 0.6, 0.4))
 			vbox.add_child(lbl_req)
 
+	## S38.6 — Pillar 5 requirements line: which championship to race (unlock), the Factory, and the
+	## Studio level. Mirrors the P4 consolidated line; green when every gate is met, amber otherwise.
+	if task.get("pillar", 0) == 5 and not is_done:
+		var p5_segs: Array = []
+		var p5_ok = true
+		var ucid: String = task.get("unlock_champ", "")
+		if ucid != "":
+			var raced: bool = ucid in GameState.championships_ever_raced
+			if not raced: p5_ok = false
+			var cname: String = GameState.CHAMPIONSHIP_REGISTRY.get(ucid, {}).get("name", ucid)
+			p5_segs.append(("✅ Raced %s" % cname) if raced else ("Race %s" % cname))
+		var fbname := "Vehicle Assembly Factory"
+		var fb = GameState.campus_buildings.get(fbname, {})
+		var fb_lv = int(fb.get("level", 0)) if fb.get("built", false) else 0
+		var min_studio5 = int(task.get("Required_RnD_Studio_Level", 1))
+		if min_studio5 > 1:
+			var st = GameState.campus_buildings.get("R&D Design Studio", {})
+			var st_lv = int(st.get("level", 0)) if st.get("built", false) else 0
+			if st_lv < min_studio5: p5_ok = false
+			p5_segs.append("🔬 Studio Lv %d" % min_studio5)
+		## Factory is NOT a research gate (only needed to BUILD the line) — shown as a hint, not a block.
+		if fb_lv < 1:
+			p5_segs.append("then 🏢 a Factory line to build")
+		var lbl_p5 = Label.new()
+		lbl_p5.text = "Required: " + " & ".join(p5_segs)
+		lbl_p5.add_theme_font_size_override("font_size", 20)
+		lbl_p5.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lbl_p5.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lbl_p5.add_theme_color_override("font_color",
+			Color(0.45, 0.88, 0.45) if p5_ok else Color(0.85, 0.6, 0.4))
+		vbox.add_child(lbl_p5)
+		## S38.7 — show the cost preview even while LOCKED so the player can plan toward it
+		## (the generic cost chips only render once unlocked, in the else branch below).
+		if not unlocked:
+			var lbl_cost = Label.new()
+			lbl_cost.text = "Cost: 🔵 %d RP   💰 CR %s   ⏱ %d wks" % [task["rp"], _fmt(task["cr"]), task["weeks"]]
+			lbl_cost.add_theme_font_size_override("font_size", 20)
+			lbl_cost.add_theme_color_override("font_color", Color(0.6, 0.62, 0.68))
+			vbox.add_child(lbl_cost)
+
 	# Row 2: costs / lock / assign
 	var row2 = HBoxContainer.new()
 	row2.add_theme_constant_override("separation", 10)
@@ -1026,6 +1098,10 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 				lbl_lock.text = Locale.t("rnd_lock_requires") % req4_name
 			else:
 				lbl_lock.text = ""   ## building/studio reason already shown by the Required: line
+		elif task.get("pillar", 0) == 5:
+			## S38.6 — P5 gates (unlock champ + factory + studio) are all shown by the "Required:"
+			## line above, so no separate lock sentence is needed here.
+			lbl_lock.text = ""
 		elif req_l1 != "":
 			## S35.11 — P1 L2 gates on an L1 blueprint existing from EITHER P1 or P3.
 			lbl_lock.text = Locale.t("rnd_lock_needs_l1")

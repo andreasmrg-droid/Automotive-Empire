@@ -1,4 +1,7 @@
 class_name SponsorManager
+## Version: S38.3 — register_racing_income() added at all 5 sponsor payout sites (weekly active,
+##   multi-sponsor weekly, commitment annual at sign + at season start, performance bonus) so the
+##   Factory income cap (FinancialEngine) can anchor to total racing income. Payout logic unchanged.
 ## Version: S37.41 — Notification & News Roadmap, Phase 3 (events→notify_event). All 17 SponsorManager
 ##   notifications migrated: 2 blocking errors → show_popup (no-CFO defensive guard, slots full); the
 ##   rest → "event" (sponsor offers found/received, signed, expired, fulfilled, paid, cancelled,
@@ -105,6 +108,7 @@ func _apply_sponsor_income() -> void:
 	if gs.active_sponsor.is_empty():
 		return
 	var payment = gs.active_sponsor["current_weekly"]
+	gs.register_racing_income(payment)   ## S38.3 — cap anchor
 	gs.player_team.balance += payment
 	gs.add_log("💼 %s: +CR %d" % [gs.active_sponsor["name"], payment])
 
@@ -365,6 +369,7 @@ func sign_sponsor(sponsor_id: String) -> bool:
 		## current season's race set, pay the first instalment now so signing mid-season isn't dead.
 		var already_running: bool = offer.championship_id in gs.player_registered_championships
 		if already_running:
+			gs.register_racing_income(offer.annual_payment)   ## S38.3 — cap anchor
 			gs.player_team.balance += offer.annual_payment
 			offer.seasons_paid = 1
 			gs.add_log("💰 %s: +CR %s (Season %d instalment) — requires racing %s for %d seasons." % [
@@ -431,6 +436,7 @@ func _process_sponsors_weekly() -> void:
 	## Pay active sponsors
 	for sp in gs.active_sponsors:
 		if sp.type == 1:
+			gs.register_racing_income(sp.weekly_payment)   ## S38.3 — cap anchor
 			gs.player_team.balance += sp.weekly_payment
 
 ## Applies sponsor bonuses for podiums/win.
@@ -469,6 +475,7 @@ func apply_sponsor_race_bonuses(position: int = -1) -> void:
 			bonus = sp.podium_bonus
 
 		if bonus > 0:
+			gs.register_racing_income(bonus)   ## S38.3 — cap anchor
 			gs.player_team.balance += bonus
 			gs.add_log("💰 Sponsor bonus: CR %s from %s (P%d)." % [gs._fmt_int(bonus), sp.name, final_position])
 
@@ -510,6 +517,7 @@ func _process_sponsor_annual_payments() -> void:
 		var cn = gs.CHAMPIONSHIP_REGISTRY.get(sp.championship_id, {}).get("name", sp.championship_id)
 		var registered: bool = sp.championship_id in gs.player_registered_championships
 		if registered:
+			gs.register_racing_income(sp.annual_payment)   ## S38.3 — cap anchor
 			gs.player_team.balance += sp.annual_payment
 			sp.seasons_paid = paid + 1
 			gs.add_log("💰 %s: +CR %s (Season %d of %d for racing %s)." % [

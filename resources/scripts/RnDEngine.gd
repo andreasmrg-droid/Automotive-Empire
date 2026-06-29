@@ -1,4 +1,37 @@
 class_name RnDEngine
+## Version: S39.2 — RP storage cap FIX (pre-existing bug, surfaced by Pillar 5): the old flat
+##   800+(level-1)*400 cap was far below what P4 Special Projects and P5 blueprints cost at their
+##   required Studio level (e.g. SP_RACE_4 = 50,000 RP at Lv3, cap was 1,600), so those projects could
+##   NEVER be researched. get_rnd_rp_storage_cap() is now DYNAMIC: 15% above the priciest P4/P5 project
+##   unlockable at the current Studio level (floored at the old linear value so it still grows/level).
+## Version: S39.0 — Pillar-5 economics OVERHAUL (per design owner + 100-season re-sim). The prior
+##   premise (commercial design EASIER than racing) was wrong: a road-car design DWARFS a racing car.
+##   CR/RP/weeks are now EARNING-TIED (≈3.5 mature seasons of the segment's own net income, floored at
+##   25M so every road-car design stays above the 20M GP1 car). CR 25M–96M, RP 4000–12100 (=1.5–4.4×
+##   a full racing car's design RP), weeks 40–121. Validated: 12/12 segments pay back in 3–8 seasons,
+##   market stable, no runaways. Pairs with the 3× halo volume boost in CommercialMarketSim.
+## Version: S38.9 — Pillar-5 CR RE-ANCHORED to real-world proportionality (per design owner): a
+##   road-car DESIGN program in reality dwarfs a racing car (game encodes GP1 car=20M, Le Mans=6M;
+##   real road-car design = hundreds of millions to billions). Blueprint CR is now a proper MULTIPLE
+##   of the racing-car cost: 28M (niche premium) → 120M (megacar) = ~1.4×–6× a GP1 car, peer to the
+##   Pillar-4 Factory projects (18M–110M). Replaces the inverted S38.8 values (300K–1.6M) that made
+##   a road-car design CHEAPER than a racing car. RP/weeks unchanged (RP per the racing−25% rule).
+## Version: S38.8 — Pillar-5 fixes (per design owner): (1) Factory-built is NO LONGER a RESEARCH
+##   gate — you research the design in the Studio, the Factory is only needed to BUILD the line
+##   (enforced in build_commercial_line). (2) CR RE-ANCHORED to the GAME credit scale: priced off
+##   the equivalent racing-car L1+L2 design CR × tier × small commercial premium − 25% (NOT real
+##   USD — the prior 2.4M–15.8M values wrongly exceeded a whole racing operation). New CR 300K–
+##   1.63M ≈ 3–7 weeks of racing income at the unlock tier. RP/weeks unchanged.
+## Version: S38.7 — Pillar-5 catalog RP/CR/weeks CALIBRATED: RP = (full racing-car L1+L2 design RP
+##   for the unlock champ × tier) − 25% (per design owner); CR scaled from the racing part-set
+##   comparator × commercial-design market multiplier (Mass/Premium/Hyper); weeks anchored to the
+##   real-world design-only timeline (~38wk economy … 156wk hyper). Values: RP 2050–5120, CR 2.4M–
+##   15.8M, weeks 38–156.
+## Version: S38.5 — Pillar-5 commercial-model catalog: 12 "P5_MODEL_<segment>" blueprints (one per
+##   segment, RP/CR/weeks/Studio-level scaled by prestige) merged into the static R&D tasks. New
+##   pillar-5 gate in rnd_task_unlocked (Factory built + Studio level + the segment's unlock champ in
+##   gs.championships_ever_raced). Completion routes a "build it on a Factory line" notification to
+##   the Commercial Department (no WRA/CNC — commercial models skip the racing-parts pipeline).
 ## Version: S37.63 — WRA regulation change routed to news_feed (log_news). R&D/CNC/blueprint
 ##   completions stay on add_log (development = notifications, not news).
 ## Version: S37.41 — Notification & News Roadmap, Phase 3 (events→notify_event). All 10 remaining
@@ -307,7 +340,19 @@ func _build_rnd_tasks_for_season(season: int) -> Dictionary:
 		"SP_FAC_1": {"name":"Automated Robotic Assembly Line Engineering","pillar":4,"part":"Factory","weeks":45,"rp":10000,"cr":18000000,"effect":"commercial_production_cost_reduction","value":0.10,"Required_RnD_Studio_Level":4,"building":"Vehicle Assembly Factory","min_building_level":4,"desc":"−10% commercial production cost."},
 		"SP_FAC_2": {"name":"Conveyor Mass Production Customization","pillar":4,"part":"Factory","weeks":62,"rp":18500,"cr":32000000,"effect":"msrp_pricing_flexibility","value":0.12,"Required_RnD_Studio_Level":6,"building":"Vehicle Assembly Factory","min_building_level":6,"desc":"+12% MSRP pricing flexibility."},
 		"SP_FAC_3": {"name":"Monocoque Chassis Marriage Rig Arrays","pillar":4,"part":"Factory","weeks":86,"rp":30000,"cr":55000000,"effect":"weekly_commercial_output","value":0.15,"Required_RnD_Studio_Level":9,"building":"Vehicle Assembly Factory","min_building_level":9,"desc":"+15% weekly commercial output."},
-		"SP_FAC_4": {"name":"Cybernetic Smart-Factory Swarm Architecture","pillar":4,"part":"Factory","weeks":144,"rp":65000,"cr":110000000,"effect":"weekly_output_and_pricing","value":0.30,"Required_RnD_Studio_Level":12,"building":"Vehicle Assembly Factory","min_building_level":12,"desc":"+30% output and pricing power."}
+		"SP_FAC_4": {"name":"Cybernetic Smart-Factory Swarm Architecture","pillar":4,"part":"Factory","weeks":144,"rp":65000,"cr":110000000,"effect":"weekly_output_and_pricing","value":0.30,"Required_RnD_Studio_Level":12,"building":"Vehicle Assembly Factory","min_building_level":12,"desc":"+30% output and pricing power."},
+		"P5_MODEL_economy_hatch": {"name":"Economy Hatchbacks — Commercial Model Blueprint","pillar":5,"part":"Commercial","segment":"economy_hatch","weeks":40,"rp":4000,"cr":25000000,"effect":"","value":0.0,"unlock_champ":"C-005","Required_RnD_Studio_Level":4,"building":"Vehicle Assembly Factory","min_building_level":1,"desc":"Unlocks Economy Hatchbacks production. Build it on a Factory line once researched (needs a CFO)."},
+		"P5_MODEL_hot_hatch": {"name":"AWD Hot Hatches — Commercial Model Blueprint","pillar":5,"part":"Commercial","segment":"hot_hatch","weeks":43,"rp":4350,"cr":28000000,"effect":"","value":0.0,"unlock_champ":"C-006","Required_RnD_Studio_Level":5,"building":"Vehicle Assembly Factory","min_building_level":1,"desc":"Unlocks AWD Hot Hatches production. Build it on a Factory line once researched (needs a CFO)."},
+		"P5_MODEL_rally_replica": {"name":"Rally Replica Sedans — Commercial Model Blueprint","pillar":5,"part":"Commercial","segment":"rally_replica","weeks":40,"rp":4000,"cr":25000000,"effect":"","value":0.0,"unlock_champ":"C-007","Required_RnD_Studio_Level":6,"building":"Vehicle Assembly Factory","min_building_level":1,"desc":"Unlocks Rally Replica Sedans production. Build it on a Factory line once researched (needs a CFO)."},
+		"P5_MODEL_ev_flagship": {"name":"EV Hybrid Flagships — Commercial Model Blueprint","pillar":5,"part":"Commercial","segment":"ev_flagship","weeks":121,"rp":12100,"cr":96000000,"effect":"","value":0.0,"unlock_champ":"C-008","Required_RnD_Studio_Level":9,"building":"Vehicle Assembly Factory","min_building_level":1,"desc":"Unlocks EV Hybrid Flagships production. Build it on a Factory line once researched (needs a CFO)."},
+		"P5_MODEL_entry_sports": {"name":"Entry Sports Cars — Commercial Model Blueprint","pillar":5,"part":"Commercial","segment":"entry_sports","weeks":40,"rp":4000,"cr":25000000,"effect":"","value":0.0,"unlock_champ":"C-009","Required_RnD_Studio_Level":5,"building":"Vehicle Assembly Factory","min_building_level":1,"desc":"Unlocks Entry Sports Cars production. Build it on a Factory line once researched (needs a CFO)."},
+		"P5_MODEL_supercars": {"name":"Supercars — Commercial Model Blueprint","pillar":5,"part":"Commercial","segment":"supercars","weeks":40,"rp":4000,"cr":25000000,"effect":"","value":0.0,"unlock_champ":"C-010","Required_RnD_Studio_Level":10,"building":"Vehicle Assembly Factory","min_building_level":1,"desc":"Unlocks Supercars production. Build it on a Factory line once researched (needs a CFO)."},
+		"P5_MODEL_pickups": {"name":"Utility Pickups — Commercial Model Blueprint","pillar":5,"part":"Commercial","segment":"pickups","weeks":50,"rp":5050,"cr":34000000,"effect":"","value":0.0,"unlock_champ":"C-015","Required_RnD_Studio_Level":5,"building":"Vehicle Assembly Factory","min_building_level":1,"desc":"Unlocks Utility Pickups production. Build it on a Factory line once researched (needs a CFO)."},
+		"P5_MODEL_pony": {"name":"Pony Cars — Commercial Model Blueprint","pillar":5,"part":"Commercial","segment":"pony","weeks":40,"rp":4000,"cr":25000000,"effect":"","value":0.0,"unlock_champ":"C-016","Required_RnD_Studio_Level":6,"building":"Vehicle Assembly Factory","min_building_level":1,"desc":"Unlocks Pony Cars production. Build it on a Factory line once researched (needs a CFO)."},
+		"P5_MODEL_v8_sedan": {"name":"V8 Sports Sedans — Commercial Model Blueprint","pillar":5,"part":"Commercial","segment":"v8_sedan","weeks":70,"rp":6950,"cr":51000000,"effect":"","value":0.0,"unlock_champ":"C-017","Required_RnD_Studio_Level":8,"building":"Vehicle Assembly Factory","min_building_level":1,"desc":"Unlocks V8 Sports Sedans production. Build it on a Factory line once researched (needs a CFO)."},
+		"P5_MODEL_track_day": {"name":"Track Day Specials — Commercial Model Blueprint","pillar":5,"part":"Commercial","segment":"track_day","weeks":40,"rp":4000,"cr":25000000,"effect":"","value":0.0,"unlock_champ":"C-019","Required_RnD_Studio_Level":7,"building":"Vehicle Assembly Factory","min_building_level":1,"desc":"Unlocks Track Day Specials production. Build it on a Factory line once researched (needs a CFO)."},
+		"P5_MODEL_bespoke_hyper": {"name":"Bespoke Hypercars — Commercial Model Blueprint","pillar":5,"part":"Commercial","segment":"bespoke_hyper","weeks":40,"rp":4000,"cr":25000000,"effect":"","value":0.0,"unlock_champ":"C-020","Required_RnD_Studio_Level":11,"building":"Vehicle Assembly Factory","min_building_level":1,"desc":"Unlocks Bespoke Hypercars production. Build it on a Factory line once researched (needs a CFO)."},
+		"P5_MODEL_megacars": {"name":"Limited Run Megacars — Commercial Model Blueprint","pillar":5,"part":"Commercial","segment":"megacars","weeks":40,"rp":4000,"cr":25000000,"effect":"","value":0.0,"unlock_champ":"C-024","Required_RnD_Studio_Level":12,"building":"Vehicle Assembly Factory","min_building_level":1,"desc":"Unlocks Limited Run Megacars production. Build it on a Factory line once researched (needs a CFO)."},
 	}
 	for k in p4: tasks[k] = p4[k]
 	return tasks
@@ -787,6 +832,19 @@ func rnd_task_unlocked(task_id: String) -> bool:
 			var studio = gs.campus_buildings.get("R&D Design Studio", {})
 			if not studio.get("built", false) or int(studio.get("level", 0)) < min_studio:
 				return false
+	# Pillar 5 (commercial models): gate on Studio level + having RACED the segment's unlock
+	# championship (the permanent ever-raced ledger). NOTE: the Factory is NOT required to RESEARCH
+	# a blueprint — you research the design in the Studio, then need a built Factory line to PRODUCE
+	# it (enforced separately in GameState.build_commercial_line).
+	if task.get("pillar", 0) == 5:
+		var unlock_cid: String = task.get("unlock_champ", "")
+		if unlock_cid != "" and not unlock_cid in gs.championships_ever_raced:
+			return false
+		var min_studio5 = int(task.get("Required_RnD_Studio_Level", 1))
+		if min_studio5 > 1:
+			var studio5 = gs.campus_buildings.get("R&D Design Studio", {})
+			if not studio5.get("built", false) or int(studio5.get("level", 0)) < min_studio5:
+				return false
 	return true
 
 ## S35.11 — True if a completed L1 (level==1, pillar 1 or 3) blueprint exists matching the
@@ -979,6 +1037,11 @@ func _advance_rnd_tasks() -> void:
 			gs.notify_event("re_complete_%s" % task["id"], "High",
 				"RE complete: '%s'%s. Blueprint ready — submit to WRA Office in HQ. Also unlocks P1 Design L2 for this part." % [task["name"], champ_label],
 				"wra_office", "event")
+		elif pillar == 5:
+			## Commercial model blueprint researched — the player can now build it on a Factory line.
+			gs.notify_event("p5_complete_%s" % task["id"], "High",
+				"🏭 Model blueprint ready: '%s'. Build it on a free Factory line in the Commercial Department." % task["name"],
+				"commercial_dept", "event")
 		else:
 			gs.notify_event("rnd_complete_%s" % task["id"], "High", "R&D complete: '%s'%s. Submit to WRA Office in HQ to manufacture." % [task["name"], champ_label], "wra_office", "event")
 	gs.emit_signal("log_updated")
@@ -1116,10 +1179,32 @@ func get_rnd_bonus(effect_key: String) -> float:
 	return gs.player_team.get_meta("rnd_bonuses").get(effect_key, 0.0)
 
 
+## S39.2 — RP storage cap. The old flat `800 + (level-1)*400` was far below what P4 Special Projects
+## and P5 Commercial blueprints actually cost (e.g. SP_RACE_4 = 50,000 RP at Studio Lv 3, but the old
+## cap there was 1,600), so those projects could NEVER be researched — the player couldn't store enough
+## RP. The cap is now DYNAMIC: it tracks the most expensive project the player can currently unlock at
+## their Studio level, plus a 15% headroom gap, so there's always room to save for it. Self-corrects if
+## any project cost changes (no hardcoded per-level table to drift). A linear term is kept as a floor so
+## the cap still grows every level (leveling always feels rewarding) and racing tasks have buffer.
 func get_rnd_rp_storage_cap() -> int:
 	var rnd = gs.campus_buildings.get("R&D Design Studio", {})
 	if not rnd.get("built", false): return 0
-	return 800 + (rnd.get("level", 1) - 1) * 400
+	var level: int = int(rnd.get("level", 1))
+	# Linear floor (also keeps growth visible level-to-level within a requirement plateau).
+	var floor_cap: int = 800 + (level - 1) * 400
+	# Dynamic requirement: 15% above the priciest P4/P5 project unlockable at this Studio level.
+	var max_req: int = 0
+	for tid in gs.RND_TASKS:
+		var t = gs.RND_TASKS[tid]
+		var pillar = t.get("pillar", 0)
+		if pillar != 4 and pillar != 5:
+			continue
+		if int(t.get("Required_RnD_Studio_Level", 1)) <= level:
+			var rp = int(t.get("rp", 0))
+			if rp > max_req:
+				max_req = rp
+	var dyn_cap: int = int(ceil(float(max_req) * 1.15))
+	return max(floor_cap, dyn_cap)
 
 
 func _advance_wra_submissions() -> void:

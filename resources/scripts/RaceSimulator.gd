@@ -1,4 +1,5 @@
 class_name RaceSimulator
+## Version: S38.3 — register_racing_income(entry_prize) on player race-prize payout (Factory cap anchor).
 ## Version: S37.63 — Genuine NEWS: race-result headline ("CHAMP — Winner: crew (team)") via log_news.
 ##   DNS / condition-unchanged lines remain add_log only (not news).
 ## Version: S37.62 — Crew development: snapshot pre-race stats for ALL co-drivers and attach a
@@ -396,6 +397,7 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 					entry_prize = c.prize_3rd
 				if team.id == gs.player_team.id:
 					entry_prize *= gs.get_difficulty_mult()["player_economy"]
+					gs.register_racing_income(entry_prize)   ## S38.3 — cap anchor
 				team.balance += entry_prize
 				break
 		driver_times[i]["prize"] = entry_prize

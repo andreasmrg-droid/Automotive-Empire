@@ -178,6 +178,7 @@ func start_new_season() -> void:
 	## sees the correct registrations. Never blind-wiped.
 	gs.player_registered_championships = gs.next_season_registrations.duplicate()
 	gs.next_season_registrations.clear()
+	gs._record_ever_raced()   ## S38.5 — extend the Pillar-5 unlock ledger with this season's entries
 	if gs.player_registered_championships.is_empty():
 		gs.add_log("⚠ No championships were registered for Season %d." % gs.current_season)
 	else:

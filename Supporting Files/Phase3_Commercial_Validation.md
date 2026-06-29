@@ -6,7 +6,10 @@ the locked Phase-3 design — the "why we chose this and how we know it works." 
 constant. Produced from a full design + headless-simulation pass (all simulations are pure Python, mirroring
 the GDD rule that economic logic lives in Python-testable form before GDScript).
 
-**Status:** design + calibration COMPLETE and validated over 100 seasons. Not yet coded.
+**Status:** design + calibration COMPLETE and validated over 100 seasons. **Engine, income, economy re-tune,
+Pillar-5 catalog + UI now CODED (S38.0–S39.0).** Blueprint design economics REVISED in §7B (S39.0) after the
+original §7 ROI premise — that the model blueprint was cheap and commercial cars were easy to design — was
+found wrong; §7B supersedes that premise. Commercial Department screen + news/notification polish remain.
 
 ---
 
@@ -157,6 +160,65 @@ upgrades). Total Factory capex ~CR 66.4M.
 
 ---
 
+## 7B. Blueprint (Pillar-5 model) design cost — REVISED (S39.0, supersedes the §7 ROI premise)
+
+**Why this section exists.** The original §7 ROI was computed on a premise that turned out to be wrong:
+that the *blueprint* (the model design) was cheap/negligible and "the real weight is in the upgrades." It
+also assumed commercial cars are *easier* to design than racing cars. Both are false. The game already
+encodes the racing anchors the design owner set at concept: a **GP1 (F1) car = CR 20,000,000** and an **EPC
+Hyper (Le Mans hybrid) car = CR 6,000,000** (CNC_DATA `base_total_cost`, ~1 credit ≈ $1 at these headline
+figures). In reality a road-car **design programme dwarfs** a racing car — hundreds of millions to billions
+of dollars for the design phase alone (well before tooling/prototype, which the Factory building + Pillar-4
+projects already represent at 18M–110M). So a commercial blueprint must cost a **large multiple of a racing
+car**, not a fraction. The earlier shipped values (S38.7: 2.4M–15.8M; S38.8: 300K–1.6M) had this inverted and
+are void.
+
+**The new principle — EARNING-TIED cost with a realism floor.** A blueprint's CR is tied to what the segment
+can actually *earn*, targeting a consistent **~3.5-season payback** at mature share, then **floored at CR 25M**
+(just above the 20M GP1 car) so even the smallest-earning segment's design stays a serious, above-F1-scale
+investment. This couples cost to earning power (so no segment is a trap and none is a 2-season runaway) while
+preserving the "road car > racing car" realism. **RP and weeks scale by the same earning magnitude** (a
+bigger programme is a bigger R&D effort): RP **4,000–12,100** (= **1.5×–4.4× a full racing car's design RP**),
+weeks **40–121**.
+
+**The halo problem and its fix (×3 volume boost).** Bespoke Hypercars (800/yr) and Megacars (300/yr) have
+markets so tiny that at 25% share they sell only **1–2 cars/week** — they can never amortize a realistic
+design cost at any sane payback. This is true to life (Bugatti/Koenigsegg lose money per car; they exist for
+brand), but in a *game* a purchasable blueprint must be viable. **Fix (design owner approved): ×3 global
+volume** — bespoke 800→**2,400**/yr, megacars 300→**900**/yr. They remain by far the rarest segments
+(exclusivity intact) but now pay back in **~8 seasons** — a deliberate prestige *stretch*, slower than the
+3–6 of mainstream segments. (Applied in `CommercialMarketSim.SEGMENTS`.)
+
+**The authoritative blueprint table (S39.0):**
+
+| Segment | CR | RP | Weeks | Global vol/yr | Player payback | Studio Lv |
+|---|--:|--:|--:|--:|--:|--:|
+| Economy Hatchbacks | 25M | 4,000 | 40 | 22,000,000 | ~7s | 4 |
+| AWD Hot Hatches | 28M | 4,350 | 43 | 1,200,000 | ~3s | 5 |
+| Utility Pickups | 34M | 5,050 | 50 | 8,500,000 | ~3s | 5 |
+| Pony Cars | 25M | 4,000 | 40 | 450,000 | ~3s | 6 |
+| Entry Sports Cars | 25M | 4,000 | 40 | 850,000 | ~4s | 5 |
+| Rally Replica Sedans | 25M | 4,000 | 40 | 350,000 | ~3s | 6 |
+| V8 Sports Sedans | 51M | 6,950 | 70 | 650,000 | ~3s | 8 |
+| Track Day Specials | 25M | 4,000 | 40 | 80,000 | ~6s | 7 |
+| EV Hybrid Flagships | 96M | 12,100 | 121 | 1,800,000 | ~3s | 9 |
+| Supercars | 25M | 4,000 | 40 | 35,000 | ~6s | 10 |
+| Bespoke Hypercars | 25M | 4,000 | 40 | **2,400** (×3) | ~8s | 11 |
+| Limited Run Megacars | 25M | 4,000 | 40 | **900** (×3) | ~8s | 12 |
+
+**Re-simulation result (100 seasons, the runnable proof).** Player entering each segment at its tier-ready
+season with a Factory at L6: **12/12 segments pay back in a healthy 3–8-season window** — no traps, no
+runaways. All-AI market-stability run: **no real monopolies** (leaders 17–32%; one benign 41% duopoly in a
+2-incumbent segment, pulled to ~31% once a player enters). The market engine (§4), income calibration
+(credit scale 0.0054, marketing 18%, the 2× racing-income cap), lifecycle, and economy cycles all still hold
+unchanged — only the *investment* side (blueprint CR/RP/weeks + halo volumes) is revised.
+
+**Researching vs building (gate placement).** Researching a blueprint needs only the **R&D Studio level + the
+raced unlock championship** — NOT the Factory. The Factory is required to *build the line* (produce the car),
+enforced separately in `GameState.build_commercial_line`. (Corrected S38.8.)
+
+---
+
 ## 8. Representation (for ALL players, even without a Factory)
 
 - **New "Commercial Department" in HQ** — read-only market view (12 segments, producers = giants + racing
@@ -182,6 +244,9 @@ upgrades). Total Factory capex ~CR 66.4M.
 | Per-line capacity | 500 u/wk L1, +250/level | Excel; income is capacity-bound then scaled |
 | Build cost (L1) | 1,200,000 | code value; accessible entry |
 | Upgrade staircase | 12.08M…1.2M (see §7) | descending; ~3-season payback per line; total capex ~66.4M |
+| **Blueprint (Pillar-5) CR** | **25M–96M (§7B)** | earning-tied, floored at 25M (> the 20M GP1 car); REVISED S39.0 |
+| **Blueprint RP / weeks** | **4,000–12,100 / 40–121 (§7B)** | RP = 1.5–4.4× a full racing car's design RP; earning-tied |
+| **Halo volume boost** | **bespoke ×3 (→2,400), megacar ×3 (→900)** | makes halo segments viable (~8s payback); exclusivity intact |
 | Lifecycle | ramp 2.5s / plateau→16s / death 25s | hard ~25-season model life |
 | Attractiveness inertia | 0.045 | ~5–8 season climb for a newcomer |
 | Per-segment cyclicality | Mass 0.45 / Premium 0.25 / Hyper 0.08 | recession resistance scales with prestige |

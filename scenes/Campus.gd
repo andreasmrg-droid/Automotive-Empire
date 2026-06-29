@@ -1,4 +1,7 @@
 extends Control
+## Version: S39.1 — Commercial Department reachable pre-build: the Vehicle Assembly Factory now offers
+##   a "📊 Scout Commercial Market" button even when unbuilt (GDD §4.6 — the read-only market view is
+##   visible to ALL players from the start). Built Factory still shows the normal Enter button.
 ## Version: S37.30 — CAMPUS REDESIGN: category TABS (one per zone, tinted in zone colours). Clicking a
 ##   tab shows ONLY that zone's building cards (was: all 6 zones stacked in one long scroll). Adds the
 ##   shared ResourceBar component (GDD §15 mandate). Default tab: Command. _build_card + all build/
@@ -407,6 +410,16 @@ func _build_card(building_id: String) -> PanelContainer:
 		var scene_path = info[1]
 		enter_btn.pressed.connect(func(): get_tree().change_scene_to_file(scene_path))
 		vbox.add_child(enter_btn)
+	elif bname == "Vehicle Assembly Factory":
+		## S39.1 — the Commercial Department market view is visible to ALL players from the start
+		## (GDD §4.6: aspirational + a scouting tool before you enter a segment). Even unbuilt, the
+		## Factory offers a read-only "Scout Market" entry into the Commercial Department screen.
+		var scout_btn = Button.new()
+		scout_btn.text = "📊 Scout Commercial Market"
+		scout_btn.custom_minimum_size = Vector2(0, 38)
+		scout_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		scout_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/buildings/VehicleFactory.tscn"))
+		vbox.add_child(scout_btn)
 
 	return card
 

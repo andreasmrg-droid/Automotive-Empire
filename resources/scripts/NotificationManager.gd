@@ -51,6 +51,9 @@ class_name NotificationManager
 ##   caught them. Subject supersede is text-independent. One-off notifications pass no subject and
 ##   behave exactly as before. Critical still always shows AND still supersedes by subject (so a
 ##   critical weekly reminder collapses too — only the latest survives, never suppressed away).
+## Version: S38.7 — Commercial TDL: a researched model blueprint with a free Factory line and no
+##   line yet for that segment surfaces a "build it (Commercial Department)" to-do; auto-resolves
+##   once the line is built. Requires a CFO + the Factory.
 ## Version: S34.2 — Bond-countered To-Do text now points to HQ ("…accept, counter or reject in
 ##   HQ") since all negotiation actions are handled from HQ Pending Activity.
 ## Version: S34.1 — TDL bond visibility fix. get_pending_tasks() step 7b now branches on
@@ -560,6 +563,16 @@ func get_pending_tasks() -> Array[String]:
 		if reg.has("name"): champ_name = reg["name"]
 		tasks.append("🤝 %s requires racing %s — register for it next season (HQ → WRA)." % [
 			sp.get("name", "Sponsor"), champ_name])
+
+	## S38.7 — Commercial: a researched model blueprint with no production line yet → build it.
+	## Resolves automatically once a line for that segment exists (or the blueprint is unbuilt).
+	if gs._commercial_market != null and gs.get_cfo() != null:
+		var fac = gs.campus_buildings.get("Vehicle Assembly Factory", {})
+		if fac.get("built", false) and int(fac.get("level", 0)) >= 1:
+			for seg_key in gs._commercial_market.segment_keys():
+				if gs.is_commercial_blueprint_researched(seg_key) and not gs.has_commercial_line_for(seg_key):
+					if gs.commercial_free_lines() > 0:
+						tasks.append("🏭 %s blueprint ready — build it on a production line (Commercial Department)." % gs._commercial_market.segment_name(seg_key))
 
 	## Auto-clean custom_todo_items that are no longer relevant
 	## (e.g. "Assign a driver to Car X" after driver has been assigned)
