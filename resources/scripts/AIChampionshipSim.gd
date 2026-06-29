@@ -1,4 +1,8 @@
 class_name AIChampionshipSim
+## Version: S37.61 — Bug #38 CREW MODEL: a car earns ONE points award (to its representative),
+##   shared by the crew (was: each co-driver scored separately).
+## Version: S37.60 — Bug #38 (multi-driver): a car earns ONE finishing position; every seated
+##   co-driver receives that position's points co-equally; team points awarded once per car.
 ## Version: S37.47 — NEW lightweight "living world" result model (Brainstorm thread 3 /
 ##   FEATURE_AI_Championship_Sim.md). Every non-player, non-GK championship runs each race week via a
 ##   cheap strength scalar (NOT the full lap-by-lap physics) so its standings populate, Racing World
@@ -58,7 +62,9 @@ func simulate_round(champ) -> void:
 	var cars: Array = gs.ai_cars.get(champ.id, [])
 	if cars.is_empty():
 		return
-	# Build (driver_id, score) for every AI car that can field a driver.
+	# Build (car, score) for every AI car that can field a full crew. S37.61 crew model: a car has
+	# ONE finishing position and earns ONE points award (to the seat-0 representative), shared by the
+	# whole crew — co-drivers are not separate standings entries.
 	var entries: Array = []
 	for car in cars:
 		if car == null:
@@ -66,12 +72,12 @@ func simulate_round(champ) -> void:
 		# Skip the player's own car in this championship — real sim owns that result.
 		if car in gs.player_team_cars:
 			continue
-		if car.driver_id == "":
+		if car.assigned_driver_ids().is_empty():
 			continue
 		var base: float = car_strength(car)
 		# Race-day noise: ±8% so order isn't deterministic (gives plausible upsets without chaos).
 		var noise: float = base * randf_range(-0.08, 0.08)
-		entries.append({"driver_id": car.driver_id, "score": base + noise})
+		entries.append({"car": car, "score": base + noise})
 	if entries.is_empty():
 		return
 	# Higher score finishes higher.
@@ -80,9 +86,15 @@ func simulate_round(champ) -> void:
 	var pts: Array = champ.points_system
 	for i in range(entries.size()):
 		if i < pts.size():
-			champ.add_points(entries[i]["driver_id"], pts[i])
-			# Team points: attribute to the driver's contracted team if present.
-			var d = gs.all_drivers.get(entries[i]["driver_id"], null)
+			var ecar = entries[i]["car"]
+			var rep_id: String = ecar.driver_ids[0] if ecar.driver_ids.size() > 0 and ecar.driver_ids[0] != "" else ""
+			if rep_id == "":
+				var seated: Array = ecar.assigned_driver_ids()
+				if seated.is_empty():
+					continue
+				rep_id = seated[0]
+			champ.add_points(rep_id, pts[i])   ## one award per car (crew shares it)
+			var d = gs.all_drivers.get(rep_id, null)
 			if d != null and d.contract_team != "":
 				champ.add_team_points(d.contract_team, pts[i])
 

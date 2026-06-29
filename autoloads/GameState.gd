@@ -1,3 +1,8 @@
+## Version: S37.61 — Bug #38 CREW MODEL: new-game registers only the seat-0 representative; added
+##   crew_label_for_driver() ("Smith / Jones") for standings/results display.
+## Version: S37.60 — Bug #38 (multi-driver per car): Car.driver_ids[] is canonical; save/load
+##   serializes driver_ids with legacy-driver_id migration; new-game provisions a FULL crew
+##   (Rally/TC=2, EPC=3) and seats them; AI regen + readiness TDL are seat-aware. ALSO:
 ## Version: S37.60 — Added get_gk_final_json_round(): the JSON's highest GK round (for the Results
 ##   screen to fetch the remapped city for the GK Grand Final, since the engine adds a round 22 the
 ##   JSON doesn't have). No persisted-state change.
@@ -2303,8 +2308,16 @@ func _give_starting_assets(champ_id: String) -> void:
 	tp.assigned_championship = champ_id
 	all_staff[tp.id] = tp
 
-	## ── 4. Starting Driver ───────────────────────────────────────────────────
-	var driver = _find_and_sign_starting_driver(discipline, champ_id)
+	## ── 4. Starting Driver(s) ────────────────────────────────────────────────
+	## S37.60 — multi-driver disciplines (Rally/TC = 2, EPC = 3) start with a FULL crew of
+	## co-equal drivers so the starting car is race-ready (every seat must be filled or the
+	## car DNS's). GK/GP/OWC/SC start with one as before.
+	var seats_needed = get_drivers_per_car(champ_id)
+	var starting_drivers: Array = []
+	for _s in range(seats_needed):
+		var d = _find_and_sign_starting_driver(discipline, champ_id)
+		if d != null:
+			starting_drivers.append(d)
 
 	## ── 5. Starting Mechanic ─────────────────────────────────────────────────
 	var mech = _create_starting_staff("Race Mechanic", 40.0, 65.0)
@@ -2341,9 +2354,23 @@ func _give_starting_assets(champ_id: String) -> void:
 		designer.contract_seasons_remaining = 3
 		all_staff[designer.id] = designer
 
-	## ── 8. Assign driver to car ──────────────────────────────────────────────
-	if driver != null and not player_team_cars.is_empty():
-		player_team_cars[0].driver_id = driver.id
+	## ── 8. Assign driver(s) to car ───────────────────────────────────────────
+	## S37.60 — seat every starting driver (co-equal). We seat directly (not via
+	## assign_driver_to_car) to avoid the standings re-sync pruning a co-driver that is
+	## registered-but-not-yet-seated mid-loop; then register all seated drivers once.
+	if not player_team_cars.is_empty():
+		var car0 = player_team_cars[0]
+		for si in range(starting_drivers.size()):
+			if si < car0.seat_count():
+				car0.driver_ids[si] = starting_drivers[si].id
+		var champ0 = get_championship_by_id(car0.championship_id)
+		if champ0 != null:
+			## S37.61 crew model — register only the car REPRESENTATIVE (seat 0) into standings.
+			var rep0: String = car0.driver_ids[0] if car0.driver_ids.size() > 0 and car0.driver_ids[0] != "" else ""
+			if rep0 != "" and not rep0 in champ0.standings:
+				champ0.standings[rep0] = 0
+			if not player_team.id in champ0.team_standings:
+				champ0.team_standings[player_team.id] = 0
 
 	add_log("🏎 Starting assets ready for %s." % reg.get("name", champ_id))
 	add_log("💰 Remaining balance: CR %s" % _fmt_int(int(player_team.balance)))
@@ -2423,8 +2450,8 @@ func rename_car(car_id: String, new_name: String) -> bool:
 func assign_driver_to_car(driver_id: String, car_id: String) -> String:
 	return _car_manager.assign_driver_to_car(driver_id, car_id)
 
-func unassign_driver_from_car(car_id: String) -> void:
-	_car_manager.unassign_driver_from_car(car_id)
+func unassign_driver_from_car(car_id: String, only_driver_id: String = "") -> void:
+	_car_manager.unassign_driver_from_car(car_id, only_driver_id)
 
 func assign_staff_to_car(staff_id: String, car_id: String) -> void:
 	_car_manager.assign_staff_to_car(staff_id, car_id)
@@ -2909,8 +2936,12 @@ func get_race_blocking_tasks() -> Array[String]:
 				champ_name = " [%s]" % champ.championship_name
 				break
 		var cn = (car.car_name if car.car_name != "" else "Car %d" % car.car_number) + champ_name
-		if car.driver_id == "":
-			tasks.append("🏎 %s has no driver — will DNS." % cn)
+		if not car.all_seats_filled():
+			if car.seat_count() <= 1:
+				tasks.append("🏎 %s has no driver — will DNS." % cn)
+			else:
+				var _e = car.seat_count() - car.assigned_driver_ids().size()
+				tasks.append("🏎 %s has %d of %d driver seats empty — will DNS." % [cn, _e, car.seat_count()])
 		if car.mechanic_id == "":
 			tasks.append("🔧 %s has no Race Mechanic — will DNS." % cn)
 		if get_pit_crew_required(car.championship_id):
@@ -3130,6 +3161,33 @@ func get_drivers_per_car(champ_id: String) -> int:
 	var reg = CHAMPIONSHIP_REGISTRY.get(champ_id, {})
 	var disc = reg.get("discipline", "GK")
 	return DRIVERS_PER_CAR.get(disc, 1)
+
+## S37.61 — combined crew label for a championship standings entry. Given a representative driver
+## id (seat 0 of a car), returns "Smith / Jones" for a multi-driver car, or the driver's full name
+## for a single-seat car / lone driver. Searches player cars first, then AI cars.
+func crew_label_for_driver(rep_id: String) -> String:
+	var rep = all_drivers.get(rep_id)
+	if rep == null:
+		return rep_id
+	var car = get_car_for_driver(rep_id)
+	if car == null:
+		for cid in ai_cars:
+			for ac in ai_cars[cid]:
+				if ac != null and ac.has_driver(rep_id):
+					car = ac
+					break
+			if car != null:
+				break
+	if car == null or car.seat_count() <= 1:
+		return rep.full_name()
+	var parts: Array = []
+	for did in car.assigned_driver_ids():
+		var d = all_drivers.get(did)
+		if d != null:
+			parts.append(d.last_name if d.last_name != "" else d.full_name())
+	if parts.size() <= 1:
+		return rep.full_name()
+	return " / ".join(parts)
 
 ## Returns whether a pit crew is required per car for a given championship.
 func get_pit_crew_required(champ_id: String) -> bool:
@@ -3762,8 +3820,8 @@ func _create_championship(champ_id: String) -> Championship:
 	return champ
 
 func _regenerate_ai_team_cars(team) -> void:
-	var driver_count = team.drivers.size()
-	if driver_count == 0:
+	var driver_total = team.drivers.size()
+	if driver_total == 0:
 		return
 	## Bug 9: use the team's ACTUAL championship, not a hardcoded GK (C-001).
 	## Falls back to C-001 only if the team has no registered championship.
@@ -3772,6 +3830,10 @@ func _regenerate_ai_team_cars(team) -> void:
 		team_champ_id = team.active_championships[0]
 	var champ_reg = CHAMPIONSHIP_REGISTRY.get(team_champ_id, {})
 	var champ_disc = champ_reg.get("discipline", "GK")
+	## S37.60 — a multi-driver discipline packs `dpc` drivers per car, so the car count is
+	## the driver pool divided by seats-per-car (not one car per driver).
+	var dpc = get_drivers_per_car(team_champ_id)
+	var driver_count = int(ceil(float(driver_total) / float(max(1, dpc))))
 	## Pit crew required for all disciplines except GK.
 	var pit_required = PIT_CREW_REQUIRED.get(champ_disc, true)
 	## Telemetry / car_type for the team's discipline (mirrors CHAMP_CAR_TYPE in CarManager).
@@ -3792,7 +3854,11 @@ func _regenerate_ai_team_cars(team) -> void:
 		car.championship_id = team_champ_id
 		car.car_number = i + 1
 		car.car_name = ""
-		car.driver_id = team.drivers[i] if i < team.drivers.size() else ""
+		## S37.60 — seat the car to the discipline rule and pack consecutive drivers in.
+		car.set_seat_count(dpc)
+		for s in range(dpc):
+			var di = i * dpc + s
+			car.driver_ids[s] = team.drivers[di] if di < team.drivers.size() else ""
 		car.mechanic_id = ""
 		car.pit_crew_id = "" if pit_required else "N/A"
 		car.condition = 100.0
@@ -4300,7 +4366,8 @@ func _serialize_cars() -> Array:
 		result.append({
 			"id": car.id, "car_type_id": car.car_type_id,
 			"championship_id": car.championship_id, "car_number": car.car_number,
-			"driver_id": car.driver_id, "mechanic_id": car.mechanic_id,
+			"driver_ids": car.driver_ids.duplicate(), "driver_id": car.driver_id,
+			"mechanic_id": car.mechanic_id,
 			"pit_crew_id": car.pit_crew_id, "condition": car.condition,
 			"part_conditions": car.part_conditions,
 			"top_speed": car.top_speed, "acceleration": car.acceleration,
@@ -4321,7 +4388,15 @@ func _deserialize_cars(data_array: Array) -> void:
 		car.car_type_id = cd["car_type_id"]
 		car.championship_id = cd["championship_id"]
 		car.car_number = cd["car_number"]
-		car.driver_id = cd["driver_id"]
+		## S37.60 — restore the multi-seat driver array. New saves carry "driver_ids";
+		## pre-S37.60 saves carry only the scalar "driver_id" → migrate it onto seat 0 and
+		## size the array to the championship's drivers-per-car rule so co-driver seats exist.
+		var _seats := get_drivers_per_car(cd.get("championship_id", car.championship_id))
+		if cd.has("driver_ids") and cd["driver_ids"] is Array:
+			car.driver_ids = (cd["driver_ids"] as Array).duplicate()
+			car.set_seat_count(max(_seats, car.driver_ids.size()))
+		else:
+			car._migrate_legacy_driver(cd.get("driver_id", ""), _seats)
 		car.mechanic_id = cd["mechanic_id"]
 		car.pit_crew_id = cd["pit_crew_id"]
 		car.condition = cd["condition"]

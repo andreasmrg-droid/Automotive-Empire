@@ -1,3 +1,4 @@
+## Version: S37.60 — Bug #38 (multi-driver): readiness requires ALL driver seats filled per car.
 ## Version: S37.31 — Added shared ResourceBar component to the header; refresh hooked into _show_tab so resource changes update immediately.
 ## Version: S37.25 — popup-position: TP-assign popup CENTERED (symmetric ±210, was -250..0).
 extends Control
@@ -2162,8 +2163,9 @@ func _build_reg_requirement_card(cid: String) -> PanelContainer:
 		func(c): return c.championship_id == cid)
 	for car in cars_for_champ:
 		var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
-		reqs.append({"ok": car.driver_id != "",
-			"text": "Driver assigned to %s" % car_label})
+		reqs.append({"ok": car.all_seats_filled(),
+			"text": ("Driver assigned to %s" % car_label) if car.seat_count() <= 1 \
+				else "All %d drivers assigned to %s" % [car.seat_count(), car_label]})
 		reqs.append({"ok": car.mechanic_id != "",
 			"text": "Mechanic assigned to %s" % car_label})
 		if GameState.get_pit_crew_required(cid):

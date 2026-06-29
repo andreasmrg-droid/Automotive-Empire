@@ -1,3 +1,5 @@
+## Version: S37.60 — Bug #38 (multi-driver): the season checklist lists all seated drivers and flags
+##   empty co-driver seats.
 ## Version: S37.36 — Added the shared ResourceBar (top-right). Ceremony screen: keeps its own
 ##   Start/Continue flow buttons, so no Back/Main Hub in this header (documented exception).
 extends Control
@@ -177,11 +179,18 @@ func _get_readiness(champ) -> Array:
 	if car:
 		var cname = car.car_name if car.car_name != "" else "Car %d" % car.car_number
 		checks.append({"ok": true, "text": "Car: %s  (%.0f%%)" % [cname, car.condition]})
-		var drv = GameState.all_drivers.get(car.driver_id)
-		if drv:
-			checks.append({"ok": true, "text": "Driver: %s" % drv.full_name()})
+		var seated: Array = car.assigned_driver_ids()
+		if car.all_seats_filled():
+			var dnames: Array = []
+			for did in seated:
+				var dd = GameState.all_drivers.get(did)
+				dnames.append(dd.full_name() if dd else "?")
+			var dlabel := "Driver" if car.seat_count() <= 1 else "Drivers"
+			checks.append({"ok": true, "text": "%s: %s" % [dlabel, ", ".join(dnames)]})
 		else:
-			checks.append({"ok": false, "text": "No driver assigned",
+			var _e = car.seat_count() - seated.size()
+			var _txt = "No driver assigned" if car.seat_count() <= 1 else "%d of %d driver seats empty" % [_e, car.seat_count()]
+			checks.append({"ok": false, "text": _txt,
 				"dest": "res://scenes/buildings/Garage.tscn"})
 		if car.mechanic_id != "":
 			var m = GameState.all_staff.get(car.mechanic_id)

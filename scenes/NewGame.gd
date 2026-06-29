@@ -1,3 +1,5 @@
+## Version: S37.60 — Bug #38 (multi-driver): RALLY4 starting roster card now lists 2 drivers
+##   (driver + co-driver), matching the full starting crew.
 ## Version: S37.19 — #50 audit: no GK relics affecting non-GK starts (the only relic was the
 ##   part-inventory active_championship seed, fixed in GameState). GK age display 8–16→8–17.
 extends Control
@@ -85,7 +87,7 @@ const TIER1_CHAMPS = {
 	"C-005": {"name": "RALLY4",        "discipline": "Rally",      "entry_fee": 30000,  "races": 5,  "age": "16+",
 		"desc": "Gravel and tarmac stages. High attrition, high reward. A true driver's championship.",
 		"icon": "🪨",
-		"includes": ["1 Car", "1 Driver", "1 Mechanic", "1 Pit Crew", "1 Team Principal"],
+		"includes": ["1 Car", "2 Drivers (driver + co-driver)", "1 Mechanic", "1 Pit Crew", "1 Team Principal"],
 		"buildings": ["Standard Campus", "Pit Crew Arena"]},
 	"C-014": {"name": "SC Dev Series", "discipline": "Stock Car",  "entry_fee": 600000, "races": 20, "age": "15+",
 		"desc": "The most races, the toughest budget ask. Oval and superspeedway glory awaits.",

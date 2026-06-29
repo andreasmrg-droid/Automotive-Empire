@@ -1,3 +1,5 @@
+## Version: S37.60 — Bug #38 (multi-driver): the assign-to-car list shows seat occupancy (n/total),
+##   marks "current"/"full" correctly across seats.
 ## Version: S37.37 — Notification & News Roadmap, Phase 1: generic error add_notification(err)
 ##   passthrough converted to GameState.show_popup() (on-the-spot AcceptDialog), consistent with the
 ##   existing scene popups (#41 / S29.0). Specific cases (not_interested / team_refused) unchanged.
@@ -917,14 +919,27 @@ func _show_assign_car_popup(driver_id: String) -> void:
 		return
 
 	for car in GameState.player_team_cars:
-		var current_driver = GameState.all_drivers.get(car.driver_id)
+		## S37.60 — show the car's seat occupancy (all co-drivers), and mark "current" if this
+		## driver is already aboard any seat.
+		var seated: Array = car.assigned_driver_ids()
+		var names: Array = []
+		for did in seated:
+			var dd = GameState.all_drivers.get(did)
+			names.append(dd.full_name() if dd else "?")
+		var current_name := "Empty"
+		if not names.is_empty():
+			current_name = ", ".join(names)
+			if car.seat_count() > 1:
+				current_name += " (%d/%d)" % [seated.size(), car.seat_count()]
 		var car_btn = Button.new()
-		var current_name = current_driver.full_name() if current_driver else "Empty"
 		var car_display = car.car_name if car.car_name != "" else "Car %d" % car.car_number
 		car_btn.text = "%s  —  %s" % [car_display, current_name]
 		car_btn.custom_minimum_size = Vector2(320, 38)
-		if car.driver_id == driver_id:
+		if car.has_driver(driver_id):
 			car_btn.text += "  ✅ (current)"
+			car_btn.disabled = true
+		elif car.all_seats_filled():
+			car_btn.text += "  (full)"
 			car_btn.disabled = true
 		var _car_id = car.id
 		car_btn.pressed.connect(func():

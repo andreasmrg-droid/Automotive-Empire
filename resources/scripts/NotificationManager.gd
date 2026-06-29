@@ -1,4 +1,6 @@
 class_name NotificationManager
+## Version: S37.60 — Bug #38 (multi-driver): driver-readiness tasks flag any empty seat and resolve
+##   only when all seats are filled.
 ## Version: S37.50 — Added the Race Strategist readiness check (Step 3a in get_pending_tasks),
 ##   previously deferred (it was blocked by the new-game Ops Sim building bug, fixed in GameState
 ##   S37.50). Flags "No Race Strategist for: <champs> (car will DNS)" per championship the player
@@ -319,9 +321,12 @@ func get_pending_tasks() -> Array[String]:
 		var reg = gs.CHAMPIONSHIP_REGISTRY.get(car.championship_id, {})
 		var champ_name = reg.get("name", car.championship_id)
 		var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
-		if car.driver_id == "":
+		if not car.all_seats_filled():
 			if gs.player_team.drivers.is_empty():
 				tasks.append("🚫 No drivers signed — hire one from Drivers screen (car will DNS).")
+			elif car.seat_count() > 1:
+				var _e = car.seat_count() - car.assigned_driver_ids().size()
+				tasks.append("🏎 %s [%s] — %d of %d driver seats empty. Go to Garage." % [car_label, champ_name, _e, car.seat_count()])
 			else:
 				tasks.append("🏎 %s [%s] — no driver assigned. Go to Garage." % [car_label, champ_name])
 		if car.mechanic_id == "":
@@ -573,7 +578,7 @@ func _is_todo_item_resolved(item: String) -> bool:
 	if "Assign a driver to" in item:
 		for car in gs.player_team_cars:
 			var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
-			if car_label in item and car.driver_id != "":
+			if car_label in item and car.all_seats_filled():
 				return true
 	## "Assign a mechanic to Car X [Champ Y]" — resolved if car now has mechanic
 	if "Assign a mechanic to" in item:

@@ -1,3 +1,5 @@
+## Version: S37.60 — Bug #38 (multi-driver): renders one driver seat per the discipline rule
+##   (Rally/TC=2, EPC=3); per-seat assign/unassign; popup + assignment helpers seat-aware (has_driver).
 ## Version: S37.37 — Notification & News Roadmap, Phase 1: generic error add_notification(err)
 ##   passthrough converted to GameState.show_popup() (on-the-spot AcceptDialog), consistent with the
 ##   existing scene popups (#41 / S29.0). Specific cases (not_interested / team_refused) unchanged.
@@ -72,6 +74,7 @@ var _popup: PanelContainer       ## reusable overlay (mechanic/driver/change-par
 var _popup_title: Label
 var _popup_list: VBoxContainer
 var _assigning_car_id: String = ""
+var _assigning_seat: int = 0   ## S37.60 — which driver seat the popup is assigning
 var _assigning_pcode:  String = ""
 var _popup_mode: String = "mechanic"   ## "mechanic" | "driver" | "part"
 
@@ -440,8 +443,8 @@ func _build_car_card(car) -> PanelContainer:
 	## so the button is usable even when a full 10% chunk isn't affordable (e.g. GK 110 SP/10% with
 	## 100 SP in hand → ~9% repair). Only disabled when the player has 0 SP. Shown when the car is
 	## race-built, has a driver assigned (repair is driver-keyed), and is actually damaged.
-	if not car.is_in_build() and car.driver_id != "" and car.condition < 100.0:
-		var did = car.driver_id
+	if not car.is_in_build() and not car.assigned_driver_ids().is_empty() and car.condition < 100.0:
+		var did = car.assigned_driver_ids()[0]
 		var damage = 100.0 - car.condition
 		var afford_pct = GameState.get_affordable_repair_pct(did)
 		var full_affordable = afford_pct >= damage - 0.01
@@ -511,9 +514,12 @@ func _build_car_card(car) -> PanelContainer:
 	staff_row.add_theme_constant_override("separation", 20)
 	vbox.add_child(staff_row)
 
-	## Driver
-	var drv_box = _make_staff_slot(car, "DRIVER")
-	staff_row.add_child(drv_box)
+	## Driver(s) — S37.60: one seat per the discipline's drivers-per-car rule (Rally/TC = 2,
+	## EPC = 3, others = 1). Co-equal seats; each has its own assign/unassign.
+	var seat_total = car.seat_count()
+	for seat_i in range(seat_total):
+		var drv_box = _make_staff_slot(car, "DRIVER", seat_i)
+		staff_row.add_child(drv_box)
 
 	## Mechanic
 	var mech_box = _make_staff_slot(car, "MECHANIC")
@@ -559,23 +565,30 @@ func _build_car_card(car) -> PanelContainer:
 	return panel
 
 # ── Staff slot (driver / mechanic) ────────────────────────────────────────────
-func _make_staff_slot(car, role: String) -> VBoxContainer:
+## S37.60 — `seat` selects which driver seat (0-based) for multi-driver cars; ignored for
+## mechanic / pit crew. The seat label reads "DRIVER" for single-seat cars, or
+## "DRIVER 1 / DRIVER 2 / DRIVER 3" for multi-seat ones.
+func _make_staff_slot(car, role: String, seat: int = 0) -> VBoxContainer:
 	var box = VBoxContainer.new()
 	box.add_theme_constant_override("separation", 4)
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
+	var is_driver = role == "DRIVER"
+	var is_pit_crew = role == "PIT CREW"
+
 	var lbl_role = Label.new()
-	lbl_role.text = role
+	if is_driver and car.seat_count() > 1:
+		lbl_role.text = "DRIVER %d" % (seat + 1)
+	else:
+		lbl_role.text = role
 	lbl_role.add_theme_font_size_override("font_size", 20)
 	lbl_role.modulate = Color(0.5,0.5,0.5)
 	box.add_child(lbl_role)
 
-	var is_driver = role == "DRIVER"
-	var is_pit_crew = role == "PIT CREW"
 	var assigned_id = ""
 	var person = null
 	if is_driver:
-		assigned_id = car.driver_id
+		assigned_id = car.driver_ids[seat] if seat < car.driver_ids.size() else ""
 		person = GameState.all_drivers.get(assigned_id)
 	elif is_pit_crew:
 		assigned_id = car.pit_crew_id
@@ -604,7 +617,8 @@ func _make_staff_slot(car, role: String) -> VBoxContainer:
 	btn_assign.add_theme_font_size_override("font_size", 22)
 	var cap_car_id = car.id
 	var cap_role = role
-	btn_assign.pressed.connect(func(): _open_staff_popup(cap_car_id, cap_role))
+	var cap_seat = seat
+	btn_assign.pressed.connect(func(): _open_staff_popup(cap_car_id, cap_role, cap_seat))
 	btn_row.add_child(btn_assign)
 
 	if person:
@@ -613,8 +627,9 @@ func _make_staff_slot(car, role: String) -> VBoxContainer:
 		btn_un.custom_minimum_size = Vector2(72, 26)
 		btn_un.add_theme_font_size_override("font_size", 22)
 		btn_un.modulate = Color(1.0,0.5,0.5)
+		var cap_person_id = assigned_id
 		btn_un.pressed.connect(func():
-			if cap_role == "DRIVER": GameState.unassign_driver_from_car(cap_car_id)
+			if cap_role == "DRIVER": GameState.unassign_driver_from_car(cap_car_id, cap_person_id)
 			elif cap_role == "PIT CREW": GameState.unassign_pit_crew_from_car(cap_car_id)
 			else: GameState.unassign_mechanic_from_car(cap_car_id)
 			_show_tab(_selected_tab))
@@ -872,10 +887,15 @@ func _open_part_popup(car_id: String, pcode: String, champ_id: String) -> void:
 	_popup.visible = true
 
 # ── Staff assignment popup ────────────────────────────────────────────────────
-func _open_staff_popup(car_id: String, role: String) -> void:
+func _open_staff_popup(car_id: String, role: String, seat: int = 0) -> void:
 	_assigning_car_id = car_id
+	_assigning_seat = seat
 	_popup_mode = role.to_lower()
-	_popup_title.text = "Assign %s" % role.capitalize()
+	var _car_for_title = GameState.get_car_by_id(car_id)
+	if role == "DRIVER" and _car_for_title and _car_for_title.seat_count() > 1:
+		_popup_title.text = "Assign Driver (seat %d)" % (seat + 1)
+	else:
+		_popup_title.text = "Assign %s" % role.capitalize()
 	for c in _popup_list.get_children(): c.queue_free()
 
 	var is_driver = role == "DRIVER"
@@ -1008,12 +1028,12 @@ func _open_staff_popup(car_id: String, role: String) -> void:
 
 func _get_assignment_label(person, role: String) -> String:
 	for car in GameState.player_team_cars:
-		var match_id = ""
+		var matched := false
 		match role:
-			"DRIVER":   match_id = car.driver_id
-			"PIT CREW": match_id = car.pit_crew_id
-			_:          match_id = car.mechanic_id
-		if match_id == person.id:
+			"DRIVER":   matched = car.has_driver(person.id)
+			"PIT CREW": matched = car.pit_crew_id == person.id
+			_:          matched = car.mechanic_id == person.id
+		if matched:
 			return car.car_name if car.car_name != "" else "Car %d" % car.car_number
 	return ""
 
@@ -1021,7 +1041,7 @@ func _is_assigned_to_car(person, car_id: String, role: String) -> bool:
 	var car = GameState.get_car_by_id(car_id)
 	if not car: return false
 	match role:
-		"DRIVER":   return car.driver_id == person.id
+		"DRIVER":   return car.has_driver(person.id)
 		"PIT CREW": return car.pit_crew_id == person.id
 		_:          return car.mechanic_id == person.id
 

@@ -1,5 +1,7 @@
 extends Resource
 class_name GKDiscipline
+## Version: S37.60 — Bug #38 (multi-driver): GK seat read uses assigned_driver_ids() (GK stays 1-seat;
+##   robust against the new array model).
 ## Version: S37.2 — Added get_round_count() accessor (total GK rounds) for the Racing World world
 ##   card "GK Round X / N" display. No behavioural change to the sim.
 ## Version: S37.1 — CP4 follow-up: populate_season() no longer forces every player driver into GK
@@ -116,8 +118,9 @@ func populate_season(
 	if "C-001" in registered_champ_ids:
 		var gk_assigned_driver_ids: Array = []
 		for car in player_cars:
-			if car.championship_id == "C-001" and car.driver_id != "":
-				gk_assigned_driver_ids.append(car.driver_id)
+			if car.championship_id == "C-001":
+				for did in car.assigned_driver_ids():
+					gk_assigned_driver_ids.append(did)
 		var have_gk_car = not gk_assigned_driver_ids.is_empty()
 		for pid in player_driver_ids:
 			if have_gk_car:

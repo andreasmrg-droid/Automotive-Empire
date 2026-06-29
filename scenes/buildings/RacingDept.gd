@@ -1,3 +1,5 @@
+## Version: S37.60 — Bug #38 (multi-driver): car-assign popup lists all co-drivers, fills the first
+##   empty seat, shows "Full"; unassign frees the driver's own seat.
 ## Version: S37.37 — Notification & News Roadmap, Phase 1: generic error add_notification(err)
 ##   passthrough converted to GameState.show_popup() (on-the-spot AcceptDialog), consistent with the
 ##   existing scene popups (#41 / S29.0). Specific cases (not_interested / team_refused) unchanged.
@@ -617,19 +619,32 @@ func _open_assign_popup(driver_id: String) -> void:
 			lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			row.add_child(lbl)
 
-			# Show current occupant
-			if car.driver_id != "" and car.driver_id != driver_id:
-				var other = GameState.all_drivers.get(car.driver_id)
-				var lbl_occ = Label.new()
-				lbl_occ.text = "→ %s" % (other.full_name() if other else "?")
-				lbl_occ.modulate = Color(0.55, 0.55, 0.55)
-				lbl_occ.add_theme_font_size_override("font_size", 22)
-				row.add_child(lbl_occ)
+			# Show current occupants (S37.60: a multi-driver car lists all seated drivers).
+			var seated: Array = car.assigned_driver_ids()
+			if not seated.is_empty():
+				var names: Array = []
+				for did in seated:
+					if did == driver_id: continue
+					var o = GameState.all_drivers.get(did)
+					names.append(o.full_name() if o else "?")
+				if not names.is_empty():
+					var lbl_occ = Label.new()
+					lbl_occ.text = "→ %s" % ", ".join(names)
+					lbl_occ.modulate = Color(0.55, 0.55, 0.55)
+					lbl_occ.add_theme_font_size_override("font_size", 22)
+					row.add_child(lbl_occ)
 
 			var btn = Button.new()
-			var already = car.driver_id == driver_id
-			btn.text = "Assigned ✅" if already else "Assign"
-			btn.disabled = already
+			var already = car.has_driver(driver_id)
+			var car_full = car.all_seats_filled() and not already
+			if already:
+				btn.text = "Assigned ✅"
+				btn.disabled = true
+			elif car_full:
+				btn.text = "Full"
+				btn.disabled = true
+			else:
+				btn.text = "Assign"
 			var car_id_cap = car.id
 			btn.pressed.connect(func():
 				var err = GameState.assign_driver_to_car(driver_id, car_id_cap)
@@ -647,7 +662,7 @@ func _open_assign_popup(driver_id: String) -> void:
 func _on_unassign_car(driver_id: String) -> void:
 	var car = GameState.get_car_for_driver(driver_id)
 	if car:
-		car.driver_id = ""
+		GameState.unassign_driver_from_car(car.id, driver_id)
 		var driver = GameState.all_drivers.get(driver_id)
 		GameState.add_log("👤 %s unassigned from %s." % [
 			driver.full_name() if driver else driver_id,

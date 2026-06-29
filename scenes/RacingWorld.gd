@@ -1,4 +1,5 @@
 extends Control
+## Version: S37.61 — Bug #38 CREW MODEL: driver standings/leader lines show the combined crew label.
 ## Version: S37.55 — GK "OTHER GROUPS" chip leader line no longer jams name and points together
 ##   ("Lewis Lewis 0pts" read as a name ending in "pt"). Now "%s — %d pts" with a space + dash.
 ## --- S37.48 — Racing World compact cards (_build_world_card, used for every championship the
@@ -406,7 +407,7 @@ func _build_gk_group_table(standings: Array) -> VBoxContainer:
 		row.add_child(lp)
 
 		var ln = Label.new()
-		ln.text = d.full_name() if d else entry["driver_id"]
+		ln.text = GameState.crew_label_for_driver(entry["driver_id"]) if d else entry["driver_id"]
 		ln.add_theme_font_size_override("font_size", 22)
 		ln.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		if is_player:
@@ -451,7 +452,7 @@ func _build_group_chip(standings: Array, group_idx: int) -> PanelContainer:
 		var d = GameState.all_drivers.get(leader["driver_id"])
 		var ll = Label.new()
 		ll.text = "%s — %d pts" % [
-			d.full_name() if d else "?", leader["points"]]
+			GameState.crew_label_for_driver(leader["driver_id"]) if d else "?", leader["points"]]
 		ll.add_theme_font_size_override("font_size", 20)
 		ll.add_theme_color_override("font_color", Color(0.8,0.8,0.8))
 		vb.add_child(ll)
@@ -539,7 +540,7 @@ func _build_world_card(cid: String, champ,
 				var leader_d = GameState.all_drivers.get(sorted[0]["driver_id"])
 				var lbl_leader = Label.new()
 				lbl_leader.text = "Leader: %s  ·  %d pts" % [
-					leader_d.full_name() if leader_d else sorted[0]["driver_id"],
+					GameState.crew_label_for_driver(sorted[0]["driver_id"]) if leader_d else sorted[0]["driver_id"],
 					sorted[0]["points"]]
 				lbl_leader.add_theme_font_size_override("font_size", 22)
 				lbl_leader.modulate = Color(0.6, 0.6, 0.6)

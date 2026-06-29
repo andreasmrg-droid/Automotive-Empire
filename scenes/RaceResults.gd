@@ -1,4 +1,6 @@
 extends Control
+## Version: S37.61 — Bug #38 CREW MODEL: race-result + driver-standings rows show the combined crew
+##   label ("Smith / Jones") for multi-driver cars.
 ## Version: S37.13 — Race Results layout: Driver expands to ~2/5 of width (Laps starts there), then
 ##   Laps/Time/Gap/Pts expand EQUALLY to spread across the rest, Prize fixed at far right. Laps/Time/
 ##   Gap centered; Pts/Prize right. Header + rows share identical sizing + alignment per column.
@@ -337,9 +339,9 @@ func _build_race_results(parent: VBoxContainer) -> void:
 		if is_dns: lbl_pos.modulate = Color(0.45, 0.45, 0.45)
 		row.add_child(lbl_pos)
 
-		# Driver name
+		# Driver / crew name (S37.61 — multi-driver cars show "Smith / Jones")
 		var lbl_name = Label.new()
-		lbl_name.text = driver.full_name()
+		lbl_name.text = entry.get("crew_label", driver.full_name())
 		lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		lbl_name.size_flags_stretch_ratio = 2.5
 		lbl_name.add_theme_font_size_override("font_size", 26)
@@ -546,7 +548,7 @@ func _build_standings(parent: VBoxContainer, teams_mode: bool) -> void:
 			lbl_pos.add_theme_font_size_override("font_size", 24)
 			row.add_child(lbl_pos)
 			var lbl_name = Label.new()
-			lbl_name.text = driver.full_name()
+			lbl_name.text = GameState.crew_label_for_driver(entry["driver_id"])
 			lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			lbl_name.size_flags_stretch_ratio = 3.0
 			lbl_name.add_theme_font_size_override("font_size", 24)

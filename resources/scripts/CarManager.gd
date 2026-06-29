@@ -1,4 +1,9 @@
 class_name CarManager
+## Version: S37.61 — Bug #38 CREW MODEL: co-drivers share ONE car result. Only the car's seat-0
+##   REPRESENTATIVE is registered in standings (one entry per car); _resync keeps standings = reps.
+## Version: S37.60 — Bug #38 (multi-driver): assign_driver_to_car is seat-aware (`seat` arg;
+##   co-drivers co-equal, all seats register into standings); unassign per-seat; get_car_for_driver
+##   searches all seats; create_car sizes seats from get_drivers_per_car. Added _resync_other_car_standings.
 ## Version: S37.41 — Notification & News Roadmap, Phase 3 (events→notify_event). The 4 remaining
 ##   CarManager notifications migrated to "event": pit-crew-DNS heads-up (→ pit_arena button; pairs
 ##   with the persistent "no Pit Crew" TDL), car ready (→ garage), car in-build (→ garage), and CNC
@@ -98,6 +103,10 @@ func add_car(for_champ_id: String = "", silent: bool = false) -> bool:
 	var reg = gs.CHAMPIONSHIP_REGISTRY.get(champ_id, {})
 	var discipline = reg.get("discipline", "GK")
 	car.pit_crew_id = "N/A" if not gs.PIT_CREW_REQUIRED.get(discipline, true) else ""
+	## S37.60 — size the driver seats to the discipline's drivers-per-car rule
+	## (GK/GP/OWC/SC = 1, Rally/TC = 2, EPC = 3). create_car set driver_id="" above,
+	## which seeded a 1-slot array; set_seat_count expands it (preserving seat 0).
+	car.set_seat_count(gs.get_drivers_per_car(champ_id))
 	car.condition   = 100.0
 	car.part_conditions = {"Aero": 100.0, "Engine": 100.0, "Gearbox": 100.0,
 		"Suspension": 100.0, "Brakes": 100.0, "Chassis": 100.0}
@@ -166,9 +175,9 @@ func remove_car(car_id: String) -> bool:
 	for i in range(gs.player_team_cars.size()):
 		var car = gs.player_team_cars[i]
 		if car.id == car_id:
-			if car.driver_id != "":
+			for did in car.assigned_driver_ids():
 				gs.add_log("🏎 Car %d removed — %s is now without a car." % [
-					car.car_number, gs.all_drivers[car.driver_id].full_name() if car.driver_id in gs.all_drivers else car.driver_id])
+					car.car_number, gs.all_drivers[did].full_name() if did in gs.all_drivers else did])
 			# Clear mechanic assignment
 			if car.mechanic_id != "" and car.mechanic_id in gs.all_staff:
 				gs.all_staff[car.mechanic_id].assigned_car_id = ""
@@ -203,7 +212,12 @@ func rename_car(car_id: String, new_name: String) -> bool:
 	return true
 
 
-func assign_driver_to_car(driver_id: String, car_id: String) -> String:
+## S37.60 — multi-seat aware. `seat` selects which seat to fill: -1 = first empty seat
+## (or seat 0 if the car is full, displacing whoever sat there). Co-drivers are co-equal;
+## assigning a 2nd/3rd driver to a Rally/EPC car does NOT evict the others. A driver already
+## in another car is removed from there first (one car per driver), but assigning a driver to
+## the SAME car they already occupy is a no-op-ish seat refresh, not a self-eviction.
+func assign_driver_to_car(driver_id: String, car_id: String, seat: int = -1) -> String:
 	var car = get_car_by_id(car_id)
 	if not car:
 		return "Car not found."
@@ -225,29 +239,84 @@ func assign_driver_to_car(driver_id: String, car_id: String) -> String:
 			## source. TODO Phase-0 cleanup: collapse _show_assign_blocked_popup onto GameState.show_popup.
 			gs.emit_signal("log_updated")
 			return msg
-	# Unassign from any current car first
+
+	# Remove this driver from any OTHER car (one car per driver). Removing from the target
+	# car too keeps re-seating clean (a fresh placement below).
 	for c in gs.player_team_cars:
-		if c.driver_id == driver_id:
-			c.driver_id = ""
-	if car:
-		# Unassign whoever was in this car
-		if car.driver_id != "" and car.driver_id != driver_id:
-			var old_driver = gs.all_drivers.get(car.driver_id)
-			if old_driver:
-				gs.add_log("↩ %s unassigned from Car %d" % [old_driver.full_name(), car.car_number])
-		car.driver_id = driver_id
-		var assigned_driver = gs.all_drivers.get(driver_id)
-		gs.add_log("🏎 %s assigned to %s" % [assigned_driver.full_name() if assigned_driver else driver_id, car.car_name if car.car_name != "" else "Car %d" % car.car_number])
-		# Add driver to this championship's standings if not already there
-		for champ in gs.active_championships:
-			if champ.id == car.championship_id and not driver_id in champ.standings:
-				champ.standings[driver_id] = 0
-			if champ.id == car.championship_id and not gs.player_team.id in champ.team_standings:
+		if c.has_driver(driver_id) and c.id != car.id:
+			c.remove_driver(driver_id)
+			_resync_other_car_standings(c)
+	# If already on THIS car, drop the old seat so we can re-place into the requested one.
+	car.remove_driver(driver_id)
+
+	# Decide the destination seat.
+	var target_seat := seat
+	if target_seat < 0 or target_seat >= car.seat_count():
+		target_seat = car.first_empty_seat()
+		if target_seat < 0:
+			target_seat = 0   ## car full → displace the lead seat
+	# Displace whoever currently occupies the target seat.
+	var displaced_id: String = car.driver_ids[target_seat] if target_seat < car.driver_ids.size() else ""
+	if displaced_id != "" and displaced_id != driver_id:
+		var old_driver = gs.all_drivers.get(displaced_id)
+		if old_driver:
+			gs.add_log("↩ %s unassigned from Car %d" % [old_driver.full_name(), car.car_number])
+
+	car.driver_ids[target_seat] = driver_id
+	var assigned_driver = gs.all_drivers.get(driver_id)
+	var seat_label := "" if car.seat_count() <= 1 else " (seat %d)" % (target_seat + 1)
+	gs.add_log("🏎 %s assigned to %s%s" % [
+		assigned_driver.full_name() if assigned_driver else driver_id,
+		car.car_name if car.car_name != "" else "Car %d" % car.car_number, seat_label])
+
+	# S37.61 — CREW MODEL: co-drivers share ONE car result. Only the car's REPRESENTATIVE
+	# (seat 0) is registered into the championship standings, so the car appears as a single
+	# entry; the results/standings UI shows the full crew label ("Smith / Jones"). Co-drivers
+	# still occupy real seats (and all gain fitness/growth in the race loop), they just don't
+	# each hold a separate standings row.
+	var rep_id: String = car.driver_ids[0] if car.driver_ids.size() > 0 and car.driver_ids[0] != "" else driver_id
+	for champ in gs.active_championships:
+		if champ.id == car.championship_id:
+			if rep_id != "" and not rep_id in champ.standings:
+				champ.standings[rep_id] = 0
+			if not gs.player_team.id in champ.team_standings:
 				champ.team_standings[gs.player_team.id] = 0
-		# Record which championship this driver is running — shown next season
-		gs.previous_season_championship[driver_id] = car.championship_id
-		gs.emit_signal("log_updated")
+	# Record which championship every seated driver is running — shown next season.
+	for did in car.assigned_driver_ids():
+		gs.previous_season_championship[did] = car.championship_id
+	# Prune any driver displaced off a seat above who now holds no seat anywhere.
+	_resync_other_car_standings(car)
+	gs.emit_signal("log_updated")
 	return ""   ## empty = success (no popup); a non-empty string is a player-facing failure reason
+
+## After a driver leaves a car, keep the championship's PLAYER standings holding exactly the set of
+## car REPRESENTATIVES (seat 0 of each player car) for that championship — co-drivers are not
+## separate entries (S37.61 crew model). Prunes any player driver in standings who is not a current
+## representative, and ensures each representative is present. AI standings are never touched.
+func _resync_other_car_standings(_car) -> void:
+	var reps_by_champ: Dictionary = {}
+	for c in gs.player_team_cars:
+		var rep: String = c.driver_ids[0] if c.driver_ids.size() > 0 and c.driver_ids[0] != "" else ""
+		## If seat 0 is empty but a co-driver sits in a later seat, that co-driver represents the
+		## car for now (so the car still shows up) until seat 0 is filled.
+		if rep == "":
+			var any: Array = c.assigned_driver_ids()
+			if not any.is_empty():
+				rep = any[0]
+		if rep != "":
+			if not reps_by_champ.has(c.championship_id):
+				reps_by_champ[c.championship_id] = {}
+			reps_by_champ[c.championship_id][rep] = true
+	for champ in gs.active_championships:
+		var reps: Dictionary = reps_by_champ.get(champ.id, {})
+		# Prune player drivers who aren't a representative.
+		for did in champ.standings.keys():
+			if did in gs.player_team.drivers and not reps.has(did):
+				champ.standings.erase(did)
+		# Ensure each representative is present.
+		for rep_id in reps.keys():
+			if not rep_id in champ.standings:
+				champ.standings[rep_id] = 0
 
 ## Creates a new empty car slot. Capped by Garage level.
 ## Called from the Garage scene — independent of driver hire.
@@ -255,16 +324,34 @@ func assign_driver_to_car(driver_id: String, car_id: String) -> String:
 ## Must be called BEFORE appending the new car to player_team_cars.
 
 
-func unassign_driver_from_car(car_id: String) -> void:
+## S37.60 — multi-seat aware. With no driver_id, clears EVERY seat (full empty). With a
+## specific driver_id, removes just that co-driver from their seat, leaving the others.
+func unassign_driver_from_car(car_id: String, only_driver_id: String = "") -> void:
 	var car = get_car_by_id(car_id)
 	if not car: return
-	if car.driver_id == "": return
-	var drv = gs.all_drivers.get(car.driver_id)
-	gs.add_log("↩ %s unassigned from %s" % [
-		drv.full_name() if drv else car.driver_id,
-		car.car_name if car.car_name != "" else "Car %d" % car.car_number])
-	car.driver_id = ""
-	gs.emit_signal("log_updated")
+	if only_driver_id != "":
+		if not car.has_driver(only_driver_id): return
+		var drv1 = gs.all_drivers.get(only_driver_id)
+		gs.add_log("↩ %s unassigned from %s" % [
+			drv1.full_name() if drv1 else only_driver_id,
+			car.car_name if car.car_name != "" else "Car %d" % car.car_number])
+		car.remove_driver(only_driver_id)
+		_resync_other_car_standings(car)
+		gs.emit_signal("log_updated")
+		return
+	# Clear all seats.
+	var any := false
+	for did in car.assigned_driver_ids():
+		var drv2 = gs.all_drivers.get(did)
+		gs.add_log("↩ %s unassigned from %s" % [
+			drv2.full_name() if drv2 else did,
+			car.car_name if car.car_name != "" else "Car %d" % car.car_number])
+		any = true
+	for i in range(car.driver_ids.size()):
+		car.driver_ids[i] = ""
+	if any:
+		_resync_other_car_standings(car)
+		gs.emit_signal("log_updated")
 
 
 func assign_staff_to_car(staff_id: String, car_id: String) -> void:
@@ -334,7 +421,7 @@ func unassign_pit_crew_from_car(car_id: String) -> void:
 
 func get_car_for_driver(driver_id: String) -> Car:
 	for car in gs.player_team_cars:
-		if car.driver_id == driver_id:
+		if car.has_driver(driver_id):
 			return car
 	return null
 

@@ -1,4 +1,6 @@
 class_name TPProposalEngine
+## Version: S37.60 — Bug #38 (multi-driver): the optimiser commits all seated drivers, proposes one
+##   driver PER empty seat, clears all seats on reset, and flags readiness on any empty seat.
 ## Version: S37.49 — Phase 3 (events→notify_event): TP-proposals-ready → "event"; the 2 car-readiness
 ##   criticals (no driver / no mechanic) → "standing" (collapse weekly; pair with their add_todo_item TDL).
 ## Version: S37.23 — DEDUPE: compute_optimal_assignments() now collapses identical proposals
@@ -103,8 +105,8 @@ func compute_optimal_assignments(team, team_cars: Array, include_tp: bool) -> Ar
 	## accept re-proposes the same (now-satisfied) assignments → the Racing Dept panel looks
 	## stale and never clears.
 	for car in sorted_cars:
-		if car.driver_id != "":
-			committed[car.driver_id] = true
+		for did in car.assigned_driver_ids():
+			committed[did] = true
 		if car.mechanic_id != "" and car.mechanic_id != "N/A":
 			committed[car.mechanic_id] = true
 		if car.pit_crew_id != "" and car.pit_crew_id != "N/A":
@@ -122,14 +124,16 @@ func compute_optimal_assignments(team, team_cars: Array, include_tp: bool) -> Ar
 		var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
 		var pit_required = gs.get_pit_crew_required(car.championship_id)
 
-		## Driver — only propose if the car has no driver yet
-		if car.driver_id == "":
+		## Driver(s) — S37.60: propose one driver for EACH empty seat (Rally/TC = 2, EPC = 3).
+		var empty_seats: int = car.seat_count() - car.assigned_driver_ids().size()
+		for _es in range(empty_seats):
 			var best_driver = _find_best_driver(car, disc, avail_drivers, committed)
 			if best_driver != null:
 				var eff = _eff_driver_score(best_driver, disc)
 				var adapt = best_driver.discipline_adaptation.get(disc, 0.0)
-				var note = "Assign %s → %s [%s]  (Eff. pace: %.0f" % [
-					best_driver.full_name(), car_label, champ_name, eff]
+				var seat_tag := "" if car.seat_count() <= 1 else " (co-driver)"
+				var note = "Assign %s → %s%s [%s]  (Eff. pace: %.0f" % [
+					best_driver.full_name(), car_label, seat_tag, champ_name, eff]
 				if adapt < 40.0:   note += ", 🚨 Very low adaptation %.0f%% — DNS risk" % adapt
 				elif adapt < 70.0: note += ", ⚠ Low adaptation %.0f%%" % adapt
 				note += ")"
@@ -138,7 +142,8 @@ func compute_optimal_assignments(team, team_cars: Array, include_tp: bool) -> Ar
 				committed[best_driver.id] = true
 			else:
 				proposals.append(_mk(car, "missing_driver", "car", "", "", 0.0,
-					"🚫 %s [%s] — no driver available. Hire one." % [car_label, champ_name], "critical"))
+					"🚫 %s [%s] — not enough drivers available. Hire one." % [car_label, champ_name], "critical"))
+				break  ## no point proposing more empty seats if the pool is dry
 
 		## Mechanic — only propose if the car has no mechanic yet
 		if car.mechanic_id == "" or car.mechanic_id == "N/A":
@@ -463,7 +468,8 @@ func _clear_ai_assignments() -> void:
 		var pit_req: bool = gs.get_pit_crew_required(cid)
 		for car in gs.ai_cars[cid]:
 			if not car.id.begins_with("CAR-T-FILL"):
-				car.driver_id = ""
+				for _si in range(car.driver_ids.size()):
+					car.driver_ids[_si] = ""
 				car.mechanic_id = ""
 				## GK (and any pit-not-required champ) keeps the "N/A" convention; the
 				## optimiser skips pit crew there, so leave it explicitly not-applicable.
@@ -618,7 +624,7 @@ func get_tp_proposals_all() -> Array:
 				champ_name = champ.championship_name; break
 		if champ_name == "": continue
 		var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
-		if car.driver_id == "":
+		if not car.all_seats_filled():
 			result.append({
 				"type":    "driver_needed",
 				"champ_id": car.championship_id,
@@ -706,8 +712,8 @@ func _check_tp_proposal_notifications() -> void:
 		for car in gs.player_team_cars:
 			if car.championship_id != champ.id: continue
 			var car_label = car.car_name if car.car_name != "" else "Car %d" % car.car_number
-			if car.driver_id == "":
-				var msg = "🚫 %s [%s] — no driver. Race in %d week%s!" % [
+			if not car.all_seats_filled():
+				var msg = "🚫 %s [%s] — driver seat unfilled. Race in %d week%s!" % [
 					car_label, champ.championship_name, weeks_until,
 					"s" if weeks_until != 1 else ""]
 				gs.notify_event("tp_dns_driver_%s" % car.id, "Critical", msg, "garage", "standing")

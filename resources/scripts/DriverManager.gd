@@ -1,4 +1,8 @@
 class_name DriverManager
+## Version: S37.61 — Bug #38 CREW MODEL: starting-driver standings registration moved to the
+##   caller (registers only the representative); release still frees the driver's own seat.
+## Version: S37.60 — Bug #38 (multi-driver): releasing a driver frees their actual seat (remove_driver),
+##   not just seat 0.
 ## Version: S37.49 — Phase 3 (events→notify_event): driver signing + release → "news"; rest done.
 ## Version: S37.37 — Notification & News Roadmap, Phase 1: blocking-error add_notification calls
 ##   converted to gs.show_popup() (on-the-spot AcceptDialog). Genuine events (hired / signed /
@@ -108,9 +112,9 @@ func release_driver(driver_id: String) -> void:
 	gs.apply_departure_legacy(driver)
 	gs.player_team.drivers.erase(driver_id)
 	for car in gs.player_team_cars:
-		if car.driver_id == driver_id:
-			car.driver_id = ""
-			gs.add_log("🏎 Car %d now has no driver." % car.car_number)
+		if car.has_driver(driver_id):
+			car.remove_driver(driver_id)
+			gs.add_log("🏎 Car %d — seat freed (%s released)." % [car.car_number, driver.full_name()])
 			break
 	gs.add_log("👋 Released driver: %s" % driver.full_name())
 	gs.emit_signal("log_updated")
@@ -159,15 +163,9 @@ func _find_and_sign_starting_driver(discipline: String, champ_id: String) -> Dri
 	pick.podium_bonus  = int(sal * 52 * 0.1)
 	pick.release_clause = int(pick.weekly_salary * 8)  ## 8 weeks salary as default clause
 	gs.player_team.drivers.append(pick.id)
-	## CP4 — register the starting driver into THEIR car's championship standings, not the singular
-	## active_championship (= GK). Setup assigns this driver to player_team_cars[0] directly (it
-	## bypasses CarManager.assign_driver_to_car), so we mirror that registration here using the
-	## car's actual championship. Without this, a GP4 starter never appeared in the GP4 table.
-	if not gs.player_team_cars.is_empty():
-		var start_champ_id = gs.player_team_cars[0].championship_id
-		var start_champ = gs.get_championship_by_id(start_champ_id)
-		if start_champ != null:
-			start_champ.standings[pick.id] = 0
+	## S37.61 — standings registration is handled by the caller (_give_starting_assets section 8),
+	## which registers ONLY the car representative (seat 0) under the crew model. Registering every
+	## signed driver here would wrongly give each Rally/EPC co-driver a separate standings row.
 	return pick
 
 ## ═══ CAR MANAGER — delegated to CarManager.gd (S27) ═══

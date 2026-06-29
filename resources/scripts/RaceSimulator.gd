@@ -1,4 +1,10 @@
 class_name RaceSimulator
+## Version: S37.61 — Bug #38 CREW MODEL: one race entry per car (the representative); post-race
+##   growth + fitness fan out to ALL co-drivers; entries carry a combined crew_label; CNC bonus is
+##   per-car. Added _crew_for_representative()/_crew_label_for().
+## Version: S37.60 — Bug #38 (multi-driver): a car DNS's if ANY seat is empty; all seated co-drivers
+##   are collected as DNS drivers, race co-equally, and match the car by has_driver(); CNC/fuel/degrade
+##   are seat-aware (one fuel/degrade per car, scored per co-driver). [plus prior S37.60 race-name fixes]
 ## Version: S37.60 — Two race-name fixes. (1) Removed the "=== RACE N: <name> [<champ>] ===" banner
 ##   log line (it surfaced in the NEWS panel with the engine constant's race name). (2) The Race
 ##   Results screen race name now follows the JSON (visual schedule): the JSON city, like the Main
@@ -216,11 +222,13 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 					car_label, car.delivery_week, c.championship_name], "logistics", "standing")
 				car_dns = true
 
-			if car.driver_id == "":
-				gs.add_log("🚫 DNS [%s] %s — no driver assigned." % [c.championship_name, car_label])
+			if not car.all_seats_filled():
+				var _empty: int = car.seat_count() - car.assigned_driver_ids().size()
+				var _seat_msg := "no driver assigned" if car.seat_count() <= 1 else "%d of %d driver seats empty" % [_empty, car.seat_count()]
+				gs.add_log("🚫 DNS [%s] %s — %s." % [c.championship_name, car_label, _seat_msg])
 				gs.notify_event("dns_driver_%s" % car.id, "Critical",
-					"DNS: %s has no driver for %s! Assign in Garage." % [
-					car_label, c.championship_name], "garage", "standing")
+					"DNS: %s — %s for %s! Assign in Garage." % [
+					car_label, _seat_msg, c.championship_name], "garage", "standing")
 				car_dns = true
 			elif car.delivered and not can_car_race(car.driver_id):
 				# Only run the full requirement gate for delivered cars — an undelivered
@@ -244,8 +252,8 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 
 			if car_dns:
 				dns_car_ids.append(car.id)
-				if car.driver_id != "":
-					dns_driver_ids.append(car.driver_id)
+				for _did in car.assigned_driver_ids():
+					dns_driver_ids.append(_did)
 				gs.add_log("🏎 Car condition unchanged (DNS)")
 
 	# ── Collect all drivers, skipping DNS ─────────────────────────────────
@@ -257,7 +265,7 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 		if is_player_driver:
 			var has_valid_car = false
 			for car in cars_for_champ:
-				if car.driver_id == driver_id and not car.id in dns_car_ids:
+				if car.has_driver(driver_id) and not car.id in dns_car_ids:
 					has_valid_car = true
 					break
 			if not has_valid_car: continue
@@ -322,8 +330,10 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 			var rnd_combined = (gs.get_rnd_bonus("aero_perf") + gs.get_rnd_bonus("engine_perf") + gs.get_rnd_bonus("chassis_perf")) * 0.33
 			if rnd_combined > 0.0:
 				lap_time /= (1.0 + rnd_combined)
+			## CNC bonus is a CAR property (S37.61): find the player car this race entry represents
+			## (the entry's driver is the car's representative) and apply that car's CNC part bonus.
 			for pcar in gs.player_team_cars:
-				if pcar.driver_id == driver.id:
+				if pcar.has_driver(driver.id):
 					var cnc_bonus = gs.get_cnc_part_bonus(pcar.id)
 					if cnc_bonus > 0.0:
 						lap_time /= (1.0 + cnc_bonus)
@@ -337,6 +347,7 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 
 		driver_times.append({
 			"driver": driver,
+			"crew_label": _crew_label_for(driver),
 			"lap_time": lap_time,
 			"total_time": lap_time * race_data["laps"],
 			"points": 0
@@ -385,6 +396,11 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 		driver_times[i]["is_player"] = driver.id in gs.player_team.drivers
 
 		_update_driver_stats_after_race(driver, standing_position, race_data["laps"], is_wet, race_drivers.size(), race_data.get("track_id", ""), c)
+		## S37.61 crew model — co-drivers all "raced": apply the same growth + fitness drain to every
+		## other seated driver in this car (the representative already got it above).
+		for _co in _crew_for_representative(driver):
+			if _co.id != driver.id:
+				_update_driver_stats_after_race(_co, standing_position, race_data["laps"], is_wet, race_drivers.size(), race_data.get("track_id", ""), c)
 
 		if driver.id in pre_race_stats:
 			var pre = pre_race_stats[driver.id]
@@ -522,6 +538,45 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# CREW HELPERS (S37.61 — co-drivers share one car result)
+# ═══════════════════════════════════════════════════════════════════════════
+
+## Finds the car (player OR AI) whose REPRESENTATIVE (seat 0, or first filled seat) is this driver,
+## and returns that car's full list of seated drivers. Returns [driver] if the driver isn't a
+## representative or the car has a single seat. Used to fan race growth/fitness out to co-drivers
+## and to build the combined crew label.
+func _crew_for_representative(rep: Driver) -> Array:
+	var car = gs.get_car_for_driver(rep.id)
+	if car == null:
+		# AI car: search ai_cars across championships.
+		for cid in gs.ai_cars:
+			for ac in gs.ai_cars[cid]:
+				if ac != null and ac.has_driver(rep.id):
+					car = ac
+					break
+			if car != null:
+				break
+	if car == null:
+		return [rep]
+	var crew: Array = []
+	for did in car.assigned_driver_ids():
+		var d = gs.all_drivers.get(did)
+		if d != null:
+			crew.append(d)
+	return crew if not crew.is_empty() else [rep]
+
+## Combined display label for a car's crew, e.g. "Smith / Jones" (surnames). Single-seat cars
+## return the driver's full name unchanged.
+func _crew_label_for(rep: Driver) -> String:
+	var crew := _crew_for_representative(rep)
+	if crew.size() <= 1:
+		return rep.full_name()
+	var parts: Array = []
+	for d in crew:
+		parts.append(d.last_name if "last_name" in d and d.last_name != "" else d.full_name())
+	return " / ".join(parts)
+
+# ═══════════════════════════════════════════════════════════════════════════
 # POST-RACE: DRIVER STAT GROWTH
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -627,11 +682,13 @@ func consume_race_resources(champ: Championship = null) -> void:
 	for car in gs.player_team_cars:
 		if car.championship_id != c.id:
 			continue
-		if car.driver_id == "":
+		if car.assigned_driver_ids().is_empty():
 			continue
+		## A multi-driver car still burns ONE car's fuel. It "raced" if it wasn't DNS'd —
+		## check via any of its seated drivers' result entries.
 		var was_dns = false
 		for entry in gs.last_race_results:
-			if entry["driver"].id == car.driver_id and entry.get("dns", false):
+			if entry["driver"].id in car.driver_ids and entry.get("dns", false):
 				was_dns = true
 				break
 		if not was_dns:
@@ -669,7 +726,14 @@ func degrade_car_conditions(laps: int, dns_driver_ids: Array = [], champ: Champi
 	for car in gs.player_team_cars:
 		if c != null and car.championship_id != c.id:
 			continue  ## not in the championship that just raced — untouched
-		if car.driver_id == "" or car.driver_id in dns_driver_ids:
+		## Multi-seat: the car degrades if it raced (has at least one seated, non-DNS driver).
+		var _seated: Array = car.assigned_driver_ids()
+		var _raced := false
+		for _d in _seated:
+			if not _d in dns_driver_ids:
+				_raced = true
+				break
+		if _seated.is_empty() or not _raced:
 			gs.add_log("🔩 Car %d condition unchanged (DNS)" % car.car_number)
 			continue
 		car.condition = max(0.0, car.condition - loss)

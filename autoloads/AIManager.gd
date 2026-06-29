@@ -1,4 +1,7 @@
 extends RefCounted
+## Version: S37.61 — Bug #38 CREW MODEL: AI standings register only the car representative (seat 0).
+## Version: S37.60 — Bug #38 (multi-driver): AI cars get all seats sized (set_seat_count(dpc)) and
+##   load_car_assignments fills EVERY seat from the JSON driver_ids array (was lead-only).
 ## Version: S37.52 — #22: teams.json loop now skips non-team keys (e.g. "_meta" version header)
 ##   via `if not tid.begins_with("T-")`. Lets the data files carry an inert _meta version stamp
 ##   without being mistaken for a team. No behavioural change for real T-xxx teams.
@@ -138,6 +141,7 @@ func generate_teams() -> void:
 					car.driver_id       = ""
 					car.mechanic_id     = ""
 					car.pit_crew_id     = "N/A"
+					car.set_seat_count(dpc)   ## S37.60 — size seats to the discipline rule (filled by load_car_assignments)
 					car.part_conditions = {
 						"Aero":100.0,"Engine":100.0,"Gearbox":100.0,
 						"Suspension":100.0,"Brakes":100.0,"Chassis":100.0
@@ -429,9 +433,14 @@ func load_car_assignments() -> void:
 				not_found += 1
 				continue
 
-			## Assign lead driver (slot 0)
+			## Assign ALL drivers to their seats (S37.60 multi-driver). The JSON already
+			## carries the full driver_ids array per car; size the car's seats to the
+			## discipline rule, then seat each driver. (Previously only drv_ids[0] was set,
+			## so Rally/TC/EPC AI cars showed a single driver despite the data.)
 			if drv_ids.size() > 0:
-				car.driver_id = drv_ids[0]
+				car.set_seat_count(GameState.get_drivers_per_car(cid))
+				for si in range(min(drv_ids.size(), car.driver_ids.size())):
+					car.driver_ids[si] = drv_ids[si]
 				assigned_drivers += 1
 
 			## Assign mechanic
@@ -444,15 +453,16 @@ func load_car_assignments() -> void:
 				car.pit_crew_id = pit_id
 				assigned_pit += 1
 
-			## Register drivers in championship standings — skip GK
-			## GK standings managed exclusively by GKDiscipline.populate_season()
+			## Register the CAR REPRESENTATIVE (seat 0) in championship standings — skip GK.
+			## S37.61 crew model: co-drivers share one car result, so only one entry per car.
+			## GK standings managed exclusively by GKDiscipline.populate_season().
 			var disc_check = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {}).get("discipline", "")
-			if disc_check != "GK":
+			if disc_check != "GK" and drv_ids.size() > 0:
+				var rep_did: String = drv_ids[0]
 				for champ in GameState.active_championships:
 					if champ.id != cid: continue
-					for did in drv_ids:
-						if not champ.standings.has(did):
-							champ.standings[did] = 0
+					if not champ.standings.has(rep_did):
+						champ.standings[rep_did] = 0
 					break
 
 	print("[AIManager] Cars assigned: %d drivers, %d mechanics, %d pit crews (%d cars not found)" \
