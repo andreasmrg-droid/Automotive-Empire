@@ -1,4 +1,8 @@
 {
+ "_meta": {
+  "version": "S37.54",
+  "note": "#22 IP/licensing safety: fictionalized 23 real-circuit/series/venue team names (Pro Mazda, Mid-Ohio, Long Beach, Road America, Talladega, Bristol, Monza, Nurburgring, Spa, Le Mans, Sarthe, Monte Carlo, Silverstone, etc.) -> invented region/motif names. Follows the S37.52 56-name variation pass. People/IDs unchanged; AIManager skips _meta via begins_with('T-')."
+ },
  "T-001": {
   "name": "Blackthorn Racing",
   "nat": "GBR",
@@ -44,7 +48,7 @@
   "sponsors": 13
  },
  "T-002": {
-  "name": "Redline Syndicate",
+  "name": "Redline",
   "nat": "ITA",
   "type": "Factory",
   "rep": 92,
@@ -172,7 +176,7 @@
   "sponsors": 13
  },
  "T-005": {
-  "name": "Cobalt Collective",
+  "name": "Cobalt",
   "nat": "GBR",
   "type": "Customer",
   "rep": 77,
@@ -295,7 +299,7 @@
   "sponsors": 11
  },
  "T-008": {
-  "name": "Silverline Engineering",
+  "name": "Silverline",
   "nat": "ITA",
   "type": "Customer",
   "rep": 73,
@@ -371,7 +375,7 @@
   "sponsors": 7
  },
  "T-010": {
-  "name": "Stormfront Motorsport",
+  "name": "Tempest",
   "nat": "GBR",
   "type": "Customer",
   "rep": 69,
@@ -451,7 +455,7 @@
   "sponsors": 11
  },
  "T-012": {
-  "name": "Horizon Collective",
+  "name": "Horizon",
   "nat": "FRA",
   "type": "Privateer",
   "rep": 46,
@@ -612,7 +616,7 @@
   "sponsors": 10
  },
  "T-016": {
-  "name": "Aurora Performance",
+  "name": "Aurora GP",
   "nat": "GBR",
   "type": "Factory",
   "rep": 91,
@@ -694,7 +698,7 @@
   "sponsors": 9
  },
  "T-018": {
-  "name": "Maple Leaf Motorsport",
+  "name": "Maple Leaf MT",
   "nat": "CAN",
   "type": "Privateer",
   "rep": 45,
@@ -811,7 +815,7 @@
   "sponsors": 12
  },
  "T-021": {
-  "name": "Phantom Collective",
+  "name": "Phantom",
   "nat": "ITA",
   "type": "Customer",
   "rep": 70,
@@ -933,7 +937,7 @@
   "sponsors": 8
  },
  "T-024": {
-  "name": "Northern Lights Racing",
+  "name": "Aurora North",
   "nat": "GBR",
   "type": "Customer",
   "rep": 74,
@@ -1050,7 +1054,7 @@
   "sponsors": 11
  },
  "T-027": {
-  "name": "Riverstone Engineering",
+  "name": "Riverstone",
   "nat": "FRA",
   "type": "Privateer",
   "rep": 49,
@@ -1122,7 +1126,7 @@
   "sponsors": 6
  },
  "T-029": {
-  "name": "Pinnacle Alliance",
+  "name": "Pinnacle",
   "nat": "GBR",
   "type": "Factory",
   "rep": 97,
@@ -1167,7 +1171,7 @@
   "sponsors": 13
  },
  "T-030": {
-  "name": "Indy Collective",
+  "name": "Meridian MS",
   "nat": "USA",
   "type": "Customer",
   "rep": 66,
@@ -1206,7 +1210,7 @@
   "sponsors": 9
  },
  "T-031": {
-  "name": "Silverstone Wolf Racing",
+  "name": "Silverstag Wolf Racing",
   "nat": "FRA",
   "type": "Customer",
   "rep": 76,
@@ -1325,7 +1329,7 @@
   "sponsors": 11
  },
  "T-034": {
-  "name": "Velvet Hammer Racing",
+  "name": "Velvet Hammer",
   "nat": "ITA",
   "type": "Customer",
   "rep": 69,
@@ -1364,7 +1368,7 @@
   "sponsors": 9
  },
  "T-035": {
-  "name": "Coastal Racing",
+  "name": "Coastal",
   "nat": "ESP",
   "type": "Privateer",
   "rep": 44,
@@ -1438,7 +1442,7 @@
   "sponsors": 9
  },
  "T-037": {
-  "name": "Hakone Collective",
+  "name": "Hakone MS",
   "nat": "JPN",
   "type": "Factory",
   "rep": 85,
@@ -1480,7 +1484,7 @@
   "sponsors": 11
  },
  "T-038": {
-  "name": "Whitewater Racing",
+  "name": "Whitewater",
   "nat": "GBR",
   "type": "Customer",
   "rep": 72,
@@ -1519,7 +1523,7 @@
   "sponsors": 10
  },
  "T-039": {
-  "name": "Midwest Collective",
+  "name": "Midwest",
   "nat": "USA",
   "type": "Customer",
   "rep": 58,
@@ -1559,7 +1563,7 @@
   "sponsors": 8
  },
  "T-040": {
-  "name": "Stonewall Racing",
+  "name": "Stonewall",
   "nat": "FRA",
   "type": "Privateer",
   "rep": 35,
@@ -1678,7 +1682,7 @@
   "sponsors": 12
  },
  "T-043": {
-  "name": "Provence Performance",
+  "name": "Mistral",
   "nat": "FRA",
   "type": "Customer",
   "rep": 54,
@@ -1793,7 +1797,7 @@
   "sponsors": 11
  },
  "T-046": {
-  "name": "Roman Legion Racing",
+  "name": "Legion",
   "nat": "ITA",
   "type": "Customer",
   "rep": 70,
@@ -1833,7 +1837,7 @@
   "sponsors": 10
  },
  "T-047": {
-  "name": "Highland Collective",
+  "name": "Caledonia MS",
   "nat": "GBR",
   "type": "Customer",
   "rep": 73,
@@ -1953,7 +1957,7 @@
   "sponsors": 12
  },
  "T-050": {
-  "name": "Loire Valley Racing",
+  "name": "Loire GP",
   "nat": "FRA",
   "type": "Privateer",
   "rep": 42,
@@ -2063,7 +2067,7 @@
   "sponsors": 6
  },
  "T-053": {
-  "name": "Nordic Storm Racing",
+  "name": "Nordic Storm",
   "nat": "SWE",
   "type": "Customer",
   "rep": 64,
@@ -2142,7 +2146,7 @@
   "sponsors": 11
  },
  "T-055": {
-  "name": "Thames Valley Engineering",
+  "name": "Thames Valley GP",
   "nat": "GBR",
   "type": "Customer",
   "rep": 67,
@@ -2374,7 +2378,7 @@
   "sponsors": 6
  },
  "T-061": {
-  "name": "Great Lakes Racing",
+  "name": "Great Lakes MT",
   "nat": "USA",
   "type": "Customer",
   "rep": 58,
@@ -2491,7 +2495,7 @@
   "sponsors": 6
  },
  "T-064": {
-  "name": "Cornbelt Collective",
+  "name": "Cornbelt",
   "nat": "USA",
   "type": "Customer",
   "rep": 55,
@@ -2566,7 +2570,7 @@
   "sponsors": 9
  },
  "T-066": {
-  "name": "Maple Motorsport",
+  "name": "Maple MT",
   "nat": "CAN",
   "type": "Customer",
   "rep": 52,
@@ -2605,7 +2609,7 @@
   "sponsors": 7
  },
  "T-067": {
-  "name": "Mistral Thunder",
+  "name": "Mistral TC",
   "nat": "FRA",
   "type": "Factory",
   "rep": 80,
@@ -2647,7 +2651,7 @@
   "sponsors": 11
  },
  "T-068": {
-  "name": "Highland Thistle",
+  "name": "Thistle MS",
   "nat": "GBR",
   "type": "Customer",
   "rep": 66,
@@ -2724,7 +2728,7 @@
   "sponsors": 7
  },
  "T-070": {
-  "name": "Thames Collective",
+  "name": "Thames MT",
   "nat": "GBR",
   "type": "Customer",
   "rep": 70,
@@ -2800,7 +2804,7 @@
   "sponsors": 4
  },
  "T-072": {
-  "name": "Rhine Valley Collective",
+  "name": "RVR Motorsport",
   "nat": "GER",
   "type": "Customer",
   "rep": 73,
@@ -2839,7 +2843,7 @@
   "sponsors": 10
  },
  "T-073": {
-  "name": "Scottish Collective",
+  "name": "Scotia",
   "nat": "GBR",
   "type": "Privateer",
   "rep": 32,
@@ -2914,7 +2918,7 @@
   "sponsors": 7
  },
  "T-075": {
-  "name": "Capitoline Collective",
+  "name": "Capitoline",
   "nat": "ITA",
   "type": "Customer",
   "rep": 69,
@@ -2954,7 +2958,7 @@
   "sponsors": 9
  },
  "T-076": {
-  "name": "Great Lakes Collective",
+  "name": "GLC Racing",
   "nat": "USA",
   "type": "Customer",
   "rep": 54,
@@ -3032,7 +3036,7 @@
   "sponsors": 9
  },
  "T-078": {
-  "name": "Britannia Collective",
+  "name": "Albion",
   "nat": "GBR",
   "type": "Customer",
   "rep": 72,
@@ -3107,7 +3111,7 @@
   "sponsors": 7
  },
  "T-080": {
-  "name": "Outback Collective",
+  "name": "Outback MT",
   "nat": "AUS",
   "type": "Privateer",
   "rep": 39,
@@ -3141,7 +3145,7 @@
   "sponsors": 6
  },
  "T-081": {
-  "name": "Maple Thunder",
+  "name": "Maple Leaf GP",
   "nat": "CAN",
   "type": "Customer",
   "rep": 54,
@@ -3255,7 +3259,7 @@
   "sponsors": 7
  },
  "T-084": {
-  "name": "Blackthorn Collective",
+  "name": "BTC Sport",
   "nat": "GBR",
   "type": "Customer",
   "rep": 69,
@@ -3294,7 +3298,7 @@
   "sponsors": 9
  },
  "T-085": {
-  "name": "Redline Collective",
+  "name": "Redline TC",
   "nat": "ITA",
   "type": "Customer",
   "rep": 67,
@@ -3334,7 +3338,7 @@
   "sponsors": 9
  },
  "T-086": {
-  "name": "Valkyrie Collective",
+  "name": "Valkyrie TC",
   "nat": "GER",
   "type": "Customer",
   "rep": 74,
@@ -3373,7 +3377,7 @@
   "sponsors": 10
  },
  "T-087": {
-  "name": "Cobalt Thunder",
+  "name": "Cobalt MT",
   "nat": "GBR",
   "type": "Privateer",
   "rep": 41,
@@ -3411,7 +3415,7 @@
   "sponsors": 6
  },
  "T-088": {
-  "name": "Thunderbolt Collective",
+  "name": "TBT Racing",
   "nat": "FRA",
   "type": "Customer",
   "rep": 63,
@@ -3450,7 +3454,7 @@
   "sponsors": 9
  },
  "T-089": {
-  "name": "Stormfront Collective",
+  "name": "Stormfront RT",
   "nat": "GBR",
   "type": "Customer",
   "rep": 55,
@@ -3578,7 +3582,7 @@
   "sponsors": 6
  },
  "T-093": {
-  "name": "Vortex Kart Team",
+  "name": "Vortex Kart",
   "nat": "FRA",
   "type": "Privateer",
   "rep": 42,
@@ -3671,7 +3675,7 @@
   "sponsors": 7
  },
  "T-096": {
-  "name": "Storm Kart Racing",
+  "name": "Storm Kart",
   "nat": "USA",
   "type": "Privateer",
   "rep": 49,
@@ -3948,7 +3952,7 @@
   "sponsors": 5
  },
  "T-104": {
-  "name": "Desert Falcon Racing",
+  "name": "Falcon",
   "nat": "UAE",
   "type": "Customer",
   "rep": 70,
@@ -4467,7 +4471,7 @@
   "sponsors": 8
  },
  "T-118": {
-  "name": "Monte Carlo Racing",
+  "name": "Riviera Racing",
   "nat": "MCO",
   "type": "Customer",
   "rep": 60,
@@ -4789,7 +4793,7 @@
   "sponsors": 4
  },
  "T-127": {
-  "name": "Sunbelt Racing",
+  "name": "Sunbelt",
   "nat": "USA",
   "type": "Privateer",
   "rep": 27,
@@ -4897,7 +4901,7 @@
   "sponsors": 4
  },
  "T-130": {
-  "name": "Talladega Collective",
+  "name": "Highbank MT",
   "nat": "USA",
   "type": "Privateer",
   "rep": 21,
@@ -4933,7 +4937,7 @@
   "sponsors": 3
  },
  "T-131": {
-  "name": "Bristol Thunder",
+  "name": "Ironclad Thunder",
   "nat": "USA",
   "type": "Privateer",
   "rep": 26,
@@ -4969,7 +4973,7 @@
   "sponsors": 4
  },
  "T-132": {
-  "name": "Michigan Motorsport",
+  "name": "Lakeland Motorsport",
   "nat": "USA",
   "type": "Privateer",
   "rep": 23,
@@ -5004,7 +5008,7 @@
   "sponsors": 4
  },
  "T-133": {
-  "name": "Phoenix Racing",
+  "name": "Firebird Racing",
   "nat": "USA",
   "type": "Privateer",
   "rep": 21,
@@ -5111,7 +5115,7 @@
   "sponsors": 4
  },
  "T-136": {
-  "name": "Midwest Truck Collective",
+  "name": "Midwest Trucks",
   "nat": "USA",
   "type": "Privateer",
   "rep": 19,
@@ -5254,7 +5258,7 @@
   "sponsors": 4
  },
  "T-140": {
-  "name": "Oval Masters Racing",
+  "name": "Apex Oval Racing",
   "nat": "USA",
   "type": "Customer",
   "rep": 42,
@@ -5291,7 +5295,7 @@
   "sponsors": 6
  },
  "T-141": {
-  "name": "Indy Speed Team",
+  "name": "Velocity Speed Team",
   "nat": "USA",
   "type": "Privateer",
   "rep": 30,
@@ -5327,7 +5331,7 @@
   "sponsors": 5
  },
  "T-142": {
-  "name": "Long Beach Racing",
+  "name": "Harbor City Racing",
   "nat": "USA",
   "type": "Privateer",
   "rep": 27,
@@ -5364,7 +5368,7 @@
   "sponsors": 4
  },
  "T-143": {
-  "name": "Oval Masters Racing",
+  "name": "Banked Eight Racing",
   "nat": "USA",
   "type": "Customer",
   "rep": 42,
@@ -5401,7 +5405,7 @@
   "sponsors": 6
  },
  "T-144": {
-  "name": "Road America Collective",
+  "name": "Heartwood MT",
   "nat": "USA",
   "type": "Privateer",
   "rep": 24,
@@ -5438,7 +5442,7 @@
   "sponsors": 4
  },
  "T-145": {
-  "name": "Portland Racing",
+  "name": "Cascade Racing",
   "nat": "USA",
   "type": "Privateer",
   "rep": 26,
@@ -5474,7 +5478,7 @@
   "sponsors": 4
  },
  "T-146": {
-  "name": "Mid-Ohio Motorsport",
+  "name": "Buckeye Motorsport",
   "nat": "USA",
   "type": "Privateer",
   "rep": 23,
@@ -5511,7 +5515,7 @@
   "sponsors": 4
  },
  "T-147": {
-  "name": "Barber Racing",
+  "name": "Ridgeline Racing",
   "nat": "USA",
   "type": "Privateer",
   "rep": 26,
@@ -5619,7 +5623,7 @@
   "sponsors": 4
  },
  "T-150": {
-  "name": "Pro Mazda Team",
+  "name": "Spec Star Team",
   "nat": "USA",
   "type": "Privateer",
   "rep": 24,
@@ -5654,7 +5658,7 @@
   "sponsors": 4
  },
  "T-151": {
-  "name": "Sarthe Racing",
+  "name": "Beaumont Endurance",
   "nat": "FRA",
   "type": "Privateer",
   "rep": 41,
@@ -5690,7 +5694,7 @@
   "sponsors": 6
  },
  "T-152": {
-  "name": "Portimao Endurance",
+  "name": "Algarve Endurance",
   "nat": "PRT",
   "type": "Privateer",
   "rep": 38,
@@ -5725,7 +5729,7 @@
   "sponsors": 6
  },
  "T-153": {
-  "name": "Nurburgring Collective",
+  "name": "Eifel MS",
   "nat": "GER",
   "type": "Privateer",
   "rep": 42,
@@ -5796,7 +5800,7 @@
   "sponsors": 7
  },
  "T-155": {
-  "name": "Monza Endurance",
+  "name": "Lombardy Endurance",
   "nat": "ITA",
   "type": "Privateer",
   "rep": 39,
@@ -5831,7 +5835,7 @@
   "sponsors": 6
  },
  "T-156": {
-  "name": "Safari Rally Team",
+  "name": "Tsavo Motorsport",
   "nat": "KEN",
   "type": "Privateer",
   "rep": 38,
@@ -5867,7 +5871,7 @@
   "sponsors": 6
  },
  "T-157": {
-  "name": "Gravel Kings",
+  "name": "Tarmac & Stone",
   "nat": "GBR",
   "type": "Privateer",
   "rep": 32,
@@ -5901,7 +5905,7 @@
   "sponsors": 5
  },
  "T-158": {
-  "name": "Stage One Racing",
+  "name": "Maquis Rally",
   "nat": "FRA",
   "type": "Privateer",
   "rep": 29,
@@ -5936,7 +5940,7 @@
   "sponsors": 4
  },
  "T-159": {
-  "name": "Le Mans Collective",
+  "name": "Auvergne MT",
   "nat": "FRA",
   "type": "Customer",
   "rep": 52,
@@ -6072,7 +6076,7 @@
   "sponsors": 5
  },
  "T-163": {
-  "name": "Spa Endurance Team",
+  "name": "Ardennes Endurance",
   "nat": "BEL",
   "type": "Customer",
   "rep": 54,
@@ -6316,7 +6320,7 @@
   "sponsors": 3
  },
  "T-170": {
-  "name": "Gateway Racing",
+  "name": "Archway Racing",
   "nat": "USA",
   "type": "Privateer",
   "rep": 26,
@@ -6352,7 +6356,7 @@
   "sponsors": 4
  },
  "T-171": {
-  "name": "Chicagoland Motorsport",
+  "name": "Lakeshore Motorsport",
   "nat": "USA",
   "type": "Privateer",
   "rep": 24,

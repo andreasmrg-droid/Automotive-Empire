@@ -1,5 +1,8 @@
 extends RefCounted
-## Version: S37.15 — #18: Team Principal loader reads talent_scouting from staff_tp.json
+## Version: S37.52 — #22: teams.json loop now skips non-team keys (e.g. "_meta" version header)
+##   via `if not tid.begins_with("T-")`. Lets the data files carry an inert _meta version stamp
+##   without being mistaken for a team. No behavioural change for real T-xxx teams.
+## --- S37.15 — #18: Team Principal loader reads talent_scouting from staff_tp.json
 ## attributes (defaults to a wide random roll when absent).
 ## Version: S24.2 — Driver loader wired. load_ai_drivers() loads
 ## drivers_professional.json and drivers_cadets.json.
@@ -78,6 +81,9 @@ func generate_teams() -> void:
 		return
 
 	for tid in team_data:
+		## Skip non-team metadata keys (e.g. "_meta" version header). Only T-xxx entries are teams.
+		if not tid.begins_with("T-"):
+			continue
 		var td: Dictionary = team_data[tid]
 		var champ_dict: Dictionary = td.get("championships", {})
 

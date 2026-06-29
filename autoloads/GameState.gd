@@ -1,3 +1,5 @@
+## Version: S37.56 — Removed the temporary S37.53 #22 diagnostic (_debug_dump_championship_rosters)
+##   now that the engine roster build from teams.json is verified. No functional change vs S37.50.
 ## Version: S37.50 — NEW-GAME provisioning fixes (_give_starting_assets): (1) Ops Sim key typo —
 ##   "Ops Sim" → "Ops Sim & Telemetry" (the real key everywhere else), so SC Dev / GP4 actually
 ##   build the Ops Sim building at start and the starting Race Strategist gets its slot (the

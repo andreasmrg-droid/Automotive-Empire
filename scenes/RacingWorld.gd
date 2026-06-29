@@ -1,5 +1,7 @@
 extends Control
-## Version: S37.48 — Racing World compact cards (_build_world_card, used for every championship the
+## Version: S37.55 — GK "OTHER GROUPS" chip leader line no longer jams name and points together
+##   ("Lewis Lewis 0pts" read as a name ending in "pt"). Now "%s — %d pts" with a space + dash.
+## --- S37.48 — Racing World compact cards (_build_world_card, used for every championship the
 ##   player isn't in) now show the TEAM/constructors leader alongside the driver leader. The data was
 ##   already populated (AIChampionshipSim.add_team_points for AI champs; the real sim for the player's
 ##   champ), but this card only displayed the driver leader — so the world looked like it had no team
@@ -448,7 +450,7 @@ func _build_group_chip(standings: Array, group_idx: int) -> PanelContainer:
 			if s["points"] > leader["points"]: leader = s
 		var d = GameState.all_drivers.get(leader["driver_id"])
 		var ll = Label.new()
-		ll.text = "%s  %dpts" % [
+		ll.text = "%s — %d pts" % [
 			d.full_name() if d else "?", leader["points"]]
 		ll.add_theme_font_size_override("font_size", 20)
 		ll.add_theme_color_override("font_color", Color(0.8,0.8,0.8))
