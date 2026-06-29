@@ -1,4 +1,9 @@
 extends Control
+## Version: S37.59 — Next Race line + Next Race button now consider ONLY the player's own
+##   championships (get_player_championships()), not every active series, so they point at the race
+##   the player actually contests. The line also shows the JSON city name (get_calendar_city) instead
+##   of the engine constant's branded name (e.g. "Tours" not "Le Mans"); falls back to the engine
+##   entry name if the round isn't in the JSON (e.g. GK's engine-only Grand Final round 22).
 ## Version: S37.49 — Phase 3 (events→notify_event): the 2 "coming soon" placeholders → "event".
 ## Version: S37.40 — TDL routing: commitment-sponsor "requires racing X" task routes to HQ and
 ##   opens the WRA tab (registration), matching the R&D→WRA submit task.
@@ -320,17 +325,21 @@ func _update_display() -> void:
 	# Find the soonest upcoming race across all active championships
 	var soonest_race = null
 	var soonest_champ = null
-	for champ in GameState.active_championships:
+	for champ in GameState.get_player_championships():
 		var nr = champ.get_next_race()
 		if nr:
 			if soonest_race == null or nr["week"] < soonest_race["week"]:
 				soonest_race = nr
 				soonest_champ = champ
 	if soonest_race:
-		var champ_tag = " [%s]" % soonest_champ.championship_name if GameState.active_championships.size() > 1 else ""
+		var champ_tag = " [%s]" % soonest_champ.championship_name if GameState.get_player_championships().size() > 1 else ""
+		## Prefer the JSON city name (visual schedule) over the engine entry's name; fall back to it.
+		var race_city: String = GameState.get_calendar_city(soonest_champ.id, soonest_race["round"])
+		if race_city == "":
+			race_city = soonest_race["name"]
 		next_race_label.text = "Season %d  ·  Week %d / 52      🏎 Next Race: Round %d — %s%s  (Week %d)" % [
 			GameState.current_season, GameState.current_week,
-			soonest_race["round"], soonest_race["name"], champ_tag, soonest_race["week"]]
+			soonest_race["round"], race_city, champ_tag, soonest_race["week"]]
 		var weeks_away = soonest_race["week"] - GameState.current_week
 		if advance_to_race_button:
 			if weeks_away > 1:
@@ -717,9 +726,9 @@ func _on_advance_pressed() -> void:
 		_show_pending_tasks_dialog(tasks)
 
 func _on_advance_to_race_pressed() -> void:
-	# Find soonest upcoming race across all active championships
+	# Find the player's soonest upcoming race (only championships the player races in)
 	var next_race = null
-	for champ in GameState.active_championships:
+	for champ in GameState.get_player_championships():
 		var nr = champ.get_next_race()
 		if nr:
 			if next_race == null or nr["week"] < next_race["week"]:

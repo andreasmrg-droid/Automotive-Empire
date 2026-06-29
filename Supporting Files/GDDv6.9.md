@@ -1,6 +1,30 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v6.8 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+**Version:** v6.9 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v6.9: (S37.51–S37.59) BUG #22 CLOSE-OUT (IP / NAME PASS) + CALENDAR-SOURCE / MAIN-HUB FIXES.
+	(1) IP & NAME PASS (Bug #22 → ✅): real-athlete surnames scrubbed from the assigned JSON (13 fixes);
+	teams.json name-variation + 4 dedupes + 23 real circuit/series/venue TEAM names fictionalized
+	(0 duplicate team names, 172 teams intact, every championship still meets its minimum car count from
+	JSON alone); driver dedup across 1244 drivers (0 first==last incl. "Lewis Lewis", 0 duplicate full
+	names). (2) CHAMPIONSHIPS BROWSER REFACTOR (§16 / title-screen): retired the hardcoded
+	CHAMP_TEAMS/CHAMP_STAFF/CHAMP_CARS/CAR_DRIVERS/CHAMP_KEY_IDX constants (1519→542 lines; the dead
+	CAR_DRIVERS block alone was ~920 lines) — these held the last IP ("Andretti Collective",
+	"IndyCar/NXT/USF/WRC/GT3/GT4-equivalent"). Browser now reads res://data/teams.json directly (works
+	pre-game) and renders richer rows; all 21 championships populate, counts match the engine. Backup
+	machinery (AIManager grid-fill / filler teams, personnel generation, bankruptcy) untouched. (3) TRACK
+	NAMES: race_calendar.json display cities — 29 circuit-towns remapped to the nearest major city
+	(Silverstone→Northampton, Monza→Milan, Spa→Liège, Le Mans→Tours, Suzuka→Osaka, Daytona→Jacksonville,
+	Talladega→Montgomery, …); rally country-bracket entries left as-is (intentional rally formatting).
+	(4) DUAL-CALENDAR CLARIFIED: the race ENGINE runs off the hardcoded CHAMPIONSHIP_CALENDARS constant
+	(22-round GK incl. same-week semifinal+final via get_races_for_week — UNCHANGED); race_calendar.json
+	is the VISUAL schedule (Calendar scene) and carries forward race-module metadata (practice/quali/
+	sprint/double_race/stages/hours) that no code consumes yet. (5) MAIN HUB (§15.3): the Next-Race line
+	+ Next-Race button now consider ONLY the player's own championships (get_player_championships()),
+	and the line shows the JSON city via new GameState.get_calendar_city(cid, round) (falls back to the
+	engine entry name for GK's engine-only Grand Final round 22). No save/load change — the helper is a
+	pure read and player_registered_championships is already persisted. NOTE: branded EVENT names
+	("Daytona 500", "24h Le Mans", "Spa-Francorchamps") still live in the CHAMPIONSHIP_CALENDARS constant
+	as `name`; no longer shown on the Main Hub but a candidate future scrub for other screens. -->
 <!-- v6.8: (S37.37–S37.50) LIVING WORLD + NOTIFICATION MIGRATION COMPLETE + NEW-GAME PROVISIONING.
 	(1) NOTIFICATION/NEWS PHASE 3 COMPLETE: every add_notification across all engines + scenes migrated
 	to the notify_event framework (event / standing / news / once) or show_popup — see §15.1. Signings &
@@ -1568,6 +1592,40 @@ the wildcards). Biggest risk: scope creep — keep saying "backlog."
 ## 20. IMPLEMENTATION CHANGELOG (recent — newest first)
 
 Historical record of what shipped; design facts above already reflect these.
+
+- **S37.51–S37.59 (Bug #22 IP/name close-out + calendar-source / Main-Hub fixes):**
+  - *IP & name pass (Bug #22 → ✅)* — (a) 13 real-athlete surnames scrubbed from the assigned JSON
+	(Räikkönen/Mäkinen/Leclerc/Bottas/Neuville → same-nationality pool names); (b) teams.json
+	name-variation pass + 4 duplicate team names de-duped + **23 real circuit/series/venue team names
+	fictionalized** (Pro Mazda→Spec Star, Oval Masters→Apex Oval, Silverstone Wolf→Silverstag Wolf,
+	Sarthe→Beaumont, Monza→Lombardy, Spa→Ardennes, Monte Carlo→Riviera, …) — 0 duplicate team names,
+	172 teams intact, every championship still meets its minimum car count from JSON alone; (c) driver
+	dedup across 1244 drivers — fixed "Lewis Lewis" (first==last) + all duplicate full names via
+	NameData surname rotation (0/0 remaining; fewer middle-initial fallbacks).
+  - *Championships browser refactor (S37.57, §16)* — retired the hardcoded
+	CHAMP_TEAMS/CHAMP_STAFF/CHAMP_CARS/CAR_DRIVERS/CHAMP_KEY_IDX constants (Championships.gd 1519→542
+	lines; dead CAR_DRIVERS block ~920 lines) which carried the last IP ("Andretti Collective",
+	"IndyCar/NXT/USF/WRC/GT3/GT4-equivalent", "Le Mans equivalent"). Browser now reads teams.json
+	directly at the title screen (pre-game) via _load_teams_from_json → _teams_by_champ and renders
+	flag · name · type · cars-in-champ · reputation · staff counts · driver pool; all 21 championships
+	populate with no empties, counts matching the engine diagnostic. **Backup machinery untouched**
+	(AIManager grid-fill / filler teams, personnel generation, bankruptcy logic).
+  - *RacingWorld "0pts" display (S37.55)* — GK group-chip leader line no longer jams name+points
+	("Lewis Lewis 0pts" read as "…pt"); now "%s — %d pts".
+  - *Track names (S37.58)* — race_calendar.json display cities: 29 circuit-towns remapped to the
+	nearest major city (Silverstone→Northampton, Monza→Milan, Spa→Liège, Le Mans→Tours, Suzuka→Osaka,
+	Daytona→Jacksonville, Talladega→Montgomery, Imola→Bologna, Spielberg→Graz, Nürburg→Cologne, …).
+	Rally country-bracket entries (e.g. "Jyväskylä (Finland)") left as-is — intentional rally format.
+  - *Dual-calendar clarified* — the race ENGINE runs off the hardcoded CHAMPIONSHIP_CALENDARS constant
+	(22-round GK incl. same-week semifinal+final via get_races_for_week, S36.18 — UNCHANGED);
+	race_calendar.json is the VISUAL schedule (Calendar scene) and carries forward race-module metadata
+	(practice/quali/sprint/double_race/stages/hours) that no code reads yet.
+  - *Main Hub (S37.59, §15.3)* — Next-Race line + Next-Race button now consider ONLY the player's own
+    championships (get_player_championships()); the line shows the JSON city via new
+	GameState.get_calendar_city(cid, round), falling back to the engine entry name for GK's engine-only
+	Grand Final (round 22). No save/load change (pure-read helper; player_registered_championships
+	already persisted). Branded EVENT names in the constant ("Daytona 500", "24h Le Mans") no longer
+	surface on the Main Hub but remain in CHAMPIONSHIP_CALENDARS as `name` — candidate future scrub.
 
 - **S37.37–S37.50 (LIVING WORLD + notification migration + new-game provisioning):**
   - *Notification/News Phase 3 COMPLETE* — every `add_notification` in all engines + scenes migrated

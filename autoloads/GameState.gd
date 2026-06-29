@@ -1,3 +1,6 @@
+## Version: S37.59 — Added get_calendar_city(cid, round): UI helper that returns the display city
+##   for a championship+round from race_calendar.json, so the Main Hub can show JSON place names
+##   instead of the engine constant's branded names. Engine race logic unchanged.
 ## Version: S37.56 — Removed the temporary S37.53 #22 diagnostic (_debug_dump_championship_rosters)
 ##   now that the engine roster build from teams.json is verified. No functional change vs S37.50.
 ## Version: S37.50 — NEW-GAME provisioning fixes (_give_starting_assets): (1) Ops Sim key typo —
@@ -3860,6 +3863,19 @@ func _load_race_calendar() -> void:
 		race_calendar_data = parsed
 	else:
 		push_warning("race_calendar.json did not parse to a Dictionary.")
+
+## S37.59 — Returns the display CITY for a given championship+round from race_calendar.json
+## (the canonical visual schedule). The race ENGINE still runs off CHAMPIONSHIP_CALENDARS, but the
+## UI should show the JSON's place names (e.g. "Tours", not the engine's branded "Le Mans"). Returns
+## "" if the round isn't present in the JSON (e.g. GK's engine-only round 22 Grand Final), so callers
+## can fall back to the engine entry's own name.
+func get_calendar_city(cid: String, round_num: int) -> String:
+	var champs: Dictionary = race_calendar_data.get("championships", {})
+	var champ: Dictionary = champs.get(cid, {})
+	for rd in champ.get("rounds", []):
+		if int(rd.get("round", -1)) == round_num:
+			return str(rd.get("city", ""))
+	return ""
 
 ## S37.26 — cached CalendarManager accessor (preload-based, no class_name dependency).
 func get_calendar_manager():
