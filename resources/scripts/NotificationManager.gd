@@ -1,4 +1,7 @@
 class_name NotificationManager
+## Version: S37.62 — News/TDL cleanup: notifications no longer mirror into the NEWS/event log
+##   (readiness alerts are not news); TDL deadline items resolve on crew/mechanic fill; legacy
+##   week-countdown TDL variants purged from old saves.
 ## Version: S37.60 — Bug #38 (multi-driver): driver-readiness tasks flag any empty seat and resolve
 ##   only when all seats are filled.
 ## Version: S37.50 — Added the Race Strategist readiness check (Step 3a in get_pending_tasks),
@@ -161,11 +164,10 @@ func add_notification(priority: String, message: String, destination: String = "
 	})
 	gs.unread_notification_count += 1
 	gs.emit_signal("notifications_updated")
-	# Also log critical ones
-	if priority == "Critical":
-		add_log("🔴 CRITICAL: %s" % message)
-	elif priority == "High":
-		add_log("🟠 %s" % message)
+	## S37.62 — notifications are NOT news. They live in the Notification panel only; mirroring
+	## Critical/High into the weekly_log polluted the NEWS panel with readiness reminders
+	## ("driver seat unfilled", "no mechanic"). The NEWS/event log is fed exclusively by genuine
+	## news events (see _push_news / log_news_event), per GDD §12.
 
 
 func mark_all_notifications_read() -> void:
@@ -559,6 +561,11 @@ func get_pending_tasks() -> Array[String]:
 	## (e.g. "Assign a driver to Car X" after driver has been assigned)
 	var to_remove: Array = []
 	for item in gs.custom_todo_items:
+		## S37.62 — purge legacy deadline variants that embedded a changing week count
+		## ("... Race in N week(s)!"); these piled up one-per-week before the stable-text fix.
+		if "Race in" in item and "week" in item:
+			to_remove.append(item)
+			continue
 		if _is_todo_item_resolved(item):
 			to_remove.append(item)
 	for item in to_remove:
@@ -574,6 +581,19 @@ func get_pending_tasks() -> Array[String]:
 
 
 func _is_todo_item_resolved(item: String) -> bool:
+	## S37.62 — TP deadline reminders (stable text). Resolve when the car is crewed / has a mechanic.
+	if "driver seat unfilled. Go to Garage." in item:
+		for car in gs.player_team_cars:
+			var cl = car.car_name if car.car_name != "" else "Car %d" % car.car_number
+			if cl in item and car.all_seats_filled():
+				return true
+		return false   ## still unfilled (or car gone) → keep until a matching car is crewed
+	if "no mechanic. Go to Garage." in item:
+		for car in gs.player_team_cars:
+			var cl = car.car_name if car.car_name != "" else "Car %d" % car.car_number
+			if cl in item and car.mechanic_id != "":
+				return true
+		return false
 	## "Assign a driver to Car X [Champ Y]" — resolved if car now has a driver
 	if "Assign a driver to" in item:
 		for car in gs.player_team_cars:

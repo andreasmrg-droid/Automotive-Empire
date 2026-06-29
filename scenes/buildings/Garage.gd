@@ -444,7 +444,7 @@ func _build_car_card(car) -> PanelContainer:
 	## 100 SP in hand → ~9% repair). Only disabled when the player has 0 SP. Shown when the car is
 	## race-built, has a driver assigned (repair is driver-keyed), and is actually damaged.
 	if not car.is_in_build() and not car.assigned_driver_ids().is_empty() and car.condition < 100.0:
-		var did = car.assigned_driver_ids()[0]
+		var did: String = car.assigned_driver_ids()[0]
 		var damage = 100.0 - car.condition
 		var afford_pct = GameState.get_affordable_repair_pct(did)
 		var full_affordable = afford_pct >= damage - 0.01
@@ -463,7 +463,7 @@ func _build_car_card(car) -> PanelContainer:
 		btn_fix.custom_minimum_size = Vector2(200, 34)
 		btn_fix.disabled = GameState.spare_parts <= 0
 		btn_fix.pressed.connect(func():
-			var ok := GameState.repair_car_full(did) if full_affordable else GameState.repair_car_max_sp(did)
+			var ok: bool = GameState.repair_car_full(did) if full_affordable else GameState.repair_car_max_sp(did)
 			if ok:
 				_show_tab(_selected_tab))
 		hdr.add_child(btn_fix)

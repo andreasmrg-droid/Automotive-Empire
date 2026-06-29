@@ -1,4 +1,6 @@
 class_name RaceSimulator
+## Version: S37.62 — Crew development: snapshot pre-race stats for ALL co-drivers and attach a
+##   per-member crew_devs[] to each result entry so the DRIVER DEVELOPMENT panel shows every co-driver.
 ## Version: S37.61 — Bug #38 CREW MODEL: one race entry per car (the representative); post-race
 ##   growth + fitness fan out to ALL co-drivers; entries carry a combined crew_label; CNC bonus is
 ##   per-car. Added _crew_for_representative()/_crew_label_for().
@@ -353,14 +355,16 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 			"points": 0
 		})
 
-	# Snapshot pre-race driver stats for delta display
+	# Snapshot pre-race driver stats for delta display (representative + all co-drivers, so the
+	# DRIVER DEVELOPMENT panel can show every crew member that grew — S37.62).
 	var pre_race_stats: Dictionary = {}
 	for entry in driver_times:
 		var d = entry["driver"]
-		pre_race_stats[d.id] = {
-			"pace": d.pace, "car_control": d.car_control, "focus": d.focus,
-			"experience": d.experience, "fitness": d.fitness
-		}
+		for cm in _crew_for_representative(d):
+			pre_race_stats[cm.id] = {
+				"pace": cm.pace, "car_control": cm.car_control, "focus": cm.focus,
+				"experience": cm.experience, "fitness": cm.fitness
+			}
 
 	# Sort by total time
 	driver_times.sort_custom(func(a, b): return a["total_time"] < b["total_time"])
@@ -411,6 +415,24 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 				"experience": driver.experience - pre["experience"],
 				"fitness": driver.fitness - pre["fitness"],
 			}
+		## S37.62 — per-crew-member deltas so DRIVER DEVELOPMENT lists every co-driver that grew,
+		## not just the representative. Each item: {name, deltas{}}.
+		var crew_devs: Array = []
+		for cm in _crew_for_representative(driver):
+			if not cm.id in pre_race_stats:
+				continue
+			var cpre = pre_race_stats[cm.id]
+			crew_devs.append({
+				"name": cm.full_name(),
+				"deltas": {
+					"pace": cm.pace - cpre["pace"],
+					"car_control": cm.car_control - cpre.get("car_control", cm.car_control),
+					"focus": cm.focus - cpre["focus"],
+					"experience": cm.experience - cpre["experience"],
+					"fitness": cm.fitness - cpre["fitness"],
+				}
+			})
+		driver_times[i]["crew_devs"] = crew_devs
 
 	# ── Update mechanic + strategist stats ───────────────────────────────
 	_update_staff_stats_after_race(race_data["laps"], race_data.get("track_id", ""))

@@ -1,4 +1,6 @@
 class_name TPProposalEngine
+## Version: S37.62 — TDL deadline reminders use STABLE text (no embedded week count) so they dedup
+##   instead of re-adding every week; the live countdown stays on the (subject-superseding) notification.
 ## Version: S37.60 — Bug #38 (multi-driver): the optimiser commits all seated drivers, proposes one
 ##   driver PER empty seat, clears all seats on reset, and flags readiness on any empty seat.
 ## Version: S37.49 — Phase 3 (events→notify_event): TP-proposals-ready → "event"; the 2 car-readiness
@@ -717,13 +719,16 @@ func _check_tp_proposal_notifications() -> void:
 					car_label, champ.championship_name, weeks_until,
 					"s" if weeks_until != 1 else ""]
 				gs.notify_event("tp_dns_driver_%s" % car.id, "Critical", msg, "garage", "standing")
-				gs.add_todo_item(msg)
+				## TDL item must be STABLE (no changing week count) or it re-adds every week as a
+				## "new" string. The notification above keeps the live countdown; the TDL is a
+				## standing reminder that dedups on text.
+				gs.add_todo_item("🚫 %s [%s] — driver seat unfilled. Go to Garage." % [car_label, champ.championship_name])
 			if car.mechanic_id == "":
 				var msg = "🚫 %s [%s] — no mechanic. Race in %d week%s!" % [
 					car_label, champ.championship_name, weeks_until,
 					"s" if weeks_until != 1 else ""]
 				gs.notify_event("tp_dns_mechanic_%s" % car.id, "Critical", msg, "garage", "standing")
-				gs.add_todo_item(msg)
+				gs.add_todo_item("🚫 %s [%s] — no mechanic. Go to Garage." % [car_label, champ.championship_name])
 
 	## Regenerate TP proposals only when player race is approaching
 	var should_generate = false

@@ -1,4 +1,6 @@
 extends Control
+## Version: S37.62 — DRIVER DEVELOPMENT lists every crew member (driver + co-drivers) from crew_devs,
+##   not just the representative.
 ## Version: S37.61 — Bug #38 CREW MODEL: race-result + driver-standings rows show the combined crew
 ##   label ("Smith / Jones") for multi-driver cars.
 ## Version: S37.13 — Race Results layout: Driver expands to ~2/5 of width (Laps starts there), then
@@ -707,30 +709,44 @@ func _build_driver_improvements(parent: VBoxContainer) -> void:
 		if not driver: continue
 		if not driver.id in GameState.player_team.drivers: continue
 		if entry.get("dns", false): continue
-		var deltas = entry.get("stat_deltas", {})
-		if deltas.is_empty(): continue
 
-		any = true
-		var name_lbl = Label.new()
-		name_lbl.text = driver.full_name() if driver.has_method("full_name") else str(driver)
-		name_lbl.add_theme_font_size_override("font_size", 24)
-		name_lbl.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
-		parent.add_child(name_lbl)
+		## S37.62 — show EVERY crew member (driver + co-drivers) that developed, each with their own
+		## name + deltas. Falls back to the single representative if crew_devs isn't present.
+		var crew_devs: Array = entry.get("crew_devs", [])
+		if crew_devs.is_empty():
+			var d0 = entry.get("stat_deltas", {})
+			if not d0.is_empty():
+				crew_devs = [{"name": driver.full_name(), "deltas": d0}]
 
-		var row = HBoxContainer.new()
-		row.add_theme_constant_override("separation", 8)
-		parent.add_child(row)
+		for member in crew_devs:
+			var deltas: Dictionary = member.get("deltas", {})
+			# Skip a member with no meaningful change at all.
+			var has_change = false
+			for v in deltas.values():
+				if abs(v) > 0.01: has_change = true
+			if not has_change: continue
 
-		for sk in [["Pace","pace"],["Car Ctrl","car_control"],["Focus","focus"],["Exp","experience"],["Fit","fitness"]]:
-			var dv = deltas.get(sk[1], 0.0)
-			if abs(dv) > 0.01:
-				var dl = Label.new()
-				dl.text = "%s %s%.1f%s" % [sk[0], "+" if dv >= 0 else "", dv,
-					"%" if sk[0] == "Fit" else ""]
-				dl.add_theme_font_size_override("font_size", 22)
-				dl.add_theme_color_override("font_color",
-					Color(0.4, 0.9, 0.4) if dv >= 0 else Color(1.0, 0.4, 0.4))
-				row.add_child(dl)
+			any = true
+			var name_lbl = Label.new()
+			name_lbl.text = member.get("name", "")
+			name_lbl.add_theme_font_size_override("font_size", 24)
+			name_lbl.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
+			parent.add_child(name_lbl)
+
+			var row = HBoxContainer.new()
+			row.add_theme_constant_override("separation", 8)
+			parent.add_child(row)
+
+			for sk in [["Pace","pace"],["Car Ctrl","car_control"],["Focus","focus"],["Exp","experience"],["Fit","fitness"]]:
+				var dv = deltas.get(sk[1], 0.0)
+				if abs(dv) > 0.01:
+					var dl = Label.new()
+					dl.text = "%s %s%.1f%s" % [sk[0], "+" if dv >= 0 else "", dv,
+						"%" if sk[0] == "Fit" else ""]
+					dl.add_theme_font_size_override("font_size", 22)
+					dl.add_theme_color_override("font_color",
+						Color(0.4, 0.9, 0.4) if dv >= 0 else Color(1.0, 0.4, 0.4))
+					row.add_child(dl)
 
 	if not any:
 		var empty = Label.new()

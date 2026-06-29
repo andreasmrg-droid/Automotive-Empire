@@ -1,4 +1,6 @@
 extends Control
+## Version: S37.62 — All driver-name displays (pos text, mini standings, leaders) use the combined
+##   crew label so multi-driver cars show "Smith / Jones" consistently.
 ## Version: S37.61 — Bug #38 CREW MODEL: driver standings/leader lines show the combined crew label.
 ## Version: S37.55 — GK "OTHER GROUPS" chip leader line no longer jams name and points together
 ##   ("Lewis Lewis 0pts" read as a name ending in "pt"). Now "%s — %d pts" with a space + dash.
@@ -624,7 +626,7 @@ func _get_player_pos_text(champ: Championship) -> String:
 			var d = GameState.all_drivers.get(sorted[i]["driver_id"])
 			return "P%d of %d  ·  %s  ·  %d pts" % [
 				i+1, sorted.size(),
-				d.full_name() if d else "Driver",
+				GameState.crew_label_for_driver(sorted[i]["driver_id"]) if d else "Driver",
 				sorted[i]["points"]]
 	## Fall back to team standings
 	var tsorted = champ.get_team_standings_sorted()
@@ -653,7 +655,7 @@ func _build_standings_mini(champ: Championship, max_rows: int) -> VBoxContainer:
 			Color(1.0,0.84,0.0) if i < 3 else Color(0.5,0.5,0.5))
 		row.add_child(lp)
 		var ln = Label.new()
-		ln.text = d.full_name() if d else entry["driver_id"]
+		ln.text = GameState.crew_label_for_driver(entry["driver_id"]) if d else entry["driver_id"]
 		ln.add_theme_font_size_override("font_size", 22)
 		ln.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		if is_player: ln.add_theme_color_override("font_color", Color(0.3,0.9,0.5))
