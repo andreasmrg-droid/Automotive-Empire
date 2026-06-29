@@ -1,3 +1,8 @@
+## Version: S37.64 — Week divider removed from NEWS (empty "--- Week N ---" lines were noise);
+##   weekly dividers stay in the operational log only.
+## Version: S37.63 — NEWS vs LOG split: added news_feed (curated world-news the NEWS panel renders)
+##   + log_news(); operational chatter stays on add_log/weekly_log. news_feed persists across weeks
+##   (capped 60), clears per season, saved/loaded. Week divider routed to news.
 ## Version: S37.61 — Bug #38 CREW MODEL: new-game registers only the seat-0 representative; added
 ##   crew_label_for_driver() ("Smith / Jones") for standings/results display.
 ## Version: S37.60 — Bug #38 (multi-driver per car): Car.driver_ids[] is canonical; save/load
@@ -1604,8 +1609,15 @@ var campus_zones: Dictionary = {
 	"Test Tracks": ["Karting Track", "Gravel Track", "Oval Track", "Race Track"],
 }
 
-# Weekly log
+# Weekly log (developer / operational event log — DNS, repairs, assignments, balances).
+# NOT shown in the NEWS panel; this is the raw event stream.
 var weekly_log: Array[String] = []
+
+# News feed (S37.63) — the curated WORLD-NEWS stream the NEWS panel renders. Only genuine news
+# events go here (race outcomes, titles, signings/releases/retirements, R&D/building completions,
+# regulation changes). Operational reminders/state (DNS, "added to garage", balances, sponsor
+# signed, bankruptcy risk, development ticks) do NOT — those are notifications/log only. See GDD §12.
+var news_feed: Array[String] = []
 
 # Note: CAR_CONDITION_DEGRADATION_PER_RACE removed — degradation is now per-lap,
 # stored on Championship as condition_loss_per_lap.
@@ -2117,6 +2129,14 @@ func get_critical_count() -> int:
 
 func add_log(message: String) -> void:
 	_notification_manager.add_log(message)
+
+## S37.63 — record a genuine WORLD-NEWS event. Appends to news_feed (rendered by the NEWS panel)
+## and also to weekly_log (so the raw event stream stays complete). Use this ONLY for real news
+## per GDD §12; operational chatter stays on add_log().
+func log_news(message: String) -> void:
+	news_feed.append(message)
+	_notification_manager.add_log(message)
+	emit_signal("log_updated")
 
 func _check_resource_notifications() -> void:
 	_notification_manager._check_resource_notifications()
@@ -3208,6 +3228,7 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 	current_week = 1
 	current_season = 1
 	weekly_log = []
+	news_feed = []
 	last_race_results = []
 	hall_of_fame = []
 	retired_personnel = []
@@ -3441,6 +3462,10 @@ func _generate_ai_teams() -> void:
 
 func advance_week() -> void:
 	weekly_log = []
+	## S37.63 — news_feed is NOT cleared weekly (news persists so the player can see recent race
+	## results, signings, titles). Cap it so it can't grow unbounded over a long season.
+	if news_feed.size() > 60:
+		news_feed = news_feed.slice(news_feed.size() - 60, news_feed.size())
 	_purge_old_notifications(2)
 
 	# Guard: never advance past max_weeks
@@ -3971,6 +3996,7 @@ func save_game() -> void:
 		"current_week": current_week,
 		"current_season": current_season,
 		"weekly_log": weekly_log,
+		"news_feed": news_feed,
 		"hall_of_fame": hall_of_fame,
 		"retired_personnel": retired_personnel,
 		"player_registered_championships": player_registered_championships,
@@ -4140,6 +4166,9 @@ func load_game(path: String = "user://save_game.json") -> void:
 	weekly_log.clear()
 	for entry in data["weekly_log"]:
 		weekly_log.append(str(entry))
+	news_feed.clear()
+	for entry in data.get("news_feed", []):	## S37.63 — default empty for pre-S37.63 saves
+		news_feed.append(str(entry))
 	hall_of_fame = data["hall_of_fame"]
 	retired_personnel = data.get("retired_personnel", [])  ## S28 — default for old saves
 	player_registered_championships = data.get("player_registered_championships", [])  ## S28.1

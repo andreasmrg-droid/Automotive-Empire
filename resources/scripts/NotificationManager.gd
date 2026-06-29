@@ -1,4 +1,6 @@
 class_name NotificationManager
+## Version: S37.64 — Crash fix: _push_news now pushes a String (was a Dictionary) into the typed
+##   news_feed. TDL auto-clean also purges legacy "TP has N … ready" count variants.
 ## Version: S37.62 — News/TDL cleanup: notifications no longer mirror into the NEWS/event log
 ##   (readiness alerts are not news); TDL deadline items resolve on crew/mechanic fill; legacy
 ##   week-countdown TDL variants purged from old saves.
@@ -113,10 +115,12 @@ func reset_once(event_id: String) -> void:
 	_fired_once.erase(event_id)
 
 func _push_news(message: String) -> void:
-	## Minimal news feed hook — appends to gs.news_feed if present. Safe no-op otherwise; the
-	## full news system is a separate design pass (Brainstorm thread 2).
+	## S37.64 — news_feed is a typed Array[String]; push the message string (the old stub pushed a
+	## Dictionary, which crashed against the typed array). Genuine news from notify_event(mode:"news")
+	## lands here; the dedicated GameState.log_news() path appends here too via add_log-adjacent calls.
 	if "news_feed" in gs:
-		gs.news_feed.append({"message": message, "week": gs.current_week, "season": gs.current_season})
+		gs.news_feed.append(message)
+		gs.emit_signal("log_updated")
 
 func add_notification(priority: String, message: String, destination: String = "", subject: String = "") -> void:
 	# ── S35.1: subject supersede (recurring-notification collapse) ──────────────
@@ -564,6 +568,11 @@ func get_pending_tasks() -> Array[String]:
 		## S37.62 — purge legacy deadline variants that embedded a changing week count
 		## ("... Race in N week(s)!"); these piled up one-per-week before the stable-text fix.
 		if "Race in" in item and "week" in item:
+			to_remove.append(item)
+			continue
+		## S37.64 — purge legacy TP count-bearing variants ("TP has N assignment(s) ready"); the
+		## stable item is now "TP assignments ready — Racing Department" (no count) so old ones go.
+		if "TP has" in item and "ready" in item:
 			to_remove.append(item)
 			continue
 		if _is_todo_item_resolved(item):

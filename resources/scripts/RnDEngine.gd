@@ -1,4 +1,6 @@
 class_name RnDEngine
+## Version: S37.63 — WRA regulation change routed to news_feed (log_news). R&D/CNC/blueprint
+##   completions stay on add_log (development = notifications, not news).
 ## Version: S37.41 — Notification & News Roadmap, Phase 3 (events→notify_event). All 10 remaining
 ##   RnDEngine notifications migrated: WRA regulation change → "news" (world event, whole grid);
 ##   WRA approval → "event" routed to CNC Plant (actionable; the persistent "queue manufacturing"
@@ -328,7 +330,7 @@ func _apply_wra_regulation_change() -> void:
 		gs.known_blueprints.erase(bp_id)
 	gs.notify_event("wra_regs_s%d" % gs.current_season, "Critical",
 		"WRA NEW REGULATIONS — Season %d! All Design and RE blueprints invalidated. %d blueprints lost. Teams must redesign from scratch." % [gs.current_season, wiped], "", "news")
-	gs.add_log("WRA Regulation Change — Season %d. %d blueprints wiped." % [gs.current_season, wiped])
+	gs.log_news("WRA Regulation Change — Season %d. %d blueprints wiped." % [gs.current_season, wiped])
 
 
 func has_blueprint(part: String) -> bool:

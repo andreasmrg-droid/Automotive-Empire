@@ -1,4 +1,6 @@
 class_name RaceSimulator
+## Version: S37.63 — Genuine NEWS: race-result headline ("CHAMP — Winner: crew (team)") via log_news.
+##   DNS / condition-unchanged lines remain add_log only (not news).
 ## Version: S37.62 — Crew development: snapshot pre-race stats for ALL co-drivers and attach a
 ##   per-member crew_devs[] to each result entry so the DRIVER DEVELOPMENT panel shows every co-driver.
 ## Version: S37.61 — Bug #38 CREW MODEL: one race entry per car (the representative); post-race
@@ -522,6 +524,10 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 				"team": winner_team_name,
 				"team_id": winner_team_id
 			})
+			## S37.63 — genuine NEWS: the race-result headline (winner = crew label). This is a real
+			## world event, unlike the operational DNS/condition lines which stay on add_log only.
+			gs.log_news("🏁 %s — Winner: %s (%s)" % [
+				c.championship_name, gs.crew_label_for_driver(winner.id), winner_team_name])
 
 	# ── Car degradation ──────────────────────────────────────────────────
 	degrade_car_conditions(race_data["laps"], dns_driver_ids, c)

@@ -1,4 +1,7 @@
 class_name DriverManager
+## Version: S37.64 — Driver sign/release notify_event set to "event" (notification only) so they no
+##   longer double-post to NEWS alongside log_news.
+## Version: S37.63 — Driver sign + release routed to news_feed (log_news).
 ## Version: S37.61 — Bug #38 CREW MODEL: starting-driver standings registration moved to the
 ##   caller (registers only the representative); release still frees the driver's own seat.
 ## Version: S37.60 — Bug #38 (multi-driver): releasing a driver frees their actual seat (remove_driver),
@@ -86,8 +89,8 @@ func hire_driver(driver_id: String) -> bool:
 	## has no car yet, so they belong to no championship. They are added to the CORRECT
 	## championship's standings when assigned to a car (CarManager.assign_driver_to_car). Writing
 	## GK here was the source of non-GK drivers polluting the GK table.
-	gs.add_log("✅ Signed %s — contract: 5 seasons. Assign them to a car in the Drivers screen." % driver.full_name())
-	gs.notify_event("signed_%s" % driver.id, "Normal", "%s signed. Build a car in the Garage, then assign them." % driver.full_name(), "garage", "news")
+	gs.log_news("✅ Signed %s — contract: 5 seasons. Assign them to a car in the Drivers screen." % driver.full_name())
+	gs.notify_event("signed_%s" % driver.id, "Normal", "%s signed. Build a car in the Garage, then assign them." % driver.full_name(), "garage", "event")
 	gs._fire_assignment_proposals()
 	gs.emit_signal("log_updated")
 	return true
@@ -104,7 +107,7 @@ func release_driver(driver_id: String) -> void:
 	if clause > 0 and driver.contract_seasons_remaining > 0:
 		gs.player_team.balance -= clause
 		gs.add_log("💰 Release clause paid: CR %s for %s." % [gs._fmt_int(clause), driver.full_name()])
-		gs.notify_event("released_%s" % driver.id, "Normal", "Released %s — CR %s release clause paid." % [driver.full_name(), gs._fmt_int(clause)], "", "news")
+		gs.notify_event("released_%s" % driver.id, "Normal", "Released %s — CR %s release clause paid." % [driver.full_name(), gs._fmt_int(clause)], "", "event")
 	driver.contract_team = ""
 	driver.contract_seasons_remaining = 0
 	driver.release_clause = 0
@@ -116,7 +119,7 @@ func release_driver(driver_id: String) -> void:
 			car.remove_driver(driver_id)
 			gs.add_log("🏎 Car %d — seat freed (%s released)." % [car.car_number, driver.full_name()])
 			break
-	gs.add_log("👋 Released driver: %s" % driver.full_name())
+	gs.log_news("👋 Released driver: %s" % driver.full_name())
 	gs.emit_signal("log_updated")
 
 ## Renew a driver's contract.

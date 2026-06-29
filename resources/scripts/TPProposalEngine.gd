@@ -1,4 +1,7 @@
 class_name TPProposalEngine
+## Version: S37.64 — TP proposal consistency: no "0 assignments ready" item (returns unless there is
+##   something to assign or a critical); ONE stable TDL "TP assignments ready" (no count) so changing
+##   counts no longer pile up; _clear_tp_tdl() collapses prior/legacy variants.
 ## Version: S37.62 — TDL deadline reminders use STABLE text (no embedded week count) so they dedup
 ##   instead of re-adding every week; the live countdown stays on the (subject-superseding) notification.
 ## Version: S37.60 — Bug #38 (multi-driver): the optimiser commits all seated drivers, proposes one
@@ -378,9 +381,16 @@ func _fire_tp_proposal_notification(proposals: Array) -> void:
 	if proposals.is_empty(): return
 	var has_critical = proposals.any(func(p): return p.get("priority","") == "critical")
 	var has_warning  = proposals.any(func(p): return p.get("priority","") == "warning")
-	## Count all assignable roles (driver/mechanic/pit crew/strategist).
-	var assign_types = ["assign_driver", "assign_mechanic", "assign_pit_crew", "assign_strategist"]
+	## Count all assignable roles (driver/mechanic/pit crew/strategist/TP).
+	var assign_types = ["assign_driver", "assign_mechanic", "assign_pit_crew", "assign_strategist", "assign_tp"]
 	var total_assigns = proposals.filter(func(p): return p.get("type","") in assign_types).size()
+
+	## S37.64 — if there is nothing to actually ASSIGN and nothing critical, don't surface anything
+	## (avoids the "TP has 0 assignments ready" item the player saw). A critical with no assignable
+	## person (pool dry) still warrants the critical message below.
+	if total_assigns == 0 and not has_critical:
+		_clear_tp_tdl()
+		return
 
 	var msg: String
 	var priority: String
@@ -396,11 +406,18 @@ func _fire_tp_proposal_notification(proposals: Array) -> void:
 			total_assigns, "s" if total_assigns != 1 else ""]
 		priority = "High"
 
+	## Notification carries the live count (it supersedes by the fixed subject id below).
 	gs.notify_event("tp_proposals_ready", priority, msg, "racing_dept", "event")
-	## ONE TDL item, identifiable by the "TP has … ready" text (dismissed in apply_tp_proposals).
-	var tdl_msg = "🏁 TP has %d assignment%s ready — Racing Department" % [
-		total_assigns, "s" if total_assigns != 1 else ""]
-	gs.add_todo_item(tdl_msg)
+	## ONE STABLE TDL item (S37.64 — no embedded count, so changing counts don't pile up; the prior
+	## TP item is cleared first so only the current one survives). Dismissed in apply_tp_proposals.
+	_clear_tp_tdl()
+	gs.add_todo_item("🏁 TP assignments ready — Racing Department")
+
+## Removes any existing TP-proposal TDL items (current or legacy count-bearing variants).
+func _clear_tp_tdl() -> void:
+	for item in gs.custom_todo_items.duplicate():
+		if "TP has" in item or "TP proposals" in item or "TP assignments ready" in item:
+			gs.custom_todo_items.erase(item)
 
 ## Applies a list of TP proposals — assigns drivers and mechanics to cars.
 ## Call after player reviews and accepts proposals in Racing Department.
@@ -427,7 +444,7 @@ func apply_tp_proposals(proposals: Array) -> void:
 					gs.assign_staff_to_championship(pid, champ_id)
 	## Dismiss the TP TDL item(s) by their actual text (see _fire_tp_proposal_notification).
 	for item in gs.custom_todo_items.duplicate():
-		if "TP has" in item or "TP proposals" in item:
+		if "TP has" in item or "TP proposals" in item or "TP assignments ready" in item:
 			gs.dismiss_todo_item(item)
 	## Partial accept = re-optimise: regenerate proposals for the remaining unassigned cars/
 	## championships over the now-reduced pool (accepted personnel are committed because they're

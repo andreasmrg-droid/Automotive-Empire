@@ -1,4 +1,8 @@
 class_name ContractEngine
+## Version: S37.64 — Signings no longer double-post to NEWS: the notify_event for a signing is now
+##   "event" (notification only); the news line comes solely from log_news.
+## Version: S37.63 — Final driver/staff SIGNINGS routed to news_feed (log_news). Sponsor deals,
+##   approaches and pre-signings stay on add_log (not news).
 ## Version: S37.41 — Notification & News Roadmap, Phase 3 (events→notify_event). All 33 ContractEngine
 ##   add_notification calls migrated: 5 leftover blocking errors → show_popup (slots/CFO/deal-fell-
 ##   through); 3 redundant gate notices DELETED (caller already pops a modal — not-interested/team-
@@ -1584,10 +1588,10 @@ func _apply_negotiation_result(neg: Dictionary, accepted: bool) -> void:
 				## CP4 — no active_championship.standings (= GK) write here. A newly-signed driver
 				## has no car; they join the CORRECT championship's standings when assigned to a car
 				## (CarManager.assign_driver_to_car). The notification below tells the player to do so.
-			gs.add_log("✅ %s signed: CR %.0f/wk, %d seasons, Win:CR %s, Podium:CR %s" % [
+			gs.log_news("✅ %s signed: CR %.0f/wk, %d seasons, Win:CR %s, Podium:CR %s" % [
 				driver.full_name(), driver.weekly_salary, driver.contract_seasons_remaining,
 				gs._fmt_int(driver.win_bonus), gs._fmt_int(driver.podium_bonus)])
-			gs.notify_event("signed_%s" % driver.full_name(), "Normal", "%s signed. Assign them to a car in the Garage." % driver.full_name(), "garage", "news")
+			gs.notify_event("signed_%s" % driver.full_name(), "Normal", "%s signed. Assign them to a car in the Garage." % driver.full_name(), "garage", "event")
 			gs._fire_assignment_proposals()
 		"staff":
 			var staff = gs.all_staff.get(neg["subject_id"])
@@ -1623,9 +1627,9 @@ func _apply_negotiation_result(neg: Dictionary, accepted: bool) -> void:
 			staff.release_clause       = terms.get("release_clause", 0)
 			if staff.role == "Pit Crew" and staff.crew_number == 0:
 				staff.crew_number = gs.get_player_staff_by_role("Pit Crew").size()
-			gs.add_log("✅ %s (%s) signed: CR %.0f/wk, %d seasons" % [
+			gs.log_news("✅ %s (%s) signed: CR %.0f/wk, %d seasons" % [
 				staff.full_name(), staff.role, staff.weekly_salary, staff.contract_seasons_remaining])
-			gs.notify_event("joined_%s" % staff.full_name(), "Normal", "%s (%s) joined your team." % [staff.full_name(), staff.role], "", "news")
+			gs.notify_event("joined_%s" % staff.full_name(), "Normal", "%s (%s) joined your team." % [staff.full_name(), staff.role], "", "event")
 			gs.invalidate_player_staff_cache()  ## S35.6 — roster changed
 			if staff.role in ["Race Mechanic", "Team Principal", "Race Strategist"]:
 				gs._fire_assignment_proposals()

@@ -1,4 +1,6 @@
 class_name CampusManager
+## Version: S37.64 — Building completion now fires a notification ("upgrade complete, Level N", →
+##   Campus), not just a log line; the Racing Department upgrade finishing was previously silent.
 ## Version: S37.49 — Phase 3 (events→notify_event): building-sold → "event".
 ## Version: S37.3 — Bug #5: HQ sponsor slots now increase at ODD levels (1,3,5...) not even —
 ##   get_hq_sponsor_slots() = 1 + int((level-1)/2). L1=1, L3=2, L5=3, ... L26=13.
@@ -416,6 +418,12 @@ func _update_campus_construction() -> void:
 			if building["construction_weeks_remaining"] == 0:
 				building["level"] += 1
 				gs.add_log("✅ %s complete! Now Level %d" % [building["name"], building["level"]])
+				## S37.64 — building completion is a DEVELOPMENT event → notification (with a button to
+				## the campus), NOT news. Previously only logged, so the player got no alert (e.g. the
+				## Racing Department upgrade finishing went unannounced).
+				gs.notify_event("bld_done_%s_L%d" % [building["name"], building["level"]], "Normal",
+					"🏗 %s upgrade complete — now Level %d." % [building["name"], building["level"]],
+					"campus", "event")
 
 
 func get_upgrade_cost(building: Dictionary) -> int:

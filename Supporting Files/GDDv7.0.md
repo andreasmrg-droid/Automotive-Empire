@@ -1,7 +1,15 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v6.9 (consolidated master) · **Engine:** Godot 4.7 / GDScript
-<!-- v6.9: (S37.51–S37.59) BUG #22 CLOSE-OUT (IP / NAME PASS) + CALENDAR-SOURCE / MAIN-HUB FIXES.
+**Version:** v7.0 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v7.0: (S37.60–S37.64) BUG #38 CLOSE-OUT (MULTI-DRIVER-PER-CAR / CREW MODEL) + NEWS-vs-NOTIFICATION SPLIT.
+	(1) BUG #38 → multi-driver-per-car implemented as a CREW MODEL: a Car holds driver_ids[] sized by the
+	discipline rule (Rally/TC = 2, EPC = 3, else 1); co-drivers share ONE car result and ONE points award
+	(registered as the seat-0 representative), but ALL co-drivers gain fitness/stat growth and display as a
+	combined "Surname / Surname" crew label everywhere (standings, results, Racing World). New game provisions
+	a full starting crew; AI cars fill every seat from car_assignments.json. (2) NEWS vs NOTIFICATION SPLIT:
+	a dedicated curated news_feed (the NEWS panel) is now separate from the operational weekly_log; only genuine
+	world events are news (see §13.2 list). (3) TP-proposal consistency, building-completion notification, and a
+	typed-array crash fix. See §20 changelog. — v6.9: (S37.51–S37.59) BUG #22 CLOSE-OUT (IP / NAME PASS) + CALENDAR-SOURCE / MAIN-HUB FIXES.
 	(1) IP & NAME PASS (Bug #22 → ✅): real-athlete surnames scrubbed from the assigned JSON (13 fixes);
 	teams.json name-variation + 4 dedupes + 23 real circuit/series/venue TEAM names fictionalized
 	(0 duplicate team names, 172 teams intact, every championship still meets its minimum car count from
@@ -204,6 +212,32 @@ Three orthogonal axes. Do not conflate them:
 - **Staff** service the cars (a Race Mechanic per car; Pit Crew where required).
 
 `Max_Cars_per_Team` and `Driver_Per_Car` are independent and multiply out to personnel need.
+
+### Multi-driver CREW MODEL (Bug #38 — built S37.60–S37.61)
+
+A `Car` holds **`driver_ids: Array`**, sized to its discipline's `Driver_Per_Car` via
+`Car.set_seat_count()` (from `GameState.get_drivers_per_car(champ_id)`). The legacy scalar
+`Car.driver_id` is kept as a **synced compatibility property** = seat 0 (the "lead seat"), so
+single-seat code paths keep working; multi-driver-aware code reads `driver_ids` /
+`assigned_driver_ids()` / `has_driver()` / `all_seats_filled()`. A car is **race-ready only when
+EVERY seat is filled** (a Rally car missing its co-driver, or an EPC car missing a third, DNSes).
+
+**The crew shares one result (this is the canonical rule):**
+- **Standings & points** — only the car's **representative (seat 0)** is registered in
+  `champ.standings`, so a multi-driver car is **one entry / one points award**, not one per driver.
+  (Both the player path in `CarManager.assign_driver_to_car` and the AI path in
+  `AIManager.load_car_assignments` / `AIChampionshipSim` register only the representative.)
+- **Display** — standings, race results, and Racing World show the **combined crew label**
+  `"Surname / Surname"` via `GameState.crew_label_for_driver(rep_id)` (single-seat cars show the
+  full name unchanged).
+- **Fitness & growth** — co-drivers are **co-equal**: every seated driver "raced", so post-race
+  fitness drain and stat growth are applied to ALL of them (`RaceSimulator._crew_for_representative`
+  fans the development out; the Race-Results DRIVER DEVELOPMENT panel lists every crew member).
+- **New game** provisions a **full starting crew** (Rally/TC = 2, EPC = 3) and seats them; the
+  RALLY4 starting-roster card lists 2 drivers. **AI cars** fill every seat from
+  `car_assignments.json` (the JSON already carries the full `driver_ids` array per car).
+- **Save/load** serializes `driver_ids`; pre-S37.60 saves migrate the scalar onto seat 0 and pad
+  the remaining seats empty (`Car._migrate_legacy_driver`).
 
 ### Authoritative per-championship limits (CHAMPIONSHIP_REGISTRY / Excel Championships sheet)
 
@@ -537,6 +571,13 @@ Three paged screens navigated with Back/Next (Continue stays in the header throu
    scrollable columns).
 3. **Season Development** — car condition + driver development + staff development. Only
    present if the player actually raced; navigation auto-collapses to 2 pages otherwise.
+
+**Crew display (S37.61–S37.62).** On all three pages, multi-driver cars show the combined crew label
+`"Surname / Surname"` (race result rows and both standings columns via
+`GameState.crew_label_for_driver`). The **DRIVER DEVELOPMENT** panel lists **every crew member** that
+grew, not just the representative — the sim attaches a per-member `crew_devs[]` array to each result
+entry (snapshotting pre-race stats for all co-drivers), so co-drivers' fitness drain and stat gains
+are shown individually.
 
 ### 6.11 Manual repair & SP economy (S37.0–S37.5)
 
@@ -916,10 +957,18 @@ exception is removed — GK is now one championship.)
 covering all cars/championships — not one per TP. Single source of truth:
 `GameState._last_tp_proposals`; the notification, the TDL item, and the Racing-Dept popup are all
 **views** of it. The optimiser **skips already-assigned roles** (accepting doesn't re-propose
-satisfied slots). **Partial accept re-optimises** the remaining cars over the reduced pool. Ignored
-proposals leave cars unassigned → DNS (player's risk). The Racing-Dept panel uses
-`GameState.peek_tp_proposals()` (read-only, no notification/TDL side effects). One TDL item per
-proposal, dismissed by its actual text on accept.
+satisfied slots) and proposes **one driver PER empty seat** (multi-driver cars need a full crew).
+**Partial accept re-optimises** the remaining cars over the reduced pool. Ignored proposals leave
+cars unassigned → DNS (player's risk). The Racing-Dept panel uses `GameState.peek_tp_proposals()`
+(read-only, no notification/TDL side effects).
+
+**Proposal-surfacing consistency (S37.64).** The TP notification/TDL fires **only when there is
+something to assign or a genuine critical** — it never surfaces a "0 assignments ready" item (the
+old code did when the only proposals were `missing_*` criticals with a dry talent pool). The TDL
+carries a **single stable item** `"🏁 TP assignments ready — Racing Department"` with **no embedded
+count**, so a changing count no longer piles up multiple rows (`_clear_tp_tdl()` collapses any
+prior/legacy `"TP has N …"` variants); the live count lives on the (subject-superseding)
+notification. Dismissed by text on accept.
 
 **AI flow (Phase 2 — pending).** `ai_auto_assign(team)` = `compute_optimal_assignments(team, cars,
 include_tp=true)` applied directly, covering all five roles **including TP reassignment** at season
@@ -1158,7 +1207,41 @@ economic system ships WITH its AI behaviour attached. Doubles as the player's ca
 the trailer motto: **"Survive. Settle. Develop. Establish. Conquer."** STILL UNMAPPED: the
 specific decision points WITHIN each stage (deferred until the economy systems exist).
 
-### 13.2 News System — sound-wave propagation
+### 13.2.1 NEWS FEED vs OPERATIONAL LOG — the curated split (S37.63–S37.64)
+
+Until the full soundwave filter is built, there are **two distinct streams** and they must not be
+conflated:
+
+- **`weekly_log`** (`add_log`) — the raw OPERATIONAL/event log: DNS lines, "car condition unchanged",
+  repairs, "added to garage", "starting assets ready", remaining-balance, weekly P&L, week dividers.
+  Reset every week. **Not shown in the NEWS panel.**
+- **`news_feed`** (`GameState.log_news`) — the curated WORLD-NEWS stream the **NEWS panel renders**.
+  Persists across weeks (capped at 60), cleared per season, saved/loaded (old saves default empty).
+
+**What IS news (routed via `log_news`, or `notify_event(mode:"news")` for the few notification-bearing
+ones):**
+- 🏁 **Race-result headline** — `"<CHAMP> — Winner: <crew label> (<team>)"`.
+- 🏆 **Champions crowned** (driver + GK World Champion).
+- 🏁 **Retirements** (driver/staff aged out).
+- ✅ **Driver/staff signings** and 👋 **releases** / contract-expiry departures.
+- **WRA regulation change** (a world rule event).
+- `=== SEASON N BEGINS/COMPLETE ===` dividers (structural anchors).
+
+**What is NOT news (operational `add_log` and/or notifications only):**
+- All **DNS** lines and "car condition unchanged (DNS)".
+- The whole **new-game setup block** ("added to garage", "starting assets ready", "Welcome", "Season
+  N — <champ>", remaining balance).
+- **Empty week dividers** (`--- Week N ---`) — removed from news (they were visual noise).
+- **Commercial/economic**: sponsor deals, bankruptcy risk, car-sale milestones.
+- **Development**: R&D / CNC / building completions, blueprints — these are notifications with action
+  buttons (e.g. building completion → notification "→ Campus", S37.64), not news.
+- Weekly net/P&L summary.
+
+**No double-posting** — an event posts to news from exactly ONE source. Signings, which have both a
+`log_news` line and an actionable notification, use `mode:"event"` on the notification so the news
+line comes solely from `log_news`.
+
+### 13.2 News System — sound-wave propagation (FUTURE filter — design, not yet built)
 News is a wave from an origin point: propagates outward, DECAYS with distance, reaches a
 reader only if magnitude still clears their threshold.
 ```
@@ -1176,9 +1259,9 @@ reach = importance − vertical_distance − horizontal_distance
   status). The feed GROWS with the player as reputation rises. It's ONE scoring function over
   existing data — bounded, not an open-ended mandate.
 
-News events also fire on race results (WIN/DNF/Championship/RACE WIN), building
-completions, economic changes, signings/retirements, rule changes, bankruptcy risk, high car
-prices — each adjusting Reputation and Marketability.
+The curated event list that actually feeds the news panel today (pre-filter) is the **NEWS FEED**
+list in §13.2.1; the soundwave `reach` scoring above is the FUTURE filter that will rank/limit those
+events by importance and distance once built.
 
 ---
 
@@ -1299,9 +1382,11 @@ three distinct outputs — never a recurring nag:
    where the player acts (a key in `NOTIFICATION_DESTINATIONS` — e.g. `staff_hub`, `hq`, `garage`,
    `logistics`, `financial_dept`). In parallel, if the underlying condition is a standing task, it is
    reflected as a **read-only row in the TO-DO list**.
-3. **Meaningful world events also create news.** Big signings/releases, a championship win, entry to
-   a top-tier championship → `mode = "news"` also posts to the news feed (hook `_push_news`; the full
-   news system remains a separate design pass, §13.2).
+3. **Meaningful world events also create news.** Big signings/releases, a championship win, a race
+   result, a retirement → posted to the curated **`news_feed`** (the NEWS panel). Two entry points:
+   `GameState.log_news(msg)` (the primary path) and `notify_event(…, mode="news")` (for events that
+   also need a notification). The operational `weekly_log` (`add_log`) is a SEPARATE stream and is NOT
+   shown as news — see §13.2.1 for the full news-vs-log split and the curated event list.
 
 **Modes:**
 | Mode | Behaviour | Use for |
@@ -1309,7 +1394,7 @@ three distinct outputs — never a recurring nag:
 | `once` | Fires exactly once ever (tracked by `event_id` in `_fired_once`). | Optional standing facts mentioned a single time (e.g. "no CFO"). |
 | `standing` | Subject-superseded: one live instance, refreshed when the condition re-fires. | Sparingly — prefer the TDL for chores (e.g. low fuel before a race). |
 | `event` | One-off event notice (no dedup beyond identical-text). | "Garage upgraded to L2" + a button to the Garage. |
-| `news` | Like `event`, plus posts to the news feed. | Titles, top-tier entry, marquee signings. |
+| `news` | Posts to the curated `news_feed` (NEWS panel) via `_push_news`; also raises a notification. | Race results, titles, retirements, marquee signings (events that also need a bell notice). |
 
 **THE CARDINAL RULE — the TO-DO LIST IS READ-ONLY AND NEVER EMITS NOTIFICATIONS.** The TDL is
 rebuilt from current state each week (`get_pending_tasks`) and exists so the player can *see*
@@ -1329,13 +1414,21 @@ ContractEngine, RnDEngine, SponsorManager, CarManager, SeasonManager, RaceSimula
 FinancialEngine, DriverManager, StaffManager, TPProposalEngine, CampusManager, ChampionshipSelect,
 Logistics, MainHub (the four already-Phase-1 scenes — RacingDept, Garage, StaffHub, Drivers — had
 nothing left). Classification rules applied consistently:
-- **Signings & departures → `news`** (driver/staff hired, signed, released, retired).
+- **Signings & departures → `news`** (driver/staff hired, signed, released, retired) — the news LINE
+  comes from `log_news`; the accompanying notification uses `mode:"event"` so it is not double-posted
+  (S37.64).
 - **Recurring chores / distress → `standing`** (financial insolvency/bankruptcy/low-funds; DNS
   readiness gaps; resource shortfalls) — one live instance refreshed weekly, never a growing stack.
 - **Blocking "can't do this" errors → `show_popup`** (an on-the-spot AcceptDialog).
-- **Discrete one-offs → `event`** (loans, building sold, car purchased, R&D/CNC ready), routed to the
-  relevant building via `destination`.
+- **Discrete one-offs → `event`** (loans, building sold, car purchased, **building upgrade complete →
+  Campus** (S37.64), R&D/CNC ready), routed to the relevant building via `destination`.
 - **Redundant-with-popup notices → deleted.**
+
+**News-feed curation (S37.63–S37.64).** The NEWS panel was previously the raw `weekly_log`, so it
+showed DNS spam, new-game setup chatter, and empty week dividers. It now renders a dedicated
+**`news_feed`** (curated via `log_news`); see §13.2.1. The `_push_news` hook was also fixed to push a
+**String** into the typed `news_feed: Array[String]` (it previously pushed a Dictionary, which threw a
+runtime type error on retirements/signings).
 Framework-internal `add_notification` (inside `notify_event` itself) and pre-existing subject-collapsed
 resource warnings are intentionally retained. The full per-file ledger lives in
 `Supporting Files/Notification_News_Roadmap_v1.md`. The news soundwave/propagation FILTER (§13.2)
@@ -1570,9 +1663,11 @@ the wildcards). Biggest risk: scope creep — keep saying "backlog."
   new-game GP path now starts with one (§7.3). Manual §22 idea: move to **1 Designer per principle +
   1 per special project + 1 for commercial cars** instead. Open — schedule a Designer-rework pass; it
   touches generation, hiring slots (R&D Studio), and the new-game starting roster.
-- **New-game card display vs. provisioning (S37.50):** `NewGame.gd` per-championship `buildings` list
-  (lines 94/99) is DISPLAY-ONLY and now understates GP4 (real provisioning adds R&D Studio + CNC Plant
-  + Designer, §7.3). Cosmetic — update the card text to match what the player actually receives.
+- **New-game card display vs. provisioning (S37.50, partial S37.61):** `NewGame.gd` per-championship
+  `buildings`/`includes` lists are DISPLAY-ONLY. The RALLY4 card now correctly lists 2 drivers
+  (driver + co-driver, S37.61). Still understated: GP4 (real provisioning adds R&D Studio + CNC Plant
+  + Designer, §7.3); EPC cards could likewise show 3 drivers. Cosmetic — finish aligning card text to
+  what the player actually receives.
 - **TP Assignment — Phase 2 (AI):** ~~`ai_auto_assign` incl. TP reassignment at season start /
   roster change~~ **STRUCK (resolved, S35.0):** `ai_auto_assign_all_teams()` is built and wired
   into the Season Transition Pipeline at Stage C (§7.1) — `compute_optimal_assignments(team, cars,
@@ -1592,6 +1687,37 @@ the wildcards). Biggest risk: scope creep — keep saying "backlog."
 ## 20. IMPLEMENTATION CHANGELOG (recent — newest first)
 
 Historical record of what shipped; design facts above already reflect these.
+
+- **S37.60–S37.64 (Bug #38 multi-driver CREW MODEL + news-vs-notification split):**
+  - *Bug #38 → ✅ (multi-driver-per-car, S37.60–S37.61)* — `Car.driver_ids[]` is now canonical, sized
+	by the discipline rule (Rally/TC = 2, EPC = 3, else 1); `driver_id` retained as a synced seat-0
+	accessor for back-compat. Seat-aware assign/unassign (`CarManager`), all-seat readiness (a car DNSes
+	if any seat is empty), save/load with legacy migration, new-game full-crew provisioning, and AI cars
+	filling every seat from `car_assignments.json`. **Crew model:** co-drivers share ONE car result —
+	only the seat-0 representative is registered in standings (one entry / one points award), but ALL
+	co-drivers gain fitness + stat growth, and the UI shows the combined `"Surname / Surname"` crew label
+	everywhere (`GameState.crew_label_for_driver`). Garage renders DRIVER 1/2/3 seats. Touched ~18 files
+	(Car, CarManager, GameState, AIManager, RaceSimulator, AIChampionshipSim, TPProposalEngine,
+	DriverManager, NotificationManager, GKDiscipline, Garage, RacingDept, HQ, Drivers, BeginOfSeason,
+	NewGame, RaceResults, RacingWorld).
+  - *Crew development display (S37.62)* — Race-Results DRIVER DEVELOPMENT lists every crew member via a
+	per-member `crew_devs[]` on each result entry (co-drivers' growth was previously invisible).
+  - *News vs notification split (S37.63)* — added a curated `news_feed` (the NEWS panel) separate from
+	the operational `weekly_log`; `GameState.log_news()` is the news entry point. Only genuine world
+	events are news (race result headline, champions, signings/releases, retirements, WRA rule change,
+	season dividers); DNS/setup/development/economic chatter and empty week dividers are log/notification
+	only (§13.2.1). `news_feed` persists across weeks (cap 60), clears per season, saved/loaded.
+  - *News-feed fixes (S37.64)* — (a) **crash fix**: `_push_news` now pushes a `String` into the typed
+	`news_feed` (was a Dictionary → runtime type error on retirements/signings); (b) signings no longer
+	**double-post** to news (their notification is `mode:"event"`, news comes from `log_news`);
+	(c) empty `--- Week N ---` dividers removed from news.
+  - *Building completion notification (S37.64)* — a finished build/upgrade (e.g. Racing Department) now
+	fires a notification (`"🏗 X upgrade complete — now Level N"`, → Campus); previously it only logged,
+	so the player got no alert.
+  - *TP-proposal consistency (S37.64)* — no more "TP has 0 assignments ready" item (surfaces only when
+	there is something to assign or a genuine critical); ONE stable TDL item `"TP assignments ready"`
+	(no embedded count) that supersedes instead of piling up per changing count; legacy count variants
+	purged.
 
 - **S37.51–S37.59 (Bug #22 IP/name close-out + calendar-source / Main-Hub fixes):**
   - *IP & name pass (Bug #22 → ✅)* — (a) 13 real-athlete surnames scrubbed from the assigned JSON
@@ -1878,7 +2004,8 @@ open. The remaining high-leverage clusters:
   verification.
 - **Interest/reputation (#2, #4) + CFO data (#1)** — economy correctness (§9, §12); #1 still open.
 - **Garage slots & assignment (#37, #38, #40, #41, #46)** — multi-driver champ slots, TP reassign,
-  age-requirement popup; repair (#47) ✅.
+  age-requirement popup; repair (#47) ✅; **multi-driver-per-car (#38) ✅ — crew model, S37.60–S37.61
+  (§1).**
 - **Lowest-risk OPEN batch** (no re-fix risk, untouched by changelog): #8, #11, #13, #18, #41, #43.
 - **Notification-framework migration** (§15.1): TP/fuel/SP/building-completion/sponsor-offer/news
   events still on the legacy path. **Design revamps** (#17 Main Hub, #32 Racing World, #34

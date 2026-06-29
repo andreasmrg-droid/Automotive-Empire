@@ -1,4 +1,6 @@
 class_name SeasonManager
+## Version: S37.63 — Champions, retirements and season dividers routed to news_feed (log_news);
+##   news_feed cleared at season start.
 ## Version: S37.44 — BUGFIX (new-car-needed spam): the season-start "Delivery deadline" loop iterated
 ##   active_championships (all 21 in the world), so a player registered nowhere got "Season N [GP1/
 ##   GP2/EPC…]: New car needed" for championships they never entered (same root as the GK-TP / DNS
@@ -103,7 +105,7 @@ func _init(game_state) -> void:
 # ═══════════════════════════════════════════════════════════════════════════
 
 func end_season() -> void:
-	gs.add_log("=== SEASON %d COMPLETE ===" % gs.current_season)
+	gs.log_news("=== SEASON %d COMPLETE ===" % gs.current_season)
 
 	# ── 1. Award champion titles for EVERY championship, archive to History ──────
 	# (#28/#31: the weekly loop simulates all championships, so all of them have standings.
@@ -118,7 +120,7 @@ func end_season() -> void:
 				var gk_did = gk_champ_entry.get("driver_id", "")
 				if gk_did != "":
 					var gd = gs.all_drivers.get(gk_did)
-					gs.add_log("🏆 %s — GK Champion: %s" % [
+					gs.log_news("🏆 %s — GK Champion: %s" % [
 						champ.championship_name, gd.full_name() if gd else gk_did])
 					gs._award_drivers_championship(gk_did, champ)
 			## GK team champion — flat cumulative team table.
@@ -131,7 +133,7 @@ func end_season() -> void:
 		var sorted_drivers = champ.get_standings_sorted()
 		if sorted_drivers.size() > 0:
 			var win_d = gs.all_drivers.get(sorted_drivers[0]["driver_id"])
-			gs.add_log("🏆 %s — Champion: %s (%d pts)" % [
+			gs.log_news("🏆 %s — Champion: %s (%d pts)" % [
 				champ.championship_name,
 				win_d.full_name() if win_d else sorted_drivers[0]["driver_id"],
 				sorted_drivers[0]["points"]])
@@ -159,6 +161,7 @@ func start_new_season() -> void:
 	gs.current_season += 1
 	gs.current_week = 1
 	gs.weekly_log.clear()
+	gs.news_feed.clear()   ## S37.63 — fresh news feed each season
 	gs.pending_season_screen = "begin_of_season"
 
 	# ═══════════════════════════════════════════════════════════════════════
@@ -207,7 +210,7 @@ func start_new_season() -> void:
 	## #40 — drop any player TP/Strategist left on a championship no longer raced this season
 	## (e.g. GK after switching to Rally), so HQ shows "Not assigned" rather than a stale series.
 	gs.clear_stranded_player_championship_staff()
-	gs.add_log("=== SEASON %d BEGINS ===" % gs.current_season)
+	gs.log_news("=== SEASON %d BEGINS ===" % gs.current_season)
 
 	# ── STAGE C — TP assignment (AI auto-assign) ────────────────────────────
 	## Season 1 stays JSON-seeded (load_car_assignments runs later in the presentation
@@ -567,7 +570,7 @@ func _retire_person(person_id: String, pool: Dictionary, kind: String) -> void:
 		## Remove from all championship standings
 		for champ in gs.active_championships:
 			champ.standings.erase(person_id)
-		gs.add_log("🏁 %s has retired from racing at age %d." % [person.full_name(), person.age])
+		gs.log_news("🏁 %s has retired from racing at age %d." % [person.full_name(), person.age])
 		if is_player:
 			gs.notify_event("retired_%s" % person.id, "Normal",
 				"🏁 Your driver %s has retired (age %d). Sign a replacement before Race 1." % [
@@ -579,7 +582,7 @@ func _retire_person(person_id: String, pool: Dictionary, kind: String) -> void:
 			person.assigned_championship = ""
 		if "assigned_car_id" in person:
 			person.assigned_car_id = ""
-		gs.add_log("🏁 %s (%s) has retired at age %d." % [person.full_name(), person.role, person.age])
+		gs.log_news("🏁 %s (%s) has retired at age %d." % [person.full_name(), person.role, person.age])
 		if is_player:
 			gs.notify_event("retired_%s" % person.id, "Normal",
 				"🏁 Your %s %s has retired (age %d). Hire a replacement." % [

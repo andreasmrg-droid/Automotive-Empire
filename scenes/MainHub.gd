@@ -1,4 +1,7 @@
 extends Control
+## Version: S37.64 — TDL filter recognises the new stable "TP assignments ready" item (no count).
+## Version: S37.63 — NEWS panel renders GameState.news_feed (genuine events) instead of the raw
+##   weekly_log, so DNS/assignments/balances/new-game setup no longer appear as "news".
 ## Version: S37.61 — Advance Week no longer shows the "📋 PENDING TASKS" popup; it advances
 ##   immediately. Pending items remain in the TO-DO list / notifications, so nothing is lost — the
 ##   modal was a redundant interruption. _show_pending_tasks_dialog kept but unused. The Next-Race
@@ -607,7 +610,9 @@ func _refresh_log() -> void:
 	for child in log_box.get_children():
 		child.queue_free()
 
-	for message in GameState.weekly_log:
+	## S37.63 — the NEWS panel renders the curated news_feed (genuine world events), NOT the raw
+	## weekly_log (operational chatter: DNS, repairs, assignments, balances).
+	for message in GameState.news_feed:
 		if message.begins_with("Weekly expenses") or message.begins_with("Campus:") \
 				or message.begins_with("💼 "):
 			continue
@@ -1350,7 +1355,7 @@ func _get_todo_destination(task: String) -> String:
 	## TP proposals — route to Racing Department
 	if "GK TP" in task or "TP suggests" in task or "TPs have" in task \
 			or "assignment suggestion" in task or "assignment update" in task \
-			or "TP has" in task or "TP proposals" in task or "Racing Department" in task:
+			or "TP has" in task or "TP proposals" in task or "TP assignments ready" in task or "Racing Department" in task:
 		return "res://scenes/buildings/RacingDept.tscn"
 	## Car purchase — always Logistics first
 	if "buy one at Logistics" in task or "No car for" in task or "Buy your first car" in task:
