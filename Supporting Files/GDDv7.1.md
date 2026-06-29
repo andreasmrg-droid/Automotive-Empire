@@ -1,6 +1,11 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v7.0 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+**Version:** v7.1 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v7.1: (S37.65) KEYBOARD-VERIFICATION PASS + INTEREST REBALANCE. Car delivery pipeline (Phase 2, §6.0)
+	confirmed working in play; the championship-registration (CP4) and roster-desync/contract-loop clusters
+	marked keyboard-verified (§21). Interest model made STRICTER at low reputation (§12 / ContractEngine):
+	a new GK garage now sees ~10 interested drivers / ~6–7 staff per role (was ~49 / ~74). Economy is now
+	stable enough to begin ROADMAP PHASE 3 (Commercial Factory + R&D Pillar 5 — second income stream). -->
 <!-- v7.0: (S37.60–S37.64) BUG #38 CLOSE-OUT (MULTI-DRIVER-PER-CAR / CREW MODEL) + NEWS-vs-NOTIFICATION SPLIT.
 	(1) BUG #38 → multi-driver-per-car implemented as a CREW MODEL: a Car holds driver_ids[] sized by the
 	discipline rule (Rally/TC = 2, EPC = 3, else 1); co-drivers share ONE car result and ONE points award
@@ -461,7 +466,10 @@ Plant. The CNC "ready to manufacture" / Build-Whole-Car gates remain current-sea
 The race module is the LAST thing built (the economy ships first). The design below is the
 target; until the full sim is swapped in, results are produced by the engine's existing logic.
 
-### 6.0 Car Acquisition & Delivery (Phase 2)
+### 6.0 Car Acquisition & Delivery (Phase 2) — ✅ VERIFIED WORKING (S37.65, keyboard)
+
+The car acquisition + delivery pipeline (buy/build → delivery week → DNS-until-ready → in-build
+banner → race-ready on delivery) is **play-tested and confirmed working**.
 
 A team fields no cars at season start until it acquires them. Two paths:
 
@@ -1688,6 +1696,18 @@ the wildcards). Biggest risk: scope creep — keep saying "backlog."
 
 Historical record of what shipped; design facts above already reflect these.
 
+- **S37.65 (keyboard-verification pass + interest rebalance):**
+  - *Car delivery pipeline (Phase 2, §6.0) → ✅ verified working* in play (buy/build → delivery week →
+	DNS-until-ready → race-ready on delivery).
+  - *Keyboard verification* — CP4 championship-registration cluster (#9/#19/#44/#48) and the roster-desync
+	/ contract-loop cluster (#35/#6/#10) confirmed working (§21).
+  - *Interest model stricter at low reputation (§12, ContractEngine)* — `FREE_AGENT_INTEREST_BONUS` 18→5,
+	`REP_TALENT_SLOPE` 0.7→0.9, low-talent FA floor 35→34 (named const `FREE_AGENT_FLOOR_TALENT`), uphill
+	`rep_gap_bonus` cap 15→8. A rep-15 GK garage now attracts ~10 drivers / ~6–7 staff per role (was
+	~49 / ~74); reach grows smoothly with reputation. Shared by the "Interested Only" filter and the
+	approach gate, so they still agree.
+  - *Economy declared stable enough to start ROADMAP PHASE 3* (Commercial Factory + R&D Pillar 5).
+
 - **S37.60–S37.64 (Bug #38 multi-driver CREW MODEL + news-vs-notification split):**
   - *Bug #38 → ✅ (multi-driver-per-car, S37.60–S37.61)* — `Car.driver_ids[]` is now canonical, sized
 	by the discipline rule (Rally/TC = 2, EPC = 3, else 1); `driver_id` retained as a synced seat-0
@@ -1998,14 +2018,16 @@ shipped work). As of v6.0 the reconciled list records **10 fixed** (#5, 14, 19, 
 open. The remaining high-leverage clusters:
 
 - **Championship-registration cluster (#9, #19, #44, #48)** — addressed by CP4 (§7.2); the display
-  contradictions (#19) and stray-GK symptoms are fixed in code, pending keyboard verification.
+  contradictions (#19) and stray-GK symptoms are fixed in code and **✅ keyboard-verified (S37.65)**.
 - **Standings persistence (#31) + GK team champion (#28)** — ✅ fixed (S36.14 / S36.15+).
-- **Roster desync (#35) + contract loop (#6, #10)** — Season Transition Pipeline area (§7.1), pending
-  verification.
-- **Interest/reputation (#2, #4) + CFO data (#1)** — economy correctness (§9, §12); #1 still open.
+- **Roster desync (#35) + contract loop (#6, #10)** — Season Transition Pipeline area (§7.1),
+  **✅ keyboard-verified (S37.65)**.
+- **Interest/reputation (#2, #4) + CFO data (#1)** — economy correctness (§9, §12); interest model
+  rebalanced + made stricter (S37.65, §12); #1 (CFO data) still open.
 - **Garage slots & assignment (#37, #38, #40, #41, #46)** — multi-driver champ slots, TP reassign,
   age-requirement popup; repair (#47) ✅; **multi-driver-per-car (#38) ✅ — crew model, S37.60–S37.61
-  (§1).**
+  (§1), keyboard-verified.**
+- **Car delivery pipeline (Phase 2, §6.0)** — ✅ keyboard-verified working (S37.65).
 - **Lowest-risk OPEN batch** (no re-fix risk, untouched by changelog): #8, #11, #13, #18, #41, #43.
 - **Notification-framework migration** (§15.1): TP/fuel/SP/building-completion/sponsor-offer/news
   events still on the legacy path. **Design revamps** (#17 Main Hub, #32 Racing World, #34
@@ -2014,6 +2036,9 @@ open. The remaining high-leverage clusters:
 When a fix ships, update the relevant section above AND mark the item in both tracker files.
 
 ## 22. Manual inserted Updates and ideas.
+- Create the Racing cars and parts market
+- Create the race simulations of all the championship
+- if not written abbove, create the AI teams behavior 
 
 > *Reconciliation note (v6.8): these are the owner's raw design ideas. Items now reflected elsewhere
 > in the GDD: the **designer-model reconsideration** is cross-referenced in §7.3 + §19; **"make Racing
