@@ -1,4 +1,10 @@
 class_name ContractEngine
+## Version: S37.65 — Interest model STRICTER at low reputation (the "~49 drivers / ~74 staff interested
+##   in a new GK garage" complaint). FREE_AGENT_INTEREST_BONUS 18→5, REP_TALENT_SLOPE 0.7→0.9, low-talent
+##   FA floor 35→34 (now a named const FREE_AGENT_FLOOR_TALENT), uphill rep_gap_bonus cap 15→8. A rep-15
+##   team now attracts ~10 drivers / ~6–7 staff per role; reach grows smoothly with reputation. Shared by
+##   both the "Interested Only" hub filters and the approach gate (is_subject_interested), so filter and
+##   approach still agree.
 ## Version: S37.64 — Signings no longer double-post to NEWS: the notify_event for a signing is now
 ##   "event" (notification only); the news line comes solely from log_news.
 ## Version: S37.63 — Final driver/staff SIGNINGS routed to news_feed (log_news). Sponsor deals,
@@ -507,11 +513,20 @@ const INTEREST_THRESHOLD: float = 60.0
 ## reputation unlocks better talent. Curve (threshold = INTEREST_THRESHOLD = 60):
 ##   interest = 60 + (player_rep − talent) * REP_TALENT_SLOPE + free_agent_bonus + rep_gap_bonus + tp
 ##   - player_rep − talent: the core gate. rep ≥ talent → at/above threshold; rep ≪ talent → below.
-##   - REP_TALENT_SLOPE 0.7: each rep point you're above a subject's talent adds 0.7 interest.
-##   - free agents (no current team) get a bonus (they need a seat).
+##   - REP_TALENT_SLOPE 0.9: each rep point you're above a subject's talent adds 0.9 interest.
+##   - free agents (no current team) get a small bonus (they need a seat).
 ##   - a subject on a BETTER team than yours is harder to tempt (rep_gap_bonus, negative if downhill).
-const REP_TALENT_SLOPE: float = 0.7
-const FREE_AGENT_INTEREST_BONUS: float = 18.0
+##
+## S37.65 — STRICTER at low reputation. A new GK garage (rep 15) was attracting ~49 drivers / ~74
+## staff because the free-agent bonus (18) + a generous uphill rep_gap cap (15) let FAs up to
+## talent ~48 through. Rebalanced so a rep-15 team only attracts the lowest free agents (talent
+## ≲34) → ~10 drivers and ~6–7 staff per role; reach then grows smoothly with reputation (rep 40
+## reaches FA talent ~54 and starts poaching contracted talent; rep 60+ becomes a real destination).
+## Changes: FREE_AGENT_INTEREST_BONUS 18→5, REP_TALENT_SLOPE 0.7→0.9, low-talent FA floor 35→34,
+## uphill rep_gap_bonus cap 15→8 (see below).
+const REP_TALENT_SLOPE: float = 0.9
+const FREE_AGENT_INTEREST_BONUS: float = 5.0
+const FREE_AGENT_FLOOR_TALENT: float = 34.0   ## a FA at/below this always takes any seat (anti-softlock)
 
 func _subject_interest_score(subject_id: String, subject_type: String, current_team_id: String,
 		ctx: Dictionary = {}) -> float:
@@ -534,7 +549,7 @@ func _subject_interest_score(subject_id: String, subject_type: String, current_t
 		base_chance += FREE_AGENT_INTEREST_BONUS
 		## Floor: a LOW-talent free agent will always take any seat (so a brand-new rep-0 team can
 		## still field a car). Prevents a soft-lock where literally nobody is interested at rep 0.
-		if talent <= 35.0:
+		if talent <= FREE_AGENT_FLOOR_TALENT:
 			base_chance = max(base_chance, INTEREST_THRESHOLD + 1.0)
 
 	## A subject currently at a HIGHER-rep team than the player won't drop down easily; a lower-rep
@@ -550,7 +565,9 @@ func _subject_interest_score(subject_id: String, subject_type: String, current_t
 					their_team_rep = t.reputation
 					break
 	var rep_gap = player_rep - their_team_rep
-	var rep_gap_bonus = clamp(rep_gap * 0.4, -30.0, 15.0)
+	## S37.65 — uphill (downhill-team) bonus capped at +8 (was +15): luring from a much weaker team
+	## is a modest pull, not a near-guarantee. The downhill penalty (−30) is unchanged.
+	var rep_gap_bonus = clamp(rep_gap * 0.4, -30.0, 8.0)
 
 	## TP reputation gives a modest pull.
 	var tp_mod: float = ctx.get("tp_mod", -1.0)
