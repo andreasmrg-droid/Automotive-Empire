@@ -1,6 +1,23 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v7.1 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+**Version:** v7.2 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v7.2: (S37.66) PHASE 3 COMMERCIAL CAR INDUSTRY — FULL DESIGN & CALIBRATION (no code yet). §4 rewritten
+	from a stub into the complete Factory spec, validated over 100 headless Python seasons. KEY DECISIONS:
+	(1) MARKET ENGINE = attractiveness/redistribution (share won by competitiveness, not multiplied from
+	current share — the only model where a cold-start player can climb on merit); locked as "v4" with 7 named
+	volume GIANTS occupying the mass segments; 0/12 runaways, player climbs 9–29%, monopolies self-cap.
+	(2) FACTORY INCOME pegged to RACING income (mature ≈1.18×, hard cap 2× — McLaren-style; the Excel
+	real-world margins are ~1000× the game scale so a CREDIT_SCALE≈0.0054 is applied; Excel MSRP/margins kept
+	as on-screen flavor). (3) UPGRADE STAIRCASE replaces the broken flat 250K (12.08M…1.2M descending,
+	~3-season payback/line, ~66.4M total capex); build cost stays 1.2M. (4) CFO MANDATORY (no CFO → Factory
+	off); sales_factor=0.75+sales_skill/200 on Factory road-car sales ONLY. (5) PER-MODEL marketing (18% of
+	gross, from revenue). (6) Hard ~25-season model LIFECYCLE (ramp→plateau→death; Facelift/Next-Gen refresh).
+	(7) Factory level = production lines (1/level, 12=all segments). (8) ECONOMY CYCLES plug into the existing
+	economy_index + per-segment cyclicality (Mass 0.45/Premium 0.25/Hyper 0.08) + sponsor offers soften in
+	recessions; DISCOVERED the existing economy is near-flat (never hits Boom/Recession) → re-tune to a slow
+	~4-season sine regime (Option A). (9) New COMMERCIAL DEPARTMENT in HQ (read-only market view for ALL
+	players, interactive once a Factory is owned) + news/notifications. Full rationale + 100-season simulation
+	proof in companion doc Phase3_Commercial_Validation.md. NOT YET CODED — next step is the GDScript port. -->
 <!-- v7.1: (S37.65) KEYBOARD-VERIFICATION PASS + INTEREST REBALANCE. Car delivery pipeline (Phase 2, §6.0)
 	confirmed working in play; the championship-registration (CP4) and roster-desync/contract-loop clusters
 	marked keyboard-verified (§21). Interest model made STRICTER at low reputation (§12 / ContractEngine):
@@ -361,31 +378,140 @@ CFO covers the boring part so a season isn't lost to un-bought fuel. See §9-E.
 
 ---
 
-## 4. COMMERCIAL CAR MARKET — Weekly Update
+## 4. COMMERCIAL CAR INDUSTRY — the Factory (Phase 3) — DESIGNED & CALIBRATED (S37.66)
 
-The road-car business: a second income stream that makes the game playable without the race
-module. Racing success feeds commercial visibility.
+The road-car business: a late-game, climb-gated second income stream that pairs with racing and makes the
+game playable without the race module. **Fully designed and validated over 100 headless seasons** (the
+attractiveness market engine, the racing-relative income cap, marketing, lifecycle, economy cycles, and ROI
+were all proven in Python before coding — per the §2 rule). **Derivation & full rationale: companion doc
+`Phase3_Commercial_Validation.md`.** Not yet coded.
+
+### 4.0 Core model
+
+- **12 segments** (Excel "Commercial Cars Industry"): Economy Hatchbacks → Limited Run Megacars, each with
+  volume, margin, complexity, market-type (Mass/Premium/Hyper), difficulty, and seeded AI producers/shares.
+- **Unlock = racing the linked championship.** Excel Championships `Factory_Unlock` (col BF) IS the
+  discipline→segment matrix (RALLY4→Economy Hatch, RALLY3→Hot Hatch, RALLY2→Rally Replica, Premier Rally→EV
+  Flagship; TC Sport→Entry Sports, TC Elite→Supercars; SC Truck→Pickups, SC Challenge→Pony, SC Cup→V8 Sedan;
+  EPC League→Track Day, EPC Hyper→Bespoke Hyper; GP1→Megacars). Racing the championship fires a notification
+  → research the **Pillar-5** blueprint → build the model on a Factory production line (TDL + notification +
+  save/load). GK and most entry tiers unlock nothing — you must climb.
+- **Factory level = production lines** (1 per level, max 12). Each line runs ONE model; level 12 = all 12
+  segments concurrently. A segment needs BOTH: unlocked+researched AND a free line.
+- **CnC is SEPARATE** — CnC = racing parts only; the Factory = commercial cars only. No shared inventory/code.
+- **Pillar 4** = Factory-boosting special projects (robotic assembly, conveyor, monocoque rig, smart-factory
+  — output/margin/cost). **Pillar 5** = the 12 per-segment car models + their improvement ladder.
+- **CFO MANDATORY:** no CFO → Factory burns full upkeep, **zero output**. CFO `sales_skill` amplifies Factory
+  commercial sales + market-share growth (Factory/road-car ONLY — NOT the Museum/Theme Park/Merch/PRC
+  passive-income buildings, which stay marketability/fan income) via:
+  `sales_factor = 0.75 + sales_skill/200` (0.75 … 1.0 @ skill 50 … 1.25). No TP multiplier on it.
+
+### 4.1 The market engine — ATTRACTIVENESS / REDISTRIBUTION (locked: v4, 7 giants)
+
+Share is won by **competitiveness, not multiplied from current share** (the latter froze new entrants —
+including the player, who is always a new entrant). Each producer (player, racing-brand AI, volume giant,
+and a resisting "Others" bloc) has an **attractiveness**; each week the segment's 100% is redistributed
+toward the more attractive, moving gradually (inertia → ~5–8 season climb).
 
 ```
-Weekly_Racing_Buzz = [(Points_Earned_This_Week ÷ Max_Possible_Points_This_Week) − 0.5]
-				   × Championship_Visibility_Multiplier × Discipline_Synergy_Bonus
-
-Weekly_Market_Share_Delta = Current_Market_Share
-   × (0.008 × Reputation_Factor + 0.007 × Marketability_Factor + 0.028 × Weekly_Racing_Buzz)
-
-If Weekly_Racing_Buzz ≤ 0 → extra natural decay of −0.0035 × Current_Market_Share
-
-New_Market_Share = clamp(Current_Market_Share + Weekly_Delta, 0.01, Max_Share_Cap)
-
-Weekly_Commercial_Car_Sales = Global_Annual_Volume × (Current_Market_Share / 52)
-							× (1 + Weekly_Racing_Buzz × 0.12)
+attractiveness = 1.0·(reputation/100) + 0.8·model_freshness + 0.6·(marketing_ratio − 1) + giant_bonus(0.15)
+				 (× sales_factor for the player's CFO)
+deserved_share = attractiveness / Σ(all attractiveness + OTHERS_ATTR 0.35)
+new_share     += (deserved_share − share) × INERTIA(0.045)        # gradual move
 ```
 
-"Others %" in a segment = 100% − sum of all team market shares in that segment. Commercial
-sales and market-share growth are improved by the CFO's `sales_skill` (§9-E).
+- **"Others %"** = a resisting residual bloc (attractiveness 0.35) holding unclaimed share; every segment
+  sums to 100%. Share you gain comes FROM Others or from weaker/aging rivals — never from nothing.
+- **7 named volume giants** (Meridian Motors, Continental Auto, Pacifica Group, Aurora Vehicles, Summit
+  Automotive, Northwind Motors, Crestline Group) occupy the mass/volume segments — real, beatable
+  incumbents replacing the faceless "Others" there. Prestige segments stay racing-brand territory
+  (Blackthorn, Obsidian, etc.).
+- **Validated over 100 seasons:** 0/12 runaway monopolies; volume leaders 12–17% (realistic fragmentation);
+  a cold-start player climbs to 9–29% on MERIT (good reputation + fresh model + marketing); leadership shifts
+  as models age. Monopolies self-cap (the whole field pulls back + aging models decay).
+- **Specialist rule emerges naturally:** attractiveness is per-model, so spreading marketing/effort thin
+  across many segments underperforms committing lines to a few high-value segments.
 
-**Roadmap link:** the Commercial Factory + its R&D (Pillar 5, §8) is Phase 3 — the second
-weekly income stream. The Pillar-5 "Commercial Cars" R&D button already exists as a stub.
+### 4.2 Model lifecycle — hard ~25-season life
+
+Each model: **ramp (to ~2.5 seasons) → plateau (to ~16) → decline → death at 25 seasons.** Decline is driven
+by **competitiveness drift** (freshness falls; rivals refresh and you don't), not a hard age cap — a
+diligently refreshed model stays strong its whole life. **Pillar-5 Facelift** (cheap, restores
+competitiveness mid-life) and **Next-Gen** (expensive, launches a successor, resets the clock — Escort→Focus)
+keep a line alive. AI auto-refreshes near end-of-life. New-game seeds AI models at **staggered mid-life ages**
+(persisted) so the industry looks mature and avoids synchronized death waves.
+
+### 4.3 Pricing, marketing & demand
+
+- **Marketing budget PER MODEL:** the CFO recommends a budget; the player sets it. Cost ≈ **18% of gross** at
+  the recommended spend, **paid from revenue**. Under-spend → marketing_ratio < 1 → lost share (cars sit
+  unsold). Diminishing returns above recommended. CFO `sales_skill` makes the same budget reach further.
+- **Price sensitivity:** per-segment elasticity (Mass elastic, Hyper rigid) — hook for the Pillar-4 "MSRP
+  Pricing Bandwidth" bonus (pricing lever is a later refinement; v1 drives share via rep/marketing/freshness).
+- **Economy cycle demand** (§4.5).
+
+### 4.4 Income, the racing-relative CAP, and ROI (calibrated)
+
+Real-world anchor: even Ferrari is only ~10% racing; road cars dominate everywhere. But this is a racing sim,
+so the Factory is **deliberately capped below reality: mature Factory ≈ 1× racing income, hard max 2×**
+(McLaren-style — the two businesses comparable).
+
+- **Excel MSRP/margins are real-world dollars (~1000× the game's credit scale)** — kept as on-screen FLAVOR.
+  Actual income = scaled: `commercial_credits = units × margin × CREDIT_SCALE(≈0.0054) × sales_factor`, tuned
+  so a fully-built mature Factory lands at ~1.18× racing income (anchored to a representative late-career
+  racing income ~CR 496K/wk; NOT the GP1-champion outlier). Because the cap is RELATIVE to racing income, it
+  **auto-scales across the career and survives sponsor re-tuning** (validated ±30%).
+- **Per-line capacity:** 500 units/wk at L1, +250/level (Excel). Realized sales = min(demand, capacity);
+  overproduction is lost (the "unsold cars" pressure).
+- **Validated ramp (with realistic share climb):** ~0.13× racing @ S10 → ~0.44× @ S50 → ~0.85× @ S75 →
+  **~1.18× @ S100 (mature)** — gradual, never instant.
+- **Build cost 1.2M** (code value — accessible entry; slow share-climb prevents instant riches).
+- **Upgrade-cost STAIRCASE (replaces the broken flat 250K), ~3-season payback per line, descending:**
+  L1→L2 12.08M, →L3 9.89M, →L4 7.94M, →L5 6.95M, →L6 6.79M, →L7 6.62M, →L8 4.84M, →L9 4.47M,
+  →L10 2.81M, →L11 1.60M, →L12 1.20M. **Total Factory capex ~CR 66.4M.** Per-line ROI ~0.5–5 seasons —
+  satisfying, never instant, never dead money.
+
+### 4.5 Economy cycles (plug into the EXISTING economy_index)
+
+Commercial demand reads the game's existing `economy_index` (§3 / `_update_economy_and_fuel`):
+```
+demand_mult = 1 + ((economy_index − 50)/50) × cyclicality      # Mass 0.45 / Premium 0.25 / Hyper 0.08
+```
+Hyper segments are recession-resistant (ultra-rich keep buying — matches real Ferrari/McLaren data); volume
+segments swing hardest. Sponsor offers also soften in recessions: a ×`(1 + (idx−50)/50 × 0.20)` multiplier in
+`SponsorManager._generate_sponsor_offer` (recession → leaner offers), tying racing + commerce to one pulse.
+**Validated:** cycles do NOT destabilize the market (a boom/recession scales the whole pie equally; shares
+still redistribute fairly — only credits-earned move).
+
+**Economy RE-TUNE (Option A, adopted):** the current formula (mean-reversion 0.008 + drift ±0.5) keeps the
+index in a 35–67 band — it **never reaches Boom(>70)/Recession(<30)** across a career (the economy is wired
+up but practically flat). Replace the pure-drift line in `_update_economy_and_fuel` with a **slow ~4-season
+sine "regime" + light noise + rare shocks**, giving genuine but rare cycles (~3–4 booms / ~3–4 recessions per
+~25-season career, mostly Normal). This simultaneously revives the dormant fuel/loan/`speculation` systems.
+
+### 4.6 Representation — the Commercial Department (visible to ALL players)
+
+A new **"Commercial Department" building/screen in HQ**: read-only market view (12 segments, producers =
+giants + racing brands, live shares, "Others", the economy's current commercial effect). **Visible to
+everyone from the start** (aspirational + a scouting tool before you enter a segment); becomes interactive
+(set per-model marketing, manage models/lifecycle) once a Factory is owned. The **economy graph stays in the
+Financial dept** (it's a financial indicator); its commercial *consequences* show here. **News +
+notifications** carry events: economy shifts (CFO-gated, exists), market-share milestones, and the
+"you can research this segment's blueprint" unlock breadcrumbs.
+
+### 4.7 The base weekly formulas (legacy reference — superseded by the engine above)
+
+The original §2-style formulas remain valid as the *visibility* layer (how racing feeds commercial buzz);
+the attractiveness engine (§4.1) governs the actual share dynamics.
+```
+Weekly_Racing_Buzz = [(Points_Earned ÷ Max_Points) − 0.5] × Championship_Visibility × Discipline_Synergy
+```
+`Championship_Visibility` = the championship's `Reputation_0_100` (Excel col E; GP1 100 … GK 15) — GP1 success
+drives far more commercial visibility than a Rally4 result. `Discipline_Synergy` is the Factory_Unlock link
+(racing the segment's own championship boosts that model). "Others %" = 100% − Σ team shares in the segment.
+
+**Roadmap link:** Phase 3. Pillar-5 "Commercial Cars" R&D button exists as a stub; the 12 model blueprints +
+improvement ladder are data to author. Integration points listed in `Phase3_Commercial_Validation.md` §10.
 
 ---
 
@@ -896,6 +1022,11 @@ Required to run a Factory team. Stats: `sales_skill` (commercial sales/market sh
 Weekly_Total_Expenses), `budget_planning` (expansion/contraction insights), `speculation`
 (economy_index predictions only — doesn't move the economy), `loan_management`
 (Max_Loan_Amount, rates, repayment).
+
+**`sales_skill` scope (Phase 3, §4):** applies to the **Factory's road-car sales + market-share growth
+ONLY** — `sales_factor = 0.75 + sales_skill/200` (0.75 … 1.25; no CFO → Factory off entirely). It does NOT
+touch the Museum/Theme Park/Merch/Public-Racing-Club passive-income buildings (those are
+marketability/fan-driven, a different lever). No TP multiplier on it. The CFO is MANDATORY for a Factory.
 
 **Economy intelligence is CFO-gated (S35.3):** the economy notifications the player relies on —
 economy state shifts and fuel-price shocks — fire **only if a CFO is hired** (it's the financial
@@ -1628,7 +1759,10 @@ RefCounted engine classes for headless multi-season testing.
 - **Phase 2:** §5/§6-style car system — delivery delay, P2/P3 gating, DNS-until-ready,
   deadlines (it's ECONOMY).
 - **Phase 3:** Commercial factory + R&D Pillar 5 (second weekly income → playable without the
-  race). The Pillar-5 button is already stubbed.
+  race). **DESIGN & 100-season calibration COMPLETE (S37.66, §4 + `Phase3_Commercial_Validation.md`);
+  next step is the GDScript port.** The Pillar-5 button is already stubbed; the 12 model blueprints +
+  improvement ladder are data to author. Bundles the economy re-tune (§4.5) and the new Commercial
+  Department (§4.6).
 - **Phase 4:** Stock market.
 - **Phase 5:** Multi-season BALANCE pass — derive AI budgets & team character as OUTPUTS; tune
   building maxes + R&D gates (§10); headless Python stress-tests + real playtests.
@@ -1791,8 +1925,8 @@ Historical record of what shipped; design facts above already reflect these.
   - *Strategist = DNS* (§9-G) — a missing Race Strategist now DNS's the car (parity with the S37.45
     TP-DNS), enforced in `can_car_race` + a readiness TDL, for all disciplines except GK & Rally.
   - *Bug run* — release-staff now unassigns mechanic/pit-crew from the car (was driver-only); false
-    "no TP for GK" TDL for non-GK players fixed; "DNS for every championship" + season-rollover "new
-    car needed" spam gated to player championships; stale "24 championships" comments corrected to 21.
+	"no TP for GK" TDL for non-GK players fixed; "DNS for every championship" + season-rollover "new
+	car needed" spam gated to player championships; stale "24 championships" comments corrected to 21.
 
 - **S37.31–S37.36 (resource-bar rollout + standard header):** the shared ResourceBar component
   (script-instantiated, compact) is now on Campus + all 20 building scenes + all non-building scenes
