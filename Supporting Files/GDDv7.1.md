@@ -2038,7 +2038,9 @@ When a fix ships, update the relevant section above AND mark the item in both tr
 ## 22. Manual inserted Updates and ideas.
 - Create the Racing cars and parts market
 - Create the race simulations of all the championship
-- if not written abbove, create the AI teams behavior 
+- if not written abbove, create the AI teams behavior
+- the GK non player groups assign drivers instead of cars and then the drivers, we need to guarantee that these entries get a car stats for the race calculation results
+- Research that all the attributes of staff, drivers and cars are used in the code 
 
 > *Reconciliation note (v6.8): these are the owner's raw design ideas. Items now reflected elsewhere
 > in the GDD: the **designer-model reconsideration** is cross-referenced in §7.3 + §19; **"make Racing
