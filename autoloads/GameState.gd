@@ -1,6 +1,11 @@
+## Version: S37.60 — Added get_gk_final_json_round(): the JSON's highest GK round (for the Results
+##   screen to fetch the remapped city for the GK Grand Final, since the engine adds a round 22 the
+##   JSON doesn't have). No persisted-state change.
 ## Version: S37.59 — Added get_calendar_city(cid, round): UI helper that returns the display city
 ##   for a championship+round from race_calendar.json, so the Main Hub can show JSON place names
 ##   instead of the engine constant's branded names. Engine race logic unchanged.
+##   (S37.60) Added get_gk_final_json_round(): the JSON's highest GK round, used by the Results screen
+##   to fetch the remapped city for GK's engine-only Grand Final (engine round 22 ∉ 21-round JSON).
 ## Version: S37.56 — Removed the temporary S37.53 #22 diagnostic (_debug_dump_championship_rosters)
 ##   now that the engine roster build from teams.json is verified. No functional change vs S37.50.
 ## Version: S37.50 — NEW-GAME provisioning fixes (_give_starting_assets): (1) Ops Sim key typo —
@@ -3876,6 +3881,17 @@ func get_calendar_city(cid: String, round_num: int) -> String:
 		if int(rd.get("round", -1)) == round_num:
 			return str(rd.get("city", ""))
 	return ""
+
+## S37.60 — Highest round number present for GK (C-001) in race_calendar.json. The engine numbers GK
+## with an extra Grand Final round (semi=21, final=22) that the JSON doesn't have (JSON final=21), so
+## the Results screen uses this to fetch the JSON city for the GK final (so the remap applies).
+func get_gk_final_json_round() -> int:
+	var champs: Dictionary = race_calendar_data.get("championships", {})
+	var champ: Dictionary = champs.get("C-001", {})
+	var hi: int = 0
+	for rd in champ.get("rounds", []):
+		hi = max(hi, int(rd.get("round", 0)))
+	return hi
 
 ## S37.26 — cached CalendarManager accessor (preload-based, no class_name dependency).
 func get_calendar_manager():

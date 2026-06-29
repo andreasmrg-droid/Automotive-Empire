@@ -1,4 +1,9 @@
 class_name RaceSimulator
+## Version: S37.60 — Two race-name fixes. (1) Removed the "=== RACE N: <name> [<champ>] ===" banner
+##   log line (it surfaced in the NEWS panel with the engine constant's race name). (2) The Race
+##   Results screen race name now follows the JSON (visual schedule): the JSON city, like the Main
+##   Hub. One special case: GK's last JSON round → "GK Championship Final — <city>". GK rounds 1–20
+##   and all other championships just show the city.
 ## Version: S37.50 — Missing Race Strategist is now a DNS in can_car_race() (same design ruling as
 ##   the S37.45 TP-DNS), gated to disciplines that use a Strategist (all except GK & Rally). Matches
 ##   the new strategist readiness TDL in NotificationManager so the warning and the enforcement agree.
@@ -144,7 +149,9 @@ func can_car_race(driver_id: String) -> bool:
 func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 	# Use provided championship or fall back to active_championship (backward compat)
 	var c: Championship = champ if champ != null else gs.active_championship
-	gs.add_log("=== RACE %d: %s [%s] ===" % [c.current_round + 1, race_data["name"], c.championship_name])
+	## S37.60 — removed the "=== RACE N: <name> [<champ>] ===" banner log line. It surfaced in the
+	## NEWS panel (which mirrors weekly_log) carrying the engine constant's race name (e.g. "Le Mans"),
+	## and the player doesn't want a per-race banner in news. Results screen shows the race name instead.
 
 	# ── Staff Synergy Factor ─────────────────────────────────────────────
 	var tp = gs.get_team_principal()
@@ -185,13 +192,6 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 		+ (strat_pace  / 100.0) * 0.06 \
 		+ (mech_track  / 100.0) * 0.03 \
 		+ (strat_track / 100.0) * 0.03
-
-	if tp != null or mechanic != null or strategist != null:
-		gs.add_log("👥 Staff synergy: %.3f (mech %.0f, strat %.0f, TP %s)" % [
-			staff_synergy,
-			mech_setup if mechanic else 0.0,
-			strat_pace if strategist else 0.0,
-			tp.full_name() if tp else "none"])
 
 	# ── DNS check ────────────────────────────────────────────────────────
 	var dns_driver_ids: Array = []
@@ -427,7 +427,23 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 	# ── Store last race data ─────────────────────────────────────────────
 	gs.last_race_round = c.current_round + 1
 	gs.last_race_laps  = race_data["laps"]
-	gs.last_race_name  = race_data["name"]
+	## S37.60 — Results-screen race name follows the JSON (visual schedule): just the JSON city, like
+	## the Main Hub. The ONE special case: the GK championship final → "GK Championship Final — <city>".
+	## Detected via the engine entry's is_final flag (unambiguous — lands on the actual Grand Final, not
+	## the semifinal); GK rounds 1–20 + the semifinal + all other championships just show the city.
+	var _round: int = c.current_round + 1
+	var _city: String = gs.get_calendar_city(c.id, _round)
+	if _city == "":
+		## Engine's GK Grand Final is round 22, which the 21-round JSON doesn't have — use the JSON's
+		## last GK round (the JSON final) so the remapped city (e.g. "Tours") still applies.
+		if c.id == "C-001" and race_data.get("is_final", false):
+			_city = gs.get_calendar_city(c.id, gs.get_gk_final_json_round())
+		if _city == "":
+			_city = str(race_data["name"])   ## final fallback
+	if race_data.get("is_final", false):
+		gs.last_race_name = "GK Championship Final — %s" % _city
+	else:
+		gs.last_race_name = _city
 	gs.last_race_wet = is_wet
 	gs.last_race_results = driver_times
 	gs.last_race_championship = c.championship_name
@@ -624,11 +640,6 @@ func consume_race_resources(champ: Championship = null) -> void:
 	if fuel_used > 0.0:
 		gs.fuel_kg -= fuel_used
 		gs.fuel_kg = max(gs.fuel_kg, 0.0)
-		gs.add_log("⛽ Fuel used: %.1f kg × %d car%s (stock: %.1f kg)" % [
-			c.fuel_per_car_per_race, cars_raced,
-			"s" if cars_raced != 1 else "", gs.fuel_kg])
-	else:
-		gs.add_log("⛽ Fuel used: 0.0 kg (no cars started)")
 
 
 func earn_race_rp(laps: int) -> void:
@@ -682,8 +693,6 @@ func degrade_car_conditions(laps: int, dns_driver_ids: Array = [], champ: Champi
 						"🔩 %s TERMINAL DAMAGE on %s! Slot empty — buy provider parts at Logistics." % [
 						pcode, car.car_name if car.car_name != "" else "Car %d" % car.car_number], "logistics", "event")
 					gs.car_provider_parts[car.id].erase(pcode)
-		gs.add_log("🔩 Car %d condition after race: %.0f%% (−%.1f%% over %d laps)" % [
-			car.car_number, car.condition, loss, laps])
 
 
 func auto_repair_cars_post_race() -> void:

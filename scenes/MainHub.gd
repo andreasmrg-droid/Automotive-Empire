@@ -1,4 +1,8 @@
 extends Control
+## Version: S37.61 — Advance Week no longer shows the "📋 PENDING TASKS" popup; it advances
+##   immediately. Pending items remain in the TO-DO list / notifications, so nothing is lost — the
+##   modal was a redundant interruption. _show_pending_tasks_dialog kept but unused. The Next-Race
+##   button's "🚫 RACE BLOCKED" modal (genuine DNS guard) is a separate path and is unchanged.
 ## Version: S37.59 — Next Race line + Next Race button now consider ONLY the player's own
 ##   championships (get_player_championships()), not every active series, so they point at the race
 ##   the player actually contests. The line also shows the JSON city name (get_calendar_city) instead
@@ -718,12 +722,12 @@ func _refresh_week_strip() -> void:
 		week_strip.add_child(cell)
 
 func _on_advance_pressed() -> void:
-	var tasks = GameState.get_pending_tasks()
-	if tasks.is_empty():
-		GameState.advance_week()
-		_update_display()
-	else:
-		_show_pending_tasks_dialog(tasks)
+	## S37.61 — Advance Week now advances immediately, no "PENDING TASKS" popup. The pending items
+	## still live in the TO-DO list / notifications panel where the player can act on them at will;
+	## the modal was a redundant interruption. (The Next-Race button keeps its "RACE BLOCKED" modal,
+	## which guards genuine DNS conditions — that is a separate path and unchanged.)
+	GameState.advance_week()
+	_update_display()
 
 func _on_advance_to_race_pressed() -> void:
 	# Find the player's soonest upcoming race (only championships the player races in)
@@ -802,6 +806,8 @@ func _skip_weeks_collect_news(n: int) -> Array:
 	GameState.simulating_to_season_end = false
 	return news
 
+## S37.61 — Retained but no longer called: Advance Week now advances directly (see _on_advance_pressed).
+## Kept so the "advance anyway / go back" modal can be re-wired if desired without rebuilding it.
 func _show_pending_tasks_dialog(tasks: Array) -> void:
 	_show_modal(
 		"📋 PENDING TASKS",
