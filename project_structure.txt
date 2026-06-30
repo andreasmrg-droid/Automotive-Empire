@@ -1,4 +1,4 @@
-Project Structure - 2026-06-29T20:46:43
+Project Structure - 2026-06-30T20:33:34
 =====================================
 
 📁 data/
@@ -197,6 +197,10 @@ Project Structure - 2026-06-29T20:46:43
         📄 ResourceBar.gd.uid
         📄 SharePie.gd
         📄 SharePie.gd.uid
+        📄 ShareLines.gd
+        📄 ShareLines.gd.uid
+        📄 ModelNamePopup.gd
+        📄 ModelNamePopup.gd.uid
 📄 export_presets.cfg
 📄 FileStructureExporter.gd
 📄 FileStructureExporter.gd.uid
@@ -205,7 +209,7 @@ Project Structure - 2026-06-29T20:46:43
 📁 Supporting Files/
     📄 Season_Transition_Pipeline_Spec_v1.md
     📄 Brainstorm_Threads.md
-    📄 GDDv7.2.md
+    📄 GDDv7.3.md
     📄 SPEC_Championships_Browser_Refactor_v1.md
     📄 Phase3_Commercial_Validation.md
     📄 PHASE2_Build_Whole_Car_Spec.md
@@ -216,4 +220,5 @@ Project Structure - 2026-06-29T20:46:43
     📄 Notification_News_Roadmap_v1.md
     📄 GDD_Addition_S29.md
     📄 FEATURE_AI_Championship_Sim.md
-📄 project_structure.txt35553306530.tmp
+    📄 Road_map.md
+📄 project_structure.txt10482124748.tmp

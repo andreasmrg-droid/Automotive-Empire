@@ -1,3 +1,7 @@
+## Version: S40.0 — Phase 3 tail: (1) market-share milestone NEWS (10/20/30/50%) per active segment via
+##   _check_commercial_share_milestones in the weekly tick; ledger commercial_share_milestone_hit saved/
+##   loaded/reset. (2) No-CFO TDL now carries a 2nd "Financial Department is not optimized" advisory row
+##   (added in NotificationManager).
 ## Version: S39.7 — commercial model naming + Facelift/Next-Gen as R&D mini-projects: start_commercial_refresh, pending_commercial_rename (saved/loaded), build_commercial_line takes a chosen name
 ## Version: S39.6 — stop_commercial_line API (frees line, keeps blueprint)
 ## Version: S39.5 — commercial_line_economics single source of truth (net matches FinancialEngine + UI); segment-unlock now Studio-level based (racing gate removed); build_commercial_line racing check removed
@@ -943,6 +947,48 @@ func _tick_commercial_market() -> void:
 				"active": true
 			}
 	_commercial_market.advance_week(player_inputs, sales_factor)
+	_check_commercial_share_milestones()
+
+## S40.0 — Phase 3 tail (Phase3_Commercial_Validation §8): after the weekly market tick, announce when
+## the player's share in a segment they actively produce in crosses an upward milestone (10/20/30/50%).
+## Classified as NEWS (a meaningful world event, per Notification_News_Roadmap). Each rung fires once
+## per ascent; if share later drops below a rung the ledger lowers, so a genuine re-climb re-announces.
+## A segment with no active player line is skipped (and its ledger cleared) — nothing to celebrate.
+func _check_commercial_share_milestones() -> void:
+	if _commercial_market == null:
+		return
+	## Build the set of segments the player currently produces in.
+	var active_segs: Dictionary = {}
+	for line in commercial_lines:
+		var s: String = line.get("segment", "")
+		if s != "":
+			active_segs[s] = true
+	## Drop ledger entries for segments we no longer produce in (so re-entry re-announces cleanly).
+	for k in commercial_share_milestone_hit.keys():
+		if not active_segs.has(k):
+			commercial_share_milestone_hit.erase(k)
+
+	for seg_key in active_segs.keys():
+		var share_pct: float = _commercial_market.get_player_share(seg_key) * 100.0
+		var prev_best: int = int(commercial_share_milestone_hit.get(seg_key, 0))
+		## Highest milestone the current share now qualifies for.
+		var new_best: int = 0
+		for m in COMMERCIAL_SHARE_MILESTONES:
+			if share_pct >= float(m):
+				new_best = m
+		if new_best > prev_best:
+			## Crossed UP to a higher rung — announce the top rung reached this week.
+			var seg_name: String = _commercial_market.segment_name(seg_key)
+			var msg: String = ""
+			if new_best >= 50:
+				msg = "🏆 Market milestone: your %s now command a commanding %d%% share — the segment's leading marque." % [seg_name, new_best]
+			else:
+				msg = "📈 Market milestone: your %s passed %d%% market share." % [seg_name, new_best]
+			notify_event("commercial_share_%s_%d" % [seg_key, new_best], "Normal", msg, "res://scenes/buildings/VehicleFactory.tscn", "news")
+			commercial_share_milestone_hit[seg_key] = new_best
+		elif new_best < prev_best:
+			## Slipped below the previously-announced rung — lower the ledger so a re-climb re-fires.
+			commercial_share_milestone_hit[seg_key] = new_best
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1289,6 +1335,12 @@ var commercial_lines: Array = []
 ## S39.7 — pending rename requests from completed Facelift/Next-Gen R&D projects. Each = {segment,
 ## nextgen:bool}. The Commercial Department drains this and pops the naming popup for the player.
 var pending_commercial_rename: Array = []
+
+## S40.0 — market-share milestone ledger (Phase3_Commercial_Validation §8: share milestones → news).
+## Per segment, the highest threshold (%) the player has already been congratulated for, so each rung
+## fires once per ascent and can only re-fire if share falls back below it and climbs again. Saved.
+const COMMERCIAL_SHARE_MILESTONES: Array = [10, 20, 30, 50]
+var commercial_share_milestone_hit: Dictionary = {}   ## { seg_key: int highest_pct_announced }
 
 ## S38.3 — Rolling racing-income window (sponsors + race prizes + EOS), used by FinancialEngine to
 ## anchor the Factory's hard 2× cap (GDD §4.4) to TOTAL racing income rather than sponsor-only.
@@ -3653,6 +3705,7 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 	## prior game's lines/renames/unlock-ledger can't leak into a fresh career in the same session.
 	commercial_lines = []
 	pending_commercial_rename = []
+	commercial_share_milestone_hit = {}   ## S40.0 — clear milestone ledger for a fresh career
 	championships_ever_raced = []
 	_racing_income_window = [0.0, 0.0, 0.0, 0.0]   ## S38.3 cap-anchor window — fresh per career
 	_racing_income_this_week = 0.0
@@ -4434,6 +4487,7 @@ func save_game() -> void:
 		"commercial_market":         _commercial_market.to_dict() if _commercial_market else {},   ## S38.1
 		"commercial_lines":          commercial_lines,   ## S38.2 — player production lines
 		"pending_commercial_rename":  pending_commercial_rename,   ## S39.7 — pending facelift/nextgen renames
+		"commercial_share_milestone_hit": commercial_share_milestone_hit,   ## S40.0 — market-share milestone ledger
 		"championships_ever_raced":  championships_ever_raced,   ## S38.5 — Pillar-5 unlock ledger
 		"racing_income_window":      _racing_income_window,   ## S38.3 — cap anchor window
 		"racing_income_this_week":   _racing_income_this_week,
@@ -4607,6 +4661,7 @@ func load_game(path: String = "user://save_game.json") -> void:
 		_commercial_market.seed_market(true)
 	commercial_lines = data.get("commercial_lines", [])   ## S38.2 (empty for pre-Phase-3 / no-Factory saves)
 	pending_commercial_rename = data.get("pending_commercial_rename", [])   ## S39.7
+	commercial_share_milestone_hit = data.get("commercial_share_milestone_hit", {})   ## S40.0 (empty pre-S40.0)
 	## S38.5 — Pillar-5 unlock ledger; backfill from current registrations for pre-S38.5 saves.
 	championships_ever_raced = data.get("championships_ever_raced", [])
 	for cid in player_registered_championships:

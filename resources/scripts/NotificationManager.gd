@@ -1,4 +1,6 @@
 class_name NotificationManager
+## Version: S40.0 — TDL: when no CFO is hired, add a second advisory row "📉 Financial Department is
+##   not optimized." beneath the existing optional-CFO row (read-only, dismissible, routes to Staff).
 ## Version: S37.64 — Crash fix: _push_news now pushes a String (was a Dictionary) into the typed
 ##   news_feed. TDL auto-clean also purges legacy "TP has N … ready" count variants.
 ## Version: S37.62 — News/TDL cleanup: notifications no longer mirror into the NEWS/event log
@@ -408,6 +410,10 @@ func get_pending_tasks() -> Array[String]:
 	## notification is handled separately by notify_event("no_cfo", ..., "once") in GameState.
 	if gs.get_cfo() == null:
 		tasks.append("💼 No CFO (optional) — hire one from the Staff screen for financial perks.")
+		## S40.0 — extra read-only TDL line: without a CFO the Factory burns full upkeep for zero
+		## output and contract/loan/market perks are all forfeit, so the whole money side runs
+		## under-tuned. Surfaced as its own row so the cost of the empty CFO seat is explicit.
+		tasks.append("📉 Financial Department is not optimized.")
 
 	## Step 4 — Resources
 	## Low SP — only warn when races are still coming

@@ -1,4 +1,6 @@
 extends Control
+## Version: S40.0 — TDL routing: the new "Financial Department is not optimized" row (no-CFO companion)
+##   routes to the Staff screen, same as the optional-CFO row.
 ## Version: S39.5 — news rendered newest-first
 ## Version: S37.64 — TDL filter recognises the new stable "TP assignments ready" item (no count).
 ## Version: S37.63 — NEWS panel renders GameState.news_feed (genuine events) instead of the raw
@@ -1382,6 +1384,10 @@ func _get_todo_destination(task: String) -> String:
 	if "Team Principal" in task:
 		return "res://scenes/Staff.tscn"
 	if "CFO" in task:
+		return "res://scenes/Staff.tscn"
+	## S40.0 — the "Financial Department is not optimized" row (companion to the no-CFO row) is
+	## also resolved by hiring a CFO, so it points at the Staff screen too.
+	if "Financial Department is not optimized" in task:
 		return "res://scenes/Staff.tscn"
 	## Resources
 	if "Fuel" in task or "fuel" in task or "Spare parts" in task or "Logistics" in task:
