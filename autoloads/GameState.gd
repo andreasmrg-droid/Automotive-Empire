@@ -1,3 +1,4 @@
+## Version: S39.7 — commercial model naming + Facelift/Next-Gen as R&D mini-projects: start_commercial_refresh, pending_commercial_rename (saved/loaded), build_commercial_line takes a chosen name
 ## Version: S39.6 — stop_commercial_line API (frees line, keeps blueprint)
 ## Version: S39.5 — commercial_line_economics single source of truth (net matches FinancialEngine + UI); segment-unlock now Studio-level based (racing gate removed); build_commercial_line racing check removed
 ## Version: S38.7 — News/notification routing fix (per design owner): segment-UNLOCK breadcrumb →
@@ -1003,7 +1004,65 @@ func build_commercial_line(seg_key: String, model_name: String = "") -> String:
 		"commercial_dept", "news")
 	return ""
 
-## S39.6 — Stop a production line: removes it from commercial_lines (frees the line for another model)
+## S39.7 — Start a Facelift or Next-Gen as an R&D mini-project (RP + CR + weeks, like any research).
+## Facelift ≈ 25% of the blueprint cost, Next-Gen ≈ 60%; weeks/RP scale the same way. Requires: a
+## producing line for the segment, a free Designer, and enough RP/CR. On completion (_advance_rnd_
+## tasks) the refresh applies and a rename popup is queued. Returns "" on success or an error string.
+func start_commercial_refresh(seg_key: String, nextgen: bool, designer_id: String) -> String:
+	if not has_commercial_line_for(seg_key):
+		return "No production line is running this segment."
+	var prefix = "P5_NEXTGEN_" if nextgen else "P5_FACELIFT_"
+	var tid = prefix + seg_key
+	for t in active_rnd_tasks:
+		if t.get("id", "") == tid:
+			return "That refresh is already in progress."
+	if not designer_id in all_staff:
+		return "Invalid designer."
+	for t in active_rnd_tasks:
+		if t.get("designer_id", "") == designer_id:
+			return "That designer is already busy."
+	var bp = RND_TASKS.get("P5_MODEL_%s" % seg_key, {})
+	if bp.is_empty():
+		return "Blueprint not found."
+	var frac = 0.60 if nextgen else 0.25
+	var cr_cost = int(bp.get("cr", 25000000) * frac)
+	var rp_cost = int(bp.get("rp", 4000) * frac)
+	var weeks = int(ceil(bp.get("weeks", 40) * frac))
+	if research_points < rp_cost:
+		return "Not enough RP. Need %d, have %.0f." % [rp_cost, research_points]
+	if player_team.balance < cr_cost:
+		return "Not enough CR. Need %s." % _fmt_int(cr_cost)
+	research_points -= rp_cost
+	player_team.balance -= cr_cost
+	var seg_name = _commercial_market.segment_name(seg_key)
+	active_rnd_tasks.append({
+		"id": tid,
+		"name": "%s — %s" % [seg_name, ("Next-Gen" if nextgen else "Facelift")],
+		"pillar": 5,
+		"part": "Commercial",
+		"segment": seg_key,
+		"championship_id": "",
+		"season": current_season,
+		"level": 1,
+		"weeks_total": weeks,
+		"weeks_remaining": weeks,
+		"rp_cost": rp_cost,
+		"cr_cost": cr_cost,
+		"designer_id": designer_id,
+		"effect_key": "",
+		"effect_value": 0.0,
+	})
+	return ""
+
+## True if a facelift/nextgen R&D project is currently running for this segment.
+func commercial_refresh_in_progress(seg_key: String) -> bool:
+	for t in active_rnd_tasks:
+		var tid = t.get("id", "")
+		if tid == ("P5_FACELIFT_" + seg_key) or tid == ("P5_NEXTGEN_" + seg_key):
+			return true
+	return false
+
+
 ## and clears the player's producer from the market so the share decays away naturally. The researched
 ## blueprint is retained, so the player can restart production later.
 func stop_commercial_line(seg_key: String) -> String:
@@ -1227,6 +1286,9 @@ var player_team_cars: Array = []  # Array of Car objects
 ##      "researched_unlock": "C-010"  # the championship that unlocked it (breadcrumb/validation)
 ##   }, ... ]
 var commercial_lines: Array = []
+## S39.7 — pending rename requests from completed Facelift/Next-Gen R&D projects. Each = {segment,
+## nextgen:bool}. The Commercial Department drains this and pops the naming popup for the player.
+var pending_commercial_rename: Array = []
 
 ## S38.3 — Rolling racing-income window (sponsors + race prizes + EOS), used by FinancialEngine to
 ## anchor the Factory's hard 2× cap (GDD §4.4) to TOTAL racing income rather than sponsor-only.
@@ -3587,6 +3649,13 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 	_ai_championship_sim = AIChampionshipSim.new(self)
 	_commercial_market = CommercialMarketSim.new()   ## S38.1
 	_commercial_market.seed_market(true)             ## staggered mid-life AI models → mature industry on day one
+	## S39.7 — state-handler discipline (§15.2): reset all commercial player-state on new game so a
+	## prior game's lines/renames/unlock-ledger can't leak into a fresh career in the same session.
+	commercial_lines = []
+	pending_commercial_rename = []
+	championships_ever_raced = []
+	_racing_income_window = [0.0, 0.0, 0.0, 0.0]   ## S38.3 cap-anchor window — fresh per career
+	_racing_income_this_week = 0.0
 	_contract_engine = ContractEngine.new(self)
 	_rnd_engine = RnDEngine.new(self)
 	_notification_manager = NotificationManager.new(self)
@@ -4364,6 +4433,7 @@ func save_game() -> void:
 		"economy_phase0":            _economy_phase0,   ## S38.4
 		"commercial_market":         _commercial_market.to_dict() if _commercial_market else {},   ## S38.1
 		"commercial_lines":          commercial_lines,   ## S38.2 — player production lines
+		"pending_commercial_rename":  pending_commercial_rename,   ## S39.7 — pending facelift/nextgen renames
 		"championships_ever_raced":  championships_ever_raced,   ## S38.5 — Pillar-5 unlock ledger
 		"racing_income_window":      _racing_income_window,   ## S38.3 — cap anchor window
 		"racing_income_this_week":   _racing_income_this_week,
@@ -4536,6 +4606,7 @@ func load_game(path: String = "user://save_game.json") -> void:
 	else:
 		_commercial_market.seed_market(true)
 	commercial_lines = data.get("commercial_lines", [])   ## S38.2 (empty for pre-Phase-3 / no-Factory saves)
+	pending_commercial_rename = data.get("pending_commercial_rename", [])   ## S39.7
 	## S38.5 — Pillar-5 unlock ledger; backfill from current registrations for pre-S38.5 saves.
 	championships_ever_raced = data.get("championships_ever_raced", [])
 	for cid in player_registered_championships:

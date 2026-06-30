@@ -1,4 +1,5 @@
 class_name CommercialMarketSim
+## Version: S39.7 — fictional MODEL_NAME_POOL (5 per segment) + model_name_proposals()
 ## Version: S39.6 — remove_player_producer (share folds to Others when a line stops)
 ## Version: S39.4 — Lightweight per-season share HISTORY for the evolution line chart: _sample_history
 ##   captures one snapshot per segment per season (last HISTORY_SEASONS=5 kept), seeded at new-game and
@@ -401,6 +402,29 @@ func segment_keys() -> Array:
 
 func segment_name(seg_key: String) -> String:
 	return SEGMENTS.get(seg_key, {}).get("name", seg_key)
+
+## S39.7 — Fictional model-name proposals per segment (5 each). All names are invented to evoke the
+## segment's character via real-world naming PATTERNS (alphanumeric codes, evocative words, blade
+## names, safe/unused animals) WITHOUT copying any real model or trademark. Shown in the Start-
+## Production naming popup; the player may also type a custom name.
+const MODEL_NAME_POOL := {
+	"economy_hatch": ["Paxo", "Metrik", "Brio S", "Dart One", "Wisp"],
+	"hot_hatch":     ["Rallen RS", "Vivace", "Sprint Gi", "Kompakt R", "Zentra Turbo"],
+	"rally_replica": ["Gravel GTX", "Tarmac One", "Quadra Sport", "Rallex", "Dust King"],
+	"ev_flagship":   ["Ion S", "Voltaire", "Lumina e", "Nova Volt", "Eos Hybrid"],
+	"entry_sports":  ["Fenix", "Aria Roadster", "Foil S2", "Solo GT", "Breeze RS"],
+	"supercars":     ["Falchion", "Furia", "Stradano", "Apex GTS", "Sabre R"],
+	"pickups":       ["Bisonte", "Boulder 4x4", "Workhorse XT", "Mule HD", "Haulk"],
+	"pony":          ["Firebrand", "Cleaver 5.0", "Rampage GT", "Stampede", "VSS GT"],
+	"v8_sedan":      ["Apex 500", "Glaive GT", "Magnus V8", "Conquest S", "Veloce 8"],
+	"track_day":     ["Cup R", "Circuit Edition", "Lap One", "Pure RS", "Katana Track"],
+	"bespoke_hyper": ["Aether One", "Veritas", "Halo GTR", "Empyra", "Solace V"],
+	"megacars":      ["Zenith", "Regalia", "Absolute", "Sovereign", "Pinnacle One"],
+}
+
+## Returns the 5 fictional name proposals for a segment (empty array if unknown).
+func model_name_proposals(seg_key: String) -> Array:
+	return MODEL_NAME_POOL.get(seg_key, [])
 
 func unlock_championship(seg_key: String) -> String:
 	return SEGMENTS.get(seg_key, {}).get("unlock", "")

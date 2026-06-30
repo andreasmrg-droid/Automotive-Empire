@@ -1,6 +1,19 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v7.2 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+**Version:** v7.3 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v7.3: (S38.0–S39.7) PHASE 3 COMMERCIAL CAR INDUSTRY — IMPLEMENTED & ITERATED. §4 moved from
+	"designed, not coded" to feature-complete and playtested. Engine, income, economy re-tune, Pillar-5
+	catalog + R&D Studio UI, the Commercial Department (list/detail with current-week pie + 5-season
+	share-evolution chart), single-source-of-truth income, model naming on Start Production, and
+	Facelift/Next-Gen as R&D mini-projects all shipped. KEY REVERSALS vs the v7.2 design: (1) the
+	"race the linked championship to unlock a blueprint" gate was REMOVED — blueprints gate on R&D
+	Studio level only (researching is already expensive/slow; the racing gate added friction without
+	payoff). (2) The "commercial cars are cheaper/faster to design than racing cars" premise was found
+	WRONG and inverted — costs are earning-tied (25M–96M CR), every road-car design exceeds the 20M
+	GP1 car (see Phase3_Commercial_Validation.md §7B). (3) Halo segments got a ×3 volume boost so they
+	can pay back. New §4.8 documents the as-built implementation. Financial Department + R&D-payment
+	model flagged for a dedicated ECONOMY-SESSION redesign (see ⚑ near top of changelog). Full save/load
+	audit: all 8 new state items saved + loaded + reset on new-game (state-handler §15.2 discipline). -->
 <!-- v7.2: (S37.66) PHASE 3 COMMERCIAL CAR INDUSTRY — FULL DESIGN & CALIBRATION (no code yet). §4 rewritten
 	from a stub into the complete Factory spec, validated over 100 headless Python seasons. KEY DECISIONS:
 	(1) MARKET ENGINE = attractiveness/redistribution (share won by competitiveness, not multiplied from
@@ -389,26 +402,30 @@ CFO covers the boring part so a season isn't lost to un-bought fuel. See §9-E.
 
 ---
 
-## 4. COMMERCIAL CAR INDUSTRY — the Factory (Phase 3) — DESIGNED & CALIBRATED (S37.66)
+## 4. COMMERCIAL CAR INDUSTRY — the Factory (Phase 3) — IMPLEMENTED & ITERATED (S38.0–S39.7)
 
 The road-car business: a late-game, climb-gated second income stream that pairs with racing and makes the
-game playable without the race module. **Fully designed and validated over 100 headless seasons** (the
+game playable without the race module. **Designed and validated over 100 headless seasons** (the
 attractiveness market engine, the racing-relative income cap, marketing, lifecycle, economy cycles, and ROI
-were all proven in Python before coding — per the §2 rule). **Derivation & full rationale: companion doc
-`Phase3_Commercial_Validation.md`.** Not yet coded.
+were all proven in Python before coding — per the §2 rule), then **implemented and playtested across
+S38.0–S39.7**. **Derivation & full rationale: companion doc `Phase3_Commercial_Validation.md`.** The
+as-built implementation (with the design reversals noted below) is documented in **§4.8**. Two design
+premises from v7.2 were overturned during build — see §4.8 and the v7.3 changelog note.
 
 ### 4.0 Core model
 
 - **12 segments** (Excel "Commercial Cars Industry"): Economy Hatchbacks → Limited Run Megacars, each with
   volume, margin, complexity, market-type (Mass/Premium/Hyper), difficulty, and seeded AI producers/shares.
-- **Unlock = racing the linked championship.** Excel Championships `Factory_Unlock` (col BF) IS the
-  discipline→segment matrix (RALLY4→Economy Hatch, RALLY3→Hot Hatch, RALLY2→Rally Replica, Premier Rally→EV
-  Flagship; TC Sport→Entry Sports, TC Elite→Supercars; SC Truck→Pickups, SC Challenge→Pony, SC Cup→V8 Sedan;
-  EPC League→Track Day, EPC Hyper→Bespoke Hyper; GP1→Megacars). Racing the championship fires a notification
-  → research the **Pillar-5** blueprint → build the model on a Factory production line (TDL + notification +
-  save/load). GK and most entry tiers unlock nothing — you must climb.
+- **Unlock = R&D Studio level (S39.5 reversal).** The v7.2 design gated blueprints behind *racing the
+  linked championship* (Excel `Factory_Unlock`, col BF: RALLY4→Economy Hatch … GP1→Megacars). In build this
+  was found to add friction without payoff — researching a blueprint is already very expensive and slow — so
+  the racing gate was REMOVED. A segment's Pillar-5 blueprint is now researchable once the **R&D Design
+  Studio** reaches that segment's required level (`Required_RnD_Studio_Level`, e.g. Economy Hatch = Lv 4 …
+  Megacars = Lv 12). The `Factory_Unlock` discipline→segment matrix is retained only as flavour/ordering. To
+  PRODUCE still needs a built **Factory line** + a **CFO** (enforced separately). The old championship-raced
+  ledger (`championships_ever_raced`) is still tracked but no longer gates blueprints.
 - **Factory level = production lines** (1 per level, max 12). Each line runs ONE model; level 12 = all 12
-  segments concurrently. A segment needs BOTH: unlocked+researched AND a free line.
+  segments concurrently. A segment needs BOTH: blueprint researched AND a free line.
 - **CnC is SEPARATE** — CnC = racing parts only; the Factory = commercial cars only. No shared inventory/code.
 - **Pillar 4** = Factory-boosting special projects (robotic assembly, conveyor, monocoque rig, smart-factory
   — output/margin/cost). **Pillar 5** = the 12 per-segment car models + their improvement ladder.
@@ -523,6 +540,93 @@ drives far more commercial visibility than a Rally4 result. `Discipline_Synergy`
 
 **Roadmap link:** Phase 3. Pillar-5 "Commercial Cars" R&D button exists as a stub; the 12 model blueprints +
 improvement ladder are data to author. Integration points listed in `Phase3_Commercial_Validation.md` §10.
+
+### 4.8 IMPLEMENTATION — as-built (S38.0 → S39.7)
+
+Phase 3 shipped and was playtested over several iteration rounds. This subsection records what the code
+actually does, including the places it diverges from the §4.0–§4.7 design.
+
+**Architecture.** `CommercialMarketSim.gd` (pure RefCounted market engine; 12 segments, attractiveness/
+redistribution, lifecycle, history) owned by `GameState._commercial_market`. `FinancialEngine.apply_
+commercial_income()` realises weekly credits. `RnDEngine` carries the Pillar-5 catalog + the Facelift/
+Next-Gen completion hook. Screens: `VehicleFactory.gd` (the Commercial Department), `RnDStudio.gd` (Pillar-5
+tab), plus components `SharePie.gd`, `ShareLines.gd`, `ModelNamePopup.gd`. Managers are plain `class_name`
+RefCounted accessed via `gs._<name>` (not autoloads).
+
+**Economics — final calibration (validated, 100-season Python).** The v7.2 premise that road cars are
+cheaper/faster to design than racing cars was OVERTURNED: the game already prices a GP1 (F1) car at 20M CR
+and an EPC-Hyper (Le Mans) car at 6M, and real road-car *design* dwarfs that. Costs are therefore
+EARNING-TIED (≈3.5 mature seasons of a segment's net, floored at 25M so every road-car design exceeds the
+20M GP1 car), RP = the full racing-car L1+L2 design RP × tier, and weeks track a real design-only timeline.
+Authoritative per-segment table (in `RnDEngine`): economy_hatch 25M/4000RP/40wk/StudioLv4 · hot_hatch
+28M/4350/43/5 · rally_replica 25M/4000/40/6 · ev_flagship 96M/12100/121/9 · entry_sports 25M/4000/40/5 ·
+supercars 25M/4000/40/10 · pickups 34M/5050/50/5 · pony 25M/4000/40/6 · v8_sedan 51M/6950/70/8 · track_day
+25M/4000/40/7 · bespoke_hyper 25M/4000/40/11 · megacars 25M/4000/40/12. **Halo ×3 volume boost** (bespoke
+800→2,400/yr, megacars 300→900/yr) so the rarest segments can pay back (~8-season payback; exclusivity
+preserved). All 12 segments validated to pay back in 3–8 seasons with a stable market. Supersedes the §4.4
+ROI premise; see `Phase3_Commercial_Validation.md` §7B.
+
+**Income — single source of truth (S39.5).** `GameState.commercial_line_economics(seg)` returns
+{demand, capacity, sales_units, share, gross, marketing, net, capped} and is used by the Commercial
+Department preview, the Financial Department income line, and `FinancialEngine` — so the displayed and the
+applied numbers can never diverge. Net is floored/capped consistently (racing-income reference floored at
+50K, then the 2× racing cap). Fixed the early bug where the preview showed "net CR 0/wk" because its cap
+had no floor.
+
+**Unlock gate (S39.5 reversal).** Blueprints gate on R&D Studio level ONLY (the race-the-championship
+requirement was removed). `is_commercial_segment_unlocked` and the R&D card text are Studio-level based;
+a Factory line + CFO are still required to PRODUCE.
+
+**Commercial Department (S39.1–S39.6).** List-left / detail-right layout (per the `Cars_Market.pptx`
+mock): a scrollable segment list; the selected segment shows a big current-week donut **pie** + a colour-
+matched brand legend + a **share-over-time line chart** (last 5 seasons, sampled once per season — see
+history below), the economy demand effect, and the interactive controls. Every named brand gets a distinct
+colour across pie/legend/lines (giants no longer collapse to one gold). Reachable pre-build via the HQ
+**Financial Department tab** ("📊 Commercial Market" button) as a scouting tool. A producing line shows a
+sales/stock breakdown (demand · capacity · sold · gross − mktg = net), marketing ±, an ageing hint, **Stop
+Production**, and Facelift/Next-Gen redirects to R&D.
+
+**Share history (S39.4).** `CommercialMarketSim._history` keeps the last `HISTORY_SEASONS=5` per-segment
+snapshots, sampled once per season (negligible memory/save cost; chart redraws only when open). Seeded at
+new-game; persisted in save.
+
+**Start / Stop Production + model naming (S39.6–S39.7).** A researched blueprint shows a **details box**
+(class, unit margin, market size, line capacity) with an explicit **▶ Start Production** button (replacing
+the ambiguous "▶ Build"). Pressing it opens `ModelNamePopup` — a centered modal listing all **5 fictional
+name proposals** for the segment plus a free-text field; **Confirm** starts the line with that name,
+**Cancel** backs out. Names are fully invented to evoke real naming patterns without trademark collision
+(`CommercialMarketSim.MODEL_NAME_POOL`, 5 per segment). **Stop Production** frees the line and keeps the
+blueprint.
+
+**Facelift / Next-Gen = R&D mini-projects (S39.7).** Relocated from the Commercial Department to the R&D
+Studio (they are redesigns). On a researched blueprint with a producing line, the Studio card shows
+Facelift / Next-Gen buttons that start a real research task (RP+CR+weeks at 25% / 60% of the blueprint),
+requiring a free Designer (`GameState.start_commercial_refresh`). On completion (`RnDEngine._advance_rnd_
+tasks` intercepts `P5_FACELIFT_*` / `P5_NEXTGEN_*`), the refresh applies (Facelift knocks age back; Next-Gen
+resets the lifecycle) and queues a rename; the Commercial Department drains the queue and re-opens the
+naming popup so the refreshed/new-gen model is renamed. The Commercial Department has matching
+🔧 Facelift (R&D) / 🚀 Next-Gen (R&D) redirect buttons.
+
+**Dynamic RP storage cap (S39.2).** `get_rnd_rp_storage_cap()` is now dynamic = max(linear floor,
+1.15 × the largest RP of any P4/P5 project unlockable at the current Studio level), so the expensive
+commercial blueprints are always affordably storable. (Fixed a pre-existing cap bug affecting all R&D.)
+
+**Save / load (audited S39.7).** All Phase-3 state is saved, loaded, AND reset on new-game (state-handler
+§15.2): `commercial_lines`, `pending_commercial_rename`, `championships_ever_raced`, the market engine
+(`market` + `_history`), `_economy_phase0`, `_racing_income_window`, `active_rnd_tasks` (an in-progress
+Facelift/Next-Gen survives reload via its `segment` key), `completed_rnd_tasks`. Pre-Phase-3 saves load
+with safe fallbacks.
+
+**Deferred (not in Phase 3).** (1) **Financial Department / economy redesign** — incl. the R&D payment
+model: projects charge the FULL CR cost UPFRONT at start, so there is no recurring weekly R&D expense; the
+Financial "R&D Projects" row is suppressed until this is reworked. Flagged ⚑ at the top of the changelog for
+a dedicated economy session. (2) **News-writing / hype pass** — better-written, hype-building news (a future
+"sound-wave propagation" news filter is sketched in §13.2). (3) **Systemic header-overflow fix** — building
+headers can run off the right edge; belongs in the shared header/ResourceBar component (only the Commercial
+Department title is clipped so far). (4) **Localization** — all new commercial/UI strings are plain text,
+awaiting the end-of-dev localization pass.
+
+
 
 ---
 
@@ -1912,7 +2016,7 @@ Historical record of what shipped; design facts above already reflect these.
 	race_calendar.json is the VISUAL schedule (Calendar scene) and carries forward race-module metadata
 	(practice/quali/sprint/double_race/stages/hours) that no code reads yet.
   - *Main Hub (S37.59, §15.3)* — Next-Race line + Next-Race button now consider ONLY the player's own
-    championships (get_player_championships()); the line shows the JSON city via new
+	championships (get_player_championships()); the line shows the JSON city via new
 	GameState.get_calendar_city(cid, round), falling back to the engine entry name for GK's engine-only
 	Grand Final (round 22). No save/load change (pure-read helper; player_registered_championships
 	already persisted). Branded EVENT names in the constant ("Daytona 500", "24h Le Mans") no longer
@@ -1934,7 +2038,7 @@ Historical record of what shipped; design facts above already reflect these.
 	un-stranding the SC/GP starting Strategist; GP now starts with R&D Design Studio + CNC Parts Plant
 	+ a Designer.
   - *Strategist = DNS* (§9-G) — a missing Race Strategist now DNS's the car (parity with the S37.45
-    TP-DNS), enforced in `can_car_race` + a readiness TDL, for all disciplines except GK & Rally.
+	TP-DNS), enforced in `can_car_race` + a readiness TDL, for all disciplines except GK & Rally.
   - *Bug run* — release-staff now unassigns mechanic/pit-crew from the car (was driver-only); false
 	"no TP for GK" TDL for non-GK players fixed; "DNS for every championship" + season-rollover "new
 	car needed" spam gated to player championships; stale "24 championships" comments corrected to 21.

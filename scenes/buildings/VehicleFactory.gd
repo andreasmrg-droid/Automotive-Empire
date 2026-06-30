@@ -1,3 +1,4 @@
+## Version: S39.7 — Start Production opens centered naming popup (5 proposals + custom + cancel); producing line gets Facelift/Next-Gen R&D redirects; drains pending renames on open
 ## Version: S39.6 — researched state now shows a details box + explicit Start Production button (was ambiguous ▶ Build); active line gets Stop Production
 ## Version: S39.5 — fixed zero-net preview (canonical economics); sales/stock breakdown; distinct brand colours; Facelift/Next-Gen removed (→R&D); build confirmation; locked text now Studio-level; title clips
 ## Version: S39.4 — COMMERCIAL DEPARTMENT redesign (per design owner + PowerPoint mock). Replaces the
@@ -30,6 +31,35 @@ var _selected_seg: String = ""
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_ui()
+	## S39.7 — if a Facelift/Next-Gen completed, pop the naming popup for the refreshed model.
+	call_deferred("_drain_pending_renames")
+
+## Show the naming popup for each completed refresh (one at a time), applying the chosen name.
+func _drain_pending_renames() -> void:
+	if GameState.pending_commercial_rename.is_empty():
+		return
+	var req = GameState.pending_commercial_rename[0]
+	var seg = req.get("segment", "")
+	var nextgen = req.get("nextgen", false)
+	var market = GameState._commercial_market
+	var proposals = market.model_name_proposals(seg)
+	var verb = "Name your new-generation %s" if nextgen else "Rename your refreshed %s"
+	var popup = preload("res://scenes/components/ModelNamePopup.gd").new()
+	get_tree().current_scene.add_child(popup)
+	popup.open(market.segment_name(seg), proposals, verb % market.segment_name(seg),
+		func(chosen_name: String): _apply_rename(seg, chosen_name),
+		func(): _apply_rename(seg, ""))   ## cancel keeps the existing name but still drains the queue
+
+func _apply_rename(seg_key: String, new_name: String) -> void:
+	if new_name != "":
+		for line in GameState.commercial_lines:
+			if line.get("segment", "") == seg_key:
+				line["model_name"] = new_name
+				break
+	if not GameState.pending_commercial_rename.is_empty():
+		GameState.pending_commercial_rename.remove_at(0)
+	_refresh()
+	call_deferred("_drain_pending_renames")   ## handle any further queued renames
 
 func _refresh() -> void:
 	for c in get_children():
@@ -445,18 +475,29 @@ func _active_line_controls(seg_key: String, market, building: Dictionary) -> VBo
 	var srow = HBoxContainer.new()
 	srow.add_theme_constant_override("separation", 10)
 	box.add_child(srow)
+	## S39.7 — Facelift / Next-Gen redirect buttons. The actual research happens in the R&D Studio
+	## (these are redesigns); pressing here navigates there where the work is started.
+	var btn_fl = Button.new()
+	btn_fl.text = "🔧 Facelift (R&D)"
+	btn_fl.custom_minimum_size = Vector2(0, 34)
+	btn_fl.add_theme_font_size_override("font_size", 19)
+	btn_fl.tooltip_text = "Refresh this model — opens the R&D Studio where you start the Facelift research."
+	btn_fl.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/buildings/RnDStudio.tscn"))
+	srow.add_child(btn_fl)
+	var btn_ng = Button.new()
+	btn_ng.text = "🚀 Next-Gen (R&D)"
+	btn_ng.custom_minimum_size = Vector2(0, 34)
+	btn_ng.add_theme_font_size_override("font_size", 19)
+	btn_ng.tooltip_text = "Launch a successor generation — opens the R&D Studio where you start the Next-Gen research."
+	btn_ng.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/buildings/RnDStudio.tscn"))
+	srow.add_child(btn_ng)
 	var btn_stop = Button.new()
 	btn_stop.text = "⏹  Stop Production"
-	btn_stop.custom_minimum_size = Vector2(200, 34)
-	btn_stop.add_theme_font_size_override("font_size", 20)
+	btn_stop.custom_minimum_size = Vector2(180, 34)
+	btn_stop.add_theme_font_size_override("font_size", 19)
 	btn_stop.modulate = Color(0.95, 0.6, 0.55)
 	btn_stop.pressed.connect(func(): _do_stop(seg_key))
 	srow.add_child(btn_stop)
-	var stop_note = Label.new()
-	stop_note.text = "frees the line · keeps the blueprint"
-	stop_note.add_theme_font_size_override("font_size", 18)
-	stop_note.modulate = Color(0.55, 0.55, 0.6)
-	srow.add_child(stop_note)
 	return box
 
 func _build_line_control(seg_key: String, market) -> VBoxContainer:
@@ -530,14 +571,25 @@ func _build_line_control(seg_key: String, market) -> VBoxContainer:
 # ACTIONS (retained from S39.1)
 # ─────────────────────────────────────────────────────────────────────────────
 func _do_build(seg_key: String) -> void:
-	## S39.5 — make the action unambiguous (#6): confirm what's about to happen before committing a line.
-	var nm = GameState._commercial_market.segment_name(seg_key)
-	var err = GameState.build_commercial_line(seg_key)
+	## S39.7 — Start Production opens the centered naming popup first. The line is only created on
+	## Confirm (with the chosen name); Cancel backs out without starting production.
+	var market = GameState._commercial_market
+	var seg_label = market.segment_name(seg_key)
+	var proposals = market.model_name_proposals(seg_key)
+	var popup = preload("res://scenes/components/ModelNamePopup.gd").new()
+	get_tree().current_scene.add_child(popup)
+	popup.open(seg_label, proposals, "Name your %s model" % seg_label,
+		func(chosen_name: String): _confirm_build(seg_key, chosen_name),
+		Callable())
+
+func _confirm_build(seg_key: String, model_name: String) -> void:
+	var nm = model_name
+	var err = GameState.build_commercial_line(seg_key, model_name)
 	if err != "":
 		GameState.show_popup(err, "Cannot Build Line")
 	else:
 		GameState.show_popup(
-			"Production line started for %s.\n\nIt begins manufacturing this week. Your market share will grow over the coming seasons — set its marketing below, and watch the 'This week' pie and the share-over-time chart." % nm,
+			"“%s” is now in production.\n\nIt begins manufacturing this week. Your market share will grow over the coming seasons — set its marketing below, and watch the 'This week' pie and the share-over-time chart." % nm,
 			"Production Started")
 	_refresh()
 

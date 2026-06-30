@@ -1,4 +1,5 @@
 class_name RnDEngine
+## Version: S39.7 — Facelift/Next-Gen R&D mini-projects complete here → apply refresh + queue rename popup
 ## Version: S39.5 — P5 research gate: removed the race-the-championship requirement (Studio level only)
 ## Version: S39.2 — RP storage cap FIX (pre-existing bug, surfaced by Pillar 5): the old flat
 ##   800+(level-1)*400 cap was far below what P4 Special Projects and P5 blueprints cost at their
@@ -967,6 +968,25 @@ func _advance_rnd_tasks() -> void:
 		gs.active_rnd_tasks.erase(task)
 		var tid = task["id"]
 		var pillar = task.get("pillar", 0)
+
+		## S39.7 — Commercial Facelift / Next-Gen mini-projects complete here. They are NOT blueprints;
+		## they refresh an existing production line and (for Next-Gen) flag a rename. We apply the effect
+		## and record a pending-rename request the Commercial Department / weekly hook will surface via
+		## the naming popup, then skip the generic blueprint completion path.
+		if tid.begins_with("P5_FACELIFT_") or tid.begins_with("P5_NEXTGEN_"):
+			var seg = task.get("segment", "")
+			var is_nextgen = tid.begins_with("P5_NEXTGEN_")
+			if is_nextgen:
+				gs.nextgen_commercial_line(seg)
+			else:
+				gs.facelift_commercial_line(seg)
+			## Queue a rename so the UI can pop the naming popup for the refreshed/new-gen model.
+			gs.pending_commercial_rename.append({"segment": seg, "nextgen": is_nextgen})
+			var verb = "Next-Gen" if is_nextgen else "Facelift"
+			gs.notify_event("commercial_refresh_%s_%d" % [seg, gs.current_week], "Normal",
+				"🔧 %s complete for your %s — choose the refreshed model's name in the Commercial Department." % [
+					verb, gs._commercial_market.segment_name(seg)], "commercial_dept", "event")
+			continue
 
 		if not tid in gs.completed_rnd_tasks:
 			gs.completed_rnd_tasks.append(tid)

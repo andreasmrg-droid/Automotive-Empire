@@ -1,3 +1,4 @@
+## Version: S39.7 — completed P5 blueprint card with a producing line shows Facelift/Next-Gen buttons that start the R&D mini-project
 ## Version: S39.6 — P5 card text wraps (no horizontal scroll); active-tasks column clips horizontally; P5 requirement text updated to Studio-only gate (racing removed)
 ## Version: S38.8 — P5 card requirements line: Factory removed as a research blocker (shown only as
 ##   a "then build on a Factory line" hint); matches the engine gate (research needs Studio + raced
@@ -1182,7 +1183,80 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 			lbl_block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			btn_row.add_child(lbl_block)
 
+	## S39.7 — Facelift / Next-Gen for a researched P5 model that has a PRODUCING line. These are the
+	## R&D mini-projects (RP+CR+weeks) that refresh the model; on completion the rename popup fires.
+	if task.get("pillar", 0) == 5 and is_done:
+		var seg5 = task.get("segment", "")
+		if GameState.has_commercial_line_for(seg5):
+			vbox.add_child(_p5_refresh_row(seg5, task, free_designers))
+
 	return panel
+
+## Build the Facelift / Next-Gen action row for a producing commercial model (R&D Studio side).
+func _p5_refresh_row(seg_key: String, task: Dictionary, free_designers: Array) -> Control:
+	var box = VBoxContainer.new()
+	box.add_theme_constant_override("separation", 5)
+	var in_prog = GameState.commercial_refresh_in_progress(seg_key)
+	var cr = int(task.get("cr", 25000000))
+	var rp = int(task.get("rp", 4000))
+	var wk = int(task.get("weeks", 40))
+	var fl_cr = int(cr * 0.25); var fl_rp = int(rp * 0.25); var fl_wk = int(ceil(wk * 0.25))
+	var ng_cr = int(cr * 0.60); var ng_rp = int(rp * 0.60); var ng_wk = int(ceil(wk * 0.60))
+
+	var hdr = Label.new()
+	hdr.text = "Refresh this model:"
+	hdr.add_theme_font_size_override("font_size", 20)
+	hdr.modulate = Color(0.6, 0.75, 0.9)
+	box.add_child(hdr)
+
+	if in_prog:
+		var busy = Label.new()
+		busy.text = "🔧 A refresh is already in progress for this model (see Active Tasks)."
+		busy.add_theme_font_size_override("font_size", 19)
+		busy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		busy.modulate = Color(0.7, 0.7, 0.5)
+		box.add_child(busy)
+		return box
+
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	box.add_child(row)
+	var has_designer = not free_designers.is_empty()
+
+	var btn_fl = Button.new()
+	btn_fl.text = "Facelift  (%d RP · CR %s · %d wks)" % [fl_rp, _fmt(fl_cr), fl_wk]
+	btn_fl.add_theme_font_size_override("font_size", 19)
+	btn_fl.disabled = not has_designer
+	btn_fl.tooltip_text = "Cheap mid-life refresh — restores competitiveness. Researches like a project, then you rename the model."
+	btn_fl.pressed.connect(func(): _start_refresh(seg_key, false, free_designers))
+	row.add_child(btn_fl)
+
+	var btn_ng = Button.new()
+	btn_ng.text = "Next-Gen  (%d RP · CR %s · %d wks)" % [ng_rp, _fmt(ng_cr), ng_wk]
+	btn_ng.add_theme_font_size_override("font_size", 19)
+	btn_ng.disabled = not has_designer
+	btn_ng.tooltip_text = "Expensive successor — a new generation that resets the lifecycle. Researches like a project, then you rename it."
+	btn_ng.pressed.connect(func(): _start_refresh(seg_key, true, free_designers))
+	row.add_child(btn_ng)
+
+	if not has_designer:
+		var note = Label.new()
+		note.text = "needs a free Designer"
+		note.add_theme_font_size_override("font_size", 18)
+		note.modulate = Color(0.8, 0.55, 0.45)
+		box.add_child(note)
+	return box
+
+func _start_refresh(seg_key: String, nextgen: bool, free_designers: Array) -> void:
+	if free_designers.is_empty():
+		GameState.show_popup("A free Designer is required to start this refresh.", "No Designer"); return
+	var designer = free_designers[0]
+	var err = GameState.start_commercial_refresh(seg_key, nextgen, designer.id)
+	if err != "":
+		GameState.show_popup(err, "Cannot Start Refresh")
+	else:
+		GameState.show_popup("%s research started — it will complete in the R&D Studio, then you'll name the refreshed model in the Commercial Department." % ("Next-Gen" if nextgen else "Facelift"), "Refresh Started")
+	get_tree().change_scene_to_file("res://scenes/buildings/RnDStudio.tscn")
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
