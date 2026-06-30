@@ -1868,22 +1868,7 @@ Blueprint"). A full cross-scene sweep is its own future session — do not half-
 
 ## 18. ROADMAP (economy first, race last)
 
-Each economic system ships WITH its AI behaviour (§13) attached; keep logic in pure
-RefCounted engine classes for headless multi-season testing.
-
-- **Phase 2:** §5/§6-style car system — delivery delay, P2/P3 gating, DNS-until-ready,
-  deadlines (it's ECONOMY).
-- **Phase 3:** Commercial factory + R&D Pillar 5 (second weekly income → playable without the
-  race). **DESIGN & 100-season calibration COMPLETE (S37.66, §4 + `Phase3_Commercial_Validation.md`);
-  next step is the GDScript port.** The Pillar-5 button is already stubbed; the 12 model blueprints +
-  improvement ladder are data to author. Bundles the economy re-tune (§4.5) and the new Commercial
-  Department (§4.6).
-- **Phase 4:** Stock market.
-- **Phase 5:** Multi-season BALANCE pass — derive AI budgets & team character as OUTPUTS; tune
-  building maxes + R&D gates (§10); headless Python stress-tests + real playtests.
-- **Then:** race sim swap-in (module design §6.8).
-- **Parallel/after:** AI Championship Sim (§14) + News System (§13) + Transfer Market (P51) =
-  the living world.
+The Road_map.md in the supporting files folder is the file the leads the way on what is next
 
 **UI/UX prerequisites (cross-cutting, not a phase):**
 - **Main Hub redesign — ✅ DONE (S37.27), was the mandatory prerequisite for the notification loop.** The notification
