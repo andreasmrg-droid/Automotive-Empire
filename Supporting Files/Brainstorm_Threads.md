@@ -64,8 +64,8 @@ state. This file = the "why" and the "what we want"; the handoff doc = the "wher
     downhill — small teams hear big-team news), expensive UPWARD (small-team news needs high
     magnitude to climb — e.g. "the new Verstappen" GK champion clears it).
   - **horizontal_distance** = discipline gap, sourced from the existing DISCIPLINE ADAPTATION
-    MATRIX (high adaptation = close worlds = short distance). Reuse it; don't author a second
-    matrix (leave only a per-pair tuning hook if playtesting demands).
+	MATRIX (high adaptation = close worlds = short distance). Reuse it; don't author a second
+	matrix (leave only a per-pair tuning hook if playtesting demands).
 - **KEY INSIGHT — tier COMPRESSES horizontal distance:** the pyramid narrows at the top. Elite
   teams across disciplines form ONE peer community (shared sponsors/media/prestige). So discipline
   distance shrinks as tier rises. Compute horizontal distance using the HIGHER party's tier as the
@@ -109,6 +109,65 @@ state. This file = the "why" and the "what we want"; the handoff doc = the "wher
 - Per-car panels show part conditions + Qual/Race trim + pit. Displays up to 4 cars (page if more).
 - Open Qs (for when race is built): what populates the panels (our team's cars, up to the
   championship cap); how the 2D action is represented; EPC needs 3 driver slots/car (Driver_Per_Car).
+
+### 6. DESIGNER / R&D REWORK — the "Lead Designer" model (DECIDED — execution pending)
+*Supersedes the old "many designers per team" model and the §22/§19 "reconsider designer model" note.
+Concept LOCKED in brainstorm; only balance numbers + the JSON surgery remain. Designers stay R&D-only;
+no race impact; no discipline adaptation (unchanged).*
+
+- **The principle (Newey model):** ONE **Lead Designer** per team. The org behind a real lead designer
+  is invisible — everyone knows Newey, nobody can name his 50 engineers. So a 50-designer roster was
+  pure busywork (~3,098 records across 172 teams). Collapse to one marquee, EXPENSIVE hire that genuinely
+  matters; losing them hurts.
+- **Capacity = R&D Studio level (NOT a designer count).** A level-N Studio has **N design lines**, each
+  able to produce ONE blueprint if a designer is hired and resources exist. This IS the old capacity —
+  the N slots that used to hold N designers are now N lines the single Lead oversees. The building keeps
+  its exact meaning, so NO Studio-level rebalance is forced by this rework. The old per-team designer
+  *count* becomes irrelevant to capacity and is discarded.
+- **No Studio → no Lead Designer.** The survivor rule is DYNAMIC, checked at runtime: a team has a Lead
+  iff it has a Studio. (Today's data happens to give all 172 teams a Studio ≥L5, but the rule must hold
+  when a team has none — new-game variation, unbuilt AI, or a sold/lost building.) A Studio with no
+  designer = lines exist but idle (no R&D until one is hired — a real, legible failure state).
+- **Skill BUYS CAPACITY (the keystone — this is *why* you pay for a legend).** Each designer has a
+  comfortable line count `C = f(overall_skill)`. Within C → full effectiveness. This makes the expensive
+  hire buy THROUGHPUT, not just quality, and self-balances small teams (cheap designer + small Studio are
+  matched). **Strawman mapping (for the headless pass, NOT locked):** skill 30→C≈2 · 50→3 · 70→5 · 90→7 ·
+  100→8. A top Studio is only fully exploited by a near-legendary Lead — the aspirational pull.
+- **Over-capacity = SOFT PENALTY, NO ceiling.** The player may assign all N lines to a weak designer and
+  eat the consequences (bad decisions allowed, self-teaching). Beyond C, effectiveness degrades on a
+  convex curve. **Strawman:** `penalty = clamp(C / active_lines, …)` or a gentler convex variant — tune
+  in the headless pass.
+- **Over-stretch degrades BOTH quality AND speed.** It plugs into the EXISTING attribute path (§9-F):
+  (a) scales the Lead's *effective attributes* down → worse per-part design quality + lower initial
+  blueprint reliability; (b) stretches the line's *weeks* up → slower. Realistic (a thinned-out lead is
+  worse AND slower). Could start quality-only and add speed if it doesn't bite — but the DECISION is both.
+- **Automate research (player keeps authority).** The Lead PROPOSES a blueprint queue / assigns idle
+  lines; player accepts / edits / rejects. **Reuse the TP advisor/proposal UX** (`TPProposalEngine` /
+  TPProposalsPopup pattern) — advisor model, never silent auto-assign for the player; AI applies directly.
+  Start with **proposal mode**; a "standing-orders" auto-fill policy is a later add (backlog).
+- **Salary = overall skill (high).** The line-count cost is paid in the OVERSIGHT PENALTY, not extra
+  credits. Two clean separate knobs (salary = quality of hire; penalty = how thin you spread them).
+- **Consolidation = promote the single BEST designer (whole person).** When collapsing each team's
+  roster, the highest-OVERALL designer survives with their real attributes intact — NOT a max-of-each-stat
+  Frankenstein (that manufactures an unrealistic superhuman). Apply to today's data; logic stays dynamic.
+- **AI stagnation worry — WITHDRAWN (talked through).** A typical small team does NOT stagnate: its small
+  Studio (few lines) and cheap designer (low C) are MATCHED, so it develops at its level. The only case
+  where big-Studio/weak-designer mismatch arises is a FALLEN GIANT — and that's not a bug, it's the exact
+  "giant drops back to Survive" drama the AI ladder (thread 1) wants. No special floor needed beyond the
+  AI's normal "hire the best designer you can afford" (Survive-stage fill-empty-seats behavior) so a
+  Studio is never left with zero designer when affordable.
+
+**Data surgery (when built, not in a brainstorm):**
+- `staff_designer.json`: ~3,098 team designers → ~172 Leads (each team's peak) **+ keep ~100 as free
+  agents** (the hiring/market pool — the safety valve when a team loses its Lead; cheap, doesn't hurt).
+  Delete the remaining ~2,800.
+- `teams.json`: designer array → ONE Lead position; drop the old count (capacity reads from Studio level).
+- GP starting roster (§7.3) already starts with 1 Designer → ALIGNS, no change.
+- Fold the Building↔R&D coupling check (thread 4) into the same pass since lines key off Studio level.
+
+**STILL OPEN (only these):** the `C = f(skill)` mapping + penalty-curve constants + the weeks-stretch
+factor — derive in a headless Python pass (per the economic-logic rule), not guessed. Strawman values
+above are a starting point, not a lock.
 
 ---
 
