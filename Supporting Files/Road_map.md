@@ -1,29 +1,34 @@
-1.	Commercial market news
-2.	Click sound 
-3.	Redesign of the Designers
-4.	Complete the CNC Market
-5.	Bankruptcy 
-6.	CEO Market
-7.	Finish all the buildings (Fitness clinic Levels, To enter the highest tier of every discipline the must have a merchandise store at least level 1)
-8.	Build the Race Screens and one race
-9.	GK cars application to the non-player groups
-10.	AI Championship simulation
-11.	Go on Steam
-12.	Stock market
-13.	Financial Department indexes
-14.	Investigation of all the attributes of staff/drivers/cars and how they interact, is anything not in the code, do we need anything else?
-15.	AI behavior
-16.	News System and Fans (Implementation of the Soundwave effect)
-17.	Hall of Fame
-18.	History Book
-19.	Save/Load continuity
-20.	GK full championship racing Calendar
-21.	Settings menu
-22.	Load game recognition
-23.	UI/UX, Images and Sounds
-24.	Demo
-25.	All championships available in new game
-26.	All Championships racing Calendar
-27.	Pick an existing team new game mode
-28.	Localization
-29.	Publish 
+Commercial market news | Completed!
+Click sound | Completed!
+Redesign of the Designers
+Complete the CNC Market
+Bankruptcy 
+CEO Market
+Finish all the buildings (Fitness clinic Levels, To enter the highest tier of every discipline the must have a merchandise store at least level 1)
+Build the Race Screens and one race
+GK cars application to the non-player groups
+AI Championship simulation
+Go on Steam
+Stock market
+Financial Department indexes
+Investigation of all the attributes of staff/drivers/cars and how they interact, is anything not in the code, do we need anything else?
+AI behavior
+News System and Fans (Implementation of the Soundwave effect)
+Hall of Fame
+History Book
+Save/Load continuity
+GK full championship racing Calendar
+Settings menu
+Load game recognition
+UI/UX, Images, Avatars, Badges and Sounds
+Save/Load continuity
+Demo
+All championships available in new game
+All Championships racing Calendar
+End of season and Beginning of Season redesign
+Pick an existing team new game mode
+Tooltips
+Tutorials
+Localization
+Save/Load continuity
+Publish 

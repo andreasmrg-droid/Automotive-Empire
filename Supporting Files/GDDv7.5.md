@@ -1,6 +1,26 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v7.3 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+**Version:** v7.5 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v7.5: (S40.1) ROADMAP #2 — UI CLICK SOUND DONE. New §17.1 Audio. A `UISound` autoload plays a
+	short click on every BaseButton press across all scenes via a global `node_added` auto-wire (no
+	per-button code). Asset: a cleaned Pixabay "computer mouse click" (universfield) at
+	res://resources/audio/ui_click.wav — trimmed/mono/44.1k/normalized ~72 ms; Pixabay License (free
+	commercial, no attribution), human-made (not AI-generated, per the asset rule). Runtime synth
+	fallback if the WAV is missing; dedicated "UI" audio bus at −6 dB; `enabled`/`volume_db` exposed for
+	the future Settings menu (#21). Roadmap item #1 (commercial market news) was already closed at v7.4,
+	so #2 is the next done. -->
+<!-- v7.4: (S40.0) PHASE 3 TAIL CLOSED + TDL polish. (1) MARKET-SHARE MILESTONE NEWS implemented:
+	after the weekly market tick, crossing an upward share threshold (10/20/30/50%) in a segment the
+	player actively produces in posts a NEWS event (notification + news feed), routed to the Commercial
+	Department; 50% reads as "leading marque." Fires once per ascent; the ledger lowers if share slips
+	so a genuine re-climb re-announces; stopping a line clears that segment's ledger. Persisted via the
+	new `commercial_share_milestone_hit` dict (saved/loaded/reset on new game — state-handler §15.2).
+	Implemented in `GameState._check_commercial_share_milestones`. This was the last open item in
+	Phase3_Commercial_Validation §8, so §4 Phase 3 is now fully feature-complete. (2) The optional no-CFO
+	TDL row now appends an informative note — "Financial Department is not optimized." — to the same line
+	(NOT a second row; the row stays read-only and dismissible, still routed to the Staff screen). (3)
+	§18 ROADMAP trimmed to a single pointer line — Road_map.md (supporting files) is now the authority
+	on what's next; the old inline roadmap/timeline content was removed to avoid two competing sources. -->
 <!-- v7.3: (S38.0–S39.7) PHASE 3 COMMERCIAL CAR INDUSTRY — IMPLEMENTED & ITERATED. §4 moved from
 	"designed, not coded" to feature-complete and playtested. Engine, income, economy re-tune, Pillar-5
 	catalog + R&D Studio UI, the Commercial Department (list/detail with current-week pie + 5-season
@@ -526,6 +546,13 @@ everyone from the start** (aspirational + a scouting tool before you enter a seg
 Financial dept** (it's a financial indicator); its commercial *consequences* show here. **News +
 notifications** carry events: economy shifts (CFO-gated, exists), market-share milestones, and the
 "you can research this segment's blueprint" unlock breadcrumbs.
+
+**As-built (S40.0):** market-share milestones are now live. When the player's share in a segment they
+actively produce in crosses an upward threshold — **10 / 20 / 30 / 50%** — the weekly market tick posts a
+**news** event (notification + NEWS feed) routed to the Commercial Department; 50% is phrased as the
+segment's "leading marque." Each rung fires once per ascent, the ledger lowers if share slips back (so a
+real re-climb re-announces), and stopping a line clears that segment's ledger. See
+`GameState._check_commercial_share_milestones` and the `commercial_share_milestone_hit` save field.
 
 ### 4.7 The base weekly formulas (legacy reference — superseded by the engine above)
 
@@ -1660,7 +1687,10 @@ Operational "you should do X" reminders belong in the TDL; the notification fire
 every week (a recurring task) AND a separate per-race emitter in `RaceSimulator` fired the same
 condition every race — so the player saw the same notice at W8/W10/W12. Under the framework, CFO is a
 single read-only TDL row plus one `notify_event("no_cfo", once)` with a Staff-screen button. (CFO is
-explicitly OPTIONAL — good-to-have, not required to field a team.)
+explicitly OPTIONAL — good-to-have, not required to field a team.) **S40.0:** that single CFO row now
+appends an informative tail — "Financial Department is not optimized." — to the *same* line (not a
+second row), so the cost of the empty CFO seat is explicit while the read-only/dismissible/Staff-routed
+behaviour is unchanged.
 
 **Migration status — PHASE 3 COMPLETE (S37.37–S37.49).** Every `add_notification` across all engines
 and scenes has been migrated to `notify_event` (or `show_popup` for blocking errors). Files migrated:
@@ -1864,28 +1894,36 @@ Blueprint"). A full cross-scene sweep is its own future session — do not half-
   original values (hierarchy preserved). A future typographic polish pass is a known
   nice-to-have now that Inter is live.
 
+### 17.1 Audio (S40.1) — UI click sound (roadmap #2)
+
+The project's first sound. A single autoload, **`UISound`** (`res://autoloads/UISound.gd`, registered
+in `project.godot` by path like `Locale`), plays a short click whenever **any `BaseButton`** is pressed —
+across all ~39 code-built scenes and anything added later — with **zero per-button wiring**. It works by
+connecting to the scene tree's `node_added` signal and auto-attaching the `pressed` handler to every
+current and future button (each connected once, guarded by `is_connected`).
+
+- **Asset:** `res://resources/audio/ui_click.wav` — a Pixabay "computer mouse click" (uploader
+  *universfield*), cleaned for the game: silence trimmed (original had ~900 ms trailing dead air), mono,
+  44.1 kHz, normalized to ~−3.6 dBFS peak, micro-fades on both edges → a tight ~72 ms click. **Licensing:**
+  Pixabay Content License — free for commercial use, no attribution required; it's a generic recorded
+  click (not a system-sound rip) and ships embedded/modified inside the game (not redistributed as-is),
+  so it's clean for Steam. Keep a provenance screenshot of the source page. (Consistent with the
+  Brainstorm_Threads asset rule: shipped audio is human-made, not AI-generated.)
+- **Fallback:** if the WAV is ever missing, `UISound` synthesizes an equivalent click at runtime, so the
+  game is never silent or broken. Drop a replacement WAV at the same path and it's used automatically — no
+  code change.
+- **Routing & settings:** plays on a dedicated **"UI" audio bus** (created at runtime if the project has
+  no bus layout) at **−6 dB** by default. Exposes `enabled` + `volume_db` with `set_enabled()` /
+  `set_volume_db()` so the future **Settings menu (roadmap #21)** can wire a UI-volume slider/toggle
+  directly. Disabled buttons stay silent automatically (Godot doesn't emit `pressed` while disabled).
+- **Repo note:** commit the Godot-generated `ui_click.wav.import` and `UISound.gd.uid` alongside the
+  source files (needed to resolve the asset in builds/other machines).
+
 ---
 
 ## 18. ROADMAP (economy first, race last)
 
 The Road_map.md in the supporting files folder is the file the leads the way on what is next
-
-**UI/UX prerequisites (cross-cutting, not a phase):**
-- **Main Hub redesign — ✅ DONE (S37.27), was the mandatory prerequisite for the notification loop.** The notification
-  loop's surfaces (bell, badge, slide-in panel, critical banner, read-only TDL) all live on the
-  Main Hub, so the hub must be redesigned first; only then build/finish the notification framework
-  and migrate the legacy `add_notification` callers (§15.1). Fixed order: Main Hub redesign →
-  notification loop.
-- **Resource bar everywhere (§15).** The shared top resource bar is required in every in-game
-  scene (exceptions: modals + the four full-screen flow states). Wiring it in is part of "done"
-  for any new or reworked scene.
-- **Season Calendar (§14.1, built S37.26).** Full-season agenda scene shipped; remaining wiring is
-  the hub Calendar button + the hub 4–5-week strip. `race_calendar.json` is the new schedule source
-  of truth (retire hardcoded `CHAMPIONSHIP_CALENDARS` later).
-
-**Realistic timeline:** playable balanced ECONOMIC sim (no race) ~3–5 months at a few focused
-sessions/week; full game with race integrated + balanced ~8–14 months (race sim + balance are
-the wildcards). Biggest risk: scope creep — keep saying "backlog."
 
 ---
 

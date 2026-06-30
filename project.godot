@@ -20,6 +20,7 @@ GameState="*uid://cqkny5coaun4h"
 NameGenerator="*uid://pfx7i143kqmc"
 NameData="*uid://bhga8nc2rf4tc"
 Locale="*res://autoloads/Locale.gd"
+UiSound="*uid://ihm85hn2f6b7"
 
 [display]
 

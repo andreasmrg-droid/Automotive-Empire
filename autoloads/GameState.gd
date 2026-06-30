@@ -1,7 +1,7 @@
 ## Version: S40.0 — Phase 3 tail: (1) market-share milestone NEWS (10/20/30/50%) per active segment via
 ##   _check_commercial_share_milestones in the weekly tick; ledger commercial_share_milestone_hit saved/
-##   loaded/reset. (2) No-CFO TDL now carries a 2nd "Financial Department is not optimized" advisory row
-##   (added in NotificationManager).
+##   loaded/reset. (2) No-CFO TDL row now appends an informative "Financial Department is not
+##   optimized." note to the existing CFO line (in NotificationManager).
 ## Version: S39.7 — commercial model naming + Facelift/Next-Gen as R&D mini-projects: start_commercial_refresh, pending_commercial_rename (saved/loaded), build_commercial_line takes a chosen name
 ## Version: S39.6 — stop_commercial_line API (frees line, keeps blueprint)
 ## Version: S39.5 — commercial_line_economics single source of truth (net matches FinancialEngine + UI); segment-unlock now Studio-level based (racing gate removed); build_commercial_line racing check removed
