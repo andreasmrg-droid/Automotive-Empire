@@ -3,6 +3,7 @@
 ##   with consistent colours: player = green, giants = gold, Others = dim grey, AI = a rotating palette.
 ##   Pure _draw() (Godot has no chart lib). Set `data` then call queue_redraw(); size via custom_minimum_size.
 extends Control
+## Version: S39.5 — every named producer gets a distinct colour (giants no longer share one gold)
 
 ## Share rows: Array of { "name": String, "share": float (0..1), "is_player": bool, "is_giant": bool }.
 var data: Array = []
@@ -52,10 +53,10 @@ func _draw() -> void:
 			continue
 		var sweep = frac * TAU
 		var col: Color
+		## Every NAMED producer (giant or not) gets a distinct palette colour so two brands never
+		## share one (previously all giants shared a single gold). Player = green, Others = grey.
 		if r.get("is_player", false):
 			col = PLAYER_COL
-		elif r.get("is_giant", false):
-			col = GIANT_COL
 		elif r.get("name", "") == "Others":
 			col = OTHERS_COL
 		else:

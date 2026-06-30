@@ -1,28 +1,47 @@
-## Version: S39.3 — Market view now has GRAPHICAL CONTEXT: each segment card shows a donut/pie chart
-##   (scenes/components/SharePie.gd) of the share split, with the share chips colour-matched to their
-##   pie slices (player green, giants gold, Others grey, AI palette) for a single coherent visual.
-## Version: S39.1 — COMMERCIAL DEPARTMENT (Phase 3 §4.6). Replaces the placeholder "future system"
-##   screen with the real read-only→interactive road-car market view. Visible to ALL players from the
-##   start: a status strip (Factory lines, CFO/sales_factor, current economy commercial effect) + the
-##   12 segment cards, each showing the live share table (player/AI/giants/Others), demand effect, and
-##   unlock status. When a Factory line is free + the blueprint is researched: a Build Line control.
-##   For an active line: per-model marketing (−/+), Facelift, Next-Gen, and the live weekly net. All
-##   actions go through the GameState commercial API (build/facelift/nextgen/set_marketing); the engine
-##   (CommercialMarketSim) supplies the read data. CFO-gated exactly as the income system is.
+## Version: S39.6 — researched state now shows a details box + explicit Start Production button (was ambiguous ▶ Build); active line gets Stop Production
+## Version: S39.5 — fixed zero-net preview (canonical economics); sales/stock breakdown; distinct brand colours; Facelift/Next-Gen removed (→R&D); build confirmation; locked text now Studio-level; title clips
+## Version: S39.4 — COMMERCIAL DEPARTMENT redesign (per design owner + PowerPoint mock). Replaces the
+##   cramped all-cards-stacked view (which overflowed the right edge) with a LIST-LEFT / DETAIL-RIGHT
+##   layout: a scrollable segment list on the left; the selected segment gets a big labelled donut pie
+##   (current-week share snapshot) + a colour-coded brand legend + a share-EVOLUTION line chart (per-
+##   season history from CommercialMarketSim) on the right, with the demand effect and the interactive
+##   line controls (build / marketing / facelift / next-gen). Pie + line colours match per brand.
+##   Still visible to ALL players (read-only until a Factory + CFO exist). S39.1 status strip retained.
 extends Control
 
 var _resource_bar = null
 const ResourceBarScript = preload("res://scenes/components/ResourceBar.gd")
+const SharePieScript   = preload("res://scenes/components/SharePie.gd")
+const ShareLinesScript = preload("res://scenes/components/ShareLines.gd")
+
+## Shared brand palette — used by BOTH the pie and the legend/line chart so a brand is the same colour
+## everywhere on screen. Player = green, giants = gold, Others = grey, ordinary AI = rotating palette.
+const PLAYER_COL := Color(0.35, 0.92, 0.46)
+const GIANT_COL  := Color(0.85, 0.72, 0.42)
+const OTHERS_COL := Color(0.45, 0.45, 0.50)
+const AI_PALETTE := [
+	Color(0.40, 0.62, 0.95), Color(0.78, 0.52, 0.92), Color(0.95, 0.55, 0.45),
+	Color(0.45, 0.80, 0.82), Color(0.90, 0.78, 0.42), Color(0.62, 0.70, 0.95),
+	Color(0.85, 0.58, 0.70), Color(0.55, 0.85, 0.55), Color(0.95, 0.70, 0.35),
+	Color(0.50, 0.72, 0.88), Color(0.80, 0.60, 0.95), Color(0.70, 0.80, 0.50)]
+
+var _selected_seg: String = ""
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_ui()
 
 func _refresh() -> void:
-	## Rebuild the whole screen (called after any action that changes state).
 	for c in get_children():
 		c.queue_free()
 	_build_ui()
+
+## Colour for a table row, consistent across pie + legend + lines. Every NAMED brand gets a distinct
+## palette colour (giants are no longer all collapsed to one gold). `ai_index` advances per named brand.
+func _brand_color(entry: Dictionary, ai_index: int) -> Color:
+	if entry.get("is_player", false): return PLAYER_COL
+	if entry.get("name", "") == "Others": return OTHERS_COL
+	return AI_PALETTE[ai_index % AI_PALETTE.size()]
 
 func _build_ui() -> void:
 	var margin = MarginContainer.new()
@@ -49,6 +68,9 @@ func _build_ui() -> void:
 		lbl_title.text += "  ·  Factory Lv %d" % int(building.get("level", 1))
 	lbl_title.add_theme_font_size_override("font_size", 44)
 	lbl_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	## S39.5 — clip the title instead of letting it push the resource bar + buttons off the right edge.
+	lbl_title.clip_text = true
+	lbl_title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	header.add_child(lbl_title)
 	_resource_bar = ResourceBarScript.new()
 	_resource_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
@@ -68,235 +90,329 @@ func _build_ui() -> void:
 	# ── Status strip ──────────────────────────────────────────────────────────
 	root.add_child(_status_strip(building, has_factory))
 
-	# ── Intro / mode line ─────────────────────────────────────────────────────
-	var intro = Label.new()
-	if has_factory and GameState.get_cfo() != null:
-		intro.text = "Your road-car business. Build researched models on free lines, set each model's marketing, and refresh ageing models. Race a segment's championship to unlock it; research its blueprint in the R&D Studio."
-	elif has_factory and GameState.get_cfo() == null:
-		intro.text = "Hire a CFO (Staff screen) to operate the Factory — without one it produces nothing while still costing upkeep. Below: the live road-car market you can enter."
-	else:
-		intro.text = "The road-car market (read-only until you build the Vehicle Assembly Factory). Scout the segments, their producers, and live shares. Race a segment's championship to unlock its blueprint."
-	intro.add_theme_font_size_override("font_size", 22)
-	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	intro.modulate = Color(0.72, 0.74, 0.8)
-	root.add_child(intro)
+	var market = GameState._commercial_market
+	if market == null:
+		root.add_child(_dim_label("Commercial market not initialised."))
+		return
 
-	# ── Segment list (scroll) ─────────────────────────────────────────────────
+	## Order segments entry → pinnacle by unlock championship.
+	var keys: Array = market.segment_keys()
+	keys.sort_custom(func(a, b): return market.unlock_championship(a) < market.unlock_championship(b))
+	if _selected_seg == "" or not _selected_seg in keys:
+		_selected_seg = keys[0]
+
+	# ── Body: list (left) | detail (right) ────────────────────────────────────
+	var body = HBoxContainer.new()
+	body.add_theme_constant_override("separation", 18)
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(body)
+
+	body.add_child(_segment_list(keys, market))
+	body.add_child(_detail_panel(_selected_seg, market, building, has_factory))
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LEFT — scrollable segment list
+# ─────────────────────────────────────────────────────────────────────────────
+func _segment_list(keys: Array, market) -> Control:
+	var wrap = VBoxContainer.new()
+	wrap.custom_minimum_size = Vector2(360, 0)
+	wrap.add_theme_constant_override("separation", 6)
+
+	var hint = Label.new()
+	hint.text = "MARKETS"
+	hint.add_theme_font_size_override("font_size", 20)
+	hint.modulate = Color(0.5, 0.5, 0.55)
+	wrap.add_child(hint)
+
 	var scroll = ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root.add_child(scroll)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	wrap.add_child(scroll)
 	var list = VBoxContainer.new()
-	list.add_theme_constant_override("separation", 12)
+	list.add_theme_constant_override("separation", 6)
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(list)
 
-	var market = GameState._commercial_market
-	if market == null:
-		list.add_child(_dim_label("Commercial market not initialised."))
-		return
-	## Order segments by unlock championship (entry → pinnacle) for a sensible reading order.
-	var keys: Array = market.segment_keys()
-	keys.sort_custom(func(a, b): return market.unlock_championship(a) < market.unlock_championship(b))
 	for seg_key in keys:
-		list.add_child(_segment_card(seg_key, market, building, has_factory))
+		list.add_child(_segment_list_item(seg_key, market))
+	return wrap
 
-# ─────────────────────────────────────────────────────────────────────────────
-# STATUS STRIP
-# ─────────────────────────────────────────────────────────────────────────────
-func _status_strip(building: Dictionary, has_factory: bool) -> PanelContainer:
-	var panel = _card_panel(Color(0.10, 0.13, 0.17))
-	var row = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 28)
-	panel.add_child(row)
-
-	# Lines used / total
-	if has_factory:
-		var lvl = int(building.get("level", 1))
-		var used = GameState.commercial_lines.size()
-		row.add_child(_stat_block("Production Lines", "%d / %d used" % [used, lvl],
-			Color(0.55, 0.8, 1.0)))
-	else:
-		row.add_child(_stat_block("Factory", "Not built", Color(0.8, 0.55, 0.4)))
-
-	# CFO + sales factor
-	var cfo = GameState.get_cfo()
-	if cfo != null:
-		var sf = GameState.get_commercial_sales_factor()
-		row.add_child(_stat_block("CFO", "%s  (sales x%.2f)" % [cfo.full_name(), sf],
-			Color(0.5, 0.85, 0.5)))
-	else:
-		row.add_child(_stat_block("CFO", "None — Factory off", Color(1.0, 0.45, 0.45)))
-
-	# Economy commercial effect (current demand swing direction)
-	var idx = GameState.economy_index
-	var econ_word = "Normal"
-	var econ_col = Color(0.7, 0.7, 0.7)
-	if idx > 70.0: econ_word = "Boom"; econ_col = Color(0.5, 0.85, 0.5)
-	elif idx < 30.0: econ_word = "Recession"; econ_col = Color(1.0, 0.5, 0.5)
-	row.add_child(_stat_block("Economy", "%s (idx %.0f)" % [econ_word, idx], econ_col))
-
-	return panel
-
-# ─────────────────────────────────────────────────────────────────────────────
-# SEGMENT CARD
-# ─────────────────────────────────────────────────────────────────────────────
-func _segment_card(seg_key: String, market, building: Dictionary, has_factory: bool) -> PanelContainer:
+func _segment_list_item(seg_key: String, market) -> Button:
 	var unlocked: bool = GameState.is_commercial_segment_unlocked(seg_key)
 	var researched: bool = GameState.is_commercial_blueprint_researched(seg_key)
 	var has_line: bool = GameState.has_commercial_line_for(seg_key)
 
-	var bg = Color(0.09, 0.11, 0.14)
-	if has_line:        bg = Color(0.08, 0.14, 0.10)   # active line → green tint
-	elif not unlocked:  bg = Color(0.08, 0.08, 0.10)   # locked → dim
-	var panel = _card_panel(bg)
-	var border = Color(0.9, 0.45, 0.6) if has_line else Color(0.25, 0.25, 0.30)
-	var style = panel.get_theme_stylebox("panel").duplicate()
-	style.border_width_left = 4
-	style.border_color = border
-	panel.add_theme_stylebox_override("panel", style)
+	var btn = Button.new()
+	btn.toggle_mode = true
+	btn.button_pressed = (seg_key == _selected_seg)
+	btn.custom_minimum_size = Vector2(0, 56)
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	btn.add_theme_font_size_override("font_size", 22)
 
-	## S39.3 — card body is now [ pie | content ]. The pie gives instant graphical context for the
-	## share split; the text/chips stay on the right. Locked segments get a dimmed pie too (the market
-	## exists regardless of whether the player can enter it yet).
-	var body = HBoxContainer.new()
-	body.add_theme_constant_override("separation", 16)
-	panel.add_child(body)
-
-	var pie = preload("res://scenes/components/SharePie.gd").new()
-	pie.custom_minimum_size = Vector2(96, 96)
-	pie.set_data(market.get_segment_table(seg_key))
+	# Status glyph + name, plus the player share if producing.
+	var glyph := "🔒"
+	if has_line:        glyph = "●"
+	elif researched:    glyph = "✓"
+	elif unlocked:      glyph = "○"
+	var name_txt = "%s  %s" % [glyph, market.segment_name(seg_key)]
+	if has_line:
+		name_txt += "   (you %.1f%%)" % (market.get_player_share(seg_key) * 100.0)
+	btn.text = name_txt
 	if not unlocked:
-		pie.modulate = Color(1, 1, 1, 0.5)
-	body.add_child(pie)
+		btn.add_theme_color_override("font_color", Color(0.6, 0.6, 0.64))
+	elif has_line:
+		btn.add_theme_color_override("font_color", Color(0.5, 0.92, 0.6))
+	btn.pressed.connect(func():
+		_selected_seg = seg_key
+		_refresh())
+	return btn
 
+# ─────────────────────────────────────────────────────────────────────────────
+# RIGHT — detail panel for the selected segment
+# ─────────────────────────────────────────────────────────────────────────────
+func _detail_panel(seg_key: String, market, building: Dictionary, has_factory: bool) -> Control:
+	var unlocked: bool = GameState.is_commercial_segment_unlocked(seg_key)
+	var researched: bool = GameState.is_commercial_blueprint_researched(seg_key)
+	var has_line: bool = GameState.has_commercial_line_for(seg_key)
+
+	var panel = _card_panel(Color(0.08, 0.10, 0.13))
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var scroll = ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	panel.add_child(scroll)
 	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 8)
+	vbox.add_theme_constant_override("separation", 12)
 	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	body.add_child(vbox)
+	scroll.add_child(vbox)
 
-	# ── Title row: name + market type + status badge ──────────────────────────
+	# ── Title row: name · market type · status badge ──────────────────────────
 	var title_row = HBoxContainer.new()
-	title_row.add_theme_constant_override("separation", 10)
+	title_row.add_theme_constant_override("separation", 12)
 	vbox.add_child(title_row)
 	var lbl_name = Label.new()
 	lbl_name.text = market.segment_name(seg_key)
-	lbl_name.add_theme_font_size_override("font_size", 28)
+	lbl_name.add_theme_font_size_override("font_size", 34)
 	lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	if not unlocked: lbl_name.modulate = Color(0.55, 0.55, 0.58)
 	title_row.add_child(lbl_name)
-
 	var seg_data: Dictionary = market.SEGMENTS.get(seg_key, {})
 	var mt: String = seg_data.get("market_type", "")
 	var lbl_mt = Label.new()
 	lbl_mt.text = mt
-	lbl_mt.add_theme_font_size_override("font_size", 20)
-	var mt_col = {"Mass": Color(0.5, 0.75, 1.0), "Premium": Color(0.8, 0.65, 1.0),
-		"Hyper": Color(1.0, 0.6, 0.4)}.get(mt, Color.WHITE)
-	lbl_mt.add_theme_color_override("font_color", mt_col)
+	lbl_mt.add_theme_font_size_override("font_size", 22)
+	lbl_mt.add_theme_color_override("font_color", {"Mass": Color(0.5, 0.75, 1.0),
+		"Premium": Color(0.8, 0.65, 1.0), "Hyper": Color(1.0, 0.6, 0.4)}.get(mt, Color.WHITE))
 	title_row.add_child(lbl_mt)
+	vbox.add_child(_status_badge(seg_key, market, unlocked, researched, has_line))
 
-	# Status badge
-	var badge = Label.new()
-	badge.add_theme_font_size_override("font_size", 20)
-	if has_line:
-		badge.text = "● PRODUCING"; badge.add_theme_color_override("font_color", Color(0.4, 0.9, 0.5))
-	elif researched:
-		badge.text = "✓ BLUEPRINT READY"; badge.add_theme_color_override("font_color", Color(0.55, 0.8, 1.0))
-	elif unlocked:
-		badge.text = "○ UNLOCKED — RESEARCH IT"; badge.add_theme_color_override("font_color", Color(0.85, 0.8, 0.45))
-	else:
-		var cid = market.unlock_championship(seg_key)
-		var cname = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {}).get("name", cid)
-		badge.text = "🔒 RACE %s" % cname; badge.add_theme_color_override("font_color", Color(0.7, 0.55, 0.5))
-	title_row.add_child(badge)
-
-	# ── Share table (always visible — the read-only market view) ──────────────
-	# Chips are coloured to MATCH their pie slice (player green, giants gold, Others grey, AI palette),
-	# each prefixed with a ● swatch so the pie and the named breakdown read as one visual.
+	# ── Charts row: pie (left) | evolution line chart (right) ─────────────────
 	var table = market.get_segment_table(seg_key)
-	var share_row = HBoxContainer.new()
-	share_row.add_theme_constant_override("separation", 14)
-	vbox.add_child(share_row)
-	var ai_palette = [
-		Color(0.40, 0.62, 0.95), Color(0.78, 0.52, 0.92), Color(0.95, 0.55, 0.45),
-		Color(0.45, 0.80, 0.82), Color(0.90, 0.78, 0.42), Color(0.62, 0.70, 0.95),
-		Color(0.85, 0.58, 0.70)]
-	var ai_idx = 0
-	for entry in table:
-		var chip = Label.new()
-		var pct = entry["share"] * 100.0
-		var nm = entry["name"]
-		var col: Color
-		var prefix := "● "
-		if entry["is_player"]:
-			col = Color(0.35, 0.92, 0.46); prefix = "▶ "
-		elif entry["is_giant"]:
-			col = Color(0.85, 0.72, 0.42)
-		elif nm == "Others":
-			col = Color(0.45, 0.45, 0.50)
-		else:
-			col = ai_palette[ai_idx % ai_palette.size()]; ai_idx += 1
-		chip.text = "%s%s %.1f%%" % [prefix, nm, pct]
-		chip.add_theme_font_size_override("font_size", 20)
-		chip.add_theme_color_override("font_color", col)
-		share_row.add_child(chip)
+	var charts = HBoxContainer.new()
+	charts.add_theme_constant_override("separation", 20)
+	charts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_child(charts)
 
-	# ── Economy demand effect ─────────────────────────────────────────────────
+	# Pie + legend
+	var pie_col = VBoxContainer.new()
+	pie_col.add_theme_constant_override("separation", 8)
+	charts.add_child(pie_col)
+	var pie_lbl = Label.new()
+	pie_lbl.text = "This week"
+	pie_lbl.add_theme_font_size_override("font_size", 18)
+	pie_lbl.modulate = Color(0.55, 0.55, 0.6)
+	pie_col.add_child(pie_lbl)
+	var pie = SharePieScript.new()
+	pie.custom_minimum_size = Vector2(190, 190)
+	pie.set_data(table)
+	if not unlocked: pie.modulate = Color(1, 1, 1, 0.55)
+	pie_col.add_child(pie)
+
+	# Evolution chart
+	var line_col = VBoxContainer.new()
+	line_col.add_theme_constant_override("separation", 8)
+	line_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	charts.add_child(line_col)
+	var line_lbl = Label.new()
+	line_lbl.text = "Share over time (last %d seasons)" % market.HISTORY_SEASONS
+	line_lbl.add_theme_font_size_override("font_size", 18)
+	line_lbl.modulate = Color(0.55, 0.55, 0.6)
+	line_col.add_child(line_lbl)
+	line_col.add_child(_evolution_chart(seg_key, market, table))
+
+	# ── Legend (brand → colour, matches pie + lines) ──────────────────────────
+	vbox.add_child(_legend(table))
+
+	# ── Demand effect ─────────────────────────────────────────────────────────
 	var dm = market.demand_mult(seg_key, GameState.economy_index)
 	var lbl_dm = Label.new()
 	var pct_eff = (dm - 1.0) * 100.0
 	lbl_dm.text = "Demand effect (economy): %+.0f%%" % pct_eff
-	lbl_dm.add_theme_font_size_override("font_size", 18)
+	lbl_dm.add_theme_font_size_override("font_size", 20)
 	lbl_dm.add_theme_color_override("font_color",
 		Color(0.5, 0.8, 0.5) if pct_eff >= 0 else Color(0.85, 0.55, 0.5))
 	vbox.add_child(lbl_dm)
 
-	# ── Interactive zone (line management) ────────────────────────────────────
+	# ── Interactive zone ──────────────────────────────────────────────────────
 	if has_line:
 		vbox.add_child(HSeparator.new())
 		vbox.add_child(_active_line_controls(seg_key, market, building))
 	elif has_factory and GameState.get_cfo() != null and researched:
 		vbox.add_child(HSeparator.new())
 		vbox.add_child(_build_line_control(seg_key, market))
+	elif not unlocked:
+		var lk = Label.new()
+		var need = int(GameState.RND_TASKS.get("P5_MODEL_%s" % seg_key, {}).get("Required_RnD_Studio_Level", 1))
+		lk.text = "Locked — upgrade the R&D Studio to Level %d to research this segment's blueprint." % need
+		lk.add_theme_font_size_override("font_size", 20)
+		lk.modulate = Color(0.7, 0.6, 0.55)
+		lk.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		vbox.add_child(lk)
 
 	return panel
 
-# ── Controls for an ACTIVE line ───────────────────────────────────────────────
+func _status_badge(seg_key: String, market, unlocked: bool, researched: bool, has_line: bool) -> Label:
+	var badge = Label.new()
+	badge.add_theme_font_size_override("font_size", 22)
+	if has_line:
+		badge.text = "● PRODUCING"; badge.add_theme_color_override("font_color", Color(0.4, 0.9, 0.5))
+	elif researched:
+		badge.text = "✓ BLUEPRINT READY — build a line below"; badge.add_theme_color_override("font_color", Color(0.55, 0.8, 1.0))
+	elif unlocked:
+		badge.text = "○ UNLOCKED — research the blueprint in the R&D Studio"; badge.add_theme_color_override("font_color", Color(0.85, 0.8, 0.45))
+	else:
+		var need = int(GameState.RND_TASKS.get("P5_MODEL_%s" % seg_key, {}).get("Required_RnD_Studio_Level", 1))
+		badge.text = "🔒 NEEDS R&D STUDIO LV %d to research" % need; badge.add_theme_color_override("font_color", Color(0.75, 0.6, 0.55))
+	return badge
+
+## Build the evolution line chart series from recorded per-season history, colour-matched to the pie.
+func _evolution_chart(seg_key: String, market, table: Array) -> Control:
+	var chart = ShareLinesScript.new()
+	chart.custom_minimum_size = Vector2(0, 190)
+	chart.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var history: Array = market.get_segment_history(seg_key)
+	# Map brand name → colour (same order/logic as the pie/legend).
+	var color_of: Dictionary = {}
+	var ai_idx := 0
+	for entry in table:
+		color_of[entry["name"]] = _brand_color(entry, ai_idx)
+		if not entry.get("is_player", false) and entry["name"] != "Others":
+			ai_idx += 1
+
+	# Build one series per brand currently in the table, reading its share at each history point.
+	var series: Array = []
+	for entry in table:
+		var bname = entry["name"]
+		var pts: Array = []
+		for snap in history:
+			pts.append(float(snap.get("shares", {}).get(bname, 0.0)))
+		# Append the live current value as the latest point so the line reaches "now".
+		pts.append(float(entry["share"]))
+		series.append({"name": bname, "color": color_of.get(bname, Color.WHITE), "points": pts})
+
+	# X labels: S-n … now.
+	var n_pts = history.size() + 1
+	var labels: Array = []
+	for i in range(n_pts):
+		labels.append("now" if i == n_pts - 1 else "S-%d" % (n_pts - 1 - i))
+
+	chart.set_series(series, labels)
+	return chart
+
+func _legend(table: Array) -> Control:
+	var flow = HBoxContainer.new()
+	flow.add_theme_constant_override("separation", 16)
+	var ai_idx := 0
+	for entry in table:
+		var col = _brand_color(entry, ai_idx)
+		if not entry.get("is_player", false) and entry["name"] != "Others":
+			ai_idx += 1
+		var item = HBoxContainer.new()
+		item.add_theme_constant_override("separation", 5)
+		var sw = Label.new(); sw.text = "●"; sw.add_theme_color_override("font_color", col)
+		sw.add_theme_font_size_override("font_size", 20)
+		item.add_child(sw)
+		var nm = Label.new()
+		nm.text = "%s %.1f%%" % [entry["name"], entry["share"] * 100.0]
+		nm.add_theme_font_size_override("font_size", 20)
+		if entry.get("is_player", false):
+			nm.text = "▶ " + nm.text
+			nm.add_theme_color_override("font_color", PLAYER_COL)
+		item.add_child(nm)
+		flow.add_child(item)
+	return flow
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STATUS STRIP (retained from S39.1)
+# ─────────────────────────────────────────────────────────────────────────────
+func _status_strip(building: Dictionary, has_factory: bool) -> PanelContainer:
+	var panel = _card_panel(Color(0.10, 0.13, 0.17))
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 28)
+	panel.add_child(row)
+	if has_factory:
+		var lvl = int(building.get("level", 1))
+		var used = GameState.commercial_lines.size()
+		row.add_child(_stat_block("Production Lines", "%d / %d used" % [used, lvl], Color(0.55, 0.8, 1.0)))
+	else:
+		row.add_child(_stat_block("Factory", "Not built", Color(0.8, 0.55, 0.4)))
+	var cfo = GameState.get_cfo()
+	if cfo != null:
+		var sf = GameState.get_commercial_sales_factor()
+		row.add_child(_stat_block("CFO", "%s  (sales x%.2f)" % [cfo.full_name(), sf], Color(0.5, 0.85, 0.5)))
+	else:
+		row.add_child(_stat_block("CFO", "None — Factory off", Color(1.0, 0.45, 0.45)))
+	var idx = GameState.economy_index
+	var econ_word = "Normal"; var econ_col = Color(0.7, 0.7, 0.7)
+	if idx > 70.0: econ_word = "Boom"; econ_col = Color(0.5, 0.85, 0.5)
+	elif idx < 30.0: econ_word = "Recession"; econ_col = Color(1.0, 0.5, 0.5)
+	row.add_child(_stat_block("Economy", "%s (idx %.0f)" % [econ_word, idx], econ_col))
+	return panel
+
+# ── Controls for an ACTIVE line (retained from S39.1) ─────────────────────────
 func _active_line_controls(seg_key: String, market, building: Dictionary) -> VBoxContainer:
 	var box = VBoxContainer.new()
 	box.add_theme_constant_override("separation", 8)
-
-	# Find the line record
 	var line: Dictionary = {}
 	for l in GameState.commercial_lines:
 		if l.get("segment", "") == seg_key:
 			line = l; break
 	if line.is_empty():
 		return box
-
 	var lvl = int(building.get("level", 1))
-	var sf = GameState.get_commercial_sales_factor()
-	var obonus = GameState._rnd_engine.get_rnd_bonus("weekly_commercial_output")
-	var gross = market.line_weekly_credits(seg_key, GameState.economy_index, lvl, sf, obonus)
 	var mkt_ratio = float(line.get("marketing", 1.0))
-	var recommended = market.recommended_marketing(seg_key, GameState.economy_index, lvl, sf)
-	var spend = recommended * mkt_ratio
-	var net = gross - spend
-	## Apply the same 2x racing cap the income system enforces, for an honest preview.
-	var cap = GameState.get_avg_weekly_racing_income() * 2.0
-	var net_capped = min(net, cap)
+	## S39.5 — single source of truth: same numbers the Financial Department and the weekly apply use.
+	var econ: Dictionary = GameState.commercial_line_economics(seg_key)
+	var recommended = GameState._commercial_market.recommended_marketing(
+		seg_key, GameState.economy_index, lvl, GameState.get_commercial_sales_factor())
+	var net_capped = float(econ.get("net", 0.0))
+	var spend = float(econ.get("marketing", 0.0))
 
-	# Model name + age
 	var info = Label.new()
 	var age = float(line.get("age_seasons", 0.0))
-	info.text = "Model: %s   ·   Age %.0f seasons   ·   Net ~CR %s/wk" % [
-		line.get("model_name", market.segment_name(seg_key)), age, _fmt(int(net_capped))]
+	info.text = "Model: %s   ·   Age %.0f seasons   ·   Your share %.1f%%" % [
+		line.get("model_name", market.segment_name(seg_key)), age, float(econ.get("share", 0.0)) * 100.0]
 	info.add_theme_font_size_override("font_size", 22)
 	info.add_theme_color_override("font_color", Color(0.7, 0.9, 0.75))
 	box.add_child(info)
 
-	# Marketing row: - [ratio] +  (recommended spend shown)
+	## Sales / stock breakdown (S39.5 — #9: the player can now see what's actually happening).
+	var demand = float(econ.get("demand", 0.0))
+	var capacity = float(econ.get("capacity", 0.0))
+	var sales_u = float(econ.get("sales_units", 0.0))
+	var brk = Label.new()
+	var sold_out := demand > capacity and capacity > 0.0
+	brk.text = "Weekly: demand %s u  ·  capacity %s u  ·  sold %s u%s   →   gross CR %s  −  mktg CR %s  =  net CR %s/wk%s" % [
+		_fmt(int(demand)), _fmt(int(capacity)), _fmt(int(sales_u)),
+		"  (capacity-limited — upgrade Factory)" if sold_out else "",
+		_fmt(int(econ.get("gross", 0.0))), _fmt(int(spend)), _fmt(int(net_capped)),
+		"  (capped at 2× racing)" if econ.get("capped", false) else ""]
+	brk.add_theme_font_size_override("font_size", 19)
+	brk.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	brk.add_theme_color_override("font_color", Color(0.62, 0.72, 0.85))
+	box.add_child(brk)
+
 	var mrow = HBoxContainer.new()
 	mrow.add_theme_constant_override("separation", 8)
 	box.add_child(mrow)
@@ -304,8 +420,7 @@ func _active_line_controls(seg_key: String, market, building: Dictionary) -> VBo
 	mlbl.text = "Marketing: x%.2f  (CR %s/wk, rec. %s)" % [mkt_ratio, _fmt(int(spend)), _fmt(int(recommended))]
 	mlbl.add_theme_font_size_override("font_size", 20)
 	mlbl.custom_minimum_size = Vector2(420, 0)
-	mlbl.add_theme_color_override("font_color",
-		Color(0.85, 0.6, 0.4) if mkt_ratio < 1.0 else Color(0.7, 0.8, 0.9))
+	mlbl.add_theme_color_override("font_color", Color(0.85, 0.6, 0.4) if mkt_ratio < 1.0 else Color(0.7, 0.8, 0.9))
 	mrow.add_child(mlbl)
 	var btn_minus = Button.new(); btn_minus.text = "−"; btn_minus.custom_minimum_size = Vector2(40, 30)
 	btn_minus.pressed.connect(_on_marketing_step.bind(seg_key, -0.1))
@@ -317,71 +432,128 @@ func _active_line_controls(seg_key: String, market, building: Dictionary) -> VBo
 		var warn = Label.new(); warn.text = "↓ under-spending loses share"
 		warn.add_theme_font_size_override("font_size", 18); warn.add_theme_color_override("font_color", Color(0.85, 0.55, 0.45))
 		mrow.add_child(warn)
-
-	# Lifecycle row: Facelift / Next-Gen
-	var lrow = HBoxContainer.new()
-	lrow.add_theme_constant_override("separation", 10)
-	box.add_child(lrow)
-	var fl_cost = _facelift_cost(seg_key)
-	var ng_cost = _nextgen_cost(seg_key)
-	var btn_fl = Button.new()
-	btn_fl.text = "Facelift  (CR %s)" % _fmt(fl_cost)
-	btn_fl.custom_minimum_size = Vector2(0, 32)
-	btn_fl.tooltip_text = "Cheap mid-life refresh — restores competitiveness (knocks ~6 seasons off the model's age)."
-	btn_fl.disabled = GameState.player_team.balance < fl_cost
-	btn_fl.pressed.connect(func(): _do_facelift(seg_key, fl_cost))
-	lrow.add_child(btn_fl)
-	var btn_ng = Button.new()
-	btn_ng.text = "Next-Gen  (CR %s)" % _fmt(ng_cost)
-	btn_ng.custom_minimum_size = Vector2(0, 32)
-	btn_ng.tooltip_text = "Expensive successor — launches a new generation and resets the lifecycle clock."
-	btn_ng.disabled = GameState.player_team.balance < ng_cost
-	btn_ng.pressed.connect(func(): _do_nextgen(seg_key, ng_cost))
-	lrow.add_child(btn_ng)
-	# Age hint
-	if age >= 18.0:
-		var hint = Label.new(); hint.text = "⚠ ageing — refresh soon"
-		hint.add_theme_font_size_override("font_size", 18); hint.add_theme_color_override("font_color", Color(0.9, 0.6, 0.4))
-		lrow.add_child(hint)
-
+	## S39.5 — Facelift / Next-Gen moved to the R&D Studio (they are redesigns: research there, then the
+	## refreshed model flows back to this line). Show an ageing hint that points the player to R&D.
+	if age >= 14.0:
+		var hint = Label.new()
+		hint.text = "⚠ This model is ageing (%.0f seasons). Research a Facelift or Next-Gen in the R&D Studio to refresh it." % age
+		hint.add_theme_font_size_override("font_size", 19)
+		hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		hint.add_theme_color_override("font_color", Color(0.9, 0.65, 0.4))
+		box.add_child(hint)
+	## S39.6 — explicit Stop Production (frees the line; the blueprint is kept so you can restart later).
+	var srow = HBoxContainer.new()
+	srow.add_theme_constant_override("separation", 10)
+	box.add_child(srow)
+	var btn_stop = Button.new()
+	btn_stop.text = "⏹  Stop Production"
+	btn_stop.custom_minimum_size = Vector2(200, 34)
+	btn_stop.add_theme_font_size_override("font_size", 20)
+	btn_stop.modulate = Color(0.95, 0.6, 0.55)
+	btn_stop.pressed.connect(func(): _do_stop(seg_key))
+	srow.add_child(btn_stop)
+	var stop_note = Label.new()
+	stop_note.text = "frees the line · keeps the blueprint"
+	stop_note.add_theme_font_size_override("font_size", 18)
+	stop_note.modulate = Color(0.55, 0.55, 0.6)
+	srow.add_child(stop_note)
 	return box
 
-# ── Control to BUILD a new line (researched + free line + CFO) ────────────────
-func _build_line_control(seg_key: String, market) -> HBoxContainer:
-	var row = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
+func _build_line_control(seg_key: String, market) -> VBoxContainer:
+	## S39.6 — a proper DETAILS BOX for the designed (researched) model with an explicit, unambiguous
+	## "Start Production" button (the old "▶ Build" read like an expander). Shows the model's specs and
+	## the projected weekly economics BEFORE committing a line.
+	var box = VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+
+	var seg_data: Dictionary = market.SEGMENTS.get(seg_key, {})
+	var bp: Dictionary = GameState.RND_TASKS.get("P5_MODEL_%s" % seg_key, {})
+
+	# Details panel
+	var detail = _card_panel(Color(0.07, 0.13, 0.10))
+	var dv = VBoxContainer.new()
+	dv.add_theme_constant_override("separation", 4)
+	detail.add_child(dv)
+	var dh = Label.new()
+	dh.text = "✓ Blueprint researched — ready to produce"
+	dh.add_theme_font_size_override("font_size", 22)
+	dh.add_theme_color_override("font_color", Color(0.55, 0.85, 1.0))
+	dv.add_child(dh)
+	# Spec lines from the segment data + blueprint
+	var specs = Label.new()
+	var margin_v = int(seg_data.get("margin", 0))
+	var vol_v = int(seg_data.get("volume", 0))
+	specs.text = "Model: %s   ·   Class: %s   ·   Unit margin: CR %s   ·   Global market: %s cars/yr" % [
+		market.segment_name(seg_key), seg_data.get("market_type", ""), _fmt(margin_v), _fmt(vol_v)]
+	specs.add_theme_font_size_override("font_size", 19)
+	specs.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	specs.add_theme_color_override("font_color", Color(0.7, 0.8, 0.75))
+	dv.add_child(specs)
+	# Capacity / projected at this factory level
+	var lvl = int(GameState.campus_buildings.get("Vehicle Assembly Factory", {}).get("level", 1))
+	var cap = market.line_capacity(lvl)
+	var proj = Label.new()
+	proj.text = "At Factory Lv %d: line capacity %s cars/wk. Your share starts near 0%% and grows over the coming seasons." % [
+		lvl, _fmt(int(cap))]
+	proj.add_theme_font_size_override("font_size", 19)
+	proj.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	proj.add_theme_color_override("font_color", Color(0.62, 0.72, 0.85))
+	dv.add_child(proj)
+	box.add_child(detail)
+
+	# Action row
 	var free = GameState.commercial_free_lines()
 	if free <= 0:
 		var lbl = Label.new()
 		lbl.text = "No free production lines — upgrade the Factory to add a line."
 		lbl.add_theme_font_size_override("font_size", 20)
 		lbl.add_theme_color_override("font_color", Color(0.85, 0.6, 0.4))
-		row.add_child(lbl)
-		return row
+		box.add_child(lbl)
+		return box
+	var arow = HBoxContainer.new()
+	arow.add_theme_constant_override("separation", 10)
+	box.add_child(arow)
 	var btn = Button.new()
-	btn.text = "▶ Build Production Line"
-	btn.custom_minimum_size = Vector2(0, 34)
+	btn.text = "▶  Start Production"
+	btn.custom_minimum_size = Vector2(220, 38)
 	btn.add_theme_font_size_override("font_size", 22)
 	btn.pressed.connect(func(): _do_build(seg_key))
-	row.add_child(btn)
+	arow.add_child(btn)
 	var note = Label.new()
-	note.text = "%d free line%s" % [free, "" if free == 1 else "s"]
+	note.text = "%d free production line%s available" % [free, "" if free == 1 else "s"]
 	note.add_theme_font_size_override("font_size", 20)
 	note.add_theme_color_override("font_color", Color(0.6, 0.7, 0.85))
-	row.add_child(note)
-	return row
+	arow.add_child(note)
+	return box
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ACTIONS
+# ACTIONS (retained from S39.1)
 # ─────────────────────────────────────────────────────────────────────────────
 func _do_build(seg_key: String) -> void:
+	## S39.5 — make the action unambiguous (#6): confirm what's about to happen before committing a line.
+	var nm = GameState._commercial_market.segment_name(seg_key)
 	var err = GameState.build_commercial_line(seg_key)
 	if err != "":
 		GameState.show_popup(err, "Cannot Build Line")
+	else:
+		GameState.show_popup(
+			"Production line started for %s.\n\nIt begins manufacturing this week. Your market share will grow over the coming seasons — set its marketing below, and watch the 'This week' pie and the share-over-time chart." % nm,
+			"Production Started")
 	_refresh()
 
-## Step a line's marketing ratio by delta, clamped to [0, 2]. Reads the current value fresh so the
-## button always acts on live state (not a value captured when the card was built).
+## S39.6 — stop production (frees the line; blueprint retained).
+func _do_stop(seg_key: String) -> void:
+	var nm = GameState._commercial_market.segment_name(seg_key)
+	var err = GameState.stop_commercial_line(seg_key)
+	if err != "":
+		GameState.show_popup(err, "Cannot Stop")
+	else:
+		GameState.add_log("⏹ Stopped %s production line (blueprint kept)." % nm)
+		GameState.show_popup(
+			"%s production stopped. The line is now free for another model, and your blueprint is retained — you can restart production any time." % nm,
+			"Production Stopped")
+	_refresh()
+
 func _on_marketing_step(seg_key: String, delta: float) -> void:
 	var cur := 1.0
 	for l in GameState.commercial_lines:
@@ -391,46 +563,15 @@ func _on_marketing_step(seg_key: String, delta: float) -> void:
 	GameState.set_commercial_marketing(seg_key, clamp(cur + delta, 0.0, 2.0))
 	_refresh()
 
-func _do_facelift(seg_key: String, cost: int) -> void:
-	if GameState.player_team.balance < cost:
-		GameState.show_popup("Not enough CR for a facelift.", "Cannot Facelift"); return
-	GameState.player_team.balance -= cost
-	var err = GameState.facelift_commercial_line(seg_key)
-	if err != "":
-		GameState.player_team.balance += cost  # refund on failure
-		GameState.show_popup(err, "Cannot Facelift")
-	else:
-		GameState.add_log("🔧 Facelift: %s model refreshed (-CR %s)." % [
-			GameState._commercial_market.segment_name(seg_key), _fmt(cost)])
-	_refresh()
-
-func _do_nextgen(seg_key: String, cost: int) -> void:
-	if GameState.player_team.balance < cost:
-		GameState.show_popup("Not enough CR for a next-generation model.", "Cannot Launch"); return
-	GameState.player_team.balance -= cost
-	var err = GameState.nextgen_commercial_line(seg_key)
-	if err != "":
-		GameState.player_team.balance += cost
-		GameState.show_popup(err, "Cannot Launch")
-	else:
-		GameState.add_log("🚀 Next-Gen: new %s generation launched (-CR %s)." % [
-			GameState._commercial_market.segment_name(seg_key), _fmt(cost)])
-	_refresh()
-
-## Facelift ≈ 25% of the blueprint research cost (cheap refresh); Next-Gen ≈ 60% (expensive successor).
-func _facelift_cost(seg_key: String) -> int:
-	var bp = GameState.RND_TASKS.get("P5_MODEL_%s" % seg_key, {})
-	return int(bp.get("cr", 25000000) * 0.25)
-
-func _nextgen_cost(seg_key: String) -> int:
-	var bp = GameState.RND_TASKS.get("P5_MODEL_%s" % seg_key, {})
-	return int(bp.get("cr", 25000000) * 0.60)
+## NOTE (S39.5): Facelift / Next-Gen UI removed from this screen — they are moving to the R&D Studio
+## (a refreshed model is a redesign). The GameState API (facelift_commercial_line / nextgen_commercial_
+## line) is retained for the upcoming R&D flow to call once the redesign research completes.
 
 func _on_back() -> void:
 	get_tree().change_scene_to_file("res://scenes/Campus.tscn")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# UI HELPERS
+# UI HELPERS (retained from S39.1)
 # ─────────────────────────────────────────────────────────────────────────────
 func _stat_block(label: String, value: String, col: Color) -> VBoxContainer:
 	var b = VBoxContainer.new()
@@ -464,7 +605,6 @@ func _card_panel(bg: Color) -> PanelContainer:
 	return panel
 
 func _fmt(n: int) -> String:
-	## Thousands separators, mirroring GameState._fmt_int.
 	var s = str(abs(n))
 	var out = ""
 	var c = 0

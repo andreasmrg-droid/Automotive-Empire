@@ -1,3 +1,5 @@
+## Version: S39.6 — stop_commercial_line API (frees line, keeps blueprint)
+## Version: S39.5 — commercial_line_economics single source of truth (net matches FinancialEngine + UI); segment-unlock now Studio-level based (racing gate removed); build_commercial_line racing check removed
 ## Version: S38.7 — News/notification routing fix (per design owner): segment-UNLOCK breadcrumb →
 ##   notification (event), not news; START OF PRODUCTION (build_commercial_line) → news (a team
 ##   entering a market). Blueprint-research-complete stays a notification (RnDEngine).
@@ -869,6 +871,51 @@ func get_commercial_sales_factor() -> float:
 		return 0.75
 	return 0.75 + cfo.sales_skill / 200.0
 
+## S39.5 — Single source of truth for a line's weekly economics, so the Commercial Department preview
+## and the Financial Department match what FinancialEngine.apply_commercial_income() actually applies
+## (same 50K racing-income floor + 2× cap). Returns a breakdown the UI can show: demand/capacity/sales
+## units, gross, marketing spend, and the capped net. Returns zeros if the line/segment isn't valid.
+func commercial_line_economics(seg_key: String) -> Dictionary:
+	var blank := {"demand": 0.0, "capacity": 0.0, "sales_units": 0.0, "share": 0.0,
+		"gross": 0.0, "marketing": 0.0, "net": 0.0, "capped": false}
+	if _commercial_market == null or get_cfo() == null:
+		return blank
+	var line: Dictionary = {}
+	for l in commercial_lines:
+		if l.get("segment", "") == seg_key:
+			line = l; break
+	if line.is_empty():
+		return blank
+	var factory = campus_buildings.get("Vehicle Assembly Factory", {})
+	if not factory.get("built", false) or int(factory.get("level", 0)) < 1:
+		return blank
+	var lvl: int = int(factory.get("level", 1))
+	var sf: float = get_commercial_sales_factor()
+	var obonus: float = _rnd_engine.get_rnd_bonus("weekly_commercial_output")
+	var share: float = _commercial_market.get_player_share(seg_key)
+	var demand: float = _commercial_market.player_weekly_demand(seg_key, economy_index)
+	var capacity: float = _commercial_market.line_capacity(lvl) * (1.0 + obonus)
+	var sales_units: float = min(demand, capacity)
+	var gross: float = _commercial_market.line_weekly_credits(seg_key, economy_index, lvl, sf, obonus)
+	var recommended: float = _commercial_market.recommended_marketing(seg_key, economy_index, lvl, sf)
+	var marketing: float = recommended * float(line.get("marketing", 1.0))
+	var net: float = gross - marketing
+	## Match the apply path: floor the racing reference at 50K, then cap net at 2× it.
+	var racing_ref: float = max(get_avg_weekly_racing_income(), 50000.0)
+	var cap: float = racing_ref * _commercial_market.FACTORY_CAP_MULT
+	var capped := false
+	if net > cap:
+		net = cap; capped = true
+	return {"demand": demand, "capacity": capacity, "sales_units": sales_units, "share": share,
+		"gross": gross, "marketing": marketing, "net": net, "capped": capped}
+
+## Total weekly commercial net across all lines (for the Financial Department summary).
+func commercial_weekly_net_total() -> float:
+	var t := 0.0
+	for l in commercial_lines:
+		t += float(commercial_line_economics(l.get("segment", "")).get("net", 0.0))
+	return t
+
 
 ## S38.2 — Weekly commercial-market tick. Builds the player's per-segment inputs from the active
 ## production lines and advances the attractiveness/redistribution engine one week. Pure share
@@ -902,11 +949,19 @@ func _tick_commercial_market() -> void:
 # ═══════════════════════════════════════════════════════════════════════════
 ## A segment is UNLOCKED for commercial production once the player has raced its Factory_Unlock
 ## championship (permanent, via the ever-raced ledger).
+## S39.5 — "Unlocked" now means the R&D Studio is at the level needed to RESEARCH this segment's
+## blueprint (the racing gate was removed). The Factory is still needed to build/produce, separately.
 func is_commercial_segment_unlocked(seg_key: String) -> bool:
 	if _commercial_market == null:
 		return false
-	var cid: String = _commercial_market.unlock_championship(seg_key)
-	return cid != "" and cid in championships_ever_raced
+	var task = RND_TASKS.get("P5_MODEL_%s" % seg_key, {})
+	if task.is_empty():
+		return false
+	var need: int = int(task.get("Required_RnD_Studio_Level", 1))
+	var studio = campus_buildings.get("R&D Design Studio", {})
+	if not studio.get("built", false):
+		return need <= 1
+	return int(studio.get("level", 0)) >= need
 
 ## True once the Pillar-5 base blueprint for this segment has been researched (R&D task done).
 func is_commercial_blueprint_researched(seg_key: String) -> bool:
@@ -932,8 +987,6 @@ func build_commercial_line(seg_key: String, model_name: String = "") -> String:
 		return "Unknown segment."
 	if get_cfo() == null:
 		return "A CFO is required to operate the Factory."
-	if not is_commercial_segment_unlocked(seg_key):
-		return "Segment locked — race its linked championship first."
 	if not is_commercial_blueprint_researched(seg_key):
 		return "Research the model blueprint in the R&D Studio first."
 	if has_commercial_line_for(seg_key):
@@ -948,6 +1001,22 @@ func build_commercial_line(seg_key: String, model_name: String = "") -> String:
 	notify_event("commercial_line_built_%s" % seg_key, "Normal",
 		"🏭 New production line: %s (%s) is now manufacturing." % [nm, _commercial_market.segment_name(seg_key)],
 		"commercial_dept", "news")
+	return ""
+
+## S39.6 — Stop a production line: removes it from commercial_lines (frees the line for another model)
+## and clears the player's producer from the market so the share decays away naturally. The researched
+## blueprint is retained, so the player can restart production later.
+func stop_commercial_line(seg_key: String) -> String:
+	var idx := -1
+	for i in range(commercial_lines.size()):
+		if commercial_lines[i].get("segment", "") == seg_key:
+			idx = i; break
+	if idx < 0:
+		return "No line is producing that segment."
+	commercial_lines.remove_at(idx)
+	## Drop the player's producer from the market (share will be redistributed to rivals/Others).
+	if _commercial_market != null:
+		_commercial_market.remove_player_producer(seg_key)
 	return ""
 
 ## Facelift — cheap mid-life refresh: knocks the model's age back, restoring competitiveness (§4.2).

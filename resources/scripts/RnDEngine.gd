@@ -1,4 +1,5 @@
 class_name RnDEngine
+## Version: S39.5 — P5 research gate: removed the race-the-championship requirement (Studio level only)
 ## Version: S39.2 — RP storage cap FIX (pre-existing bug, surfaced by Pillar 5): the old flat
 ##   800+(level-1)*400 cap was far below what P4 Special Projects and P5 blueprints cost at their
 ##   required Studio level (e.g. SP_RACE_4 = 50,000 RP at Lv3, cap was 1,600), so those projects could
@@ -836,10 +837,11 @@ func rnd_task_unlocked(task_id: String) -> bool:
 	# championship (the permanent ever-raced ledger). NOTE: the Factory is NOT required to RESEARCH
 	# a blueprint — you research the design in the Studio, then need a built Factory line to PRODUCE
 	# it (enforced separately in GameState.build_commercial_line).
+	# Pillar 5 (commercial models): gate on Studio level ONLY. (S39.5 — the "race the linked
+	# championship to unlock" requirement was removed per design owner: researching a blueprint is
+	# already very expensive and slow, so the racing gate added friction without payoff. The Factory
+	# is still required to PRODUCE the car, enforced in GameState.build_commercial_line.)
 	if task.get("pillar", 0) == 5:
-		var unlock_cid: String = task.get("unlock_champ", "")
-		if unlock_cid != "" and not unlock_cid in gs.championships_ever_raced:
-			return false
 		var min_studio5 = int(task.get("Required_RnD_Studio_Level", 1))
 		if min_studio5 > 1:
 			var studio5 = gs.campus_buildings.get("R&D Design Studio", {})

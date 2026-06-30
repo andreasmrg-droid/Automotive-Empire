@@ -1,3 +1,5 @@
+## Version: S39.5 — removed overflowing header market button
+## Version: S39.4 — Added "📊 Commercial Market" header button → Commercial Department market view.
 ## Version: S37.36 — Standard header [Name][Resource Bar][Back][Main Hub]; standalone balance label replaced by the bar.
 ## Automotive Empire — FinancialDept.gd
 ## Version: S37.3 — Bug #49: weekly income panel now itemizes income PER BUILDING (one row each)

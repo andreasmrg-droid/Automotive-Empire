@@ -1,4 +1,9 @@
 class_name CommercialMarketSim
+## Version: S39.6 — remove_player_producer (share folds to Others when a line stops)
+## Version: S39.4 — Lightweight per-season share HISTORY for the evolution line chart: _sample_history
+##   captures one snapshot per segment per season (last HISTORY_SEASONS=5 kept), seeded at new-game and
+##   persisted in save/load (pre-S39.4 saves start empty and fill in). get_segment_history() feeds the
+##   Commercial Department line chart. Negligible memory/save cost; chart redraws only when open.
 ## Version: S39.0 — Halo volume boost (per design owner + re-sim): bespoke_hyper 800→2400/yr and
 ##   megacars 300→900/yr (×3). At real volumes these halo segments could never amortize a realistic
 ##   blueprint design cost (1–2 cars/wk); ×3 makes them viable (≈8-season payback, a prestige stretch)
@@ -136,6 +141,13 @@ const VOLUME_GIANTS := ["Meridian Motors", "Continental Auto", "Pacifica Group",
 # }
 # ─────────────────────────────────────────────────────────────────────────────
 var market: Dictionary = {}
+## S39.4 — lightweight share-history for the evolution line chart. Sampled ONCE PER SEASON (not per
+## week) so it stays tiny: per segment we keep the last HISTORY_SEASONS snapshots, each a
+## { "season": int, "shares": { brand_name: float, …, "Others": float } }. ~12 segments × ~6 brands ×
+## 5 seasons ≈ a few hundred floats — negligible in memory and in the save, and the chart only redraws
+## when the screen is open. Order is oldest → newest.
+const HISTORY_SEASONS: int = 5
+var _history: Dictionary = {}   ## seg_key -> Array[snapshot]
 var _rng := RandomNumberGenerator.new()
 
 func _init() -> void:
@@ -189,6 +201,9 @@ func seed_market(staggered_seed: bool = true) -> void:
 						g, 80.0, _freshness_for_age(gage), 1.0, true, gshare, gage))
 		var others: float = max(0.0, 1.0 - _sum_share(producers))
 		market[seg_key] = {"producers": producers, "others": others}
+	## Seed one initial history point so the evolution chart has a starting value from week 1.
+	_history.clear()
+	_sample_history()
 
 # ── Lifecycle freshness curve ─────────────────────────────────────────────────
 ## Freshness 0..1 as a function of model age (seasons). Ramp up, long plateau, decline to death.
@@ -257,6 +272,8 @@ func advance_week(player_inputs: Dictionary = {}, sales_factor: float = 1.0) -> 
 
 ## Season tick — ages every model, AI auto-refreshes near end-of-life (§4.2).
 func advance_season() -> void:
+	## Snapshot the end-of-season share state for the evolution chart, then age models.
+	_sample_history()
 	for seg_key in market:
 		for p in market[seg_key]["producers"]:
 			p["age_seasons"] += 1.0
@@ -265,6 +282,24 @@ func advance_season() -> void:
 				if p["age_seasons"] >= 18.0 and _rng.randf() < 0.45:
 					p["age_seasons"] = 0.0
 				p["freshness"] = _freshness_for_age(p["age_seasons"])
+
+## Capture a per-segment share snapshot (one per season). Keeps only the last HISTORY_SEASONS.
+func _sample_history(season_label: int = -1) -> void:
+	for seg_key in market:
+		var shares: Dictionary = {}
+		for p in market[seg_key]["producers"]:
+			shares[p["name"]] = float(p["share"])
+		shares["Others"] = float(market[seg_key].get("others", 0.0))
+		var snap = {"season": season_label, "shares": shares}
+		if not _history.has(seg_key):
+			_history[seg_key] = []
+		_history[seg_key].append(snap)
+		while _history[seg_key].size() > HISTORY_SEASONS:
+			_history[seg_key].pop_front()
+
+## Returns the recorded history for a segment: Array[ {season, shares{}} ], oldest → newest.
+func get_segment_history(seg_key: String) -> Array:
+	return _history.get(seg_key, [])
 
 # ── Insert / update the player's producer record inside a segment ─────────────
 func _sync_player_producer(seg_key: String, seg_state: Dictionary, pin) -> void:
@@ -336,6 +371,18 @@ func get_player_share(seg_key: String) -> float:
 			return p["share"]
 	return 0.0
 
+## S39.6 — Remove the player's producer from a segment (when a line is stopped). Its share is folded
+## back into Others so the market re-normalises; rivals will reclaim it over subsequent weeks.
+func remove_player_producer(seg_key: String) -> void:
+	if not market.has(seg_key):
+		return
+	var producers: Array = market[seg_key]["producers"]
+	for i in range(producers.size()):
+		if producers[i]["is_player"]:
+			market[seg_key]["others"] = float(market[seg_key].get("others", 0.0)) + float(producers[i]["share"])
+			producers.remove_at(i)
+			return
+
 func get_segment_table(seg_key: String) -> Array:
 	## Returns sorted [{name, share, is_player, is_giant}] + an "Others" row for UI.
 	if not market.has(seg_key):
@@ -375,10 +422,16 @@ static func _sum_share(producers: Array) -> float:
 # SAVE / LOAD
 # ─────────────────────────────────────────────────────────────────────────────
 func to_dict() -> Dictionary:
-	return {"market": market}
+	return {"market": market, "history": _history}
 
 func from_dict(data: Dictionary) -> void:
 	if data.has("market") and data["market"] is Dictionary:
 		market = data["market"]
 	else:
 		seed_market(true)
+	## History is optional (pre-S39.4 saves won't have it) — start empty if absent; it fills in as
+	## seasons roll over.
+	if data.has("history") and data["history"] is Dictionary:
+		_history = data["history"]
+	else:
+		_history = {}

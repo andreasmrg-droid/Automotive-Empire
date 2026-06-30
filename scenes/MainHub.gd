@@ -1,4 +1,5 @@
 extends Control
+## Version: S39.5 — news rendered newest-first
 ## Version: S37.64 — TDL filter recognises the new stable "TP assignments ready" item (no count).
 ## Version: S37.63 — NEWS panel renders GameState.news_feed (genuine events) instead of the raw
 ##   weekly_log, so DNS/assignments/balances/new-game setup no longer appear as "news".
@@ -612,7 +613,11 @@ func _refresh_log() -> void:
 
 	## S37.63 — the NEWS panel renders the curated news_feed (genuine world events), NOT the raw
 	## weekly_log (operational chatter: DNS, repairs, assignments, balances).
-	for message in GameState.news_feed:
+	## S39.5 — newest news at the TOP (per design owner). news_feed appends chronologically, so we
+	## iterate it in reverse for display.
+	var _news_reversed: Array = GameState.news_feed.duplicate()
+	_news_reversed.reverse()
+	for message in _news_reversed:
 		if message.begins_with("Weekly expenses") or message.begins_with("Campus:") \
 				or message.begins_with("💼 "):
 			continue

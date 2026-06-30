@@ -92,6 +92,17 @@
 	Base_Cost (Excel CNC) × (1 + Manufacturer_Profit) × Manufacturer_Quality; Profit=8%%, Quality=1.0
 	for now (both TUNABLE). Loaded from res://data/part_costs.json. Fixed the 'buying parts doesn't
 	deduct credits' bug (hardcoded PART_COSTS had GK at 0). -->
+<!-- ⚑ PLANNED REDESIGN — ECONOMY SESSION (flagged S39.6): The FINANCIAL DEPARTMENT needs a rework,
+	to be done together with the broader economy pass. Open issues to resolve there:
+	(1) R&D PAYMENT MODEL: projects currently charge the FULL CR cost UPFRONT at start (RnDEngine
+		.start_rnd_task: balance -= task.cr), so R&D is NOT a recurring weekly expense. The Financial
+		"WEEKLY EXPENSES → R&D Projects" row therefore shows blank/—. Decide: keep upfront (and present
+		active R&D as informational: total committed / remaining / amortized), OR switch to weekly
+		instalments over the project duration. Until decided, the broken R&D weekly row is suppressed
+		(it read non-existent keys cr/weeks; the real keys are cr_cost/weeks_total).
+	(2) The breakdown is too coarse (maintenance is one lumped figure; commercial car sales now show
+		but want per-segment detail; add company-value drivers, R&D committed, fuel hedging, etc.).
+	(3) Commercial "Car Sales (market)" income line landed S39.5 — fold it into the redesign. -->
 <!-- v6.5: STATE-HANDLER DISCIPLINE (S37.28–S37.29). #52 fixed (New-Game state leak + load bleed)
 	and a FULL audit of all 129 GameState vars vs the three handlers (setup_new_game / save_game /
 	load_game) closed the remaining leaks: WRA pipeline (active_wra_submissions, wra_approved/

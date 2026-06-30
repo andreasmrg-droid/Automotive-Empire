@@ -1,4 +1,5 @@
 class_name FinancialEngine
+## Version: S39.5 — apply_commercial_income uses GameState.commercial_line_economics per line (income == UI preview)
 ## Version: S38.3 — Factory 2× cap now anchored to TOTAL racing income (sponsors+prizes+EOS) via
 ##   gs.get_avg_weekly_racing_income() (rolling window), replacing the sponsor-only anchor.
 ## Version: S38.2 — Phase 3 Factory income. apply_commercial_income() (called in process_weekly after
@@ -148,40 +149,20 @@ func apply_commercial_income() -> void:
 	var factory = gs.campus_buildings.get("Vehicle Assembly Factory", {})
 	if not factory.get("built", false) or factory.get("level", 0) < 1:
 		return
-	var factory_level: int = int(factory.get("level", 1))
-	var sales_factor: float = gs.get_commercial_sales_factor()
-	# Pillar-4 capacity bonus (smart-factory / monocoque projects), 0.0 if none completed.
-	var output_bonus: float = gs._rnd_engine.get_rnd_bonus("weekly_commercial_output")
 
-	var gross_total: float = 0.0
-	var marketing_total: float = 0.0
+	var net_total: float = 0.0
 	for line in gs.commercial_lines:
 		var seg: String = line.get("segment", "")
 		if seg == "":
 			continue
-		var gross: float = market.line_weekly_credits(
-			seg, gs.economy_index, factory_level, sales_factor, output_bonus)
-		# Marketing spend: player's marketing_ratio × the recommended (18%-of-gross) budget.
-		var marketing_ratio: float = float(line.get("marketing", 1.0))
-		var recommended: float = market.recommended_marketing(
-			seg, gs.economy_index, factory_level, sales_factor)
-		var spend: float = recommended * marketing_ratio
-		gross_total += gross
-		marketing_total += spend
+		## S39.5 — single source of truth so applied income matches the UI preview exactly (same floor
+		## + 2× cap, applied per line inside commercial_line_economics).
+		net_total += float(gs.commercial_line_economics(seg).get("net", 0.0))
 
-	var net: float = gross_total - marketing_total
-	## S38.3 — Hard 2× racing-income CAP (GDD §4.4), now anchored to TOTAL racing income (sponsors +
-	## race prizes + EOS) via GameState's rolling 4-week accumulator, not sponsor-only. This makes the
-	## cap track the full racing curve — including the GP1 prize-dominated pinnacle — and auto-scale
-	## across the career. A floor covers early weeks before the window has filled.
-	var racing_ref: float = gs.get_avg_weekly_racing_income()
-	racing_ref = max(racing_ref, 50000.0)   ## floor: a representative early/mid racing income
-	var cap: float = racing_ref * market.FACTORY_CAP_MULT
-	if net > cap:
-		net = cap
+	var net: float = net_total
 	gs.player_team.balance += net
-	## Logged as part of the weekly P&L summary; a dedicated commercial breakdown lives in the
-	## Commercial Department screen (later unit).
+	## Logged as part of the weekly P&L summary; the Commercial Department screen shows the per-line
+	## breakdown (demand / capacity / sales / gross / marketing / net).
 
 
 # ═══════════════════════════════════════════════════════════════════════════

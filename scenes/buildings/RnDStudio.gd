@@ -1,3 +1,4 @@
+## Version: S39.6 — P5 card text wraps (no horizontal scroll); active-tasks column clips horizontally; P5 requirement text updated to Studio-only gate (racing removed)
 ## Version: S38.8 — P5 card requirements line: Factory removed as a research blocker (shown only as
 ##   a "then build on a Factory line" hint); matches the engine gate (research needs Studio + raced
 ##   champ only). Locked cards still show the cost preview.
@@ -418,6 +419,11 @@ func _build_active_column(parent: VBoxContainer) -> void:
 
 	var scroll = ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	## S39.6 — no horizontal scrollbar; clip and let card text wrap within the column width.
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.clip_contents = true
 	parent.add_child(scroll)
 	var vbox = VBoxContainer.new()
 	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1010,26 +1016,21 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 	if task.get("pillar", 0) == 5 and not is_done:
 		var p5_segs: Array = []
 		var p5_ok = true
-		var ucid: String = task.get("unlock_champ", "")
-		if ucid != "":
-			var raced: bool = ucid in GameState.championships_ever_raced
-			if not raced: p5_ok = false
-			var cname: String = GameState.CHAMPIONSHIP_REGISTRY.get(ucid, {}).get("name", ucid)
-			p5_segs.append(("✅ Raced %s" % cname) if raced else ("Race %s" % cname))
-		var fbname := "Vehicle Assembly Factory"
-		var fb = GameState.campus_buildings.get(fbname, {})
-		var fb_lv = int(fb.get("level", 0)) if fb.get("built", false) else 0
+		## S39.6 — racing requirement removed (S39.5): the blueprint gates on R&D Studio level only.
+		## The Factory is still needed to BUILD/produce (shown as a hint, not a research blocker).
 		var min_studio5 = int(task.get("Required_RnD_Studio_Level", 1))
 		if min_studio5 > 1:
 			var st = GameState.campus_buildings.get("R&D Design Studio", {})
 			var st_lv = int(st.get("level", 0)) if st.get("built", false) else 0
 			if st_lv < min_studio5: p5_ok = false
-			p5_segs.append("🔬 Studio Lv %d" % min_studio5)
-		## Factory is NOT a research gate (only needed to BUILD the line) — shown as a hint, not a block.
+			p5_segs.append(("✅ " if st_lv >= min_studio5 else "") + "🔬 Studio Lv %d" % min_studio5)
+		var fbname := "Vehicle Assembly Factory"
+		var fb = GameState.campus_buildings.get(fbname, {})
+		var fb_lv = int(fb.get("level", 0)) if fb.get("built", false) else 0
 		if fb_lv < 1:
 			p5_segs.append("then 🏢 a Factory line to build")
 		var lbl_p5 = Label.new()
-		lbl_p5.text = "Required: " + " & ".join(p5_segs)
+		lbl_p5.text = ("Required: " + " & ".join(p5_segs)) if not p5_segs.is_empty() else "Researchable now"
 		lbl_p5.add_theme_font_size_override("font_size", 20)
 		lbl_p5.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		lbl_p5.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1042,6 +1043,8 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 			var lbl_cost = Label.new()
 			lbl_cost.text = "Cost: 🔵 %d RP   💰 CR %s   ⏱ %d wks" % [task["rp"], _fmt(task["cr"]), task["weeks"]]
 			lbl_cost.add_theme_font_size_override("font_size", 20)
+			lbl_cost.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			lbl_cost.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			lbl_cost.add_theme_color_override("font_color", Color(0.6, 0.62, 0.68))
 			vbox.add_child(lbl_cost)
 

@@ -1,7 +1,10 @@
+## Version: S39.4 — Added "📊 Commercial Market" header button → Commercial Department market view.
 ## Version: S37.60 — Bug #38 (multi-driver): readiness requires ALL driver seats filled per car.
 ## Version: S37.31 — Added shared ResourceBar component to the header; refresh hooked into _show_tab so resource changes update immediately.
 ## Version: S37.25 — popup-position: TP-assign popup CENTERED (symmetric ±210, was -250..0).
 extends Control
+## Version: S39.6 — suppressed broken R&D weekly-expense row (R&D is charged upfront; Financial Dept redesign flagged in GDD for the economy session)
+## Version: S39.5 — Commercial Market button inside the Financial Department tab; Car Sales (market) income line; removed overflowing header button
 ## Version: S37.10 — Type-3 sponsor card updated for the ANNUAL commitment model: shows
 ##   "CR X/season × N seasons (total CR Y)" and a clause explaining the per-season payment +
 ##   the one-season repay penalty for skipping the committed championship.
@@ -882,6 +885,15 @@ func _build_sponsors_tab(parent: VBoxContainer) -> void:
 	lbl_rate.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	action_bar.add_child(lbl_rate)
 
+	## S39.5 — Commercial Market access lives INSIDE the Financial Department tab (not the page header,
+	## which overflowed). It's a financial tool: scout the car market and your share/returns.
+	var btn_market = Button.new()
+	btn_market.text = "📊 Commercial Market"
+	btn_market.custom_minimum_size = Vector2(0, 32)
+	btn_market.add_theme_font_size_override("font_size", 22)
+	btn_market.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/buildings/VehicleFactory.tscn"))
+	action_bar.add_child(btn_market)
+
 	parent.add_child(HSeparator.new())
 
 	## ── Top row: Income / Expenses / Indicators ─────────────────────────────
@@ -1032,11 +1044,15 @@ func _build_fin_income() -> PanelContainer:
 		var b = GameState.campus_buildings[bn]
 		if b.get("level",0) > 0: building_w += b.get("weekly_income",0)
 	var prize_est = _estimate_prize()
+	## S39.5 — Commercial car sales (net of marketing), the Factory's contribution. Single source of
+	## truth via GameState.commercial_weekly_net_total(); 0 if no lines / no CFO.
+	var commercial_w = int(GameState.commercial_weekly_net_total())
 	var total = 0
 	for item in [
 		["Race Prizes (est.)", prize_est,  prize_est > 0],
 		["Sponsors (Type 1)",  sponsor_w,  sponsor_w > 0],
 		["Parts Sales",        supply_w,   supply_w > 0],
+		["Car Sales (market)", commercial_w, commercial_w != 0],
 		["Building Income",    building_w, building_w > 0],
 	]:
 		vbox.add_child(_fin_income_row(item[0], item[1], item[2]))
@@ -1067,8 +1083,10 @@ func _build_fin_expenses() -> PanelContainer:
 		var b = GameState.campus_buildings[bn]
 		if b.get("level",0) > 0: maintenance += b.get("weekly_maintenance",0)
 	var rnd_costs = 0
-	for task in GameState.active_rnd_tasks:
-		rnd_costs += int(task.get("cr",0) / max(1, task.get("weeks",1)))
+	## S39.6 — R&D weekly cost suppressed pending the Financial Department redesign (economy session,
+	## flagged in GDD): R&D is charged UPFRONT at task start, not weekly, so there is no recurring R&D
+	## expense to show. The previous row read non-existent keys (cr/weeks) and rendered a misleading
+	## blank. Re-add a correct presentation (committed/remaining or weekly instalments) in that redesign.
 	var loan_payments = 0
 	for ln in GameState.active_loans:
 		loan_payments += int(ln.get("weekly_payment", 0))
@@ -1077,7 +1095,6 @@ func _build_fin_expenses() -> PanelContainer:
 		["Driver Salaries",     driver_sal],
 		["Staff Salaries",      staff_sal],
 		["Maintenance",         maintenance],
-		["R&D Projects",        rnd_costs],
 		["Fuel (est.)",         GameState.player_team_cars.size() * 200],
 		["Loan Repayments",     loan_payments],
 	]:
