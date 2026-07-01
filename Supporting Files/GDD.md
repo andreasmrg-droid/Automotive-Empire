@@ -1,7 +1,24 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v7.6 (consolidated master) · **Engine:** Godot 4.7 / GDScript
-<!-- v7.6: (S40.5–S40.17) R&D ECONOMY, DESIGN-TIME & TAXATION pass. (1) RP faucet re-anchored:
+**Version:** v7.7 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v7.7: (S41.0) AI R&D ECONOMY — PHASE 1 (player-facing prerequisites) + the design spec for the
+	full build (Supporting Files/AI_RnD_Economy_Spec_v2.md — per-AI-team RP ledger, a shared
+	forecast-driven Designer PLANNER, retreat-and-backfill to protect championship integrity, real
+	on-track uplift via the §14 AIChampionshipSim swap-point; the AI CnC manufacture/install/RESALE
+	mirror is the explicitly-scoped NEXT project). Phase 1 code landed: (1) P3 REVERSE ENGINEERING is
+	now offered for ALL parts (spec + open), not spec-only — it was a bug that a team could never RE
+	the open parts of a car it bought; startability is gated at runtime by PROVENANCE (the part must
+	be on a garage car AND bought via the Logistics centre — not one the team already makes in-house).
+	§8 pillar-3 line corrected. (2) WRA submission is a flat 1 week (was a per-tier {1,2,4,5} table).
+	(3) WRA REJECTION is now real and scoped to P2 upgrades ONLY at a 10% chance (P1/P3 are ALWAYS
+	approved — a late rejection of a next-season car would cause a full-season DNS); a rejected P2 is
+	recorded, fires a notification + world news, and costs reputation scaled by championship tier.
+	§11 updated. (4) RP_PER_LAP_BASE is now ACTUALLY 3.0 in RaceSimulator (the v7.6 doc anchored 3.0
+	but the file still held 1.0; reconciled). Files: RnDEngine.gd, RaceSimulator.gd. Analysis-checked
+	(brace-balance + type audit) only; user parses/playtests. AI-side pillars 2–7 of the spec (planning
+	attribute, per-team ledger, RP faucet mirror, planner, retreat/backfill, uplift) are NEXT. -->
+<!-- v7.6: (S40.5–S40.17) R&D ECONOMY, DESIGN-TIME & TAXATION pass — PARSED & PLAYTESTED (confirmed
+	S41.0; the earlier "NOT YET GODOT-PARSED" note is now cleared). (1) RP faucet re-anchored:
 	RaceSimulator RP_PER_LAP_BASE 1.0 → 3.0 — fixes the early-game starve on the everyday P1/P2/P3
 	tree (fresh Studio L2 needed ~3.7 seasons for one P1 tree) without trivialising P4 (median P4 still
 	2–20 seasons, hero 3–95); swept across all pillars, not P4-biased. §8.4 rewritten (the "earned only
@@ -16,7 +33,7 @@
 	(4) P4 effect ACCESSOR LAYER + 4 wired clusters (perf/reliability/fatigue/economy); ~50 effects still
 	banked-unwired. (5) One-Lead-per-team data model completed (staff_designer.json surgery: 172 Leads +
 	100 FAs); R&D Studio shows Lead capacity/comfort. (6) §11 corrected: WRA cycle is PER-GROUP (4–10
-	seasons), not a flat 4 — code was already per-group; doc now matches. NOT YET GODOT-PARSED. -->
+	seasons), not a flat 4 — code was already per-group; doc now matches. [S41.0: parsed & playtested.] -->
 <!-- v7.5: (S40.1) ROADMAP #2 — UI CLICK SOUND DONE. New §17.1 Audio. A `UISound` autoload plays a
 	short click on every BaseButton press across all scenes via a global `node_added` auto-wire (no
 	per-button code). Asset: a cleaned Pixabay "computer mouse click" (universfield) at
@@ -1033,7 +1050,12 @@ The R&D Studio is organised into **5 pillars** (tab bar):
    `bp.season ≤ current_season` (single choke point in `start_cnc_job`, so it also covers
    Build Whole Car). The CNC plant shows each blueprint's target season and locks future cards.
 2. **UPGRADE** — upgrade Open parts on owned cars; in-season improvements carry to next season.
-3. **REV. ENGINEERING** — reverse-engineer Spec parts you own (team must hold the part).
+3. **REV. ENGINEERING** — reverse-engineer parts of a car you race to produce your OWN copy next
+   season instead of re-buying it. Offered for **ALL parts (spec + open)**, but a part is only
+   RE-able if the car in your garage for that championship carries it as a **Logistics-bought
+   (provider/L0) part** — you cannot reverse-engineer a part you already manufacture in your own CNC.
+   (Runtime-gated in `rnd_task_unlocked` by `car_provider_parts` vs `car_installed_parts`; S41.0 —
+   previously the catalog wrongly emitted RE for spec parts only.)
 4. **SPECIAL PROJECTS** — **100** building-linked special projects (the "P4" set). Each is
    gated by a specific building's level (see §10 coupling) and unlocks unique team
    capabilities/bonuses. Each needs a Designer slot + time/credits.
@@ -1094,7 +1116,7 @@ racing-only is kept; instead the per-race faucet was retuned so racing generates
 ```
 RP_gained = laps × RP_PER_LAP_BASE × Studio_Level × (Lead_Overall / 100) × Difficulty
 			(summed across the player's running cars in the raced championship)
-RP_PER_LAP_BASE = 3.0            # was 1.0 — see below
+RP_PER_LAP_BASE = 3.0            # was 1.0 — applied in code S41.0 (v7.6 doc anchored 3.0; file lagged)
 ```
 
 - Requires a built R&D Studio AND a hired **Lead** designer (the team's single highest-overall
@@ -1411,6 +1433,19 @@ PER DISCIPLINE GROUP, not a flat 4** (corrected S40.17 — the code was already 
 knowledge is reset and teams must design a completely new car (a **from-scratch** design year — full
 blueprint weeks, §8.6). New base reliability starts at 60 and climbs +10 each season until the next
 cycle (§5). Seasons within a cycle are **mid-cycle refresh** years (half blueprint weeks, §8.6).
+
+### 11.1 WRA submission & approval (S41.0)
+A designed blueprint becomes a **manufacturing licence** only after WRA approval (§5.2). Rules:
+- **No submission fee** (removed) and a **flat 1-week decision** for every tier (was a per-tier
+  {1,2,4,5} table). The 1-week constant is what the AI planner's "latest safe start" backward-schedule
+  relies on to guarantee a next-season car lands before week 52.
+- **P1 (Design) and P3 (Reverse Engineering) are ALWAYS approved.** A late-season rejection of a
+  next-season car would cause a full-season DNS (no car → no points → attrition out of the
+  championship), so the pinnacle-integrity rule is: the car blueprints never reject.
+- **P2 (Upgrade) blueprints carry a 10% rejection chance.** A rejected P2 is recorded
+  (`wra_rejected_blueprints`), fires a **notification + world news**, and applies a **reputation hit
+  scaled by championship tier** (higher tier = bigger hit; `WRA_REJECT_REP_PER_TIER × tier`). This is
+  the only rejection in the system, by design.
 
 ---
 
