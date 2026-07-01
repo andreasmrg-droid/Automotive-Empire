@@ -1,9 +1,17 @@
 class_name RnDEngine
-## Version: S40.17 — Design-time fix: P1 (and P3 spec) L1 blueprint WEEKS now halve on a mid-cycle
-##   refresh year (P1_REFRESH_WEEKS_MULT=0.5); from-scratch cycle-start years keep full weeks. Added
-##   _wra_group_season_for / _is_from_scratch_design. RP/CR costs unchanged. Guarantees every team can
-##   finish all six L1 blueprints before its championship's registration deadline (verified vs real
-##   budgets: from-scratch ≥7wk slack, mid-cycle ≥17wk). Pairs with GameState EPC/GP1 deadline override.
+## Version: S41.0 — AI R&D ECONOMY, PHASE 1 (player-facing prerequisites). Three changes:
+##   (1) P3 REVERSE ENGINEERING now generated for ALL parts (spec + open), not spec-only — fixes the
+##       bug where a team could never RE the open parts of a bought car. Startability is gated at
+##       runtime in rnd_task_unlocked() by PROVENANCE: the part must be on a garage car for that
+##       championship AND bought via the Logistics centre (in car_provider_parts, not car_installed_
+##       parts) — you can't reverse-engineer a part you already make in-house.
+##   (2) WRA submission is a flat 1 week (was the {1:1,2:2,3:4,4:5} tier table); the planner's
+##       latest-safe-start math depends on this constant.
+##   (3) WRA REJECTION: P2 upgrades carry a 10% rejection chance (P1/P3 always approved). A rejected
+##       P2 is recorded in wra_rejected_blueprints, fires a notification + world news, and costs
+##       reputation scaled by championship tier (WRA_REJECT_REP_PER_TIER × tier).
+##   Pairs with RaceSimulator S41.0 (RP_PER_LAP_BASE 1.0→3.0). Analysis-checked only (brace-balance +
+##   type audit); NOT Godot-parsed. See Supporting Files/AI_RnD_Economy_Spec_v2.md.
 ## Version: S40.13 — P4 EFFECT ACCESSOR LAYER + 4 clusters wired. Added team-aware get_rnd_bonus /
 ##   get_rnd_bonus_sum / as_gain / as_reduction + grouped getters (perf_bonus, reliability_bonus,
 ##   fatigue_bonus, economy_*). Wired: PERFORMANCE→lap time, RELIABILITY→condition loss,
@@ -278,20 +286,26 @@ func _build_rnd_tasks_for_season(season: int) -> Dictionary:
 					tasks[upg_id] = entry
 					prev_id = upg_id
 
-			# P3: Reverse Engineering — Spec parts only, always L1. NEXT season's part.
-			if is_spec:
-				var p3b = PART_BASE_P3[part]
-				var re_id = "RE-%s-%s-S%s-L1" % [code, pcode, ns]
-				## S40.17 — same from-scratch vs mid-cycle refresh weeks discount as P1 L1: a spec part's
-				## RE is the L1-equivalent, so it must also fit the registration budget mid-cycle.
-				var re_wk_mult := 1.0 if _is_from_scratch_design(cid, design_season) else P1_REFRESH_WEEKS_MULT
-				tasks[re_id] = {
-					"name": "%s — %s S%s RE L1" % [champ_name, part, ns],
-					"pillar":3,"part":part,"part_code":pcode,"championship_id":cid,
-					"season":design_season,"level":1,"blueprint_id":re_id,
-					"weeks":max(1,int(p3b[0]*tier_mult*re_wk_mult)),"rp":int(p3b[1]*tier_mult),
-					"cr":int(p3b[2]*tier_mult),"effect":p3b[3],"value":p3b[4],
-				}
+			# P3: Reverse Engineering — ALL parts (spec + open), always L1. NEXT season's part.
+			## S41.0 — BUGFIX: RE was generated only for spec parts (`if is_spec:`), so a team could
+			## never reverse-engineer the OPEN parts of a car it bought. P3's purpose is to let a team
+			## produce its OWN car next season instead of re-buying it, which must cover every part.
+			## The catalog now emits an RE task for all six parts; whether a given RE is actually
+			## STARTABLE is gated at runtime in rnd_task_unlocked() by part PROVENANCE (the part must be
+			## on the garage car AND bought via the Logistics centre — you can't RE a part you already
+			## make in-house). PART_BASE_P3 has an entry for every part, so no cost fallback is needed.
+			var p3b = PART_BASE_P3[part]
+			var re_id = "RE-%s-%s-S%s-L1" % [code, pcode, ns]
+			## S40.17 — same from-scratch vs mid-cycle refresh weeks discount as P1 L1: an RE is the
+			## L1-equivalent, so it must also fit the registration budget mid-cycle.
+			var re_wk_mult := 1.0 if _is_from_scratch_design(cid, design_season) else P1_REFRESH_WEEKS_MULT
+			tasks[re_id] = {
+				"name": "%s — %s S%s RE L1" % [champ_name, part, ns],
+				"pillar":3,"part":part,"part_code":pcode,"championship_id":cid,
+				"season":design_season,"level":1,"blueprint_id":re_id,
+				"weeks":max(1,int(p3b[0]*tier_mult*re_wk_mult)),"rp":int(p3b[1]*tier_mult),
+				"cr":int(p3b[2]*tier_mult),"effect":p3b[3],"value":p3b[4],
+			}
 
 	# P4: Special Projects — not season-specific
 	var p4: Dictionary = {
@@ -914,8 +928,27 @@ func rnd_task_unlocked(task_id: String) -> bool:
 		var min_studio5 = int(task.get("Required_RnD_Studio_Level", 1))
 		if min_studio5 > 1:
 			var studio5 = gs.campus_buildings.get("R&D Design Studio", {})
-			if not studio5.get("built", false) or int(studio5.get("level", 0)) < min_studio5:
-				return false
+	## S41.0 — P3 (Reverse Engineering) PROVENANCE GATE. RE is offered in the catalog for all parts,
+	## but you can only reverse-engineer a part that is (a) on a car currently in the garage for this
+	## championship and (b) BOUGHT via the Logistics centre (a provider/L0 part) — NOT a part the team
+	## already manufactures in its own CNC. So the task unlocks only if the garage car has this part in
+	## car_provider_parts and NOT in car_installed_parts. Team-aware from the start via get_cars_for_team.
+	if task.get("pillar", 0) == 3:
+		var p3_cid: String = task.get("championship_id", "")
+		var p3_pcode: String = task.get("part_code", "")
+		if p3_cid == "" or p3_pcode == "":
+			return false
+		var found_bought := false
+		for car in gs.get_cars_for_team(gs.player_team):
+			if car.championship_id != p3_cid:
+				continue
+			var provider: Dictionary = gs.car_provider_parts.get(car.id, {})
+			var installed: Dictionary = gs.car_installed_parts.get(car.id, {})
+			if p3_pcode in provider and not p3_pcode in installed:
+				found_bought = true
+				break
+		if not found_bought:
+			return false
 	return true
 
 ## S35.11 — True if a completed L1 (level==1, pillar 1 or 3) blueprint exists matching the
@@ -1547,22 +1580,53 @@ func get_rnd_rp_storage_cap() -> int:
 	return max(floor_cap, dyn_cap)
 
 
+## S41.0 — WRA rejection. Submissions decide when their (1-week, flat) timer elapses. P1/P3 blueprints
+## are ALWAYS approved — a late rejection of a next-season car would cause a full-season DNS. P2
+## upgrades carry a 10% rejection chance; a rejected P2 is recorded, fires a notification + world news,
+## and costs the team reputation (scaled by championship tier — a botched pinnacle upgrade stings more).
+const WRA_P2_REJECT_CHANCE := 0.10
+const WRA_REJECT_REP_PER_TIER := 0.5
+
 func _advance_wra_submissions() -> void:
-	var approved: Array = []
+	var decided: Array = []
 	for sub in gs.active_wra_submissions:
 		sub.weeks_remaining -= 1
 		if sub.weeks_remaining <= 0:
-			approved.append(sub)
-	for sub in approved:
+			decided.append(sub)
+	for sub in decided:
 		gs.active_wra_submissions.erase(sub)
+		var bp = gs.known_blueprints.get(sub.blueprint_id, {})
+		var pillar := int(sub.get("pillar", 1))
+		## P2-only rejection roll; P1/P3 never rejected.
+		var rejected := pillar == 2 and randf() < WRA_P2_REJECT_CHANCE
+		if rejected:
+			gs.wra_rejected_blueprints.append({
+				"blueprint_id":    sub.blueprint_id,
+				"championship_id": sub.championship_id,
+				"pillar":          pillar,
+				"rejected_season": gs.current_season,
+				"rejected_week":   gs.current_week,
+			})
+			## Reputation hit scaled by championship tier (higher tier = bigger hit).
+			var tier := _get_championship_tier(sub.get("championship_id", ""))
+			var rep_hit := WRA_REJECT_REP_PER_TIER * float(tier)
+			if gs.player_team != null:
+				gs.player_team.reputation = max(0.0, gs.player_team.reputation - rep_hit)
+			var bp_name: String = bp.get("name", sub.blueprint_id)
+			gs.add_log("❌ WRA REJECTED: %s (−%.1f rep)." % [bp_name, rep_hit])
+			gs.notify_event("wra_rejected_%s" % sub.blueprint_id, "High",
+				"❌ WRA rejected your upgrade '%s'. Reputation took a hit (−%.1f)." % [bp_name, rep_hit],
+				"wra_office", "event")
+			gs.log_news("❌ WRA rejected %s's upgrade '%s'." % [
+				gs.player_team_name if gs.player_team != null else "a team", bp_name])
+			continue
 		gs.wra_approved_blueprints.append({
 			"blueprint_id":    sub.blueprint_id,
 			"championship_id": sub.championship_id,
-			"pillar":          sub.pillar,
+			"pillar":          pillar,
 			"approved_season": gs.current_season,
 			"approved_week":   gs.current_week,
 		})
-		var bp = gs.known_blueprints.get(sub.blueprint_id, {})
 		gs.add_log("✅ WRA approved: %s" % bp.get("name", sub.blueprint_id))
 		## S37.41 — WRA approval is ACTIONABLE: notification routes to the CNC Plant (not just WRA),
 		## and the persistent "queue manufacturing" TDL (NotificationManager) covers the chore.
@@ -1580,7 +1644,10 @@ func submit_to_wra(blueprint_id: String) -> bool:
 	var bp = gs.known_blueprints[blueprint_id]
 	var cid = bp.get("championship_id", "")
 	var tier = _get_championship_tier(cid)
-	var weeks = {1:1,2:2,3:4,4:5}.get(tier, 1)
+	## S41.0 — WRA decision is a flat 1 week for every tier (was the {1:1,2:2,3:4,4:5} tier table).
+	## The planner's latest-safe-start math relies on this single constant. tier is still stored (the
+	## P2 rejection rep-hit and future logic read it).
+	var weeks = 1
 	gs.active_wra_submissions.append({
 		"blueprint_id":    blueprint_id,
 		"championship_id": cid,
@@ -1590,10 +1657,10 @@ func submit_to_wra(blueprint_id: String) -> bool:
 		"weeks_remaining": weeks,
 		"tier":            tier,
 	})
-	gs.add_log("📋 WRA submission: %s. Decision in %d weeks." % [
+	gs.add_log("📋 WRA submission: %s. Decision in %d week." % [
 		bp.get("name", blueprint_id), weeks])
 	gs.notify_event("wra_submitted_%s" % blueprint_id, "Normal",
-		"Blueprint submitted to WRA: '%s'. Decision in %d weeks." % [
+		"Blueprint submitted to WRA: '%s'. Decision in %d week." % [
 			bp.get("name", blueprint_id), weeks], "", "event")
 	gs.emit_signal("log_updated")
 	return true

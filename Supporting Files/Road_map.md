@@ -18,7 +18,7 @@ Stock market
 Financial Department indexes
 Apply the RnD P4 boosts
 Investigation of all the attributes of staff/drivers/cars and how they interact, is anything not in the code, do we need anything else?
-AI teams behavior
+AI teams behavior (All the AI related formulas will follow the behavioral rule of Survive. Settle.Develop. Establish. Conquer. In every formula we must identify where each stage sets and define the behavior, remember the AI RnD discussion about the Pillars). 
 News System and Fans (Implementation of the Soundwave effect)
 Hall of Fame
 History Book

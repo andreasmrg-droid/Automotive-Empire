@@ -1,6 +1,6 @@
 # Automotive Empire — Architecture Map (read-order for session start)
 
-> **Purpose:** this file exists so every chat can orient in minutes instead of re-deriving the codebase. Read this FIRST, then the files in the "Core read-set" below, then the GDD (`Supporting Files/GDDv7.5.md`). Generated from a full-tree survey; regenerate if the structure shifts materially.
+> **Purpose:** this file exists so every chat can orient in minutes instead of re-deriving the codebase. Read this FIRST, then the files in the "Core read-set" below, then the GDD (`Supporting Files/GDD.md`). Generated from a full-tree survey; regenerate if the structure shifts materially.
 >
 > **Engine:** Godot 4.7 / GDScript. **71 `.gd` files, ~45,000 LOC.** Architecture per GDD §2: pure `RefCounted` engine classes hold the logic (headless-testable), kept out of UI. `GameState` is the hub everything delegates through.
 

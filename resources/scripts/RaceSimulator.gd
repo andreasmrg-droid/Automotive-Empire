@@ -1,4 +1,8 @@
 class_name RaceSimulator
+## Version: S41.0 — RP_PER_LAP_BASE 1.0 → 3.0 (the everyday-tree faucet retune GDD §8.4 documents;
+##   the file had lagged the doc). A fresh Studio L2 now affords the everyday P1/P2/P3 tree within a
+##   season without trivialising P4. Applies to AI teams too once they share this faucet (AI R&D
+##   economy, later phases). Analysis-checked only; NOT Godot-parsed.
 ## Version: S40.13 — P4 effects wired: PERFORMANCE cluster (perf_bonus) improves lap time; RELIABILITY
 ##   cluster reduces player car condition loss; FATIGUE cluster (+ Fitness Clinic base) cuts in-race
 ##   fitness drop for player drivers.
@@ -767,7 +771,7 @@ func consume_race_resources(champ: Championship = null) -> void:
 ## model). Both inputs matter: a bigger Studio and a better Lead each raise RP income. RP_PER_LAP_BASE
 ## is the single faucet knob for the pending RP-economy balance pass.
 ##   rp_gained = laps × RP_PER_LAP_BASE × studio_level × (lead_overall / 100) × difficulty_mult
-const RP_PER_LAP_BASE := 1.0
+const RP_PER_LAP_BASE := 3.0
 
 func earn_race_rp(laps: int) -> void:
 	if laps <= 0:
