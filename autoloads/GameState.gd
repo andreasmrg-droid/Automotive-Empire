@@ -1,3 +1,8 @@
+## Version: S41.6 — AI R&D ECONOMY, PHASE 5 (planner call site). advance_week now invokes
+##   _lead_designer_engine.ai_fill_design_lines_all_teams() each week after the race loop (RP just
+##   earned) and BEFORE the pending-results early-return, so the AI planner runs every week regardless
+##   of a player result screen. Engine logic lives in LeadDesignerProposalEngine S41.6. Player R&D path
+##   unchanged. Analysis-checked; NOT Godot-parsed.
 ## Version: S41.5 — LOAD-PATH ENGINE SYMMETRY FIX. load_game() re-instantiated only 8 of the 16 engine
 ##   singletons; it now also re-inits the 6 that were relying on _ready()/prior-session instances
 ##   (_sponsor_manager, _staff_manager, _car_manager, _driver_manager, _tp_engine,
@@ -4317,6 +4322,15 @@ func advance_week() -> void:
 		notify_event("reg_deadline_all", "High",
 			"⚠ Championship registration closes this week or next for: %s. Register at HQ → WRA." % list_txt,
 			"hq", "standing")
+
+	## S41.6 — AI R&D PLANNER (Phase 5). After the race loop (AI teams have just earned this week's RP
+	## via the faucet), run the forecast-driven planner so each AI team SPENDS its banked RP: P2 upgrades
+	## on the current car until the next-season car's latest-safe-start week, then P1/P3 for that car,
+	## feasibility-gated. Placed BEFORE the pending-results early-return below so it runs every week even
+	## when a player race result interrupts advance_week. Debug-logged only ([AIPlan] …), never player
+	## news, per design owner. Player R&D stays proposal-driven (unchanged).
+	if _lead_designer_engine != null:
+		_lead_designer_engine.ai_fill_design_lines_all_teams()
 
 	## After all races processed this week — show first result screen
 	if not _pending_race_results.is_empty():

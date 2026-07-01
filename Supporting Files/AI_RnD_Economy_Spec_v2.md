@@ -295,8 +295,14 @@ ends a season boundary registered in a championship with zero fielded cars.
    Faucet decoupled from `_lead_designer_engine` (resolves the AI Lead inline). Analysis-checked; NOT
    Godot-parsed. NOTE flagged: `load_game` doesn't re-init several engine singletons (pre-existing) —
    fix in its own pass.
-5. **The planner** (§6): forecast + backward-schedule + feasibility, in LeadDesignerProposalEngine;
-   activate `ai_fill_design_lines_all_teams` to apply it; wire player proposals to the same function.
+5. **✅ DONE (S41.6)** — **The planner** (§6): forecast (calendar-walk × faucet) + latest-safe-start
+   backward-schedule + feasibility gate, in LeadDesignerProposalEngine; `ai_fill_design_lines_all_teams`
+   activated and wired into the weekly heartbeat (advance_week). P2-now → P1/P3-at-safe-start; per-part
+   P3-vs-P1 survival-first, upgrade-on-surplus. SCOPE NOTES (owner decisions this build): P4/P5 kept
+   INERT (spec-literal); "safeguard participation" = the FEASIBILITY GATE only (full retreat/backfill
+   stays step 6); AI cars are free-granted so research = on-track uplift, with buy-vs-build left as the
+   `_cnc_buy_vs_build_hook` seam for the AI-CnC project. Debug-log only, no player news. Player-proposal
+   parity via compute_design_queue retained. Analysis-checked; NOT Godot-parsed.
 6. **Retreat & backfill** (§7) in SeasonManager + news.
 7. **On-track uplift** (§8) — `perf_bonus` factor into `car_strength`.
 

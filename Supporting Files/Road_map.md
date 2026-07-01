@@ -1,6 +1,7 @@
 Commercial market news | Completed!
 Click sound | Completed!
 Redesign of the Designers
+BUG REPORT — Driver & Staff Pool Depletion
 Complete the CNC Market
 Apply the RnD P4 boosts
 Bankruptcy 

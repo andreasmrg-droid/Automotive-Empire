@@ -1,6 +1,19 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v7.10 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+**Version:** v7.11 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v7.11: (S41.6) AI R&D ECONOMY — PHASE 5 (THE PLANNER). Activates the forecast-driven scheduler in
+	LeadDesignerProposalEngine that SPENDS AI teams' banked RP, run every week from advance_week (after
+	the race loop). Per team: computes the next-season car's latest-safe-start week; before it fills idle
+	lines with surplus-gated P2 upgrades; at it switches to the 6-part P1/P3 next-season car; a
+	FEASIBILITY GATE holds a team on its granted baseline rather than over-committing if the RP forecast
+	can't land the car by deadline (full retreat/backfill = step 6). Per-part P3-vs-P1 is survival-first
+	(P3 where Logistics-provenance allows, else P1) with P3→P1 upgrades on forecast surplus; the Lead's
+	`planning` attribute modulates the safe-start buffer. P4/P5 stay inert (future AI ladder). ECONOMICS:
+	AI cars are free-granted today so the research reads as on-track UPLIFT; the per-part decision is
+	built forward-compatibly and the NEXT project (AI CnC) attaches buy-vs-build + part RESALE at
+	_cnc_buy_vs_build_hook WITHOUT rewriting the planner. Debug-log only ([AIPlan] …), no player news, per
+	owner. §13.3 updated. Files: LeadDesignerProposalEngine.gd, GameState.gd. Analysis-checked
+	(brace-balance + type audit; cross-file arg-count + method-existence verified); user parses/playtests. -->
 <!-- v7.10: (S41.5) LOAD-PATH ENGINE SYMMETRY FIX (resolves the v7.9 flagged item). load_game() now
 	re-instantiates all 6 previously-missing engine singletons (_sponsor_manager, _staff_manager,
 	_car_manager, _driver_manager, _tp_engine, _lead_designer_engine), matching _ready/setup_new_game.
@@ -1731,11 +1744,15 @@ the behaviour that makes it visible arrives in the remaining steps of `AI_RnD_Ec
   team's `rnd_ledger.rp` and capped by the team-aware storage cap. Studio level is seeded from
   `teams.json` (clamped to the player's 1..27 scale); the Lead is the team's highest-overall Designer;
   the difficulty knob is `ai_performance`. Fills ledgers only — spending awaits the planner below.
-- **Planner (§6):** a shared forecast+schedule function (in `LeadDesignerProposalEngine`) that predicts
-  each team's RP curve, backward-schedules the next-season car to a "latest safe start" week, and
-  sequences P2-now vs P1/P3-later — the player consumes it as Lead-Designer proposals, the AI applies it
-  directly. Governed by the new `planning` Designer attribute (§9-F). P4/P5 remain inert seams driven
-  later by the ladder state machine.
+- **Planner (§6) — LANDED S41.6:** a forecast-driven scheduler in `LeadDesignerProposalEngine`, run
+  weekly from `advance_week`. It walks the remaining calendar × the faucet to forecast RP, computes the
+  next-season car's latest-safe-start week (minus a low-`planning` buffer), fills idle lines with
+  surplus-gated P2 until then, switches to the 6-part P1/P3 car at the safe week, and feasibility-gates
+  (a team that can't finish its car in time holds its granted baseline rather than over-committing —
+  full retreat/backfill is step 6). Per-part P3-vs-P1 is survival-first (cheap P3 where Logistics
+  provenance allows, else P1), upgrading P3→P1 only on fat forecast surplus. P4/P5 stay inert seams for
+  the AI ladder session. The per-part decision is the seam the AI-CnC project attaches buy-vs-build to
+  (`_cnc_buy_vs_build_hook`). AI R&D is debug-logged only, never player news.
 - **Retreat & backfill (§7):** if a team's forecast can't finish next season's car in time it withdraws
   and retreats to a lighter championship rather than DNS-ing; a neighbouring team is fake-boosted only if
   the withdrawal would drop the championship below minimum participation. Every such event is world news.
