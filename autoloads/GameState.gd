@@ -1,3 +1,17 @@
+## Version: S41.7 — CRITICAL LOAD-PATH FIX: ai_cars now SAVED + RESTORED. Root cause of a dead AI world
+##   after any save/reload: ai_cars (the {champ_id → [Car]} dict linking every AI team to its
+##   championships) was never serialised and never rebuilt on load. On a loaded save it stayed empty,
+##   so get_cars_for_team(ai_team) returned [] → _team_championships() returned [] → the whole AI R&D
+##   planner early-outs "no_championships=172" every week (confirmed in the S5 loaded-save playtest),
+##   AND AIChampionshipSim.simulate_round (which also reads ai_cars) stops awarding AI standings. FIX:
+##   (1) save_game writes "ai_cars" via new _serialize_ai_cars() (mirrors _serialize_cars, keyed by
+##   championship). (2) load_game restores it via _deserialize_ai_cars() right after the player cars.
+##   Preserves EXACT mid-season car state (condition, part_conditions, seats, telemetry) per owner
+##   decision — verbatim serialise, not a re-seed. OLD SAVES: no "ai_cars" key → ai_cars stays empty
+##   (unchanged pre-fix behaviour) and self-heals at the next season rollover (SeasonManager rebuilds
+##   ai_cars via load_car_assignments); a one-line warning is logged. Player car path untouched.
+##   Analysis-checked (brace-balance + type audit); NOT Godot-parsed — verify by save→reload→advance and
+##   confirm [AIPlanDiag] shows reached_planner instead of no_championships.
 ## Version: S41.6 — AI R&D ECONOMY, PHASE 5 (planner call site). advance_week now invokes
 ##   _lead_designer_engine.ai_fill_design_lines_all_teams() each week after the race loop (RP just
 ##   earned) and BEFORE the pending-results early-return, so the AI planner runs every week regardless
@@ -4760,6 +4774,9 @@ func save_game() -> void:
 		"car_provider_parts":   car_provider_parts,
 		"research_points":      research_points,
 		"player_team_cars": _serialize_cars(),
+		## S41.7 — persist the AI car world (the {champ_id → [Car]} dict). Previously UNSAVED, so every
+		## AI team lost its car↔championship link on reload, killing the AI R&D economy + AI standings.
+		"ai_cars": _serialize_ai_cars(),
 		"all_staff": _serialize_staff(),
 		"walked_away_subjects":      walked_away_subjects,
 		"team_refused_subjects":     team_refused_subjects,
@@ -5103,6 +5120,17 @@ func load_game(path: String = "user://save_game.json") -> void:
 	else:
 		_setup_cars()  # backwards compat
 
+	## S41.7 — restore the AI car world. New saves carry "ai_cars"; without it the AI R&D economy +
+	## AI standings are dead on this loaded save (get_cars_for_team returns [] for every AI team). Old
+	## saves have no key → ai_cars stays empty (pre-fix behaviour) and self-heals at the next season
+	## rollover, which rebuilds ai_cars via SeasonManager.load_car_assignments. Restored AFTER teams +
+	## drivers so the seated driver_ids on each car resolve against the loaded rosters.
+	if "ai_cars" in data:
+		_deserialize_ai_cars(data["ai_cars"])
+	else:
+		ai_cars = {}
+		add_log("⚠ Old save without AI car data — the AI world repopulates at the next season rollover.")
+
 	# Restore staff
 	if "all_staff" in data:
 		_deserialize_staff(data["all_staff"])
@@ -5233,6 +5261,86 @@ func _deserialize_cars(data_array: Array) -> void:
 		car.delivery_week = cd.get("delivery_week", 0)
 		car.acquisition   = cd.get("acquisition", "delivered")
 		player_team_cars.append(car)
+
+## ── S41.7 — AI car world save/load ───────────────────────────────────────────
+## ai_cars is a Dictionary { championship_id : Array[Car] }. It links every AI team to the
+## championships it races (get_cars_for_team scans it), and AIChampionshipSim reads it to award AI
+## standings. It was never persisted, so a loaded save had it empty → the AI R&D economy + AI standings
+## were dead until the next season rollover. We serialise it VERBATIM (same field set as the player
+## cars — see _car_to_dict) so mid-season condition/parts survive a reload exactly (owner decision B).
+
+## Single-car → JSON dict. The canonical field set (mirrors the inline player _serialize_cars body so
+## the two paths never drift). driver_id is written for pre-S37.60 back-compat readers; driver_ids is
+## the authoritative seat array.
+func _car_to_dict(car) -> Dictionary:
+	return {
+		"id": car.id, "car_type_id": car.car_type_id,
+		"championship_id": car.championship_id, "car_number": car.car_number,
+		"car_name": car.car_name,
+		"driver_ids": car.driver_ids.duplicate(), "driver_id": car.driver_id,
+		"mechanic_id": car.mechanic_id, "pit_crew_id": car.pit_crew_id,
+		"condition": car.condition, "part_conditions": car.part_conditions.duplicate(),
+		"top_speed": car.top_speed, "acceleration": car.acceleration,
+		"deceleration": car.deceleration, "cornering_grip": car.cornering_grip,
+		"fuel_consumption_per_km": car.fuel_consumption_per_km,
+		"tire_wear_rate": car.tire_wear_rate,
+		"baseline_performance_index": car.baseline_performance_index,
+		"delivered": car.delivered, "delivery_week": car.delivery_week,
+		"acquisition": car.acquisition,
+	}
+
+## JSON dict → single Car. Mirrors _deserialize_cars' per-car restore, incl. the S37.60 seat migration
+## (new saves carry driver_ids; a legacy scalar driver_id is migrated onto seat 0).
+func _car_from_dict(cd: Dictionary) -> Car:
+	var car = Car.new()
+	car.id = cd["id"]
+	car.car_type_id = cd["car_type_id"]
+	car.championship_id = cd["championship_id"]
+	car.car_number = cd["car_number"]
+	car.car_name = cd.get("car_name", "")
+	var _seats := get_drivers_per_car(cd.get("championship_id", car.championship_id))
+	if cd.has("driver_ids") and cd["driver_ids"] is Array:
+		car.driver_ids = (cd["driver_ids"] as Array).duplicate()
+		car.set_seat_count(max(_seats, car.driver_ids.size()))
+	else:
+		car._migrate_legacy_driver(cd.get("driver_id", ""), _seats)
+	car.mechanic_id = cd["mechanic_id"]
+	car.pit_crew_id = cd["pit_crew_id"]
+	car.condition = cd["condition"]
+	car.part_conditions = cd["part_conditions"]
+	car.top_speed = cd["top_speed"]
+	car.acceleration = cd["acceleration"]
+	car.deceleration = cd["deceleration"]
+	car.cornering_grip = cd["cornering_grip"]
+	car.fuel_consumption_per_km = cd["fuel_consumption_per_km"]
+	car.tire_wear_rate = cd["tire_wear_rate"]
+	car.baseline_performance_index = cd["baseline_performance_index"]
+	car.delivered     = cd.get("delivered", true)
+	car.delivery_week = cd.get("delivery_week", 0)
+	car.acquisition   = cd.get("acquisition", "delivered")
+	return car
+
+## ai_cars → { championship_id : Array[dict] }, JSON-safe.
+func _serialize_ai_cars() -> Dictionary:
+	var out: Dictionary = {}
+	for cid in ai_cars:
+		var arr: Array = []
+		for car in ai_cars[cid]:
+			if car == null:
+				continue
+			arr.append(_car_to_dict(car))
+		out[cid] = arr
+	return out
+
+## Restore ai_cars from the serialised dict, rebuilding real Car objects keyed by championship.
+func _deserialize_ai_cars(data_dict: Dictionary) -> void:
+	ai_cars = {}
+	for cid in data_dict:
+		var arr: Array = []
+		for cd in data_dict[cid]:
+			if cd is Dictionary:
+				arr.append(_car_from_dict(cd))
+		ai_cars[cid] = arr
 
 func _serialize_staff() -> Dictionary:
 	var result = {}
