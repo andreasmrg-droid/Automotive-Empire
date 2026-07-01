@@ -1,6 +1,22 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v7.5 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+**Version:** v7.6 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v7.6: (S40.5–S40.17) R&D ECONOMY, DESIGN-TIME & TAXATION pass. (1) RP faucet re-anchored:
+	RaceSimulator RP_PER_LAP_BASE 1.0 → 3.0 — fixes the early-game starve on the everyday P1/P2/P3
+	tree (fresh Studio L2 needed ~3.7 seasons for one P1 tree) without trivialising P4 (median P4 still
+	2–20 seasons, hero 3–95); swept across all pillars, not P4-biased. §8.4 rewritten (the "earned only
+	by racing / baseline RP undecided" open question is now RESOLVED — racing-only stays, faucet retuned).
+	(2) DESIGN-TIME fix: P1 (and P3-spec) L1 blueprint WEEKS halve on a mid-cycle refresh year
+	(P1_REFRESH_WEEKS_MULT 0.5); from-scratch cycle-start years keep full weeks; RP/CR cost unchanged.
+	Guarantees every team finishes 6 L1 blueprints before its registration deadline (verified vs real
+	budgets). EPC (C-020) & GP1 (C-024) get a registration-deadline override to week 31 so their
+	from-scratch pinnacle car fits one season (CNC manufacture time untouched — deadline decoupled).
+	New §8.6. (3) CORPORATE TAX added (§3 + new §24): 24% base on season profit, CFO-reduced toward a 15%
+	floor, minus P4 tax_reduction; deducted at season end with a notification; shown in HQ Financial Dept.
+	(4) P4 effect ACCESSOR LAYER + 4 wired clusters (perf/reliability/fatigue/economy); ~50 effects still
+	banked-unwired. (5) One-Lead-per-team data model completed (staff_designer.json surgery: 172 Leads +
+	100 FAs); R&D Studio shows Lead capacity/comfort. (6) §11 corrected: WRA cycle is PER-GROUP (4–10
+	seasons), not a flat 4 — code was already per-group; doc now matches. NOT YET GODOT-PARSED. -->
 <!-- v7.5: (S40.1) ROADMAP #2 — UI CLICK SOUND DONE. New §17.1 Audio. A `UISound` autoload plays a
 	short click on every BaseButton press across all scenes via a global `node_added` auto-wire (no
 	per-button code). Asset: a cleaned Pixabay "computer mouse click" (universfield) at
@@ -228,7 +244,7 @@
 	 dual-ledger promotion, B-before-E fix, GK-as-sole-generation-source, Stage-E archive write. -->
 <!-- v5.2: §12-A canonical approach flow (interest→bond→contract), release-clause vs buyout-bond
 	 distinction, TP/CFO role split, join-date bond calc, immediate-transfer 1.5×+25% fee. -->
-**Last updated:** 2026-06-24 · **Repo:** https://github.com/andreasmrg-droid/Automotive-Empire.git
+**Last updated:** 2026-07-01 · **Repo:** https://github.com/andreasmrg-droid/Automotive-Empire.git
 
 > This is the single source of truth for the design of Automotive Empire. All prior
 > session-handoff notes and manual "latest update" appendices have been absorbed into
@@ -403,6 +419,10 @@ stat (§9-E).
 **Fuel contracts & price fluctuation:** fuel price fluctuates weekly on global economy events.
 Teams can lock multi-week contracts at the current price to hedge. Base fuel consumption
 differs per championship (Cars sheet).
+
+**Corporate tax (S40.14):** the `Taxes` term is a **seasonal** charge, not weekly — corporate tax on
+the season's net profit, deducted once at season end (not in the weekly cycle). See §24 for the rate
+formula, the CFO's role, and the season-profit basis.
 
 **Living fuel price (S35.3):** the per-kg cost the player actually pays is
 `BASE (CR 2.0/kg) × Fuel_Price_Multiplier`, where the multiplier is economy-driven within the
@@ -1063,14 +1083,33 @@ championship — both manufactured CNC parts (`cnc_parts_inventory`) and provide
 the Logistics warehouse (`part_inventory`, via `get_part_stock`) — with a Source column
 (CNC / Provider). Empty part slots read "L0".
 
-### 8.4 Research Points (RP) — earned only by racing  *(design note — under review)*
+### 8.4 Research Points (RP) — earned by racing, faucet re-anchored (S40.16)
 
-RP is currently earned in exactly one place: after a race (`RaceSimulator.earn_race_rp`). There is
-**no** baseline weekly RP income from the Studio or idle designers. Consequence: a team cannot
-research anything until it has raced at least once (RP starts at 0). The catalog now always shows
-the Assign row with disabled buttons + a reason ("need N RP (have 0)") so this gate is legible
-rather than appearing broken. **Open question:** whether to add a small baseline weekly RP from
-the R&D facility / designers so development can happen between races. Not yet decided.
+RP is earned in exactly one place: after a race (`RaceSimulator.earn_race_rp`). There is **no**
+baseline weekly RP income from the Studio or idle designers — a team must race to develop (RP starts
+at 0; the catalog shows the Assign row with disabled buttons + a reason, "need N RP (have 0)", so the
+gate is legible). *The earlier open question — whether to add a baseline weekly RP — is RESOLVED:
+racing-only is kept; instead the per-race faucet was retuned so racing generates enough.*
+
+```
+RP_gained = laps × RP_PER_LAP_BASE × Studio_Level × (Lead_Overall / 100) × Difficulty
+			(summed across the player's running cars in the raced championship)
+RP_PER_LAP_BASE = 3.0            # was 1.0 — see below
+```
+
+- Requires a built R&D Studio AND a hired **Lead** designer (the team's single highest-overall
+designer — one-Lead-per-team model, S40.4). No Studio or no Lead → no RP. This replaced the old
+"sum of every hired designer's skill" (which rewarded stacking designers).
+- **Why 3.0 (S40.16):** the old 1.0 starved the early game — a fresh Studio L2 needed ~3.7 seasons of
+racing to afford a single P1 blueprint tree, so R&D was effectively frozen for new players. Swept
+1.0/2.0/3.0/4.0 across **all** pillars; 3.0 makes the everyday P1/P2/P3 tree affordable within a
+season (early L2: single P2 part ~0.6 season, full P1 tree ~1.2) **without** trivialising P4 (median
+P4 stays 2–20 seasons, hero 3–95 across the game). 4.0 overshot. The retune deliberately targeted the
+everyday tree, NOT P4 affordability.
+- **Combined check:** a tier-appropriate team covers its full seasonal R&D bill (design next-season
+car via P1/P3 + upgrade current car via P2) in under one season, with surplus banking toward the
+occasional P4 splurge.
+- RP is capped by the dynamic storage cap (§4.8 "Dynamic RP storage cap" / `get_rnd_rp_storage_cap`).
 
 ### 8.5 R&D Studio — Pillar 4 gating, requirement display & UI (S35.16–S35.21)
 
@@ -1092,12 +1131,37 @@ message; when building/studio level is the sole blocker the amber Required line 
 never read the selected championship, and Pillar 4 is champ-agnostic — so the tabs did nothing on
 those pillars and were removed there.
 
-**Scrolling.** The catalog (centre) and Blueprint Status (right) columns each scroll via a shared
-`_make_scroll_column(stretch, min_w)` helper mirroring the CNC Plant's, with a right-side
-`MarginContainer` gutter so the vertical scrollbar always has a clear lane (it was previously drawn
-under full-width content and appeared missing). The same gutter convention was applied to CNC Plant.
+### 8.6 Blueprint design time — from-scratch vs mid-cycle refresh (S40.17)
 
----
+The season loop's continuity guarantee: **every participating team can design its next-season car in
+time to register.** P1 (Design) and P3 (Reverse Engineering) build **next** season's car (stamped
+`design_season = season + 1`); P2 (Upgrade) improves the **current** season's car.
+
+- **L1 blueprint weeks** = `base_weeks × tier_mult × refresh_mult`, where `tier_mult = 1 + (tier−1)×0.5`
+and `refresh_mult` = **1.0** on a from-scratch year (the start of that championship's WRA cycle — a new
+team's first season or the first season after a regulation reset) or **0.5** mid-cycle. **Only WEEKS get
+the discount — RP/CR cost is unchanged**, so tier still makes cars expensive, just not
+un-buildable-in-time. From-scratch vs mid-cycle is detected per championship via
+`RnDEngine._is_from_scratch_design(cid, design_season)` (cycle position; per-group cycle length 4–10, §11).
+- **Why:** the un-discounted weeks made a full car un-designable within a season at high tiers — the
+Chassis L1+L2 chain alone reached 60 weeks at tier 4 (Chassis has the highest base design-weeks, 8; RP
+was never the constraint, *time* was). The mid-cycle halving fixes this while keeping from-scratch years
+appropriately heavy.
+- **Registration budget** for a championship = `52 − CNC design_weeks − 1`, **except** EPC Hyper League
+(C-020) and GP1 (C-024): their long CNC manufacture lead times left too little design runway, so they use
+a fixed **registration-deadline override to week 31** (a 20-week design window). Their CNC manufacture
+time is unchanged — the registration deadline is decoupled from the manufacturing lead time for these two.
+- **Verified** against every championship's real budget: from-scratch fits with ≥7 weeks slack, mid-cycle
+refresh with ≥17 weeks slack (the headroom that lets strong teams also push parts to L2). The guarantee
+assumes a Studio level appropriate to the tier; a team racing above its resources may not fit (acceptable).
+
+**Stat-snapshot carry-over (existing, S35.11 — restated).** A P1 L1 design's base value inherits the
+**current** car's highest WRA-approved P2 value **at the moment the design completes** (`_compute_p1_base_value`
+reads `current_season`). A P2 gain approved *after* the P1 design finished cannot retroactively enter that
+next-season blueprint. This is the design-timing tension: research the new car early (safe continuity,
+weaker baseline) vs late (better baseline, deadline risk).
+
+
 
 ## 9. STAFF — Roles, Stats & Formulas
 
@@ -1340,9 +1404,13 @@ other and an R&D project orphans (unreachable, or trivially open) — a silent b
 
 ## 11. WRA REGULATION CYCLE
 
-Every **4 seasons** the World Racing Association announces new technical regulations. All
-existing part knowledge is reset; teams must design a completely new car. New base reliability
-starts at 60 and climbs +10 each season until the next cycle (§5).
+The World Racing Association periodically announces new technical regulations. **The cycle length is
+PER DISCIPLINE GROUP, not a flat 4** (corrected S40.17 — the code was already per-group, the doc said
+4): Formula 4 · Touring 5 · Karting 6 · Open Wheel 7 · Stock Car 8 · Rally 9 · Endurance 10 seasons
+(`RnDEngine._wra_group_season_for` / `CYCLE_LEN`). At each cycle boundary, that group's existing part
+knowledge is reset and teams must design a completely new car (a **from-scratch** design year — full
+blueprint weeks, §8.6). New base reliability starts at 60 and climbs +10 each season until the next
+cycle (§5). Seasons within a cycle are **mid-cycle refresh** years (half blueprint weeks, §8.6).
 
 ---
 
@@ -1921,6 +1989,32 @@ current and future button (each connected once, guarded by `is_connected`).
 
 ---
 
+## 23. CORPORATE TAXATION (S40.14)
+
+A seasonal tax on the company's net profit, charged once at season end (the `Taxes` term in §3 is this
+— seasonal, not weekly).
+
+```
+Effective_Tax_Rate = 0.24 − (CFO.budget_planning / 100 × 0.09) − P4_tax_reduction   (floored 0.15)
+Season_Tax = Effective_Tax_Rate × max(0, season_profit)
+season_profit = balance_at_season_end − balance_at_season_start
+```
+
+- **Base 0.24** (OECD 2025 average statutory corporate rate). **Floor 0.15** (the global-minimum-tax
+level) — the effective rate never drops below it.
+- The **CFO's `budget_planning`** stat reduces the rate: a maxed CFO (100) reaches the 0.15 floor; no
+CFO pays the full 0.24. The **P4 `tax_reduction`** special-project effect stacks on top (respecting the
+floor).
+- Applied to **net season profit only** — losses are not taxed. Profit basis = balance growth since
+season start (`GameState.season_start_balance`, snapshotted at new-game and each `start_new_season`,
+saved/loaded).
+- **Deducted at season end** via `SeasonManager.end_season()` (after sponsor/supply settle, so the basis
+is final), with a player **notification**. Projected tax is shown live in the **HQ Financial Department**.
+- Engine: `FinancialEngine.get_season_profit / get_effective_tax_rate / get_projected_season_tax /
+apply_season_end_tax`.
+
+---
+
 ## 18. ROADMAP (economy first, race last)
 
 The Road_map.md in the supporting files folder is the file the leads the way on what is next
@@ -1958,6 +2052,18 @@ The Road_map.md in the supporting files folder is the file the leads the way on 
 - **Staff/contract bugs (carried):** staff-screen lag on "Only Interested"; interested→not-interested
   inconsistency; contract approach stuck a full season. Need live tracing.
 - **Building max / Fitness Clinic rebalance** (§10) — deferred to a focused balance session.
+- **R&D economy (S40.5–S40.17):** ~~early-game RP starve; car un-designable-in-time at high tiers~~
+  **STRUCK (resolved):** RP faucet retuned (§8.4) and blueprint design-time fixed (§8.6) — a
+  tier-appropriate team can now design its next-season car within the registration window, verified vs
+  all championships. *Remaining:* (a) **AI R&D economy** — the NEXT build: per-AI-team RP ledger + AI
+  research decisions (P1/P3 hitting registration deadlines, P2, occasional P4), tied to the §13.1 ladder;
+  the `LeadDesignerProposalEngine.ai_fill_design_lines_*` seam is the integration point and the P4
+  accessor layer is already team-aware. Hard requirement: an AI team must never silently fail to field a
+  car — decide the fallback. (b) **~50 P4 effects still banked-unwired** (manufacturing/logistics/repair/
+  strategy/discipline/academy/commercial) — each a one-line accessor wire, deferred; the AI build needs
+  their cost/time DATA (present), not the wiring. (c) **No mid-race mechanical DNF roll yet** — reliability
+  P4s are routed to wear until the race build adds a failure roll. (d) **Not yet Godot-parsed** — S40.5–
+  S40.17 verified by analysis only; parse/playtest is the first task before the AI build.
 
 > **STRUCK (resolved):** Excel master sync — `Master_Championship_Variables_Map_v2_8.xlsx` already
 > reflects SC Dev (C-014) cap = 4 and GK races = 21. Item closed.
@@ -1967,6 +2073,21 @@ The Road_map.md in the supporting files folder is the file the leads the way on 
 ## 20. IMPLEMENTATION CHANGELOG (recent — newest first)
 
 Historical record of what shipped; design facts above already reflect these.
+
+- **S40.5–S40.17 (R&D economy, design-time & taxation):**
+  - *RP faucet re-anchored* — `RP_PER_LAP_BASE` 1.0 → 3.0 (§8.4); fixes early-game starve, keeps P4
+	aspirational; swept across all pillars.
+  - *Blueprint design-time fix* — P1/P3 L1 weeks halve mid-cycle (`P1_REFRESH_WEEKS_MULT` 0.5), full
+	from-scratch (§8.6); EPC/GP1 registration-deadline override to week 31; every team can design its car
+	before registration (verified).
+  - *Corporate tax* (§3, §23) — 24% base on season profit, CFO-reduced to a 15% floor, minus P4
+	tax_reduction; season-end deduction + notification; HQ Financial Dept display.
+  - *P4 effect accessor layer + 4 wired clusters* (perf/reliability/fatigue/economy); ~50 effects still
+	banked-unwired.
+  - *One-Lead-per-team* — `staff_designer.json` surgery (172 Leads + 100 free agents); RP now scales with
+	Studio level × Lead skill; R&D Studio Lead capacity/comfort panel.
+  - *§11 corrected* — WRA cycle is per-group (4–10 seasons), not a flat 4 (doc↔code reconciled).
+  - *Not yet Godot-parsed* — verified by analysis (brace-balance + type audit) only.
 
 - **S37.65 (keyboard-verification pass + interest rebalance):**
   - *Car delivery pipeline (Phase 2, §6.0) → ✅ verified working* in play (buy/build → delivery week →
