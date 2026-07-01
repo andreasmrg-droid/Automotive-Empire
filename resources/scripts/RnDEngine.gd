@@ -1,4 +1,9 @@
 class_name RnDEngine
+## Version: S40.17 — Design-time fix: P1 (and P3 spec) L1 blueprint WEEKS now halve on a mid-cycle
+##   refresh year (P1_REFRESH_WEEKS_MULT=0.5); from-scratch cycle-start years keep full weeks. Added
+##   _wra_group_season_for / _is_from_scratch_design. RP/CR costs unchanged. Guarantees every team can
+##   finish all six L1 blueprints before its championship's registration deadline (verified vs real
+##   budgets: from-scratch ≥7wk slack, mid-cycle ≥17wk). Pairs with GameState EPC/GP1 deadline override.
 ## Version: S40.13 — P4 EFFECT ACCESSOR LAYER + 4 clusters wired. Added team-aware get_rnd_bonus /
 ##   get_rnd_bonus_sum / as_gain / as_reduction + grouped getters (perf_bonus, reliability_bonus,
 ##   fatigue_bonus, economy_*). Wired: PERFORMANCE→lap time, RELIABILITY→condition loss,
@@ -230,11 +235,16 @@ func _build_rnd_tasks_for_season(season: int) -> Dictionary:
 			var p1b   = PART_BASE_P1[part]
 			var p1_id = "BP-%s-%s-S%s-L1" % [code, pcode, ns]
 			var p1_l2 = "BP-%s-%s-S%s-L2" % [code, pcode, ns]
+			## S40.17 — from-scratch (cycle start) L1 keeps full weeks; a mid-cycle refresh reuses the
+			## existing regulation package and designs L1 in half the time (P1_REFRESH_WEEKS_MULT). This
+			## is what lets every team finish all six L1 blueprints before their championship's
+			## registration deadline. Only WEEKS are discounted — RP/CR cost is unchanged.
+			var l1_wk_mult := 1.0 if _is_from_scratch_design(cid, design_season) else P1_REFRESH_WEEKS_MULT
 			tasks[p1_id] = {
 				"name": "%s — %s S%s Blueprint L1" % [champ_name, part, ns],
 				"pillar":1,"part":part,"part_code":pcode,"championship_id":cid,
 				"season":design_season,"level":1,"blueprint_id":p1_id,
-				"weeks":max(1,int(p1b[0]*tier_mult)),"rp":int(p1b[1]*tier_mult),
+				"weeks":max(1,int(p1b[0]*tier_mult*l1_wk_mult)),"rp":int(p1b[1]*tier_mult),
 				"cr":int(p1b[2]*tier_mult),"effect":p1b[3],"value":p1b[4],
 			}
 			tasks[p1_l2] = {
@@ -272,11 +282,14 @@ func _build_rnd_tasks_for_season(season: int) -> Dictionary:
 			if is_spec:
 				var p3b = PART_BASE_P3[part]
 				var re_id = "RE-%s-%s-S%s-L1" % [code, pcode, ns]
+				## S40.17 — same from-scratch vs mid-cycle refresh weeks discount as P1 L1: a spec part's
+				## RE is the L1-equivalent, so it must also fit the registration budget mid-cycle.
+				var re_wk_mult := 1.0 if _is_from_scratch_design(cid, design_season) else P1_REFRESH_WEEKS_MULT
 				tasks[re_id] = {
 					"name": "%s — %s S%s RE L1" % [champ_name, part, ns],
 					"pillar":3,"part":part,"part_code":pcode,"championship_id":cid,
 					"season":design_season,"level":1,"blueprint_id":re_id,
-					"weeks":max(1,int(p3b[0]*tier_mult)),"rp":int(p3b[1]*tier_mult),
+					"weeks":max(1,int(p3b[0]*tier_mult*re_wk_mult)),"rp":int(p3b[1]*tier_mult),
 					"cr":int(p3b[2]*tier_mult),"effect":p3b[3],"value":p3b[4],
 				}
 
@@ -671,6 +684,11 @@ func calculate_final_reliability(blueprint_id: String, extra_cr: int = 0, extra_
 
 
 func _get_wra_group_season(cid: String) -> int:
+	return _wra_group_season_for(cid, gs.current_season)
+
+## S40.17 — group-season for an ARBITRARY season (used to tell whether a DESIGN's target season,
+## which is next season, is a from-scratch cycle-start year). Returns 1 at the start of a cycle.
+func _wra_group_season_for(cid: String, season: int) -> int:
 	const GROUP_MAP = {
 		"Formula":["C-021","C-022","C-023","C-024"],
 		"Touring":["C-005","C-006"],
@@ -684,9 +702,20 @@ func _get_wra_group_season(cid: String) -> int:
 		"Stock Car":8,"Rally":9,"Endurance":10}
 	for group in GROUP_MAP:
 		if cid in GROUP_MAP[group]:
-			var cycle = CYCLE_LEN.get(group, 4)
-			return ((gs.current_season - 1) % cycle) + 1
+			var cycle: int = CYCLE_LEN.get(group, 4)
+			return ((season - 1) % cycle) + 1
 	return 1
+
+## S40.17 — is a design targeting `design_season` a FROM-SCRATCH design (cycle start) for this
+## championship? From-scratch → full L1 weeks; mid-cycle refresh → P1_REFRESH_WEEKS_MULT (0.5).
+func _is_from_scratch_design(cid: String, design_season: int) -> bool:
+	return _wra_group_season_for(cid, design_season) == 1
+
+## S40.17 — mid-cycle P1 design-weeks discount. A from-scratch (cycle-start) car is designed at full
+## weeks; a mid-cycle refresh reuses the prior regulation package, so L1 blueprints take half as long.
+## Modeled against every championship's real registration budget: at 0.5, all 21 championships can
+## complete their six L1 blueprints before registration (see the weeks fit table, S40.17 balance pass).
+const P1_REFRESH_WEEKS_MULT := 0.5
 
 ## Start a WRA-approved blueprint CNC job. Called from CNCPlant.
 

@@ -2003,7 +2003,17 @@ func get_car_delivery_week(champ_id: String) -> int:
 ## Entry/design deadline week in the prior season.
 ## Base = 52 - design_weeks (last week blueprints can still finish in-season).
 ## S28.1 (§23.3): shifted 1 week earlier to leave room for WRA approval of next-season regs.
+## S40.17 — Registration deadline. Normally 52 − CNC design_weeks − 1. Two pinnacle series (EPC
+## Hyper League C-020, GP1 C-024) have very long CNC manufacture lead times (design_weeks 32/40) that
+## would leave only 19/11 weeks to DESIGN next season's car — too little to complete six from-scratch
+## L1 blueprints (which pack to ~20 weeks at a competitive studio). Rather than shorten their CNC
+## lead time (which would also speed up manufacturing — a separate, correctly-tuned system), we give
+## ONLY their registration deadline a floor of week 31 (→ a 20-week design window), so a from-scratch
+## pinnacle car is designable in one season. CNC manufacture time is unchanged.
+const REG_DEADLINE_OVERRIDE := {"C-020": 31, "C-024": 31}
 func get_entry_deadline_week(champ_id: String) -> int:
+	if champ_id in REG_DEADLINE_OVERRIDE:
+		return REG_DEADLINE_OVERRIDE[champ_id]
 	return 52 - CNC_DATA.get(champ_id, {}).get("design_weeks", 2) - 1
 
 ## Provider car cost scaled by season: base × 1.05^(season-1), rounded to CR 500.
