@@ -1,4 +1,12 @@
 class_name CampusManager
+## Version: S40.11 — Fitness Clinic fatigue-reduction rescaled to the 11-level cap: -10% base + 2%
+##   per level → -30% at max L11 (was 0.5%/level = only -15% at L11 after the 109→11 shrink; the old
+##   109-level ladder had reached -64%). Effects text updated to "-2% per level".
+## Version: S40.10 — Fitness Clinic max_level 109 → 11 (alignment). Its 4 P4 projects' building gates
+##   remapped ceil(old/10) → 3/6/8/11 in RnDEngine (legal vs the new cap); their RP/CR/weeks/Studio
+##   left as the S40.8 re-cost values. NOTE: effects text still reads "-0.5% per level" — at 11 levels
+##   that's -5.5% (vs -54.5% at 109); if the intended TOTAL fatigue bonus should be preserved, the
+##   per-level value needs rescaling (flagged, not changed here).
 ## Version: S40.7 — maintenance goes PER-BUILDING (global 1.10^lv was a placeholder). R&D Design
 ##   Studio now: weekly = 1600 + (level-1)×900 — carries the R&D labour cost freed by the Lead
 ##   Designer rework (~9k/wk payroll gone when ~18 designers → 1 Lead; L9 upkeep ≈ 8.8k). Other
@@ -238,7 +246,7 @@ func _setup_campus() -> void:
 			"name": "Fitness Clinic",
 			"built": false,
 			"level": 0,
-			"max_level": 109,
+			"max_level": 11,
 			"construction_weeks_remaining": 0,
 			"weekly_maintenance": 980,
 			"weekly_income": 0,
@@ -246,7 +254,7 @@ func _setup_campus() -> void:
 			"build_time": 14,
 			"upgrade_cost": 18000,
 			"upgrade_time": 6,
-			"effects": "-10% Driver & Crew fatigue\n-0.5% per level"
+			"effects": "-10% Driver & Crew fatigue\n-2% per level"
 		},
 		# Pit Crew Arena: dedicated pit stop practice rig. Real setup: CR 30K-CR 150K.
 		# Tangible race performance investment — mid-game priority.
@@ -570,7 +578,9 @@ func get_fitness_fatigue_reduction() -> float:
 	var fc = gs.campus_buildings.get("Fitness Clinic", {})
 	if not fc.get("built", false): return 0.0
 	var level = fc.get("level", 1)
-	return 0.10 + (level - 1) * 0.005
+	## S40.11 — rescaled for the 11-level cap: -10% base + 2% per level → -30% at max L11
+	## (was 0.5%/level, which only reached -15% at L11 after the 109→11 shrink).
+	return 0.10 + (level - 1) * 0.02
 
 
 func get_pit_crew_time_bonus() -> float:

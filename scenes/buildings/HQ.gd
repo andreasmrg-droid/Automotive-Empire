@@ -3,6 +3,8 @@
 ## Version: S37.31 — Added shared ResourceBar component to the header; refresh hooked into _show_tab so resource changes update immediately.
 ## Version: S37.25 — popup-position: TP-assign popup CENTERED (symmetric ±210, was -250..0).
 extends Control
+## Version: S40.14 — Financial Department now shows the CORPORATE TAX block: season profit so far,
+##   effective rate (with CFO effect), and projected season-end tax.
 ## Version: S39.6 — suppressed broken R&D weekly-expense row (R&D is charged upfront; Financial Dept redesign flagged in GDD for the economy session)
 ## Version: S39.5 — Commercial Market button inside the Financial Department tab; Car Sales (market) income line; removed overflowing header button
 ## Version: S37.10 — Type-3 sponsor card updated for the ANNUAL commitment model: shows
@@ -907,6 +909,12 @@ func _build_sponsors_tab(parent: VBoxContainer) -> void:
 
 	parent.add_child(HSeparator.new())
 
+	## S40.14 — Corporate tax block: season profit so far, effective rate (with CFO effect), and the
+	## projected tax that will be deducted at season end.
+	parent.add_child(_build_fin_tax())
+
+	parent.add_child(HSeparator.new())
+
 	## ── P32 Financial Graphs ────────────────────────────────────────────────
 	var graphs_lbl = _section_label("FINANCIAL GRAPHS")
 	parent.add_child(graphs_lbl)
@@ -1102,6 +1110,44 @@ func _build_fin_expenses() -> PanelContainer:
 		total += item[1]
 	vbox.add_child(HSeparator.new())
 	vbox.add_child(_fin_expense_row("TOTAL (est.)", total))
+	return panel
+
+
+## S40.14 — Corporate Tax block for the Financial Department. Shows the season's profit so far, the
+## effective rate (base 24%, minus the CFO's budget_planning effect, minus P4 tax_reduction, floored
+## 15%), and the projected tax that will be deducted at season end.
+func _build_fin_tax() -> PanelContainer:
+	var panel = _fin_panel(Color(0.75, 0.6, 0.2))
+	var vbox = panel.get_child(0)
+	var lbl = Label.new(); lbl.text = "🧾 CORPORATE TAX (deducted at season end)"
+	lbl.add_theme_font_size_override("font_size", 26)
+	lbl.add_theme_color_override("font_color", Color(0.95, 0.8, 0.35))
+	vbox.add_child(lbl); vbox.add_child(HSeparator.new())
+
+	var profit: float = GameState.get_season_profit()
+	var rate: float = GameState.get_effective_tax_rate()
+	var projected: int = GameState.get_projected_season_tax()
+
+	## CFO effect line — explain WHY the rate is what it is.
+	var cfo = GameState.get_cfo()
+	var cfo_note := "no CFO — full rate"
+	if cfo != null:
+		cfo_note = "CFO %s (budget planning %d)" % [cfo.full_name(), int(cfo.budget_planning)]
+
+	for row in [
+		["Season profit so far", "CR %s" % _fmt(int(profit)), Color(0.6, 0.85, 0.6)],
+		["Base rate", "24%", Color(0.75, 0.75, 0.75)],
+		["Effective rate", "%.1f%%" % (rate * 100.0), Color(0.95, 0.8, 0.35)],
+		["  ↳ " + cfo_note, "", Color(0.6, 0.62, 0.68)],
+		["Projected tax", "CR %s" % _fmt(projected), Color(1.0, 0.55, 0.35)],
+	]:
+		var r = HBoxContainer.new()
+		var a = Label.new(); a.text = str(row[0]); a.add_theme_font_size_override("font_size", 20)
+		a.add_theme_color_override("font_color", row[2]); a.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var b = Label.new(); b.text = str(row[1]); b.add_theme_font_size_override("font_size", 20)
+		b.add_theme_color_override("font_color", row[2])
+		r.add_child(a); r.add_child(b)
+		vbox.add_child(r)
 	return panel
 
 

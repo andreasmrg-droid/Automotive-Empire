@@ -1,4 +1,6 @@
 class_name SeasonManager
+## Version: S40.14 — end_season() deducts corporate tax (gs.apply_season_end_tax) after awards;
+##   start_new_season() snapshots the season-start balance for the next profit basis.
 ## Version: S37.63 — Champions, retirements and season dividers routed to news_feed (log_news);
 ##   news_feed cleared at season start.
 ## Version: S37.44 — BUGFIX (new-car-needed spam): the season-start "Delivery deadline" loop iterated
@@ -150,6 +152,9 @@ func end_season() -> void:
 	gs.emit_signal("log_updated")
 	gs._process_sponsors_season_end()
 	gs._process_supply_contracts_season_end()
+	## S40.14 — corporate tax on the season's profit, deducted here with a notification, AFTER all
+	## season-end income (sponsors/supply) has settled so the profit basis is final.
+	gs.apply_season_end_tax()
 	gs.pending_season_screen = "end_of_season"
 
 
@@ -163,6 +168,8 @@ func start_new_season() -> void:
 	gs.weekly_log.clear()
 	gs.news_feed.clear()   ## S37.63 — fresh news feed each season
 	gs.pending_season_screen = "begin_of_season"
+	## S40.14 — reset the profit basis for the new season (tax is measured from here to season end).
+	gs.snapshot_season_start_balance()
 
 	# ═══════════════════════════════════════════════════════════════════════
 	# SEASON TRANSITION PIPELINE (Season_Transition_Pipeline_Spec_v1) — A→E.

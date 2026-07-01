@@ -1,3 +1,10 @@
+## Version: S40.15 — Designer column reworked to the Lead model: replaced the old per-designer
+##   busy/available cards with a capacity readout (lines used / Studio-level capacity + bar), a single
+##   Lead card (name, overall skill, comfort C vs active lines), and an over-stretch warning. Removed
+##   _build_designer_card + the stale 'concurrent tasks' line.
+## Version: S40.9 — P4 project boxes now show WHAT each project does: the task's `desc` (e.g. "+12%
+##   merch profit margin") renders as a green "→ …" line under the name, so the player can weigh the
+##   reward against the RP/CR/weeks cost. Box height 188→230 to fit it.
 ## Version: S40.3 — P4 redesigned into Campus-style ZONE TABS: a zone tab strip (one button per zone
 ##   that has projects, tinted in the Campus zone color) selects a zone; only that zone's buildings
 ##   render — each a title header (name + level) followed by its projects as UNIFORM equal-sized boxes
@@ -312,26 +319,35 @@ func _build_ui() -> void:
 func _build_designer_column(parent: VBoxContainer) -> void:
 	parent.add_child(_section_header(Locale.t("rnd_hdr_designers"), Color(1.0, 0.8, 0.0)))
 
-	var building = GameState.campus_buildings.get("R&D Design Studio", {})
-	var lv = building.get("level", 1)
-	var lbl_slots = Label.new()
-	lbl_slots.text = (Locale.t("rnd_studio_slots_one") % lv) if lv == 1 else (Locale.t("rnd_studio_slots_many") % [lv, lv])
-	lbl_slots.add_theme_font_size_override("font_size", 22)
-	lbl_slots.modulate = Color(0.55, 0.55, 0.55)
-	parent.add_child(lbl_slots)
+	## S40.15 — Lead-centric status (replaces the old per-designer busy/available cards, which were
+	## the pre-rework mental model). Shows: capacity = Studio level, lines in use, the Lead + skill,
+	## and the Lead's comfort C with an over-stretch warning when active lines exceed comfort.
+	var capacity: int = GameState.get_design_line_capacity()
+	var free: int = GameState.get_free_design_lines()
+	var used: int = max(0, capacity - free)
+	var lead_id: String = GameState.get_lead_designer_id()
 
-	var designers = GameState.get_player_staff_by_role("Designer")
-	if designers.is_empty():
+	## Capacity line: "Design lines: used / capacity" — the studio's throughput.
+	var cap_lbl = Label.new()
+	cap_lbl.text = "🔬 Design lines: %d / %d in use" % [used, capacity]
+	cap_lbl.add_theme_font_size_override("font_size", 22)
+	cap_lbl.add_theme_color_override("font_color", Color(0.6, 0.8, 1.0))
+	parent.add_child(cap_lbl)
+
+	## Simple capacity bar.
+	parent.add_child(_capacity_bar(used, capacity))
+
+	if lead_id == "" or not lead_id in GameState.all_staff:
 		var lbl = Label.new()
 		lbl.text = Locale.t("rnd_no_designers")
 		lbl.modulate = Color(0.5, 0.5, 0.5)
 		lbl.add_theme_font_size_override("font_size", 24)
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		parent.add_child(lbl)
 	else:
-		for d in designers:
-			parent.add_child(_build_designer_card(d))
+		parent.add_child(_build_lead_card(lead_id, used))
 
-	# Always-visible hire button
+	# Always-visible hire/replace button
 	var btn_hire = Button.new()
 	btn_hire.text = Locale.t("rnd_hire_designer")
 	btn_hire.custom_minimum_size = Vector2(180, 32)
@@ -367,70 +383,76 @@ func _build_designer_column(parent: VBoxContainer) -> void:
 		lbl_done.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		comp_vbox.add_child(lbl_done)
 
-func _build_designer_card(d) -> PanelContainer:
-	var busy_task_name = ""
-	var busy_wks = 0
-	var busy_pct = 0.0
-	var busy_champ = ""
-	for t in GameState.active_rnd_tasks:
-		if t["designer_id"] == d.id:
-			busy_task_name = t["name"]
-			busy_wks = t["weeks_remaining"]
-			busy_pct = 1.0 - float(t["weeks_remaining"]) / float(t["weeks_total"])
-			if t.get("championship_id", "") != "":
-				var reg = GameState.CHAMPIONSHIP_REGISTRY.get(t["championship_id"], {})
-				busy_champ = reg.get("name", "").left(16)
-			break
-	var is_busy = busy_task_name != ""
+## S40.15 — a thin used/capacity bar (green within comfort, amber when over-stretched handled by
+## the Lead card). Purely the aggregate line-usage indicator.
+func _capacity_bar(used: int, capacity: int) -> Control:
+	var bar_bg := PanelContainer.new()
+	bar_bg.custom_minimum_size = Vector2(180, 14)
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0.15, 0.16, 0.2)
+	bg.set_corner_radius_all(4)
+	bar_bg.add_theme_stylebox_override("panel", bg)
+	var fill_frac := 0.0
+	if capacity > 0:
+		fill_frac = clamp(float(used) / float(capacity), 0.0, 1.0)
+	var fill := PanelContainer.new()
+	fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var fs := StyleBoxFlat.new()
+	fs.bg_color = Color(0.35, 0.75, 0.45)
+	fs.set_corner_radius_all(4)
+	fill.add_theme_stylebox_override("panel", fs)
+	# emulate proportion via a container with a spacer
+	var row := HBoxContainer.new()
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	fill.size_flags_stretch_ratio = max(0.001, fill_frac)
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spacer.size_flags_stretch_ratio = max(0.001, 1.0 - fill_frac)
+	row.add_child(fill)
+	row.add_child(spacer)
+	bar_bg.add_child(row)
+	return bar_bg
 
-	var panel = _make_panel(Color(0.08, 0.14, 0.08) if is_busy else Color(0.07, 0.12, 0.09))
-	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 4)
-	panel.add_child(vbox)
+## S40.15 — the Lead Designer card: name, overall skill, and comfort C vs active lines. Shows an
+## over-stretch warning when the Lead is running more lines than their comfort (quality/speed penalty).
+func _build_lead_card(lead_id: String, used: int) -> PanelContainer:
+	var lead = GameState.all_staff[lead_id]
+	var comfort: int = GameState.get_comfort_lines(lead_id)
+	var active: int = GameState.get_active_lines_for(lead_id)
+	var over := active > comfort
 
-	var row1 = HBoxContainer.new()
-	row1.add_theme_constant_override("separation", 6)
-	vbox.add_child(row1)
-	var icon = Label.new()
-	icon.text = "🔧" if is_busy else "●"
-	icon.add_theme_color_override("font_color", Color(1.0, 0.6, 0.2) if is_busy else Color(0.3, 0.9, 0.4))
-	row1.add_child(icon)
-	var lbl_name = Label.new()
-	lbl_name.text = d.full_name()
-	lbl_name.add_theme_font_size_override("font_size", 24)
-	lbl_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lbl_name.add_theme_color_override("font_color", Color(1.0, 0.6, 0.2) if is_busy else Color(0.85, 0.85, 0.85))
-	row1.add_child(lbl_name)
-	var lbl_tal = Label.new()
-	lbl_tal.text = "⭐%.0f" % d.talent
-	lbl_tal.add_theme_font_size_override("font_size", 20)
-	lbl_tal.modulate = Color(0.7, 0.7, 0.4)
-	row1.add_child(lbl_tal)
+	var panel = _make_panel(Color(0.10, 0.09, 0.14))
+	var vbox = panel.get_child(0) if panel.get_child_count() > 0 else VBoxContainer.new()
+	if panel.get_child_count() == 0:
+		vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		panel.add_child(vbox)
 
-	if is_busy:
-		var lbl_task = Label.new()
-		lbl_task.text = busy_task_name + (" · %s" % busy_champ if busy_champ != "" else "")
-		lbl_task.add_theme_font_size_override("font_size", 20)
-		lbl_task.modulate = Color(0.7, 0.7, 0.7)
-		lbl_task.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		vbox.add_child(lbl_task)
-		var bar = ProgressBar.new()
-		bar.min_value = 0; bar.max_value = 100
-		bar.value = busy_pct * 100.0
-		bar.show_percentage = false
-		bar.custom_minimum_size = Vector2(0, 12)
-		vbox.add_child(bar)
-		var lbl_wks = Label.new()
-		lbl_wks.text = Locale.t("rnd_weeks_left") % busy_wks
-		lbl_wks.add_theme_font_size_override("font_size", 20)
-		lbl_wks.modulate = Color(0.55, 0.55, 0.55)
-		vbox.add_child(lbl_wks)
-	else:
-		var lbl_avail = Label.new()
-		lbl_avail.text = Locale.t("rnd_available")
-		lbl_avail.add_theme_font_size_override("font_size", 20)
-		lbl_avail.modulate = Color(0.3, 0.9, 0.4)
-		vbox.add_child(lbl_avail)
+	var name_lbl = Label.new()
+	name_lbl.text = "👤 %s" % lead.full_name()
+	name_lbl.add_theme_font_size_override("font_size", 22)
+	name_lbl.add_theme_color_override("font_color", Color(0.85, 0.85, 0.95))
+	name_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(name_lbl)
+
+	var skill_lbl = Label.new()
+	skill_lbl.text = "Lead Designer · skill %d" % int(lead.get_overall_skill())
+	skill_lbl.add_theme_font_size_override("font_size", 19)
+	skill_lbl.modulate = Color(0.6, 0.62, 0.68)
+	vbox.add_child(skill_lbl)
+
+	var comfort_lbl = Label.new()
+	comfort_lbl.text = "Comfort: %d lines · running %d" % [comfort, active]
+	comfort_lbl.add_theme_font_size_override("font_size", 19)
+	comfort_lbl.modulate = Color(0.8, 0.55, 0.35) if over else Color(0.5, 0.8, 0.55)
+	vbox.add_child(comfort_lbl)
+
+	if over:
+		var warn = Label.new()
+		warn.text = "⚠ Over-stretched — slower & lower quality beyond comfort."
+		warn.add_theme_font_size_override("font_size", 18)
+		warn.modulate = Color(0.85, 0.55, 0.35)
+		warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		vbox.add_child(warn)
 
 	return panel
 
@@ -921,7 +943,7 @@ const P4_ZONE_BUILDINGS := {
 ## with many projects don't stretch the row and leave huge gaps next to buildings with few. Boxes
 ## flow left→right in an HFlowContainer and wrap; the fixed width lets ~4 fit per row at the catalog
 ## width without ever overflowing (the scroll parent clips + disables horizontal scroll).
-const P4_BOX_SIZE := Vector2(300, 188)
+const P4_BOX_SIZE := Vector2(300, 230)   ## S40.9 — taller to fit the effect description line
 
 func _build_p4_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 	## Group P4 tasks by building.
@@ -1091,6 +1113,18 @@ func _build_p4_project_box(task_id: String, task: Dictionary, building_name: Str
 	name_lbl.add_theme_color_override("font_color",
 		Color(0.5, 0.82, 0.5) if is_done else (Color(0.55, 0.7, 1.0) if is_active else Color(0.88, 0.88, 0.88)))
 	box.add_child(name_lbl)
+
+	## S40.9 — show WHAT the project does. Every P4 task carries a `desc` (e.g. "+12% merch profit
+	## margin"); surface it so the player can judge the reward against the cost instead of guessing.
+	var desc_text := String(task.get("desc", ""))
+	if desc_text != "":
+		var desc_lbl := Label.new()
+		desc_lbl.text = "→ " + desc_text
+		desc_lbl.add_theme_font_size_override("font_size", 17)
+		desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		desc_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		desc_lbl.add_theme_color_override("font_color", Color(0.55, 0.82, 0.62))
+		box.add_child(desc_lbl)
 
 	var min_studio := int(task.get("Required_RnD_Studio_Level", 1))
 	var min_bld := int(task.get("min_building_level", 1))

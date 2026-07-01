@@ -1,4 +1,7 @@
 class_name RaceSimulator
+## Version: S40.13 — P4 effects wired: PERFORMANCE cluster (perf_bonus) improves lap time; RELIABILITY
+##   cluster reduces player car condition loss; FATIGUE cluster (+ Fitness Clinic base) cuts in-race
+##   fitness drop for player drivers.
 ## Version: S40.6 — BUGFIX: RP now counts ACTUAL laps the player's cars completed, not the scheduled
 ##   race distance — a DNS car ran 0 laps and no longer accumulates RP. Laps SUM across every player
 ##   car in the championship that started (2 running cars → double). earn_race_rp guards laps<=0.
@@ -344,6 +347,12 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 			var rnd_combined = (gs.get_rnd_bonus("aero_perf") + gs.get_rnd_bonus("engine_perf") + gs.get_rnd_bonus("chassis_perf")) * 0.33
 			if rnd_combined > 0.0:
 				lap_time /= (1.0 + rnd_combined)
+			## S40.13 — P4 Special-Project PERFORMANCE cluster (downforce, drag, engine_power, tyre,
+			## etc.). Dampened ×0.5 like the aero/track bonuses so a fully-researched car is meaningfully
+			## but not absurdly faster. Reads the accessor layer (perf_bonus aggregates all perf keys).
+			var p4_perf: float = gs.rnd_perf_bonus()
+			if p4_perf > 0.0:
+				lap_time /= (1.0 + p4_perf * 0.5)
 			## CNC bonus is a CAR property (S37.61): find the player car this race entry represents
 			## (the entry's driver is the car's representative) and apply that car's CNC part bonus.
 			for pcar in gs.player_team_cars:
@@ -630,6 +639,12 @@ func _crew_label_for(rep: Driver) -> String:
 
 func _update_driver_stats_after_race(driver: Driver, standing_position: int, laps: int, is_wet: bool, grid_size: int, track_id: String = "", champ: Championship = null) -> void:
 	var fitness_drop = laps * 0.4
+	## S40.13 — fatigue reduction applies to the in-race fitness DROP (previously only affected
+	## recovery). Fitness Clinic base + P4 FATIGUE cluster (driver_fatigue_reduction, fatigue_recovery,
+	## concentration_and_reflex, …) both lighten how much a driver tires per race. Player drivers only.
+	if driver.id in gs.player_team.drivers:
+		var fatigue_cut: float = gs.get_fitness_fatigue_reduction() + gs.rnd_fatigue_bonus()
+		fitness_drop *= max(0.2, 1.0 - fatigue_cut)
 	driver.fitness = max(0.0, driver.fitness - fitness_drop)
 
 	var exp_gain = randf_range(0.5, 1.5)
@@ -783,6 +798,11 @@ func degrade_car_conditions(laps: int, dns_driver_ids: Array = [], champ: Champi
 	## active_championship when no champ is supplied (backward compatibility).
 	var c: Championship = champ if champ != null else gs.active_championship
 	var loss = c.condition_loss_per_lap * float(laps)
+	## S40.13 — P4 RELIABILITY cluster (mechanical_dnf/breakdown/durability) reduces how fast the
+	## player's cars wear. Lower condition loss → fewer terminal part failures → fewer forced DNS.
+	## This is the correct home for reliability until a dedicated mid-race failure roll exists.
+	var reliability: float = gs.rnd_reliability_bonus()
+	var player_loss: float = loss * max(0.2, 1.0 - reliability)
 	for car in gs.player_team_cars:
 		if c != null and car.championship_id != c.id:
 			continue  ## not in the championship that just raced — untouched
@@ -796,12 +816,12 @@ func degrade_car_conditions(laps: int, dns_driver_ids: Array = [], champ: Champi
 		if _seated.is_empty() or not _raced:
 			gs.add_log("🔩 Car %d condition unchanged (DNS)" % car.car_number)
 			continue
-		car.condition = max(0.0, car.condition - loss)
+		car.condition = max(0.0, car.condition - player_loss)
 		## Degrade per-part condition for CNC installed parts
 		if car.id in gs.car_installed_parts:
 			for pcode in gs.car_installed_parts[car.id]:
 				var pd = gs.car_installed_parts[car.id][pcode]
-				pd["condition"] = max(0.0, pd.get("condition", 100.0) - loss)
+				pd["condition"] = max(0.0, pd.get("condition", 100.0) - player_loss)
 				if pd["condition"] <= 0.0:
 					gs.notify_event("terminal_%s_%s" % [pcode, car.id], "Critical",
 						"🔩 %s TERMINAL DAMAGE on %s! Slot empty — car cannot race." % [
@@ -811,7 +831,7 @@ func degrade_car_conditions(laps: int, dns_driver_ids: Array = [], champ: Champi
 		if car.id in gs.car_provider_parts:
 			for pcode in gs.car_provider_parts[car.id].keys():
 				var pd = gs.car_provider_parts[car.id][pcode]
-				pd["condition"] = max(0.0, pd.get("condition", 100.0) - loss)
+				pd["condition"] = max(0.0, pd.get("condition", 100.0) - player_loss)
 				if pd["condition"] <= 0.0:
 					gs.notify_event("terminal_%s_%s" % [pcode, car.id], "Critical",
 						"🔩 %s TERMINAL DAMAGE on %s! Slot empty — buy provider parts at Logistics." % [

@@ -1,4 +1,6 @@
 ## Version: S40.1 — LEAD DESIGNER REWORK (thread #6) wiring: declared + instantiated
+## Version: S40.13 — P4 accessor delegations: rnd_perf_bonus / rnd_reliability_bonus / rnd_fatigue_bonus
+##   / rnd_tax_reduction / rnd_maintenance_reduction / rnd_passive_income_bonus (→ RnDEngine cluster getters).
 ##   _lead_designer_engine (LeadDesignerProposalEngine) in all init paths; _last_design_proposals
 ##   cache; public delegations (generate/peek/apply_design_proposals + get_design_line_capacity /
 ##   get_free_design_lines / get_lead_designer_id / can_run_rnd). Engine logic lives in RnDEngine
@@ -337,6 +339,9 @@ extends Node
 var current_week: int = 1
 var current_season: int = 1
 var max_weeks: int = 52
+## S40.14 — balance snapshot at season start; seasonal profit = current balance − this. Basis for
+## the end-of-season corporate tax. Saved/loaded/reset with the rest of the season state.
+var season_start_balance: float = 0.0
 
 # Player team
 var player_team: Team = null
@@ -2335,6 +2340,14 @@ func _apply_rnd_effect(task: Dictionary) -> void:
 func get_rnd_bonus(effect_key: String) -> float:
 	return _rnd_engine.get_rnd_bonus(effect_key)
 
+## S40.13 — P4 effect accessor delegations (cluster getters the wired systems call through gs).
+func rnd_perf_bonus() -> float:        return _rnd_engine.perf_bonus()
+func rnd_reliability_bonus() -> float: return _rnd_engine.reliability_bonus()
+func rnd_fatigue_bonus() -> float:     return _rnd_engine.fatigue_bonus()
+func rnd_tax_reduction() -> float:            return _rnd_engine.economy_tax_reduction()
+func rnd_maintenance_reduction() -> float:    return _rnd_engine.economy_maintenance_reduction()
+func rnd_passive_income_bonus() -> float:     return _rnd_engine.economy_passive_income_bonus()
+
 func get_rnd_rp_storage_cap() -> int:
 	return _rnd_engine.get_rnd_rp_storage_cap()
 
@@ -3572,6 +3585,13 @@ func get_weekly_expenses() -> float:
 func get_runway_weeks() -> int:
 	return _financial_engine.get_runway_weeks()
 
+## S40.14 — corporate tax delegations (HQ Financial Department reads these; SeasonManager applies).
+func get_season_profit() -> float:          return _financial_engine.get_season_profit()
+func get_effective_tax_rate() -> float:     return _financial_engine.get_effective_tax_rate()
+func get_projected_season_tax() -> int:     return _financial_engine.get_projected_season_tax()
+func apply_season_end_tax() -> void:        _financial_engine.apply_season_end_tax()
+func snapshot_season_start_balance() -> void: _financial_engine.snapshot_season_start_balance()
+
 func _fmt_int(n: int) -> String:
 	var s = str(n)
 	var result = ""
@@ -3730,6 +3750,7 @@ func setup_new_game(p_team_name: String, p_nationality: String, p_player_name: S
 	_setup_championship()
 	_setup_player_team()
 	player_team.balance = float(p_starting_budget)
+	season_start_balance = player_team.balance   ## S40.14 — season-1 profit basis
 	_generate_drivers()
 	_generate_ai_teams()
 	_setup_campus()
@@ -4440,6 +4461,7 @@ func save_game() -> void:
 		"version": 1,
 		"current_week": current_week,
 		"current_season": current_season,
+		"season_start_balance": season_start_balance,   ## S40.14 — tax profit basis
 		"weekly_log": weekly_log,
 		"news_feed": news_feed,
 		"hall_of_fame": hall_of_fame,
@@ -4616,6 +4638,9 @@ func load_game(path: String = "user://save_game.json") -> void:
 	# Restore basic state
 	current_week = data["current_week"]
 	current_season = data["current_season"]
+	## S40.14 — tax profit basis. Sentinel -1 marks an old save with no stored basis; we snapshot it
+	## to the player's balance once the team is loaded (below), so no retroactive tax on load.
+	season_start_balance = data.get("season_start_balance", -1.0)
 	weekly_log.clear()
 	for entry in data["weekly_log"]:
 		weekly_log.append(str(entry))
@@ -4752,6 +4777,11 @@ func load_game(path: String = "user://save_game.json") -> void:
 		all_teams.append(team)
 		if team.is_player_team:
 			player_team = team
+
+	## S40.14 — old saves (no stored tax basis): anchor to the current balance so the next season-end
+	## only taxes profit earned from here, not the whole accumulated balance.
+	if season_start_balance < 0.0:
+		season_start_balance = player_team.balance if player_team != null else 0.0
 
 	# Restore drivers
 	for driver_id in data["all_drivers"]:
@@ -5246,6 +5276,13 @@ func get_free_design_lines() -> int:
 
 func get_lead_designer_id() -> String:
 	return _rnd_engine.get_lead_designer_id()
+
+## S40.15 — Lead comfort C + active-line count, for the R&D Studio status panel.
+func get_comfort_lines(designer_id: String) -> int:
+	return _rnd_engine.get_comfort_lines(designer_id)
+
+func get_active_lines_for(designer_id: String) -> int:
+	return _rnd_engine.get_active_lines_for(designer_id)
 
 func can_run_rnd() -> bool:
 	return _rnd_engine.can_run_rnd()

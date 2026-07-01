@@ -1,4 +1,10 @@
 class_name FinancialEngine
+## Version: S40.14 — CORPORATE TAX system: 24% base (OECD 2025 avg) on season profit, reduced by CFO
+##   budget_planning (→15% floor at skill 100) + P4 tax_reduction, never below the 15% real-world
+##   minimum. Losses untaxed. get_season_profit/get_effective_tax_rate/get_projected_season_tax +
+##   apply_season_end_tax (deducts at season end with a notification) + snapshot_season_start_balance.
+## Version: S40.13 — P4 ECONOMY cluster wired into apply_campus_income: maintenance_reduction lowers
+##   total campus upkeep; passive-income effects lift campus income.
 ## Version: S39.5 — apply_commercial_income uses GameState.commercial_line_economics per line (income == UI preview)
 ## Version: S38.3 — Factory 2× cap now anchored to TOTAL racing income (sponsors+prizes+EOS) via
 ##   gs.get_avg_weekly_racing_income() (rolling window), replacing the sponsor-only anchor.
@@ -123,6 +129,15 @@ func apply_campus_income() -> void:
 		if building["built"] and building["level"] >= 1:
 			total_income      += gs.get_building_income(building)
 			total_maintenance += gs.get_building_maintenance(building)
+	## S40.13 — P4 ECONOMY cluster. maintenance_reduction lowers total campus upkeep; the passive-
+	## income effects lift campus income (Museum/Theme Park/Club/Merchandise perks). Applied as
+	## whole-cycle multipliers on the aggregate so any qualifying project contributes.
+	var maint_cut: float = gs.rnd_maintenance_reduction()
+	if maint_cut > 0.0:
+		total_maintenance = int(round(float(total_maintenance) * max(0.2, 1.0 - maint_cut)))
+	var passive_gain: float = gs.rnd_passive_income_bonus()
+	if passive_gain > 0.0 and total_income > 0:
+		total_income = int(round(float(total_income) * (1.0 + passive_gain)))
 	if total_income > 0:
 		gs.player_team.balance += total_income
 	gs.player_team.balance -= total_maintenance
@@ -419,3 +434,64 @@ func get_runway_weeks() -> int:
 	var weekly = get_weekly_expenses()
 	if weekly <= 0: return 999
 	return int(bal / weekly)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CORPORATE TAXATION  (S40.14 — GDD: seasonal tax on profit)
+# ═══════════════════════════════════════════════════════════════════════════
+## Grounded in real-world 2025 figures (OECD): ~24% average statutory rate, a 15% global-minimum
+## floor, ~36% top. Model: 24% base on the season's net profit, reduced by the CFO's budget_planning
+## (skill 100 → -9pp, reaching the 15% real floor) and by any P4 tax_reduction research. Never below
+## 15%. Losses are NOT taxed. Deducted once at season end with a notification.
+
+const TAX_BASE_RATE := 0.24        ## OECD 2025 average statutory corporate rate
+const TAX_FLOOR_RATE := 0.15       ## OECD global-minimum-tax floor — effective rate never goes below
+const TAX_CFO_MAX_CUT := 0.09      ## a maxed CFO (budget_planning 100) cuts the rate by 9pp → 15%
+
+## The season's profit basis: how much the balance grew since season start (losses → 0, untaxed).
+func get_season_profit() -> float:
+	return max(0.0, gs.player_team.balance - gs.season_start_balance)
+
+## Effective corporate tax rate for the player this season, after CFO skill + P4 research, floored.
+func get_effective_tax_rate() -> float:
+	var rate := TAX_BASE_RATE
+	var cfo = gs.get_cfo()
+	if cfo != null:
+		rate -= (cfo.budget_planning / 100.0) * TAX_CFO_MAX_CUT
+	rate -= gs.rnd_tax_reduction()          ## P4 tax_reduction effect (accessor from S40.13)
+	return max(TAX_FLOOR_RATE, rate)
+
+## Projected tax on current season profit — for the HQ Financial Department display (live preview).
+func get_projected_season_tax() -> int:
+	return int(round(get_season_profit() * get_effective_tax_rate()))
+
+## Deducts the season's corporate tax at season end and notifies the player. Called from
+## SeasonManager.end_season(). No profit → no tax (and no notification clutter).
+func apply_season_end_tax() -> void:
+	var profit := get_season_profit()
+	if profit <= 0.0:
+		gs.notify_event("season_tax_%d" % gs.current_season, "Normal",
+			"🧾 Season %d closed with no taxable profit — no corporate tax due." % gs.current_season,
+			"hq", "event")
+		return
+	var rate := get_effective_tax_rate()
+	var tax := int(round(profit * rate))
+	gs.player_team.balance -= float(tax)
+	gs.log_news("🧾 Corporate tax: -%s CR (%.0f%% on %s profit)" % [
+		_fmt_cr(tax), rate * 100.0, _fmt_cr(int(profit))])
+	gs.notify_event("season_tax_%d" % gs.current_season, "High",
+		"🧾 Season %d corporate tax: -%s CR (%.0f%% of %s profit) has been deducted." % [
+		gs.current_season, _fmt_cr(tax), rate * 100.0, _fmt_cr(int(profit))],
+		"hq", "event")
+
+## Snapshot the balance at the start of a season (called from SeasonManager.start_new_season and at
+## game start) so next season's profit is measured from here.
+func snapshot_season_start_balance() -> void:
+	gs.season_start_balance = gs.player_team.balance
+
+func _fmt_cr(n: int) -> String:
+	## Compact CR formatting (e.g. 1.2M, 340K) for tax messages.
+	var a: int = abs(n)
+	if a >= 1_000_000: return "%.1fM" % (n / 1_000_000.0)
+	if a >= 1_000:     return "%.0fK" % (n / 1_000.0)
+	return str(n)
