@@ -1,6 +1,16 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v7.9 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+**Version:** v7.10 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v7.10: (S41.5) LOAD-PATH ENGINE SYMMETRY FIX (resolves the v7.9 flagged item). load_game() now
+	re-instantiates all 6 previously-missing engine singletons (_sponsor_manager, _staff_manager,
+	_car_manager, _driver_manager, _tp_engine, _lead_designer_engine), matching _ready/setup_new_game.
+	CORRECTION to the v7.9 note: nothing was actually null after a load — GameState is an autoload, so
+	_ready() always runs first and creates all 16 engines; the real (narrow) issue was stale live cache
+	carried across a load-after-play, notably TPProposalEngine._tp_roster_snapshot mis-firing
+	_tp_roster_changed() on the first post-load week. Re-init clears it and gives the AI R&D planner
+	(step 5) a fresh _lead_designer_engine after a load. (_commercial_market keeps its own
+	restore-from-data path; _calendar_manager is stateless, left as-is.) File: GameState.gd.
+	Analysis-checked; parse-verified against the 6 constructors' single-arg signatures; user playtests. -->
 <!-- v7.9: (S41.4) AI R&D ECONOMY — PHASE 4 (RP faucet mirror). AI teams now EARN Research Points by
 	the same distance-km faucet the player uses (§8.4): after AIChampionshipSim.simulate_round awards a
 	round's points, _ai_earn_race_rp_for_champ credits each non-player team that fielded a running car,
@@ -11,10 +21,8 @@
 	highest-overall Designer; the difficulty knob is `ai_performance`. AI ledgers now FILL during racing
 	but SPENDING still awaits the planner (build-order step 5) — so this phase changes no race results
 	yet. §8.7 + §13.3 updated. Files: RaceSimulator.gd, GameState.gd, AIManager.gd, RnDEngine.gd
-	(team-aware cap). Analysis-checked (brace-balance + type audit); user parses/playtests. KNOWN latent
-	issue flagged (not fixed here): load_game() does not re-instantiate _lead_designer_engine/_tp_engine/
-	_commercial_market/_staff/_car/_driver managers — pre-existing; the Phase-4 faucet was decoupled from
-	_lead_designer_engine to avoid depending on it, but the broader gap should be fixed in its own pass. -->
+	(team-aware cap). Analysis-checked (brace-balance + type audit); user parses/playtests. RESOLVED in
+	v7.10: the load_game() engine re-init gap noted here. -->
 <!-- v7.8: (S41.2–S41.3) AI R&D ECONOMY — PHASE 3 (per-team RP ledger + routing). The storage
 	substrate for AI research landed: every non-player team now has a parallel `rnd_ledger` meta
 	(rp / active_tasks / completed_* / known_blueprints / wra_* / studio_level) that mirrors the

@@ -1,3 +1,13 @@
+## Version: S41.5 — LOAD-PATH ENGINE SYMMETRY FIX. load_game() re-instantiated only 8 of the 16 engine
+##   singletons; it now also re-inits the 6 that were relying on _ready()/prior-session instances
+##   (_sponsor_manager, _staff_manager, _car_manager, _driver_manager, _tp_engine,
+##   _lead_designer_engine). Not a null fix (GameState is an autoload → _ready always ran first), but it
+##   clears live cache that could go stale across a load-after-play — notably TPProposalEngine's
+##   _tp_roster_snapshot, which otherwise could mis-fire _tp_roster_changed() on the first post-load
+##   week. Makes the three init entry points (_ready / setup_new_game / load_game) symmetric and gives
+##   the AI R&D planner (step 5) a fresh _lead_designer_engine after a load. (_commercial_market stays
+##   its own restore-from-data path; _calendar_manager is stateless and left as-is.) Analysis-checked;
+##   NOT Godot-parsed.
 ## Version: S41.4 — AI R&D ECONOMY, PHASE 4 (RP faucet mirror · spec §5). Weekly loop: right after
 ##   AIChampionshipSim.simulate_round(champ), _ai_earn_race_rp_for_champ awards RP to every non-player
 ##   team fielding a running car in that round (same distance-km faucet as the player, summed per
@@ -5109,6 +5119,19 @@ func load_game(path: String = "user://save_game.json") -> void:
 	_rnd_engine = RnDEngine.new(self)
 	_notification_manager = NotificationManager.new(self)
 	_campus_manager = CampusManager.new(self)
+	## S41.5 — load_game previously re-instantiated only 8 of the 16 engine singletons, leaving these
+	## 6 as whatever _ready() (autoload boot) or a prior in-session game created. Nothing is null (the
+	## autoload guarantees _ready ran first), but a stale instance carried across a load-after-play kept
+	## live cache: TPProposalEngine._tp_roster_snapshot could then mis-fire _tp_roster_changed() on the
+	## first post-load week. Re-init all 6 here so the three entry points (_ready / setup_new_game /
+	## load_game) are symmetric — no one has to reason about the autoload guarantee, and the planner
+	## (AI R&D economy step 5) can rely on a fresh _lead_designer_engine after a load.
+	_sponsor_manager = SponsorManager.new(self)
+	_staff_manager = StaffManager.new(self)
+	_car_manager = CarManager.new(self)
+	_driver_manager = DriverManager.new(self)
+	_tp_engine = TPProposalEngine.new(self)
+	_lead_designer_engine = LeadDesignerProposalEngine.new(self)
 	emit_signal("week_advanced", current_week)
 	emit_signal("log_updated")
 
