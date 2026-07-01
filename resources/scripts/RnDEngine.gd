@@ -1,4 +1,22 @@
 class_name RnDEngine
+## Version: S40.0 — LEAD DESIGNER REWORK (Brainstorm thread #6), engine layer. Capacity is now the
+##   R&D Studio LEVEL (N design lines), NOT a designer head-count. ONE Lead Designer per team oversees
+##   all lines. Each designer has a comfortable line count C = f(overall_skill) (locked curve, headless
+##   pass: C_MAX=18, γ=1.55 → skill44≈5 lines, skill76≈12, skill100≈18). Within C → full effectiveness;
+##   beyond C → SOFT, no-ceiling convex penalty on BOTH quality (designer effective stats scale down)
+##   AND speed (the line's weeks stretch up). Dynamic survivor rule: no Studio → no lines → no R&D
+##   (a built-but-designerless Studio = idle lines, a legible failure state). The old hard
+##   "Designer Busy" one-task-per-designer block is REPLACED by line-capacity accounting: a Lead may
+##   drive multiple lines up to the Studio level and eat the over-stretch penalty past C. EVERY R&D
+##   project occupies one line while running — P1/P2/P3 racing blueprints, P4 Special Projects, and
+##   P5 commercial-model blueprints (assembly-Factory pipeline, NOT CNC). All take the weeks-stretch
+##   + count against capacity; the QUALITY penalty applies to P1/P3 only (they have a per-part design
+##   stat) — P4/P5 take no quality hit by design. The advisor proposes P1-3 only (P4/P5 stay
+##   deliberate player picks). Balance
+##   constants live in ONE block (LEAD DESIGNER TUNING) for the Phase-5 pass. Proposal/advisor UX is
+##   in the new LeadDesignerProposalEngine (mirrors TPProposalEngine). JSON surgery (3098→172+~100 FAs)
+##   is a SEPARATE later session — this layer works on today's data unchanged (each team's designers
+##   still load; capacity/penalty key off the Studio + the assigned Lead).
 ## Version: S39.7 — Facelift/Next-Gen R&D mini-projects complete here → apply refresh + queue rename popup
 ## Version: S39.5 — P5 research gate: removed the race-the-championship requirement (Studio level only)
 ## Version: S39.2 — RP storage cap FIX (pre-existing bug, surfaced by Pillar 5): the old flat
@@ -293,10 +311,10 @@ func _build_rnd_tasks_for_season(season: int) -> Dictionary:
 		"SP_LOG_7": {"name":"International Freight Network Integration","pillar":4,"part":"Logistics","weeks":50,"rp":8000,"cr":14000000,"effect":"heavy_part_shipping_cost","value":0.18,"Required_RnD_Studio_Level":9,"building":"Logistics Center","min_building_level":17,"desc":"−18% heavy part shipping cost."},
 		"SP_LOG_8": {"name":"Advanced Spares Component Sourcing","pillar":4,"part":"Logistics","weeks":52,"rp":11000,"cr":19000000,"effect":"emergency_part_cost_reduction","value":0.20,"Required_RnD_Studio_Level":11,"building":"Logistics Center","min_building_level":21,"desc":"−20% emergency part cost."},
 		"SP_LOG_9": {"name":"Intercontinental Distribution Loop Architecture","pillar":4,"part":"Logistics","weeks":60,"rp":19000,"cr":32000000,"effect":"part_sale_margin","value":0.15,"Required_RnD_Studio_Level":14,"building":"Logistics Center","min_building_level":23,"desc":"+15% part sale margin."},
-		"SP_STORE_1": {"name":"Global E-Commerce Merchandize Networks","pillar":4,"part":"Store","weeks":35,"rp":3500,"cr":6500000,"effect":"merch_profit_margin","value":0.12,"Required_RnD_Studio_Level":2,"building":"Merchandize Store","min_building_level":7,"desc":"+12% merch profit margin."},
-		"SP_STORE_2": {"name":"Flagship Showroom Luxury Apparel Atriums","pillar":4,"part":"Store","weeks":48,"rp":8000,"cr":14000000,"effect":"apparel_revenue","value":0.15,"Required_RnD_Studio_Level":3,"building":"Merchandize Store","min_building_level":7,"desc":"+15% apparel revenue."},
-		"SP_STORE_3": {"name":"Global Airport Duty-Free Retail Outlets","pillar":4,"part":"Store","weeks":74,"rp":14000,"cr":24000000,"effect":"passive_income_boost","value":0.10,"Required_RnD_Studio_Level":4,"building":"Merchandize Store","min_building_level":7,"desc":"+10% passive income."},
-		"SP_STORE_4": {"name":"Infinite Corporate Licensing Syndicates","pillar":4,"part":"Store","weeks":102,"rp":35000,"cr":65000000,"effect":"merch_profit_boost","value":0.25,"Required_RnD_Studio_Level":5,"building":"Merchandize Store","min_building_level":7,"desc":"+25% merch profit."},
+		"SP_STORE_1": {"name":"Global E-Commerce Merchandise Networks","pillar":4,"part":"Store","weeks":35,"rp":3500,"cr":6500000,"effect":"merch_profit_margin","value":0.12,"Required_RnD_Studio_Level":2,"building":"Merchandise Store","min_building_level":7,"desc":"+12% merch profit margin."},
+		"SP_STORE_2": {"name":"Flagship Showroom Luxury Apparel Atriums","pillar":4,"part":"Store","weeks":48,"rp":8000,"cr":14000000,"effect":"apparel_revenue","value":0.15,"Required_RnD_Studio_Level":3,"building":"Merchandise Store","min_building_level":7,"desc":"+15% apparel revenue."},
+		"SP_STORE_3": {"name":"Global Airport Duty-Free Retail Outlets","pillar":4,"part":"Store","weeks":74,"rp":14000,"cr":24000000,"effect":"passive_income_boost","value":0.10,"Required_RnD_Studio_Level":4,"building":"Merchandise Store","min_building_level":7,"desc":"+10% passive income."},
+		"SP_STORE_4": {"name":"Infinite Corporate Licensing Syndicates","pillar":4,"part":"Store","weeks":102,"rp":35000,"cr":65000000,"effect":"merch_profit_boost","value":0.25,"Required_RnD_Studio_Level":5,"building":"Merchandise Store","min_building_level":7,"desc":"+25% merch profit."},
 		"SP_MUS_1": {"name":"Heritage Preservation Showroom Atrium","pillar":4,"part":"Museum","weeks":36,"rp":4500,"cr":8500000,"effect":"passive_income_boost","value":0.15,"Required_RnD_Studio_Level":3,"building":"Museum","min_building_level":2,"desc":"+15% passive income."},
 		"SP_MUS_2": {"name":"Blue-Chip Automotive Heritage Auctions","pillar":4,"part":"Museum","weeks":50,"rp":8000,"cr":15000000,"effect":"asset_conversion_rate","value":0.12,"Required_RnD_Studio_Level":4,"building":"Museum","min_building_level":4,"desc":"+12% asset conversion rate."},
 		"SP_MUS_3": {"name":"Global Legacy Asset Syndicate Nodes","pillar":4,"part":"Museum","weeks":100,"rp":28000,"cr":55000000,"effect":"brand_prestige","value":0.20,"Required_RnD_Studio_Level":5,"building":"Museum","min_building_level":5,"desc":"+20% brand prestige."},
@@ -901,11 +919,49 @@ func start_rnd_task(task_id: String, designer_id: String, championship_id: Strin
 	if not designer_id in gs.all_staff:
 		gs.show_popup("Invalid designer.", "Cannot Start R&D")
 		return false
-	for t in gs.active_rnd_tasks:
-		if t["designer_id"] == designer_id:
-			var other = gs.RND_TASKS.get(t["id"], {})
-			gs.show_popup("Designer already working on '%s'." % other.get("name", t["id"]), "Designer Busy")
+
+	## S40.0 — LEAD DESIGNER capacity. R&D is gated on design lines (= Studio level), not a
+	## one-task-per-designer lock. EVERY R&D project occupies one line while it runs:
+	##   • P1/P2/P3 — per-part racing blueprints (CNC pipeline)
+	##   • P4       — Special Projects (studio-wide research programs)
+	##   • P5       — commercial-model blueprints (routed to the assembly Factory, not CNC)
+	## All of them count against capacity and take the WEEKS-stretch when the Lead is over-stretched.
+	## The QUALITY penalty is separate: it only applies to P1/P3 (computed in _compute_re_quality /
+	## _compute_p1_base_value via the per-part design stat). P4/P5 have no single part stat, so by
+	## design they take NO quality hit — capacity + slower weeks only.
+	var consumes_line: bool = int(task.get("pillar", 0)) in [1, 2, 3, 4, 5]
+	var weeks_for_task: int = int(task["weeks"])
+	if consumes_line:
+		## S40.0 — FORCE SINGLE LEAD. The design is "one Lead drives all the team's lines," but
+		## pre-surgery data still loads many designers per team and the legacy R&D Studio UI lets
+		## the player pick any of them. So for line-consuming work we IGNORE the picked designer and
+		## always route to the team's single Lead (highest-overall hired designer). This makes the
+		## over-stretch penalty accrue on ONE person as intended, independent of the JSON surgery —
+		## once the surgery collapses each roster to one Lead, the override becomes a no-op.
+		var lead_id := get_lead_designer_id()
+		if lead_id == "":
+			gs.show_popup("No Lead Designer hired — hire a designer to staff your R&D lines.", "Cannot Start R&D")
 			return false
+		designer_id = lead_id
+
+		var cap := get_design_line_capacity()
+		if cap <= 0:
+			gs.show_popup("No R&D Design Studio — build one to open design lines.", "Cannot Start R&D")
+			return false
+		if get_free_design_lines() <= 0:
+			gs.show_popup("All %d design line(s) are busy. Free a line or upgrade the R&D Studio." % cap,
+				"No Free Design Lines")
+			return false
+		## Over-stretch is ALLOWED (soft penalty), but the Lead must not exceed the Studio's own
+		## line ceiling. prospective load = the Lead's current lines + 1.
+		var prospective := get_active_lines_for(designer_id) + 1
+		if prospective > cap:
+			gs.show_popup("Your Lead Designer is already driving every available line (%d). Upgrade the R&D Studio for more." % cap,
+				"At Line Capacity")
+			return false
+		## Weeks-stretch: starting this line past the Lead's comfort C slows it (convex, capped).
+		var wmult := get_lead_weeks_multiplier(designer_id, prospective)
+		weeks_for_task = int(ceil(float(weeks_for_task) * wmult))
 
 	gs.research_points -= task["rp"]
 	gs.player_team.balance -= task["cr"]
@@ -923,13 +979,18 @@ func start_rnd_task(task_id: String, designer_id: String, championship_id: Strin
 		## fired and the CNC season-gate never blocked next-season parts (built them in S1).
 		"season":          task.get("season", gs.current_season),
 		"level":           task.get("level", 1),
-		"weeks_total":     task["weeks"],
-		"weeks_remaining": task["weeks"],
+		"weeks_total":     weeks_for_task,
+		"weeks_remaining": weeks_for_task,
 		"rp_cost":         task["rp"],
 		"cr_cost":         task["cr"],
 		"designer_id":     designer_id,
 		"effect_key":      task.get("effect", ""),
 		"effect_value":    task.get("value", 0.0),
+		## S40.0 — snapshot the Lead's load AT START (lines this designer drives, incl. this one).
+		## Completion reads this so the quality penalty reflects the load the line actually RAN
+		## under — _advance_rnd_tasks erases the finished task before computing quality, so a live
+		## get_active_lines_for() would under-count by one at the moment of completion.
+		"ld_lines_at_start": (get_active_lines_for(designer_id) + 1) if consumes_line else 0,
 	})
 
 	var champ_label = ""
@@ -937,9 +998,13 @@ func start_rnd_task(task_id: String, designer_id: String, championship_id: Strin
 		var reg = gs.CHAMPIONSHIP_REGISTRY.get(championship_id, {})
 		champ_label = " [%s]" % reg.get("name", championship_id)
 
-	gs.add_log("🔬 R&D started: %s%s (%d weeks)" % [task["name"], champ_label, task["weeks"]])
+	## S40.0 — surface over-stretch in the start log so the player sees WHY a line is slow.
+	var stretch_note := ""
+	if consumes_line and weeks_for_task > int(task["weeks"]):
+		stretch_note = " ⚠ over-stretched: %d→%d wks" % [int(task["weeks"]), weeks_for_task]
+	gs.add_log("🔬 R&D started: %s%s (%d weeks)%s" % [task["name"], champ_label, weeks_for_task, stretch_note])
 	gs.notify_event("rnd_started_%s" % task_id, "Normal", "R&D started: %s%s. Est. completion: Week %d." % [
-		task["name"], champ_label, gs.current_week + task["weeks"]])
+		task["name"], champ_label, gs.current_week + weeks_for_task])
 	gs.emit_signal("log_updated")
 	return true
 
@@ -1082,7 +1147,8 @@ func _compute_re_quality(task: Dictionary) -> float:
 	const FLOOR := 0.75
 	if not task.get("designer_id", "") in gs.all_staff:
 		return FLOOR
-	var stat_val = _designer_part_stat(task.get("designer_id",""), task.get("part",""))
+	var stat_val = _designer_part_stat(task.get("designer_id",""), task.get("part",""),
+		int(task.get("ld_lines_at_start", -1)))
 	return clamp(FLOOR + (1.0 - FLOOR) * (stat_val / 100.0), FLOOR, 1.0)
 
 ## S35.11 — Designer contribution cap for P1 L1 design (formula ii, multiplicative).
@@ -1105,7 +1171,8 @@ func _compute_p1_base_value(task: Dictionary) -> float:
 	var base = _highest_approved_p2_value(cid, pcode, gs.current_season)
 	if base <= 0.0:
 		base = bare_l1
-	var designer_stat = _designer_part_stat(task.get("designer_id",""), part)
+	var designer_stat = _designer_part_stat(task.get("designer_id",""), part,
+		int(task.get("ld_lines_at_start", -1)))
 	var factor = (designer_stat / 100.0) * DESIGNER_CAP
 	return base * (1.0 + factor)
 
@@ -1129,7 +1196,12 @@ func _highest_approved_p2_value(cid: String, pcode: String, season: int) -> floa
 
 ## S35.11 — Part-relevant Designer design stat (aero/engine/…), fallback parts_knowledge, 0 if
 ## the designer is missing. No discipline adaptation (Designers exempt, GDD §9-F).
-func _designer_part_stat(designer_id: String, part: String) -> float:
+## S40.0 — Over-stretch QUALITY penalty applied here: the returned EFFECTIVE stat is scaled by the
+## Lead's current quality multiplier (1.0 within comfort C; convex decay beyond). This is the single
+## choke point feeding both _compute_re_quality and _compute_p1_base_value, so a thinned-out Lead
+## designs worse parts with lower initial reliability — exactly the §9-F attribute path the rework
+## plugs into, no new value path invented.
+func _designer_part_stat(designer_id: String, part: String, lines_override: int = -1) -> float:
 	if not designer_id in gs.all_staff:
 		return 0.0
 	var designer = gs.all_staff[designer_id]
@@ -1137,7 +1209,133 @@ func _designer_part_stat(designer_id: String, part: String) -> float:
 	var raw = designer.get(stat_name)
 	if raw == null:
 		raw = designer.get("parts_knowledge")
-	return float(raw) if raw != null else 0.0
+	var base := float(raw) if raw != null else 0.0
+	## lines_override ≥ 0 → use the snapshot load the line ran under (completion path);
+	## otherwise read the designer's live load (start-time previews, UI).
+	var qmult := (_quality_mult_for_lines(designer_id, lines_override)
+		if lines_override >= 0 else get_lead_quality_multiplier(designer_id))
+	return base * qmult
+
+## S40.0 — quality multiplier from an EXPLICIT line count (snapshot at start). Within comfort → 1.0;
+## beyond → convex decay, no floor. Mirrors get_lead_quality_multiplier but for a fixed load.
+func _quality_mult_for_lines(designer_id: String, active_lines: int) -> float:
+	if active_lines <= 0:
+		return 1.0
+	var c := get_comfort_lines(designer_id)
+	var ratio := float(c) / float(active_lines)
+	if ratio >= 1.0:
+		return 1.0
+	return pow(ratio, LD_PENALTY_Q_EXP)
+
+## ═══════════════════════════════════════════════════════════════════════════
+## LEAD DESIGNER CAPACITY SYSTEM (S40.0 — Brainstorm thread #6)
+## ═══════════════════════════════════════════════════════════════════════════
+## Capacity = R&D Studio LEVEL (N design lines). ONE Lead per team. Each designer has a comfortable
+## line count C = f(overall_skill). Within C → full effectiveness; beyond C → soft convex penalty on
+## quality (here) AND weeks (start_rnd_task). Survivor rule is DYNAMIC: no Studio → 0 lines → no R&D.
+
+## ── LEAD DESIGNER TUNING (Phase-5 balance knobs — derived in tools/lead_designer_balance_pass.py) ──
+const LD_C_MAX: float       = 18.0   ## comfortable lines at skill 100 (LOCKED: Middle variant)
+const LD_C_GAMMA: float     = 1.55   ## convexity of skill→capacity (fit vs real ~20..76 population)
+const LD_PENALTY_Q_EXP: float = 0.85 ## quality decay exponent beyond C: mult = (C/lines)^EXP
+const LD_WEEKS_W_EXP: float  = 0.55  ## weeks-stretch exponent beyond C: mult = (lines/C)^EXP
+const LD_WEEKS_W_CAP: float  = 2.5   ## hard cap on weeks-stretch so a pathological over-assign
+##                                       can't freeze a line forever
+
+## Design-line capacity = Studio level. 0 if no Studio (the dynamic survivor rule: no Studio →
+## no Lead → no R&D). A built-but-designerless Studio still returns its level — the lines exist
+## but sit idle until a designer is hired (a real, legible failure state, surfaced in the UI).
+func get_design_line_capacity() -> int:
+	var studio = gs.campus_buildings.get("R&D Design Studio", {})
+	if not studio.get("built", false):
+		return 0
+	return max(0, int(studio.get("level", 0)))
+
+## The single Lead Designer for the player's team — the hired designer with the highest overall
+## skill (whole person, not a frankenstein). Returns "" if the team has no designer hired.
+## Today's data may still load several designers per team (pre-surgery); this picks the marquee.
+func get_lead_designer_id() -> String:
+	var best_id := ""
+	var best_overall := -1.0
+	for sid in gs.all_staff:
+		var s = gs.all_staff[sid]
+		if s.role != "Designer": continue
+		if s.contract_team != gs.player_team.id: continue
+		var ovr = s.get_overall_skill()
+		if ovr > best_overall:
+			best_overall = ovr
+			best_id = sid
+	return best_id
+
+## Comfortable line count C for a designer: C = round((skill/100)^γ × C_MAX), floored at 1 for any
+## hired designer (a Studio is never left with 0 usable lines if it has someone). skill = the
+## designer's overall (mean of 6 design stats), via Staff.get_overall_skill().
+func get_comfort_lines(designer_id: String) -> int:
+	if not designer_id in gs.all_staff:
+		return 0
+	var skill: float = gs.all_staff[designer_id].get_overall_skill()
+	var c: int = int(round(pow(clampf(skill, 0.0, 100.0) / 100.0, LD_C_GAMMA) * LD_C_MAX))
+	return max(1, c)
+
+## How many design lines a designer is CURRENTLY driving = count of their active R&D tasks.
+## S40.0 — ALL pillars (P1-P5) occupy a line: P1/P2/P3 racing blueprints, P4 Special Projects,
+## P5 commercial-model blueprints (assembly-Factory pipeline). Each running project = one line.
+func get_active_lines_for(designer_id: String) -> int:
+	var n := 0
+	for t in gs.active_rnd_tasks:
+		if t.get("designer_id", "") != designer_id:
+			continue
+		if int(t.get("pillar", 0)) in [1, 2, 3, 4, 5]:
+			n += 1
+	return n
+
+## Over-stretch ratio for a designer if they take ON one MORE line (used at assignment time and for
+## previewing). ratio = C / active_lines; ≥1 means still within comfort.
+func _stretch_ratio(designer_id: String, active_lines: int) -> float:
+	var c := get_comfort_lines(designer_id)
+	if active_lines <= 0:
+		return float(c)   # no load yet → fully comfortable
+	return float(c) / float(active_lines)
+
+## QUALITY multiplier (≤1.0) for a designer at their CURRENT load. Within comfort → 1.0; beyond →
+## convex decay with NO floor (the player may over-assign and eat it). Read by _designer_part_stat.
+func get_lead_quality_multiplier(designer_id: String) -> float:
+	var active := get_active_lines_for(designer_id)
+	if active <= 0:
+		return 1.0
+	var ratio := _stretch_ratio(designer_id, active)
+	if ratio >= 1.0:
+		return 1.0
+	return pow(ratio, LD_PENALTY_Q_EXP)
+
+## WEEKS-stretch multiplier (≥1.0) for STARTING one more line on a designer who would then be
+## driving `prospective_active` lines total. Within comfort → 1.0; beyond → convex, capped.
+func get_lead_weeks_multiplier(designer_id: String, prospective_active: int) -> float:
+	if prospective_active <= 0:
+		return 1.0
+	var c := get_comfort_lines(designer_id)
+	var ratio := float(c) / float(prospective_active)
+	if ratio >= 1.0:
+		return 1.0
+	return minf(LD_WEEKS_W_CAP, pow(1.0 / ratio, LD_WEEKS_W_EXP))
+
+## True if the player's team can currently run R&D at all: a built Studio (≥1 line) AND a hired
+## designer. Used by the UI to show the "idle lines — hire a designer" failure state.
+func can_run_rnd() -> bool:
+	return get_design_line_capacity() >= 1 and get_lead_designer_id() != ""
+
+## Lines currently free on the player's Studio (capacity − all lines driven by the team's designers).
+## Floored at 0. The proposal engine fills these. S40.0 — ALL pillars (P1-P5) occupy a line.
+func get_free_design_lines() -> int:
+	var cap := get_design_line_capacity()
+	if cap <= 0:
+		return 0
+	var used := 0
+	for t in gs.active_rnd_tasks:
+		if int(t.get("pillar", 0)) in [1, 2, 3, 4, 5]:
+			used += 1
+	return max(0, cap - used)
+
 
 ## S35.11 — Returns the quality of an EXISTING L1 blueprint for this [champ][part][season]
 ## lineage, so a P1 L2 (or any higher level) inherits the penalty baked into its L1 base.

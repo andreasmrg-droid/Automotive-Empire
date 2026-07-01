@@ -1,3 +1,32 @@
+## Version: S40.3 — P4 redesigned into Campus-style ZONE TABS: a zone tab strip (one button per zone
+##   that has projects, tinted in the Campus zone color) selects a zone; only that zone's buildings
+##   render — each a title header (name + level) followed by its projects as UNIFORM equal-sized boxes
+##   in an HFlowContainer wrap-flow. Equal box size means many-project buildings wrap to more rows
+##   instead of stretching a shared grid row, killing the huge vertical gaps. Selected zone persists
+##   across pillar switches (_selected_p4_zone). Replaces the S40.2 stacked-zone grid.
+## Version: S40.2 — P4 reorganised to mirror the CAMPUS scene: projects grouped by the same six ZONES
+##   (Command, Engineering, Simulation, Commercial, Human Performance, Test Tracks) in Campus order,
+##   each with a zone-tinted section header and its building boxes in a 4-wide grid; box borders + titles
+##   carry the zone color (Campus card language). Far calmer than the flat 20-box wall. Zone colors +
+##   membership copied from scenes/Campus.gd (kept in sync); both Merchandi[sz]e spellings map to
+##   Commercial. Unmapped buildings fall to a trailing "Other" section.
+## Version: S40.1 — (1) P5: removed the "then 🏢 a Factory line to build" text from the research
+##   requirements line entirely. The Factory is NOT a research gate (research needs Studio level only;
+##   the Factory line is a separate BUILD step in the Commercial Department). (2) P4 redesign: the flat
+##   ~100-project list is now a responsive GridContainer of building boxes — 4 per row, each box titled
+##   with the building (name + level / "not built") and its projects stacked vertically sorted by
+##   required level. Compact per-project entries (wrapped name, 🔬/🏢 req chips, cost, single Research
+##   button). All cells EXPAND_FILL + text wraps; the scroll parent already disables horizontal scroll
+##   and clips, so nothing overflows the right edge and no horizontal scrollbar appears.
+## Version: S40.0 — LEAD DESIGNER REWORK (thread #6) UI: (1) P3 Reverse Engineering now sources spec
+##   parts from the GARAGE car (having a car in the championship unlocks RE for ALL its spec parts) —
+##   was wrongly gated on the Logistics warehouse part_inventory; always verifies spec via PART_SPEC.
+##   (2) Removed the per-designer "free designer" picker / one-task-per-designer filter (the cause of
+##   "an L2 Studio can't run two lines"). Availability is now DESIGN LINES (= Studio level): the Lead
+##   is offered while a line is free. (3) Each task card now has ONE generic 🔬 Research button —
+##   greyed with a "Hire Designer" tooltip if no Lead is hired; otherwise pressable, and start_rnd_task
+##   either starts the research or pops "no design line available" / "not enough RP|CR". No more
+##   per-designer buttons or inline blocker row.
 ## Version: S39.7 — completed P5 blueprint card with a producing line shows Facelift/Next-Gen buttons that start the R&D mini-project
 ## Version: S39.6 — P5 card text wraps (no horizontal scroll); active-tasks column clips horizontally; P5 requirement text updated to Studio-only gate (racing removed)
 ## Version: S38.8 — P5 card requirements line: Factory removed as a research blocker (shown only as
@@ -116,6 +145,7 @@ const PART_NAMES = ["Aero", "Engine", "Gearbox", "Suspension", "Brakes", "Chassi
 
 var _selected_pillar: int = 1
 var _selected_champ_id: String = ""   ## S35.12 — active championship tab
+var _selected_p4_zone: String = ""    ## S40.3 — active P4 zone tab (empty = default to first)
 
 var _resource_bar = null   ## S37.31 shared ResourceBar component
 const ResourceBarScript = preload("res://scenes/components/ResourceBar.gd")
@@ -544,11 +574,17 @@ func _build_catalog_column(parent: VBoxContainer) -> void:
 	var inner: VBoxContainer = col[1]
 	parent.add_child(scroll)
 
-	var free_designers = GameState.get_player_staff_by_role("Designer").filter(func(d):
-		for t in GameState.active_rnd_tasks:
-			if t["designer_id"] == d.id: return false
-		return true
-	)
+	## S40.0 — LEAD DESIGNER rework. Capacity is the Studio's DESIGN LINES (= Studio level), NOT a
+	## one-task-per-designer lock. The old filter removed any designer already on a task, so a single
+	## Lead could never start a 2nd line even on an L2+ Studio (the "L2 Studio can't run two lines"
+	## bug). New rule: as long as a design LINE is free and a Lead is hired, the Lead is offered for
+	## the next task (the engine routes all line work to the Lead and applies the over-stretch penalty
+	## past their comfort C). When every line is busy, the list is empty and cards show "no free line".
+	var free_designers: Array = []
+	if GameState.get_free_design_lines() > 0:
+		var lead_id := GameState.get_lead_designer_id()
+		if lead_id != "" and lead_id in GameState.all_staff:
+			free_designers = [GameState.all_staff[lead_id]]
 
 	match _selected_pillar:
 		1: _build_p1_catalog(inner, free_designers)
@@ -752,7 +788,13 @@ func _build_p2_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 		parent.add_child(_lbl_empty(Locale.t("rnd_no_upgrades")))
 
 
-# ── P3: Spec parts the team owns (in part_inventory) ─────────────────────────
+# ── P3: Reverse Engineer the SPEC parts of cars the team owns (in the Garage) ─
+## S40.0 BUGFIX — P3 used to gate on part_inventory[cid] (the Logistics warehouse): you could only
+## reverse-engineer a spec part if you'd BOUGHT a physical copy into the warehouse. Wrong model.
+## RE means "we have the car, we tear down its spec part and copy it." So the gate is now the GARAGE:
+## if the team has a car in this championship, EVERY spec part of that championship is reverse-
+## engineerable from that car. We still always verify each part is actually Spec (spec_arr[i]); Open
+## parts are designed (P1), not reverse-engineered. No warehouse purchase required.
 func _build_p3_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 	if GameState.player_team_cars.is_empty():
 		parent.add_child(_lbl_empty(Locale.t("rnd_no_cars")))
@@ -764,19 +806,13 @@ func _build_p3_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 		if cid == "": continue
 		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
 		var spec_arr = PART_SPEC.get(cid, [true,true,true,true,true,true])
-		var inv = GameState.part_inventory.get(cid, {})
 
-		# Spec parts that the team HAS in warehouse
+		## Spec parts of THIS car (in the Garage) — always verified Spec. Having the car is the
+		## unlock; no warehouse copy needed. Open parts go to P1 (Design), not here.
 		var owned_spec: Array = []
 		for i in range(PART_NAMES.size()):
-			if spec_arr[i] and inv.get(PART_NAMES[i], 0) > 0:
+			if spec_arr[i]:
 				owned_spec.append(PART_NAMES[i])
-
-		# Spec parts the team does NOT have
-		var missing_spec: Array = []
-		for i in range(PART_NAMES.size()):
-			if spec_arr[i] and inv.get(PART_NAMES[i], 0) <= 0:
-				missing_spec.append(PART_NAMES[i])
 
 		var all_open = true
 		for v in PART_SPEC.get(cid, [false,false,false,false,false,false]):
@@ -808,20 +844,6 @@ func _build_p3_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 			lbl_ok.modulate = Color(0.4, 0.88, 0.55)
 			parent.add_child(lbl_ok)
 
-		if not missing_spec.is_empty():
-			var lbl_miss = Label.new()
-			lbl_miss.text = Locale.t("rnd_need_buy") % ", ".join(missing_spec)
-			lbl_miss.add_theme_font_size_override("font_size", 22)
-			lbl_miss.modulate = Color(0.65, 0.45, 0.2)
-			parent.add_child(lbl_miss)
-
-		if owned_spec.is_empty():
-			var lbl_no = Label.new()
-			lbl_no.text = Locale.t("rnd_buy_spec")
-			lbl_no.add_theme_font_size_override("font_size", 22)
-			lbl_no.modulate = Color(0.5, 0.5, 0.5)
-			parent.add_child(lbl_no)
-		else:
 			var lbl_re_hint = Label.new()
 			lbl_re_hint.text = Locale.t("rnd_re_hint_long")
 			lbl_re_hint.add_theme_font_size_override("font_size", 20)
@@ -840,7 +862,7 @@ func _build_p3_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 
 	if not any_shown:
 		parent.add_child(_lbl_empty(
-			"No Spec parts owned yet. Buy parts at the Logistics Center warehouse to unlock Reverse Engineering."))
+			"No Spec parts to Reverse Engineer — your cars run only Open parts in their championships."))
 
 
 ## S29.12 — Pillar 5 name/desc come from Locale; 1–4 remain in the const dicts
@@ -867,16 +889,264 @@ func _show_p5_coming_soon() -> void:
 	dialog.canceled.connect(dialog.queue_free)
 
 
-# ── P4: Special Projects ───────────────────────────────────────────────────────
+# ── P4: Special Projects — ZONE TABS (mirrors the Campus scene) ──────────────
+## S40.3 — reorganised into Campus-style ZONE TABS. A tab strip (one button per zone that has
+## projects, tinted in the Campus zone color) selects a zone; only that zone's buildings render, as
+## title headers followed by their projects in UNIFORM equal-sized boxes (HFlowContainer wrap-flow).
+## Uniform box size means buildings with many projects wrap onto more rows instead of stretching a
+## shared row — no giant vertical gaps. Colors + grouping copied from scenes/Campus.gd (kept in sync).
+
+## Campus zone colors (copied from scenes/Campus.gd ZONE_COLORS — keep in sync).
+const P4_ZONE_COLORS := {
+	"Command":           Color(0.2, 0.4, 0.6),
+	"Engineering":       Color(0.4, 0.2, 0.6),
+	"Simulation":        Color(0.2, 0.5, 0.4),
+	"Commercial":        Color(0.5, 0.4, 0.1),
+	"Human Performance": Color(0.5, 0.2, 0.2),
+	"Test Tracks":       Color(0.2, 0.4, 0.2),
+}
+
+## Zone order + the buildings in each (mirrors CampusManager's zone blocks).
+const P4_ZONE_ORDER := ["Command", "Engineering", "Simulation", "Commercial", "Human Performance", "Test Tracks"]
+const P4_ZONE_BUILDINGS := {
+	"Command":           ["Headquarters", "Logistics Center", "Garage", "Racing Department"],
+	"Engineering":       ["R&D Design Studio", "CNC Parts Plant"],
+	"Simulation":        ["Ops Sim & Telemetry", "Aerodynamic Wind Tunnel"],
+	"Commercial":        ["Vehicle Assembly Factory", "Museum", "Theme Park", "Public Racing Club", "Merchandise Store"],
+	"Human Performance": ["Fitness Clinic", "Pit Crew Arena", "Academy"],
+	"Test Tracks":       ["Karting Track", "Gravel Track", "Oval Track", "Race Track"],
+}
+
+## Uniform project-box dimensions. Every P4 project renders in an identically sized box so buildings
+## with many projects don't stretch the row and leave huge gaps next to buildings with few. Boxes
+## flow left→right in an HFlowContainer and wrap; the fixed width lets ~4 fit per row at the catalog
+## width without ever overflowing (the scroll parent clips + disables horizontal scroll).
+const P4_BOX_SIZE := Vector2(300, 188)
+
 func _build_p4_catalog(parent: VBoxContainer, free_designers: Array) -> void:
-	var any = false
+	## Group P4 tasks by building.
+	var by_building: Dictionary = {}   ## building_name -> Array[task_id]
 	for task_id in GameState.RND_TASKS:
 		var t = GameState.RND_TASKS[task_id]
-		if t["pillar"] != 4: continue
-		parent.add_child(_build_task_card(task_id, t, free_designers, ""))
-		any = true
-	if not any:
+		if t.get("pillar", 0) != 4: continue
+		var bkey := String(t.get("building", "Other"))
+		if not by_building.has(bkey): by_building[bkey] = []
+		by_building[bkey].append(task_id)
+	if by_building.is_empty():
 		parent.add_child(_lbl_empty(Locale.t("rnd_no_special")))
+		return
+
+	## Which zones actually have P4 projects (in Campus order), plus a trailing "Other" for any
+	## unmapped building so nothing is silently dropped.
+	var zone_to_buildings: Dictionary = {}
+	var placed: Dictionary = {}
+	for zone in P4_ZONE_ORDER:
+		var zbuilds: Array = []
+		for bname in P4_ZONE_BUILDINGS[zone]:
+			if by_building.has(bname):
+				zbuilds.append(bname)
+				placed[bname] = true
+		if not zbuilds.is_empty():
+			zone_to_buildings[zone] = zbuilds
+	var leftover: Array = []
+	for bname in by_building:
+		if not placed.has(bname): leftover.append(bname)
+	if not leftover.is_empty():
+		leftover.sort()
+		zone_to_buildings["Other"] = leftover
+
+	var active_zones: Array = zone_to_buildings.keys()
+	if active_zones.is_empty():
+		parent.add_child(_lbl_empty(Locale.t("rnd_no_special")))
+		return
+
+	## Default the selected zone to the first available (or if the remembered one no longer has
+	## projects, snap back to the first).
+	if _selected_p4_zone == "" or not _selected_p4_zone in active_zones:
+		_selected_p4_zone = active_zones[0]
+
+	## Zone tab strip (fixed at the top of the catalog), then the selected zone's content below.
+	parent.add_child(_build_p4_zone_tabs(active_zones))
+	parent.add_child(_hsep())
+	_build_p4_zone_content(parent, _selected_p4_zone, zone_to_buildings[_selected_p4_zone], free_designers)
+
+## Zone tab strip — one button per zone that has projects, tinted in the zone color; the active zone
+## is highlighted + disabled. Clicking a tab rebuilds the Studio with that zone selected.
+func _build_p4_zone_tabs(active_zones: Array) -> Control:
+	var flow := HFlowContainer.new()
+	flow.add_theme_constant_override("h_separation", 6)
+	flow.add_theme_constant_override("v_separation", 6)
+	flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for zone in active_zones:
+		var zname := String(zone)
+		var zcol: Color = P4_ZONE_COLORS.get(zname, Color(0.45, 0.45, 0.45))
+		var is_sel: bool = (zname == _selected_p4_zone)
+		var btn := Button.new()
+		btn.text = zname.to_upper()
+		btn.add_theme_font_size_override("font_size", 19)
+		btn.custom_minimum_size = Vector2(0, 34)
+		btn.disabled = is_sel
+		btn.modulate = zcol.lightened(0.5) if is_sel else Color(0.72, 0.72, 0.75)
+		var picked := zname
+		btn.pressed.connect(func():
+			_selected_p4_zone = picked
+			_rebuild_studio())
+		flow.add_child(btn)
+	return flow
+
+## Renders the selected zone: each building as a title header, then its projects as uniform boxes in
+## an HFlowContainer (wrap-flow of equal-sized boxes — no per-building tall column).
+func _build_p4_zone_content(parent: VBoxContainer, zone: String, buildings: Array, _free_designers: Array) -> void:
+	var zcol: Color = P4_ZONE_COLORS.get(zone, Color(0.4, 0.4, 0.4))
+	for bname_v in buildings:
+		var bname := String(bname_v)
+		var bld = GameState.campus_buildings.get(bname, {})
+		var built: bool = bld.get("built", false)
+		var bld_lv: int = int(bld.get("level", 0)) if built else 0
+
+		## Building title header (name + level), tinted in the zone color.
+		var hdr := HBoxContainer.new()
+		hdr.add_theme_constant_override("separation", 8)
+		var title := Label.new()
+		title.text = "🏢 %s" % bname
+		title.add_theme_font_size_override("font_size", 23)
+		title.add_theme_color_override("font_color", zcol.lightened(0.55))
+		hdr.add_child(title)
+		var sub := Label.new()
+		sub.text = ("Lv %d" % bld_lv) if built else "not built"
+		sub.add_theme_font_size_override("font_size", 19)
+		sub.modulate = Color(0.5, 0.82, 0.55) if built else Color(0.7, 0.5, 0.3)
+		hdr.add_child(sub)
+		parent.add_child(hdr)
+
+		## Projects as uniform boxes, flowing and wrapping.
+		var flow := HFlowContainer.new()
+		flow.add_theme_constant_override("h_separation", 10)
+		flow.add_theme_constant_override("v_separation", 10)
+		flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		for task_id in by_building_ids(bname):
+			flow.add_child(_build_p4_project_box(task_id, GameState.RND_TASKS[task_id], bname, bld_lv, built, zcol))
+		parent.add_child(flow)
+		parent.add_child(_hsep())
+
+## Helper: the sorted P4 task ids for a building (re-derives from RND_TASKS so the content builder
+## doesn't need the by_building dict threaded through the tab rebuild).
+func by_building_ids(building_name: String) -> Array:
+	var ids: Array = []
+	for task_id in GameState.RND_TASKS:
+		var t = GameState.RND_TASKS[task_id]
+		if t.get("pillar", 0) == 4 and String(t.get("building", "Other")) == building_name:
+			ids.append(task_id)
+	ids.sort_custom(func(a, c):
+		var ta = GameState.RND_TASKS[a]
+		var tc = GameState.RND_TASKS[c]
+		var la := int(ta.get("Required_RnD_Studio_Level", 1))
+		var lc := int(tc.get("Required_RnD_Studio_Level", 1))
+		if la != lc: return la < lc
+		var ma := int(ta.get("min_building_level", 1))
+		var mc := int(tc.get("min_building_level", 1))
+		if ma != mc: return ma < mc
+		return int(ta.get("rp", 0)) < int(tc.get("rp", 0))
+	)
+	return ids
+
+
+## One uniform, fixed-size P4 project box (P4_BOX_SIZE). Zone-tinted border. Contains: project name
+## (wrapped), a "L<studio> / L<building>" requirement chip (green when met), a cost line, and the
+## state control — ✅ Complete / ⏳ In progress / the single Research button (greyed with a "Hire
+## Designer" tooltip when no Lead, or a 🔒 requirements tooltip when the level gate isn't met).
+## Every box is identical size, so buildings with many projects wrap onto more rows instead of
+## stretching a shared row — no giant vertical gaps.
+func _build_p4_project_box(task_id: String, task: Dictionary, building_name: String, bld_lv: int, built: bool, zone_color: Color) -> Control:
+	var is_done: bool = task_id in GameState.completed_rnd_tasks
+	var is_active := false
+	for t in GameState.active_rnd_tasks:
+		if t.get("id", "") == task_id: is_active = true; break
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = P4_BOX_SIZE
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.11, 0.12, 0.15)
+	style.set_border_width_all(1)
+	style.border_width_left = 3
+	style.border_color = zone_color.lightened(0.15)
+	style.corner_radius_top_left = 4; style.corner_radius_top_right = 4
+	style.corner_radius_bottom_left = 4; style.corner_radius_bottom_right = 4
+	style.content_margin_left = 10; style.content_margin_right = 10
+	style.content_margin_top = 8; style.content_margin_bottom = 8
+	panel.add_theme_stylebox_override("panel", style)
+
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	panel.add_child(box)
+
+	var name_lbl := Label.new()
+	name_lbl.text = String(task.get("name", task_id))
+	name_lbl.add_theme_font_size_override("font_size", 19)
+	name_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	name_lbl.add_theme_color_override("font_color",
+		Color(0.5, 0.82, 0.5) if is_done else (Color(0.55, 0.7, 1.0) if is_active else Color(0.88, 0.88, 0.88)))
+	box.add_child(name_lbl)
+
+	var min_studio := int(task.get("Required_RnD_Studio_Level", 1))
+	var min_bld := int(task.get("min_building_level", 1))
+	var st = GameState.campus_buildings.get("R&D Design Studio", {})
+	var st_lv := int(st.get("level", 0)) if st.get("built", false) else 0
+	var studio_ok := st_lv >= min_studio
+	var bld_ok := built and bld_lv >= min_bld
+
+	var req_lbl := Label.new()
+	req_lbl.text = "%s🔬L%d   %s🏢L%d" % [
+		"✅" if studio_ok else "", min_studio,
+		"✅" if bld_ok else "", min_bld]
+	req_lbl.add_theme_font_size_override("font_size", 17)
+	req_lbl.modulate = Color(0.5, 0.82, 0.55) if (studio_ok and bld_ok) else Color(0.8, 0.6, 0.4)
+	box.add_child(req_lbl)
+
+	var cost_lbl := Label.new()
+	cost_lbl.text = "🔵%d · 💰%s · ⏱%dw" % [int(task.get("rp", 0)), _fmt(task.get("cr", 0)), int(task.get("weeks", 0))]
+	cost_lbl.add_theme_font_size_override("font_size", 17)
+	cost_lbl.modulate = Color(0.6, 0.62, 0.68)
+	box.add_child(cost_lbl)
+
+	## State control — always the bottom row so every box aligns.
+	if is_done:
+		var done_lbl := Label.new()
+		done_lbl.text = "✅ Complete"
+		done_lbl.add_theme_font_size_override("font_size", 18)
+		done_lbl.modulate = Color(0.45, 0.82, 0.45)
+		box.add_child(done_lbl)
+	elif is_active:
+		var act_lbl := Label.new()
+		act_lbl.text = "⏳ In progress"
+		act_lbl.add_theme_font_size_override("font_size", 18)
+		act_lbl.modulate = Color(0.55, 0.7, 1.0)
+		box.add_child(act_lbl)
+	else:
+		var unlocked := GameState.rnd_task_unlocked(task_id)
+		var has_lead := GameState.get_lead_designer_id() != ""
+		var btn := Button.new()
+		btn.text = Locale.t("rnd_research_btn")
+		btn.add_theme_font_size_override("font_size", 18)
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.disabled = (not has_lead) or (not unlocked)
+		if not has_lead:
+			btn.tooltip_text = Locale.t("rnd_tip_hire_designer")
+		elif not unlocked:
+			btn.tooltip_text = "🔒 Requires 🔬 Studio Lv %d & 🏢 %s Lv %d" % [min_studio, building_name, min_bld]
+		btn.modulate = Color(0.6, 0.8, 1.0) if not btn.disabled else Color(0.4, 0.4, 0.4)
+		var tid := task_id
+		btn.pressed.connect(func():
+			if GameState.start_rnd_task(tid, GameState.get_lead_designer_id(), ""):
+				get_tree().change_scene_to_file("res://scenes/buildings/RnDStudio.tscn")
+		)
+		box.add_child(btn)
+
+	return panel
 
 
 # ── P5: Commercial Cars R&D (model blueprints) ────────────────────────────────
@@ -923,7 +1193,6 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 	var unlocked = force_unlocked
 	var can_rp   = GameState.research_points >= task["rp"]
 	var can_cr   = GameState.player_team.balance >= task["cr"]
-	var has_free = not free_designers.is_empty()
 
 	var bg = Color(0.09, 0.12, 0.16)
 	if is_done:        bg = Color(0.07, 0.14, 0.07)
@@ -1025,11 +1294,10 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 			var st_lv = int(st.get("level", 0)) if st.get("built", false) else 0
 			if st_lv < min_studio5: p5_ok = false
 			p5_segs.append(("✅ " if st_lv >= min_studio5 else "") + "🔬 Studio Lv %d" % min_studio5)
-		var fbname := "Vehicle Assembly Factory"
-		var fb = GameState.campus_buildings.get(fbname, {})
-		var fb_lv = int(fb.get("level", 0)) if fb.get("built", false) else 0
-		if fb_lv < 1:
-			p5_segs.append("then 🏢 a Factory line to build")
+		## S40.0 — the Factory is NOT a research requirement and is no longer shown on the research
+		## card at all. Researching a P5 blueprint gates on the R&D Studio level only. Building the
+		## resulting model on a Factory production line is a separate step handled entirely in the
+		## Commercial Department — so no Factory hint clutters the research gate here.
 		var lbl_p5 = Label.new()
 		lbl_p5.text = ("Required: " + " & ".join(p5_segs)) if not p5_segs.is_empty() else "Researchable now"
 		lbl_p5.add_theme_font_size_override("font_size", 20)
@@ -1136,52 +1404,37 @@ func _build_task_card_with_unlock(task_id: String, task: Dictionary, free_design
 				Color(0.45, 0.88, 0.45) if pair[1] else Color(1.0, 0.35, 0.35))
 			row2.add_child(cl)
 
-		## S35.11b — always render the Assign row. Previously it only appeared when
-		## has_free AND can_rp AND can_cr were all true, so with 0 RP (or no free designer)
-		## the controls vanished entirely and looked broken. Now the row always shows, with
-		## buttons disabled and a clear reason when research can't start.
+		## S40.0 — single generic Research button (Lead Designer rework). No per-designer picker:
+		## the engine routes all line work to the team's Lead and enforces line-capacity + RP/CR.
+		##   • No Lead hired  → button greyed, tooltip "Hire Designer".
+		##   • Lead hired     → button pressable; start_rnd_task() either starts the research or pops
+		##                      the right message ("no design line available" / "not enough RP|CR").
+		## We deliberately DON'T pre-disable on RP/CR so the press surfaces the engine's informative
+		## popup rather than a silently dead button.
 		var btn_row = HBoxContainer.new()
 		btn_row.add_theme_constant_override("separation", 6)
 		vbox.add_child(btn_row)
-		var lbl_a = Label.new(); lbl_a.text = Locale.t("rnd_assign")
-		lbl_a.add_theme_font_size_override("font_size", 22)
-		lbl_a.modulate = Color(0.55, 0.55, 0.55)
-		btn_row.add_child(lbl_a)
 
-		var blockers: Array = []
-		if not can_rp: blockers.append(Locale.t("rnd_blk_rp") % [task["rp"], GameState.research_points])
-		if not can_cr: blockers.append(Locale.t("rnd_blk_cr") % _fmt(task["cr"]))
-		if not has_free: blockers.append(Locale.t("rnd_blk_designer"))
-		var can_start = can_rp and can_cr and has_free
-
-		if has_free:
-			for designer in free_designers:
-				var btn = Button.new()
-				btn.text = designer.full_name().split(" ")[0]
-				btn.custom_minimum_size = Vector2(72, 26)
-				btn.add_theme_font_size_override("font_size", 22)
-				btn.disabled = not can_start
-				btn.modulate = p_color.lightened(0.1) if can_start else Color(0.4,0.4,0.4)
-				var did = designer.id
-				var tid = task_id
-				var cid = champ_id
-				var etasks = extra_tasks
-				btn.pressed.connect(func():
-					if not tid in GameState.RND_TASKS and tid in etasks:
-						GameState.RND_TASKS[tid] = etasks[tid]
-					GameState.start_rnd_task(tid, did, cid)
-					get_tree().change_scene_to_file("res://scenes/buildings/RnDStudio.tscn")
-				)
-				btn_row.add_child(btn)
-
-		if not blockers.is_empty():
-			var lbl_block = Label.new()
-			lbl_block.text = "⚠ " + ", ".join(blockers)
-			lbl_block.add_theme_font_size_override("font_size", 20)
-			lbl_block.modulate = Color(0.75, 0.5, 0.2)
-			lbl_block.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			lbl_block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			btn_row.add_child(lbl_block)
+		var has_lead := GameState.get_lead_designer_id() != ""
+		var btn := Button.new()
+		btn.text = Locale.t("rnd_research_btn")
+		btn.custom_minimum_size = Vector2(120, 28)
+		btn.add_theme_font_size_override("font_size", 22)
+		btn.disabled = not has_lead
+		btn.modulate = p_color.lightened(0.1) if has_lead else Color(0.4, 0.4, 0.4)
+		if not has_lead:
+			btn.tooltip_text = Locale.t("rnd_tip_hire_designer")
+		var tid := task_id
+		var cid := champ_id
+		var etasks := extra_tasks
+		btn.pressed.connect(func():
+			if not tid in GameState.RND_TASKS and tid in etasks:
+				GameState.RND_TASKS[tid] = etasks[tid]
+			## Engine starts it OR pops "no design line available" / "not enough RP|CR".
+			if GameState.start_rnd_task(tid, GameState.get_lead_designer_id(), cid):
+				get_tree().change_scene_to_file("res://scenes/buildings/RnDStudio.tscn")
+		)
+		btn_row.add_child(btn)
 
 	## S39.7 — Facelift / Next-Gen for a researched P5 model that has a PRODUCING line. These are the
 	## R&D mini-projects (RP+CR+weeks) that refresh the model; on completion the rename popup fires.

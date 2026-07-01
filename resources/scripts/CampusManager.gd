@@ -1,4 +1,8 @@
 class_name CampusManager
+## Version: S40.7 — maintenance goes PER-BUILDING (global 1.10^lv was a placeholder). R&D Design
+##   Studio now: weekly = 1600 + (level-1)×900 — carries the R&D labour cost freed by the Lead
+##   Designer rework (~9k/wk payroll gone when ~18 designers → 1 Lead; L9 upkeep ≈ 8.8k). Other
+##   buildings keep the legacy curve until each is re-costed.
 ## Version: S37.64 — Building completion now fires a notification ("upgrade complete, Level N", →
 ##   Campus), not just a log line; the Racing Department upgrade finishing was previously silent.
 ## Version: S37.49 — Phase 3 (events→notify_event): building-sold → "event".
@@ -527,11 +531,26 @@ func get_building_income(building: Dictionary) -> int:
 	var per_level = BUILDING_INCOME_PER_LEVEL.get(bname, 0)
 	return base + per_level * max(0, level - 1)
 
-## Returns current weekly maintenance: maintenance_level1 × 1.10^(level-1), rounded to CR 50.
+## Returns current weekly maintenance. PER-BUILDING as of S40.7: R&D Design Studio uses a linear
+## 1600 + (level-1)×900 scheme; all other buildings use the legacy global base × 1.10^(level-1)
+## until each gets its own scheme. Rounded to CR 50.
 
+
+## S40.7 — maintenance is moving to PER-BUILDING schemes (the global 1.10^lv was an early-design
+## placeholder). First customized building: the R&D Design Studio, whose upkeep now carries the R&D
+## labour cost that vanished when the Lead Designer rework collapsed ~18 designers to one Lead.
+## Studio: weekly = 1600 + (level-1)×900  (L2≈2.5k, L9≈8.8k, L15≈14.2k, L27≈25k) — refills the
+## ~9k/wk payroll hole around the mid-levels and makes a maxed studio genuinely expensive to run,
+## which is the intended economic weight on high line counts. Other buildings keep the global
+## 1.10^(level-1) curve until each is re-costed with its own scheme.
+const STUDIO_MAINT_BASE := 1600
+const STUDIO_MAINT_PER_LEVEL := 900
 
 func get_building_maintenance(building: Dictionary) -> int:
 	var level  = building["level"]
+	if building.get("name", "") == "R&D Design Studio":
+		var studio_wk = STUDIO_MAINT_BASE + max(0, level - 1) * STUDIO_MAINT_PER_LEVEL
+		return int(round(float(studio_wk) / 50.0) * 50)
 	var base   = building["weekly_maintenance"]
 	var scaled = base * pow(1.10, max(0, level - 1))
 	return int(round(scaled / 50.0) * 50)

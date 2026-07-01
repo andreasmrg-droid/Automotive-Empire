@@ -32,7 +32,7 @@
    "Museum": 4,
    "Theme Park": 2,
    "Public Racing Club": 5,
-   "Merchandize Store": 5
+   "Merchandise Store": 5
   },
   "staff": {
    "TP": 4,
@@ -73,7 +73,7 @@
    "Factory": 9,
    "Museum": 4,
    "Public Racing Club": 5,
-   "Merchandize Store": 5
+   "Merchandise Store": 5
   },
   "staff": {
    "TP": 3,
@@ -115,7 +115,7 @@
    "Factory": 8,
    "Museum": 4,
    "Public Racing Club": 4,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 4,
@@ -160,7 +160,7 @@
    "Museum": 4,
    "Theme Park": 1,
    "Public Racing Club": 5,
-   "Merchandize Store": 5
+   "Merchandise Store": 5
   },
   "staff": {
    "TP": 5,
@@ -200,7 +200,7 @@
    "Race Track": 2,
    "Karting Track": 4,
    "Public Racing Club": 4,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 4,
@@ -242,7 +242,7 @@
    "Factory": 8,
    "Museum": 4,
    "Public Racing Club": 4,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 4,
@@ -283,7 +283,7 @@
    "Factory": 8,
    "Museum": 4,
    "Public Racing Club": 4,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 3,
@@ -322,7 +322,7 @@
    "Race Track": 2,
    "Karting Track": 4,
    "Public Racing Club": 3,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 3,
@@ -359,7 +359,7 @@
    "Fitness Clinic": 26,
    "Race Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -398,7 +398,7 @@
    "Gravel Track": 2,
    "Karting Track": 3,
    "Factory": 4,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 4,
@@ -439,7 +439,7 @@
    "Factory": 8,
    "Museum": 4,
    "Public Racing Club": 4,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 3,
@@ -477,7 +477,7 @@
    "Race Track": 1,
    "Karting Track": 2,
    "Public Racing Club": 2,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -517,7 +517,7 @@
    "Karting Track": 4,
    "Factory": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -561,7 +561,7 @@
    "Museum": 4,
    "Theme Park": 1,
    "Public Racing Club": 5,
-   "Merchandize Store": 5
+   "Merchandise Store": 5
   },
   "staff": {
    "TP": 4,
@@ -600,7 +600,7 @@
    "Race Track": 2,
    "Karting Track": 4,
    "Public Racing Club": 3,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 3,
@@ -642,7 +642,7 @@
    "Factory": 9,
    "Museum": 4,
    "Public Racing Club": 5,
-   "Merchandize Store": 5
+   "Merchandise Store": 5
   },
   "staff": {
    "TP": 4,
@@ -682,7 +682,7 @@
    "Oval Track": 2,
    "Karting Track": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -718,7 +718,7 @@
    "Fitness Clinic": 23,
    "Race Track": 1,
    "Karting Track": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -757,7 +757,7 @@
    "Karting Track": 3,
    "Factory": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 4,
@@ -799,7 +799,7 @@
    "Factory": 8,
    "Museum": 4,
    "Public Racing Club": 4,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 4,
@@ -839,7 +839,7 @@
    "Karting Track": 3,
    "Factory": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 3,
@@ -881,7 +881,7 @@
    "Factory": 7,
    "Museum": 3,
    "Public Racing Club": 4,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 3,
@@ -921,7 +921,7 @@
    "Oval Track": 2,
    "Karting Track": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 4,
@@ -961,7 +961,7 @@
    "Race Track": 2,
    "Karting Track": 4,
    "Public Racing Club": 3,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 4,
@@ -997,7 +997,7 @@
    "Fitness Clinic": 22,
    "Race Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -1038,7 +1038,7 @@
    "Factory": 8,
    "Museum": 4,
    "Public Racing Club": 4,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 3,
@@ -1076,7 +1076,7 @@
    "Race Track": 1,
    "Karting Track": 2,
    "Public Racing Club": 2,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -1111,7 +1111,7 @@
    "Fitness Clinic": 22,
    "Gravel Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -1155,7 +1155,7 @@
    "Museum": 4,
    "Theme Park": 1,
    "Public Racing Club": 5,
-   "Merchandize Store": 5
+   "Merchandise Store": 5
   },
   "staff": {
    "TP": 5,
@@ -1194,7 +1194,7 @@
    "Oval Track": 2,
    "Karting Track": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -1234,7 +1234,7 @@
    "Karting Track": 4,
    "Factory": 3,
    "Public Racing Club": 4,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 3,
@@ -1272,7 +1272,7 @@
    "Race Track": 1,
    "Karting Track": 2,
    "Public Racing Club": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -1313,7 +1313,7 @@
    "Factory": 8,
    "Museum": 4,
    "Public Racing Club": 4,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 4,
@@ -1352,7 +1352,7 @@
    "Race Track": 2,
    "Karting Track": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -1388,7 +1388,7 @@
    "Fitness Clinic": 22,
    "Race Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -1427,7 +1427,7 @@
    "Gravel Track": 2,
    "Karting Track": 3,
    "Factory": 5,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 4,
@@ -1468,7 +1468,7 @@
    "Factory": 8,
    "Museum": 4,
    "Public Racing Club": 4,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 3,
@@ -1507,7 +1507,7 @@
    "Race Track": 2,
    "Karting Track": 4,
    "Public Racing Club": 3,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 3,
@@ -1547,7 +1547,7 @@
    "Oval Track": 2,
    "Karting Track": 3,
    "Public Racing Club": 2,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 4,
@@ -1585,7 +1585,7 @@
    "Race Track": 1,
    "Karting Track": 2,
    "Public Racing Club": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -1623,7 +1623,7 @@
    "Race Track": 2,
    "Karting Track": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 2,
@@ -1666,7 +1666,7 @@
    "Factory": 8,
    "Museum": 4,
    "Public Racing Club": 4,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 4,
@@ -1705,7 +1705,7 @@
    "Race Track": 2,
    "Karting Track": 3,
    "Public Racing Club": 2,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -1740,7 +1740,7 @@
    "Fitness Clinic": 21,
    "Gravel Track": 1,
    "Karting Track": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -1781,7 +1781,7 @@
    "Factory": 7,
    "Museum": 3,
    "Public Racing Club": 4,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 4,
@@ -1821,7 +1821,7 @@
    "Karting Track": 4,
    "Factory": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 3,
@@ -1860,7 +1860,7 @@
    "Race Track": 2,
    "Karting Track": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 3,
@@ -1898,7 +1898,7 @@
    "Race Track": 2,
    "Karting Track": 4,
    "Public Racing Club": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 2,
@@ -1941,7 +1941,7 @@
    "Factory": 9,
    "Museum": 4,
    "Public Racing Club": 5,
-   "Merchandize Store": 5
+   "Merchandise Store": 5
   },
   "staff": {
    "TP": 4,
@@ -1979,7 +1979,7 @@
    "Race Track": 1,
    "Karting Track": 2,
    "Public Racing Club": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -2015,7 +2015,7 @@
    "Fitness Clinic": 28,
    "Oval Track": 2,
    "Karting Track": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 2,
@@ -2051,7 +2051,7 @@
    "Fitness Clinic": 21,
    "Race Track": 1,
    "Karting Track": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -2089,7 +2089,7 @@
    "Gravel Track": 2,
    "Karting Track": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -2130,7 +2130,7 @@
    "Factory": 8,
    "Museum": 4,
    "Public Racing Club": 4,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 3,
@@ -2169,7 +2169,7 @@
    "Race Track": 2,
    "Karting Track": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -2207,7 +2207,7 @@
    "Race Track": 1,
    "Karting Track": 2,
    "Public Racing Club": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -2245,7 +2245,7 @@
    "Race Track": 2,
    "Karting Track": 4,
    "Public Racing Club": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 2,
@@ -2289,7 +2289,7 @@
    "Factory": 8,
    "Museum": 4,
    "Public Racing Club": 4,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 5,
@@ -2328,7 +2328,7 @@
    "Race Track": 2,
    "Karting Track": 4,
    "Public Racing Club": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -2363,7 +2363,7 @@
    "Fitness Clinic": 21,
    "Gravel Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -2401,7 +2401,7 @@
    "Oval Track": 2,
    "Karting Track": 3,
    "Public Racing Club": 2,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -2441,7 +2441,7 @@
    "Karting Track": 3,
    "Factory": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 3,
@@ -2479,7 +2479,7 @@
    "Race Track": 1,
    "Karting Track": 2,
    "Public Racing Club": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -2516,7 +2516,7 @@
    "Oval Track": 2,
    "Karting Track": 3,
    "Factory": 2,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 2,
@@ -2554,7 +2554,7 @@
    "Race Track": 2,
    "Karting Track": 4,
    "Public Racing Club": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 2,
@@ -2593,7 +2593,7 @@
    "Oval Track": 2,
    "Karting Track": 3,
    "Public Racing Club": 2,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -2635,7 +2635,7 @@
    "Factory": 8,
    "Museum": 4,
    "Public Racing Club": 4,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 3,
@@ -2674,7 +2674,7 @@
    "Race Track": 2,
    "Karting Track": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -2712,7 +2712,7 @@
    "Race Track": 2,
    "Karting Track": 4,
    "Public Racing Club": 2,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 2,
@@ -2751,7 +2751,7 @@
    "Race Track": 2,
    "Karting Track": 4,
    "Public Racing Club": 3,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 3,
@@ -2788,7 +2788,7 @@
    "Academy": 1,
    "Race Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,
@@ -2827,7 +2827,7 @@
    "Karting Track": 4,
    "Factory": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 2,
@@ -2865,7 +2865,7 @@
    "Race Track": 1,
    "Karting Track": 2,
    "Public Racing Club": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -2902,7 +2902,7 @@
    "Oval Track": 2,
    "Karting Track": 2,
    "Factory": 2,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 2,
@@ -2942,7 +2942,7 @@
    "Karting Track": 4,
    "Factory": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -2981,7 +2981,7 @@
    "Oval Track": 2,
    "Karting Track": 3,
    "Public Racing Club": 2,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -3020,7 +3020,7 @@
    "Karting Track": 4,
    "Factory": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 2,
@@ -3059,7 +3059,7 @@
    "Race Track": 2,
    "Karting Track": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 3,
@@ -3095,7 +3095,7 @@
    "Fitness Clinic": 25,
    "Oval Track": 2,
    "Karting Track": 2,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -3130,7 +3130,7 @@
    "Fitness Clinic": 20,
    "Gravel Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -3168,7 +3168,7 @@
    "Oval Track": 2,
    "Karting Track": 3,
    "Public Racing Club": 2,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -3206,7 +3206,7 @@
    "Race Track": 2,
    "Karting Track": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 2,
@@ -3243,7 +3243,7 @@
    "Oval Track": 2,
    "Karting Track": 3,
    "Factory": 2,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 2,
@@ -3282,7 +3282,7 @@
    "Race Track": 2,
    "Karting Track": 4,
    "Public Racing Club": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -3322,7 +3322,7 @@
    "Karting Track": 3,
    "Factory": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -3361,7 +3361,7 @@
    "Karting Track": 3,
    "Factory": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 2,
@@ -3399,7 +3399,7 @@
    "Race Track": 1,
    "Karting Track": 2,
    "Public Racing Club": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -3438,7 +3438,7 @@
    "Race Track": 2,
    "Karting Track": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -3474,7 +3474,7 @@
    "Fitness Clinic": 28,
    "Gravel Track": 2,
    "Karting Track": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -3506,7 +3506,7 @@
    "Academy": 3,
    "Karting Track": 1,
    "Public Racing Club": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 1,
@@ -3537,7 +3537,7 @@
    "Academy": 4,
    "Karting Track": 2,
    "Public Racing Club": 2,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 1,
@@ -3568,7 +3568,7 @@
    "Academy": 4,
    "Karting Track": 1,
    "Public Racing Club": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 1,
@@ -3599,7 +3599,7 @@
    "Academy": 3,
    "Karting Track": 1,
    "Public Racing Club": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 1,
@@ -3630,7 +3630,7 @@
    "Academy": 2,
    "Karting Track": 1,
    "Public Racing Club": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 1,
@@ -3661,7 +3661,7 @@
    "Academy": 3,
    "Karting Track": 1,
    "Public Racing Club": 2,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 1,
@@ -3692,7 +3692,7 @@
    "Academy": 4,
    "Karting Track": 3,
    "Public Racing Club": 2,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 1,
@@ -3723,7 +3723,7 @@
    "Academy": 5,
    "Karting Track": 5,
    "Public Racing Club": 2,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 1,
@@ -3754,7 +3754,7 @@
    "Academy": 3,
    "Karting Track": 1,
    "Public Racing Club": 2,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 1,
@@ -3785,7 +3785,7 @@
    "Academy": 4,
    "Karting Track": 4,
    "Public Racing Club": 2,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 1,
@@ -3820,7 +3820,7 @@
    "Academy": 1,
    "Race Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,
@@ -3859,7 +3859,7 @@
    "Race Track": 2,
    "Karting Track": 3,
    "Public Racing Club": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 3,
@@ -3898,7 +3898,7 @@
    "Race Track": 2,
    "Karting Track": 3,
    "Public Racing Club": 2,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -3936,7 +3936,7 @@
    "Race Track": 1,
    "Karting Track": 2,
    "Public Racing Club": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -3976,7 +3976,7 @@
    "Karting Track": 4,
    "Factory": 3,
    "Public Racing Club": 3,
-   "Merchandize Store": 4
+   "Merchandise Store": 4
   },
   "staff": {
    "TP": 3,
@@ -4015,7 +4015,7 @@
    "Race Track": 2,
    "Karting Track": 4,
    "Public Racing Club": 2,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -4054,7 +4054,7 @@
    "Race Track": 2,
    "Karting Track": 4,
    "Public Racing Club": 3,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -4092,7 +4092,7 @@
    "Race Track": 1,
    "Karting Track": 2,
    "Public Racing Club": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -4128,7 +4128,7 @@
    "Fitness Clinic": 26,
    "Oval Track": 2,
    "Karting Track": 2,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 2,
@@ -4167,7 +4167,7 @@
    "Race Track": 2,
    "Karting Track": 3,
    "Public Racing Club": 2,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -4205,7 +4205,7 @@
    "Race Track": 1,
    "Karting Track": 2,
    "Public Racing Club": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -4241,7 +4241,7 @@
    "Fitness Clinic": 23,
    "Oval Track": 2,
    "Karting Track": 2,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -4279,7 +4279,7 @@
    "Gravel Track": 2,
    "Karting Track": 3,
    "Factory": 2,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 4,
@@ -4313,7 +4313,7 @@
    "Fitness Clinic": 19,
    "Gravel Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -4346,7 +4346,7 @@
    "Fitness Clinic": 13,
    "Gravel Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 1,
@@ -4383,7 +4383,7 @@
    "Gravel Track": 2,
    "Karting Track": 2,
    "Factory": 2,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 4,
@@ -4420,7 +4420,7 @@
    "Gravel Track": 2,
    "Karting Track": 3,
    "Factory": 1,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 4,
@@ -4456,7 +4456,7 @@
    "Gravel Track": 2,
    "Karting Track": 2,
    "Factory": 2,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -4491,7 +4491,7 @@
    "Gravel Track": 2,
    "Karting Track": 3,
    "Factory": 4,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 2,
@@ -4527,7 +4527,7 @@
    "Fitness Clinic": 19,
    "Gravel Track": 1,
    "Karting Track": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 4,
@@ -4562,7 +4562,7 @@
    "Fitness Clinic": 16,
    "Gravel Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 3,
@@ -4597,7 +4597,7 @@
    "Fitness Clinic": 15,
    "Gravel Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 3,
@@ -4632,7 +4632,7 @@
    "Fitness Clinic": 14,
    "Oval Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,
@@ -4668,7 +4668,7 @@
    "Fitness Clinic": 15,
    "Oval Track": 1,
    "Karting Track": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -4704,7 +4704,7 @@
    "Fitness Clinic": 13,
    "Oval Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,
@@ -4741,7 +4741,7 @@
    "Fitness Clinic": 15,
    "Oval Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 3,
@@ -4777,7 +4777,7 @@
    "Fitness Clinic": 12,
    "Oval Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,
@@ -4813,7 +4813,7 @@
    "Fitness Clinic": 14,
    "Oval Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,
@@ -4849,7 +4849,7 @@
    "Fitness Clinic": 12,
    "Oval Track": 1,
    "Karting Track": 1,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,
@@ -4885,7 +4885,7 @@
    "Fitness Clinic": 13,
    "Oval Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,
@@ -4921,7 +4921,7 @@
    "Fitness Clinic": 11,
    "Oval Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,
@@ -4957,7 +4957,7 @@
    "Fitness Clinic": 13,
    "Oval Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,
@@ -4992,7 +4992,7 @@
    "Fitness Clinic": 12,
    "Oval Track": 1,
    "Karting Track": 1,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 1,
@@ -5028,7 +5028,7 @@
    "Fitness Clinic": 11,
    "Oval Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,
@@ -5064,7 +5064,7 @@
    "Fitness Clinic": 10,
    "Oval Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,
@@ -5099,7 +5099,7 @@
    "Pit Crew Arena": 2,
    "Fitness Clinic": 12,
    "Oval Track": 1,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,
@@ -5135,7 +5135,7 @@
    "Fitness Clinic": 10,
    "Oval Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,
@@ -5171,7 +5171,7 @@
    "Fitness Clinic": 11,
    "Oval Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,
@@ -5207,7 +5207,7 @@
    "Fitness Clinic": 12,
    "Oval Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,
@@ -5242,7 +5242,7 @@
    "Pit Crew Arena": 2,
    "Fitness Clinic": 13,
    "Oval Track": 1,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,
@@ -5279,7 +5279,7 @@
    "Fitness Clinic": 21,
    "Oval Track": 2,
    "Karting Track": 2,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 3,
@@ -5315,7 +5315,7 @@
    "Pit Crew Arena": 3,
    "Fitness Clinic": 15,
    "Oval Track": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 3,
@@ -5352,7 +5352,7 @@
    "Fitness Clinic": 14,
    "Oval Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 3,
@@ -5389,7 +5389,7 @@
    "Fitness Clinic": 21,
    "Oval Track": 2,
    "Karting Track": 3,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 4,
@@ -5426,7 +5426,7 @@
    "Fitness Clinic": 12,
    "Oval Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 3,
@@ -5462,7 +5462,7 @@
    "Pit Crew Arena": 3,
    "Fitness Clinic": 13,
    "Oval Track": 1,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 3,
@@ -5499,7 +5499,7 @@
    "Fitness Clinic": 12,
    "Oval Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 3,
@@ -5534,7 +5534,7 @@
    "Pit Crew Arena": 2,
    "Fitness Clinic": 13,
    "Oval Track": 1,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,
@@ -5571,7 +5571,7 @@
    "Fitness Clinic": 25,
    "Oval Track": 2,
    "Karting Track": 2,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 3,
@@ -5607,7 +5607,7 @@
    "Fitness Clinic": 14,
    "Oval Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,
@@ -5642,7 +5642,7 @@
    "Fitness Clinic": 12,
    "Oval Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 1,
@@ -5678,7 +5678,7 @@
    "Fitness Clinic": 21,
    "Race Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -5713,7 +5713,7 @@
    "Pit Crew Arena": 2,
    "Fitness Clinic": 19,
    "Race Track": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -5747,7 +5747,7 @@
    "Pit Crew Arena": 1,
    "Fitness Clinic": 21,
    "Race Track": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 1,
@@ -5784,7 +5784,7 @@
    "Fitness Clinic": 25,
    "Oval Track": 2,
    "Karting Track": 2,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 3,
@@ -5819,7 +5819,7 @@
    "Fitness Clinic": 20,
    "Race Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 1,
@@ -5856,7 +5856,7 @@
    "Fitness Clinic": 19,
    "Gravel Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 4,
@@ -5890,7 +5890,7 @@
    "Pit Crew Arena": 3,
    "Fitness Clinic": 16,
    "Gravel Track": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 3,
@@ -5925,7 +5925,7 @@
    "Fitness Clinic": 15,
    "Gravel Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 3,
@@ -5961,7 +5961,7 @@
    "Race Track": 2,
    "Karting Track": 4,
    "Factory": 2,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 3,
@@ -5996,7 +5996,7 @@
    "Fitness Clinic": 19,
    "Gravel Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -6029,7 +6029,7 @@
    "Pit Crew Arena": 2,
    "Fitness Clinic": 18,
    "Gravel Track": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 2,
@@ -6061,7 +6061,7 @@
    "Pit Crew Arena": 1,
    "Fitness Clinic": 15,
    "Gravel Track": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 1,
@@ -6097,7 +6097,7 @@
    "Race Track": 2,
    "Karting Track": 4,
    "Factory": 2,
-   "Merchandize Store": 3
+   "Merchandise Store": 3
   },
   "staff": {
    "TP": 2,
@@ -6130,7 +6130,7 @@
    "Pit Crew Arena": 1,
    "Fitness Clinic": 17,
    "Gravel Track": 1,
-   "Merchandize Store": 2
+   "Merchandise Store": 2
   },
   "staff": {
    "TP": 1,
@@ -6162,7 +6162,7 @@
    "Pit Crew Arena": 1,
    "Fitness Clinic": 15,
    "Gravel Track": 1,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 1,
@@ -6198,7 +6198,7 @@
    "Fitness Clinic": 12,
    "Oval Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 3,
@@ -6234,7 +6234,7 @@
    "Fitness Clinic": 14,
    "Oval Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,
@@ -6269,7 +6269,7 @@
    "Pit Crew Arena": 2,
    "Fitness Clinic": 13,
    "Oval Track": 1,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,
@@ -6304,7 +6304,7 @@
    "Fitness Clinic": 10,
    "Oval Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 1,
@@ -6340,7 +6340,7 @@
    "Pit Crew Arena": 3,
    "Fitness Clinic": 13,
    "Oval Track": 1,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 3,
@@ -6376,7 +6376,7 @@
    "Fitness Clinic": 12,
    "Oval Track": 1,
    "Karting Track": 2,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,
@@ -6411,7 +6411,7 @@
    "Pit Crew Arena": 2,
    "Fitness Clinic": 12,
    "Oval Track": 1,
-   "Merchandize Store": 1
+   "Merchandise Store": 1
   },
   "staff": {
    "TP": 2,

@@ -1,3 +1,10 @@
+## Version: S40.1 — LEAD DESIGNER REWORK (thread #6) wiring: declared + instantiated
+##   _lead_designer_engine (LeadDesignerProposalEngine) in all init paths; _last_design_proposals
+##   cache; public delegations (generate/peek/apply_design_proposals + get_design_line_capacity /
+##   get_free_design_lines / get_lead_designer_id / can_run_rnd). Engine logic lives in RnDEngine
+##   (capacity = Studio level, C=f(skill), soft over-stretch penalty on quality AND speed) and the
+##   new LeadDesignerProposalEngine (advisor proposals, mirrors TPProposalEngine). UI rework of the
+##   R&D Studio "free designer" picker + the JSON surgery (3098→172+~100 FAs) are SEPARATE sessions.
 ## Version: S40.0 — Phase 3 tail: (1) market-share milestone NEWS (10/20/30/50%) per active segment via
 ##   _check_commercial_share_milestones in the weekly tick; ledger commercial_share_milestone_hit saved/
 ##   loaded/reset. (2) No-CFO TDL row now appends an informative "Financial Department is not
@@ -374,6 +381,8 @@ var _car_manager: CarManager = null
 var _driver_manager: DriverManager = null
 ## P57 TP Proposal Engine — owns TP auto-assignment proposals
 var _tp_engine: TPProposalEngine = null
+## S40.0 — Lead Designer advisor: proposes blueprint queues for idle design lines (thread #6).
+var _lead_designer_engine: LeadDesignerProposalEngine = null
 
 ## ═══════════════════════════════════════════════════════════════════════════
 ## STAFF SYSTEM CONSTANTS (data stays on GameState)
@@ -732,6 +741,8 @@ var last_race_standings:    Array = []
 var last_race_staff_deltas: Array = []
 ## Last generated TP assignment proposals — displayed in Racing Department
 var _last_tp_proposals: Array = []
+## S40.0 — cached Lead Designer proposals for the R&D Studio display (mirrors _last_tp_proposals).
+var _last_design_proposals: Array = []
 ## Queue for multiple same-week races — each entry is a snapshot dict of all last_race_* vars
 var _pending_race_results: Array = []
 
@@ -2053,6 +2064,7 @@ func _ready() -> void:
 	_car_manager = CarManager.new(self)
 	_driver_manager = DriverManager.new(self)
 	_tp_engine = TPProposalEngine.new(self)
+	_lead_designer_engine = LeadDesignerProposalEngine.new(self)   ## S40.0
 	_calendar_manager = _CalendarManagerScript.new(self)   ## S37.26
 	_load_race_calendar()                                  ## S37.26
 	_load_part_costs()                                     ## S37.32
@@ -2061,11 +2073,13 @@ func _ready() -> void:
 	_car_manager = CarManager.new(self)
 	_driver_manager = DriverManager.new(self)
 	_tp_engine = TPProposalEngine.new(self)
+	_lead_designer_engine = LeadDesignerProposalEngine.new(self)   ## S40.0
 	_sponsor_manager = SponsorManager.new(self)
 	_staff_manager = StaffManager.new(self)
 	_car_manager = CarManager.new(self)
 	_driver_manager = DriverManager.new(self)
 	_tp_engine = TPProposalEngine.new(self)
+	_lead_designer_engine = LeadDesignerProposalEngine.new(self)   ## S40.0
 	RND_TASKS = _build_rnd_tasks()
 	ai_manager = load("res://autoloads/AIManager.gd").new()
 
@@ -5207,6 +5221,34 @@ func generate_tp_assignment_proposals() -> Array:
 ## re-fire the TP notification + TDL every time the panel is built.
 func peek_tp_proposals() -> Array:
 	return _tp_engine.compute_optimal_assignments(player_team, player_team_cars, false)
+
+## ═══ LEAD DESIGNER PROPOSAL ENGINE — delegated to LeadDesignerProposalEngine.gd (S40.0) ═══
+
+## Generates + fires the Lead Designer proposal (notification + TDL), caches the result.
+func generate_design_proposals() -> Array:
+	_last_design_proposals = _lead_designer_engine.generate_design_proposals()
+	return _last_design_proposals
+
+## Read-only compute for the R&D Studio panel — no notification/TDL fire (mirrors peek_tp_proposals).
+func peek_design_proposals() -> Array:
+	return _lead_designer_engine.compute_design_queue(player_team, player_team_cars)
+
+## Applies accepted Lead Designer proposals (starts the queued blueprints on the Lead).
+func apply_design_proposals(proposals: Array) -> void:
+	_lead_designer_engine.apply_design_proposals(proposals)
+
+## Convenience pass-throughs to the capacity system (UI: show lines, comfort, idle-line state).
+func get_design_line_capacity() -> int:
+	return _rnd_engine.get_design_line_capacity()
+
+func get_free_design_lines() -> int:
+	return _rnd_engine.get_free_design_lines()
+
+func get_lead_designer_id() -> String:
+	return _rnd_engine.get_lead_designer_id()
+
+func can_run_rnd() -> bool:
+	return _rnd_engine.can_run_rnd()
 
 func _effective_stat(driver, disc: String, stat: String) -> float:
 	return _tp_engine._effective_stat(driver, disc, stat)

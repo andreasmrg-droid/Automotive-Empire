@@ -1,4 +1,13 @@
 class_name RaceSimulator
+## Version: S40.6 — BUGFIX: RP now counts ACTUAL laps the player's cars completed, not the scheduled
+##   race distance — a DNS car ran 0 laps and no longer accumulates RP. Laps SUM across every player
+##   car in the championship that started (2 running cars → double). earn_race_rp guards laps<=0.
+##   Sets up the "every real lap matters" accounting for future practice/qualifying laps. (Fuel +
+##   degradation already skipped DNS cars; RP was the lone offender.)
+## Version: S40.5 — RP-per-race reworked (thread #6 consistency): scales with R&D Studio LEVEL × the
+##   Lead Designer's overall skill, not the sum of every hired designer (which rewarded stacking
+##   designers against the one-Lead model). RP_PER_LAP_BASE constant = the faucet knob for the pending
+##   RP-economy balance pass. No Studio or no Lead → no RP (same intent, not headcount-scaled).
 ## Version: S38.3 — register_racing_income(entry_prize) on player race-prize payout (Factory cap anchor).
 ## Version: S37.63 — Genuine NEWS: race-result headline ("CHAMP — Winner: crew (team)") via log_news.
 ##   DNS / condition-unchanged lines remain add_log only (not news).
@@ -538,7 +547,16 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 	## Bug 13 fix: designers were earning RP from all 21 championships
 	if c.id in gs.player_registered_championships:
 		consume_race_resources(c)
-		earn_race_rp(race_data["laps"])
+		## S40.6 — RP counts ACTUAL laps the player's cars completed, not the scheduled race
+		## distance. A DNS car ran 0 laps and must not accumulate RP. Laps are SUMMED across every
+		## player car in this championship that actually started (two running cars → double laps).
+		## Today a started car completes the full distance (no partial DNF model yet); when
+		## practice/qualifying laps land, they add into this same "real laps turned" accounting.
+		var player_laps := 0
+		for car in cars_for_champ:
+			if not car.id in dns_car_ids:
+				player_laps += int(race_data["laps"])
+		earn_race_rp(player_laps)
 
 	# Season ends at week 52 regardless
 	if gs.current_week >= gs.max_weeks:
@@ -729,18 +747,30 @@ func consume_race_resources(champ: Championship = null) -> void:
 		gs.fuel_kg = max(gs.fuel_kg, 0.0)
 
 
+## S40.5 — RP-per-race now scales with R&D STUDIO LEVEL × the LEAD DESIGNER's skill, replacing the
+## old "sum of every hired designer's skill" (which rewarded stacking designers — contra the one-Lead
+## model). Both inputs matter: a bigger Studio and a better Lead each raise RP income. RP_PER_LAP_BASE
+## is the single faucet knob for the pending RP-economy balance pass.
+##   rp_gained = laps × RP_PER_LAP_BASE × studio_level × (lead_overall / 100) × difficulty_mult
+const RP_PER_LAP_BASE := 1.0
+
 func earn_race_rp(laps: int) -> void:
+	if laps <= 0:
+		return   ## S40.6 — no real laps turned (e.g. all player cars DNS) → no RP.
 	var rnd_studio = gs.campus_buildings.get("R&D Design Studio", {})
 	if not rnd_studio.get("built", false):
 		return
-	var designers = gs.get_player_staff_by_role("Designer")
-	if designers.is_empty():
+	var studio_level := int(rnd_studio.get("level", 0))
+	if studio_level <= 0:
 		return
-	var design_power = 0.0
-	for d in designers:
-		var avg = (d.engine + d.aero + d.chassis + d.gearbox + d.brakes + d.suspension) / 6.0
-		design_power += avg / 100.0
-	var rp_gained = laps * 1 * design_power
+	## Lead Designer = the team's single Lead (highest-overall hired designer). No Lead → no RP,
+	## same "you need someone to run R&D" gate as before, just not headcount-scaled.
+	var lead_id: String = gs.get_lead_designer_id()
+	if lead_id == "" or not lead_id in gs.all_staff:
+		return
+	var lead_skill: float = gs.all_staff[lead_id].get_overall_skill()   # 0..100, 6-stat mean
+
+	var rp_gained := float(laps) * RP_PER_LAP_BASE * float(studio_level) * (lead_skill / 100.0)
 	rp_gained *= gs.get_difficulty_mult()["player_rnd"]
 	var rp_cap = gs.get_rnd_rp_storage_cap()
 	gs.research_points = min(gs.research_points + rp_gained, float(rp_cap))

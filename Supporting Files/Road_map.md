@@ -4,7 +4,7 @@ Redesign of the Designers
 Complete the CNC Market
 Bankruptcy 
 CEO Market
-Finish all the buildings (Fitness clinic Levels, To enter the highest tier of every discipline the must have a merchandise store at least level 1)
+Finish all the buildings (Fitness clinic Levels, To enter the highest tier of every discipline the must have a merchandise store at least level 1, upkeep and upgrade cost for each building)
 Build the Race Screens and one race
 Go on Steam
 GK cars application to the non-player groups

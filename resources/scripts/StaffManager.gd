@@ -1,4 +1,7 @@
 class_name StaffManager
+## Version: S40.7 — designer free-agent floor raised 6→12 (replenish_free_agent_pool): post Lead-
+##   Designer rework each team fields ONE Lead, so the market must stay deep enough that a retiring
+##   Lead is replaceable.
 ## Version: S37.49 — Phase 3 (events→notify_event): 2 hires (pit crew / staff joined) + release → "news".
 ## Version: S37.42 — BUGFIX (release doesn't unassign): release_staff() now clears the CAR-side
 ##   assignment (car.mechanic_id / car.pit_crew_id) for the released staff, mirroring release_driver.
@@ -57,7 +60,9 @@ func replenish_free_agent_pool() -> void:
 		"Pit Crew":        8,
 		"Team Principal":  4,
 		"CFO":             4,
-		"Designer":        6,
+		"Designer":        12,   ## S40.7 — raised 6→12: post Lead-Designer rework each team fields
+		##                          ONE Lead, so the market must stay deep enough that a retiring
+		##                          Lead is actually replaceable (a floor of 6 left it too thin).
 		"Race Strategist": 5,
 	}
 	var nationalities = ["British", "Italian", "German", "French", "Spanish",
