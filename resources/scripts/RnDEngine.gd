@@ -1,4 +1,25 @@
 class_name RnDEngine
+## Version: S41.4 — AI R&D ECONOMY, PHASE 4 seam: get_rnd_rp_storage_cap gains an optional `team`
+##   (player → campus Studio level as before; AI → the ledger's seeded studio_level), so the RP faucet
+##   caps an AI team's banked RP on the same curve as the player. No other change here; the faucet
+##   itself lives in RaceSimulator S41.4 + GameState S41.4. Analysis-checked; NOT Godot-parsed.
+## Version: S41.2 — AI R&D ECONOMY, PHASE 3 (per-team RP ledger + routing · spec §4). Adds the
+##   parallel per-team store: `_fresh_rnd_ledger` / `_is_player_ledger` / `_ledger_for` (mirrors the
+##   existing `_bonuses_for` pattern). The PLAYER path is byte-for-byte unchanged — every routed
+##   function takes an optional `team = null` that defaults to the player and hits the exact same
+##   GameState globals as before; only a non-player team routes into its `rnd_ledger` meta. Routed:
+##   rnd_task_active_or_done, rnd_task_unlocked (+ _has_l1_blueprint_for; P3 provenance now resolves
+##   against the requesting team's cars), is_blueprint_approved/submitted, submit_to_wra,
+##   _advance_wra_submissions (AI loop: silent approvals, world-news rejections + tier-scaled rep hit),
+##   start_rnd_task (new _ai_start_rnd_task ledger branch), _advance_rnd_tasks (AI completion loop),
+##   _apply_rnd_effect (writes bonuses to the target team). SCOPE: storage + routing + save/load ONLY —
+##   the AI RP FAUCET (§5), the PLANNER that spends it (§6), retreat/backfill (§7) and on-track uplift
+##   (§8) are later build-order steps, so an AI ledger exists/persists but stays EMPTY until those land
+##   (intended). AI blueprint quality skips the P2-carryover/lineage refinements (they read player-only
+##   approval globals) — deferred to the uplift step where AI blueprint values start mattering. Pairs
+##   with GameState S41.2 (delegations gain `team`; AI ledger+bonuses save/load with fresh-seed fallback
+##   for old saves). Analysis-checked (brace-balance + type audit); NOT Godot-parsed; user confirmed the
+##   S41.0/S41.1 batch is parsed/playtested, so this builds on a stable base.
 ## Version: S41.0 — AI R&D ECONOMY, PHASE 1 (player-facing prerequisites). Three changes:
 ##   (1) P3 REVERSE ENGINEERING now generated for ALL parts (spec + open), not spec-only — fixes the
 ##       bug where a team could never RE the open parts of a bought car. Startability is gated at
@@ -889,19 +910,22 @@ func get_rnd_perf_bonus_summary() -> String:
 ## Returns true if a task's prerequisite is completed AND (for Pillar 4) the linked building is at the required level.
 
 
-func rnd_task_unlocked(task_id: String) -> bool:
+func rnd_task_unlocked(task_id: String, team = null) -> bool:
 	var task = gs.RND_TASKS.get(task_id, {})
 	if task.is_empty(): return false
+	## Prereq/L1/blueprint checks read this team's completed set + blueprint store (player → globals).
+	var is_player: bool = _is_player_ledger(team)
+	var completed_rnd: Array = gs.completed_rnd_tasks if is_player else _ledger_for(team)["completed_rnd"]
 	# Prerequisite task check (all pillars)
 	var req = task.get("requires", "")
-	if req != "" and not req in gs.completed_rnd_tasks:
+	if req != "" and not req in completed_rnd:
 		return false
 	## S35.11 — P1 L2 unlocks when an L1 blueprint for this [champ][part][season] exists
 	## from EITHER P1 (Design) OR P3 (Reverse Engineering). Resolved at part level so RE
 	## genuinely opens L2 (previously L2 hard-required the P1 L1 task id, so an RE-only
 	## player could never reach L2).
 	var req_l1 = task.get("requires_l1_for", "")
-	if req_l1 != "" and not _has_l1_blueprint_for(req_l1):
+	if req_l1 != "" and not _has_l1_blueprint_for(req_l1, team):
 		return false
 	# Pillar 4: building level gate + R&D Design Studio level gate
 	if task.get("pillar", 0) == 4:
@@ -948,8 +972,13 @@ func rnd_task_unlocked(task_id: String) -> bool:
 		## NB: a granted/bought car's parts live in car.part_conditions (add_car), NOT car_provider_parts
 		## (which is only populated when a provider part is EXPLICITLY installed) — so we check the car's
 		## presence + part_conditions, not provider-dict membership.
+		## S41.2 — team-scoped: resolve against the requesting team's cars (player → player_team). NB the
+		## installed-parts store (car_installed_parts) is player-singular today; AI CnC is the NEXT
+		## project (spec §8), so for AI teams the "self-made drops out" clause simply never fires yet —
+		## an AI team's granted car keeps every part RE-able, which is correct until AI CnC exists.
+		var re_team = gs.player_team if _is_player_ledger(team) else team
 		var re_available := false
-		for car in gs.get_cars_for_team(gs.player_team):
+		for car in gs.get_cars_for_team(re_team):
 			if car.championship_id != p3_cid:
 				continue
 			## Self-made (own-CNC) parts drop out of P3.
@@ -966,14 +995,15 @@ func rnd_task_unlocked(task_id: String) -> bool:
 
 ## S35.11 — True if a completed L1 (level==1, pillar 1 or 3) blueprint exists matching the
 ## "cid|pcode|season" key. Used by rnd_task_unlocked to gate P1 L2 on either design path.
-func _has_l1_blueprint_for(key: String) -> bool:
+func _has_l1_blueprint_for(key: String, team = null) -> bool:
 	var parts = key.split("|")
 	if parts.size() != 3: return false
 	var cid = parts[0]
 	var pcode = parts[1]
 	var season = int(parts[2])
-	for bp_id in gs.known_blueprints:
-		var bp = gs.known_blueprints[bp_id]
+	var kb: Dictionary = gs.known_blueprints if _is_player_ledger(team) else _ledger_for(team)["known_blueprints"]
+	for bp_id in kb:
+		var bp = kb[bp_id]
 		if bp.get("pillar", 0) not in [1, 3]: continue
 		if int(bp.get("level", 0)) != 1: continue
 		if bp.get("championship_id", "") != cid: continue
@@ -985,16 +1015,24 @@ func _has_l1_blueprint_for(key: String) -> bool:
 ## Returns true if a task is already running or completed.
 
 
-func rnd_task_active_or_done(task_id: String) -> bool:
-	if task_id in gs.completed_rnd_tasks: return true
-	for t in gs.active_rnd_tasks:
+func rnd_task_active_or_done(task_id: String, team = null) -> bool:
+	if _is_player_ledger(team):
+		if task_id in gs.completed_rnd_tasks: return true
+		for t in gs.active_rnd_tasks:
+			if t["id"] == task_id: return true
+		return false
+	var led := _ledger_for(team)
+	if task_id in led["completed_rnd"]: return true
+	for t in led["active_tasks"]:
 		if t["id"] == task_id: return true
 	return false
 
 ## Starts a new R&D task. Returns false with notification on failure.
 
 
-func start_rnd_task(task_id: String, designer_id: String, championship_id: String = "") -> bool:
+func start_rnd_task(task_id: String, designer_id: String, championship_id: String = "", team = null) -> bool:
+	if not _is_player_ledger(team):
+		return _ai_start_rnd_task(task_id, designer_id, championship_id, team)
 	var task = gs.RND_TASKS.get(task_id, {})
 	if task.is_empty():
 		gs.show_popup("Unknown R&D task: %s" % task_id, "Cannot Start R&D")
@@ -1102,6 +1140,57 @@ func start_rnd_task(task_id: String, designer_id: String, championship_id: Strin
 	gs.notify_event("rnd_started_%s" % task_id, "Normal", "R&D started: %s%s. Est. completion: Week %d." % [
 		task["name"], champ_label, gs.current_week + weeks_for_task])
 	gs.emit_signal("log_updated")
+	return true
+
+## ── AI R&D start (S41.2, Phase 3) ────────────────────────────────────────────
+## The ledger-routed mirror of start_rnd_task for a non-player team. Same spend + task-shape as the
+## player, written to the team's rnd_ledger. Deliberately LEANER than the player path:
+##   • No popups/notifications/TDL (silent world). Guard failures just return false.
+##   • Capacity guard = ledger studio_level as the line count (free lines = studio_level − active).
+##     The Lead over-stretch WEEKS-multiplier + quality penalty are the PLANNER's concern (spec §6,
+##     build-order step 5) — this ships the spend/append substrate so the planner can call it; it does
+##     NOT invent the AI capacity/scheduling model here. Weeks are the task's base weeks for now.
+##   • designer_id is accepted for signature parity but AI line-routing to a single Lead is the
+##     planner's job; we store whatever is passed (planner will pass the AI team's Lead).
+## Returns true on a successful start (RP+CR spent, task appended), false on any guard.
+func _ai_start_rnd_task(task_id: String, designer_id: String, championship_id: String, team) -> bool:
+	var task = gs.RND_TASKS.get(task_id, {})
+	if task.is_empty(): return false
+	if rnd_task_active_or_done(task_id, team): return false
+	if not rnd_task_unlocked(task_id, team): return false
+	var led := _ledger_for(team)
+	if float(led["rp"]) < float(task["rp"]): return false
+	if team.balance < float(task["cr"]): return false
+	## Line-capacity guard (studio_level = number of design lines). free = level − active.
+	var consumes_line: bool = int(task.get("pillar", 0)) in [1, 2, 3, 4, 5]
+	if consumes_line:
+		var studio_level := int(led["studio_level"])
+		if studio_level <= 0: return false
+		var active_lines := 0
+		for t in led["active_tasks"]:
+			if int(t.get("pillar", 0)) in [1, 2, 3, 4, 5]:
+				active_lines += 1
+		if active_lines >= studio_level: return false
+	led["rp"] = float(led["rp"]) - float(task["rp"])
+	team.balance -= float(task["cr"])
+	led["active_tasks"].append({
+		"id":              task_id,
+		"name":            task["name"],
+		"pillar":          task["pillar"],
+		"part":            task["part"],
+		"part_code":       task.get("part_code", _part_name_to_pcode(task["part"])),
+		"championship_id": championship_id,
+		"season":          task.get("season", gs.current_season),
+		"level":           task.get("level", 1),
+		"weeks_total":     int(task["weeks"]),
+		"weeks_remaining": int(task["weeks"]),
+		"rp_cost":         task["rp"],
+		"cr_cost":         task["cr"],
+		"designer_id":     designer_id,
+		"effect_key":      task.get("effect", ""),
+		"effect_value":    task.get("value", 0.0),
+		"team_id":         team.id,   ## Phase 3: AI tasks carry their owning team (spec §4).
+	})
 	return true
 
 ## Cancel an active R&D task — no refund.
@@ -1227,6 +1316,60 @@ func _advance_rnd_tasks() -> void:
 				"commercial_dept", "event")
 		else:
 			gs.notify_event("rnd_complete_%s" % task["id"], "High", "R&D complete: '%s'%s. Submit to WRA Office in HQ to manufacture." % [task["name"], champ_label], "wra_office", "event")
+
+	## ── AI teams (S41.2, Phase 3) ────────────────────────────────────────────
+	## Tick + complete each non-player team's ledger tasks. Mirrors the player's completion state
+	## writes (completed_rnd/bp/upg, known_blueprints, effect application) against the team's ledger,
+	## with NO player UI (no logs/notifications/commercial-refresh popups). Blueprint QUALITY: P3 uses
+	## the same designer-scaled RE floor (_compute_re_quality is staff-based, already team-agnostic);
+	## P1 stores its bare L1 value. The P2-carry-over + lineage refinements read player-only approval
+	## globals today, so AI blueprints skip them here — that fidelity belongs with the on-track uplift
+	## step (spec §8), which is where AI blueprint values actually start mattering. Inert until the AI
+	## faucet/planner populate active_tasks, but wired so the pipeline is whole and save-safe.
+	for team in gs.all_teams:
+		if team == null or team.is_player_team:
+			continue
+		if not team.has_meta("rnd_ledger"):
+			continue
+		var led := _ledger_for(team)
+		var ai_finished: Array = []
+		for t in led["active_tasks"]:
+			t["weeks_remaining"] = int(t["weeks_remaining"]) - 1
+			if int(t["weeks_remaining"]) <= 0:
+				ai_finished.append(t)
+		for t in ai_finished:
+			led["active_tasks"].erase(t)
+			var tid2 = t["id"]
+			var pillar2 = int(t.get("pillar", 0))
+			if not tid2 in led["completed_rnd"]:
+				led["completed_rnd"].append(tid2)
+			if pillar2 == 1 or pillar2 == 3:
+				if not tid2 in led["completed_bp"]:
+					led["completed_bp"].append(tid2)
+				var q2 := 1.0
+				if pillar2 == 3:
+					q2 = _compute_re_quality(t)
+				led["known_blueprints"][tid2] = {
+					"blueprint_id": tid2, "name": t["name"],
+					"part": t.get("part",""), "part_code": t.get("part_code",""),
+					"championship_id": t.get("championship_id",""),
+					"season": t.get("season", gs.current_season),
+					"level": t.get("level", 1), "pillar": pillar2,
+					"effect": t.get("effect_key",""), "value": float(t.get("effect_value", 0.0)),
+					"quality": q2,
+				}
+			elif pillar2 == 2:
+				if not tid2 in led["completed_upg"]:
+					led["completed_upg"].append(tid2)
+				led["known_blueprints"][tid2] = {
+					"blueprint_id": tid2, "name": t["name"],
+					"part": t.get("part",""), "part_code": t.get("part_code",""),
+					"championship_id": t.get("championship_id",""),
+					"season": t.get("season", gs.current_season),
+					"level": t.get("level", 1), "pillar": pillar2, "seasonal": true,
+					"effect": t.get("effect_key",""), "value": t.get("effect_value", 0.0),
+				}
+			_apply_rnd_effect(t, team)
 	gs.emit_signal("log_updated")
 
 ## S35.11 — Maps a part name to the Designer stat that governs its design quality.
@@ -1474,18 +1617,23 @@ func resolve_active_l1_blueprint(cid: String, pcode: String, season: int) -> Str
 ## Effects are stored as car_performance_bonuses — applied in race sim.
 
 
-func _apply_rnd_effect(task: Dictionary) -> void:
+func _apply_rnd_effect(task: Dictionary, team = null) -> void:
 	var key = task["effect_key"]
 	var value = task["effect_value"]
 	if key == "": return
-	## Accumulate into the player team's rnd_bonuses meta; the P4 EFFECT ACCESSOR LAYER (below) is
-	## the sole reader. (When AI R&D goes live, the same meta on an AI team feeds the same accessors.)
-	if not gs.player_team.has_meta("rnd_bonuses"):
-		gs.player_team.set_meta("rnd_bonuses", {})
-	var bonuses = gs.player_team.get_meta("rnd_bonuses")
+	## Accumulate into the target team's rnd_bonuses meta; the P4 EFFECT ACCESSOR LAYER (below) is
+	## the sole reader. Player defaults to gs.player_team; AI teams pass themselves (spec §4/§8 — the
+	## same meta on an AI team feeds the same team-aware accessors, so uplift reads uniformly).
+	var tgt = gs.player_team if _is_player_ledger(team) else team
+	if tgt == null: return
+	if not tgt.has_meta("rnd_bonuses"):
+		tgt.set_meta("rnd_bonuses", {})
+	var bonuses = tgt.get_meta("rnd_bonuses")
 	bonuses[key] = float(bonuses.get(key, 0.0)) + float(value)
-	gs.player_team.set_meta("rnd_bonuses", bonuses)
-	gs.add_log("📈 R&D effect: %s +%.1f%%" % [key, value * 100.0])
+	tgt.set_meta("rnd_bonuses", bonuses)
+	## Player-only log line (AI effects are silent; the world doesn't log every AI bonus tick).
+	if _is_player_ledger(team):
+		gs.add_log("📈 R&D effect: %s +%.1f%%" % [key, value * 100.0])
 
 ## ── P4 EFFECT ACCESSOR LAYER (S40.13) ────────────────────────────────────────
 ## Completed P4 Special Projects bank their value into the team's "rnd_bonuses" meta (see
@@ -1503,6 +1651,63 @@ func _bonuses_for(team) -> Dictionary:
 	if team == null or not team.has_meta("rnd_bonuses"):
 		return {}
 	return team.get_meta("rnd_bonuses")
+
+## ── PER-TEAM RP LEDGER (S41.2, AI R&D Economy Phase 3 · spec §4) ──────────────
+## Storage model = "pattern B": the PLAYER keeps the six singular globals on GameState EXACTLY as
+## before (research_points / active_rnd_tasks / completed_* / known_blueprints / wra_*), so the whole
+## player path — read by 7 UI scenes + CarManager + NotificationManager, ~170 sites — is byte-for-byte
+## unchanged and cannot regress. Every OTHER team gets a PARALLEL store on its own meta, mirroring the
+## exact shape of those globals, in the same way `rnd_bonuses` (above) already works.
+##
+## Routing rule for every pipeline function: it takes an optional `team` (default null → player). When
+## the team is the player (or null) it reads/writes the GameState globals as it always has; otherwise
+## it reads/writes that team's `rnd_ledger` meta. `_is_player_ledger(team)` is the single branch point;
+## `_ledger_for(team)` returns the AI dict (seeding a fresh one on first touch). The player never routes
+## through `_ledger_for` — its data does not live in a dict — so player behaviour is provably untouched.
+##
+## SCOPE (Phase 3): this commit builds the store, the routing, and save/load ONLY. The AI RP faucet
+## (§5), the planner that SPENDS it (§6), and on-track uplift (§8) are later build-order steps — so an
+## AI team's ledger exists and persists but stays empty until those land. That is the intended state.
+
+## The canonical empty ledger (an AI team's mirror of the player's six R&D globals + its Studio level).
+func _fresh_rnd_ledger() -> Dictionary:
+	return {
+		"rp":               0.0,   # this team's Research Points (mirrors gs.research_points)
+		"active_tasks":     [],    # same task-dict shape as gs.active_rnd_tasks, each carries "team_id"
+		"completed_rnd":    [],    # completed task ids (prereq checks) — mirrors gs.completed_rnd_tasks
+		"completed_bp":     [],    # P1/P3 blueprint task ids — mirrors gs.completed_bp_tasks
+		"completed_upg":    [],    # P2 task ids (cleared at season start) — mirrors gs.completed_upg_tasks
+		"known_blueprints": {},    # bp_id → blueprint record — mirrors gs.known_blueprints
+		"wra_active":       [],    # in-flight WRA submissions — mirrors gs.active_wra_submissions
+		"wra_approved":     [],    # approved licences — mirrors gs.wra_approved_blueprints
+		"wra_rejected":     [],    # rejected P2 records — mirrors gs.wra_rejected_blueprints
+		"studio_level":     0,     # AI R&D Studio level (seeded/maintained by AI building code; 0 = none)
+	}
+
+## True when this ledger request targets the player (null defaults to player). The player's data lives
+## in the GameState globals, never in a meta dict, so this is the branch every routed function keys off.
+func _is_player_ledger(team) -> bool:
+	if team == null:
+		return true
+	return team == gs.player_team or (("is_player_team" in team) and team.is_player_team)
+
+## The AI team's ledger dict, seeded fresh (and stored) on first access. NEVER call for the player —
+## guard with `_is_player_ledger(team)` first (the player has no dict; it uses the globals directly).
+func _ledger_for(team) -> Dictionary:
+	if team == null or _is_player_ledger(team):
+		## Defensive: a mis-routed player call returns a throwaway so nothing crashes, but this
+		## should never happen — the routed functions branch on _is_player_ledger BEFORE calling here.
+		return _fresh_rnd_ledger()
+	if not team.has_meta("rnd_ledger"):
+		team.set_meta("rnd_ledger", _fresh_rnd_ledger())
+	var led: Dictionary = team.get_meta("rnd_ledger")
+	## Backfill any keys a pre-Phase-3 (or partially-seeded) ledger is missing, so callers can index
+	## freely without existence checks (mirrors the rnd_bonuses backfill philosophy).
+	var canon := _fresh_rnd_ledger()
+	for k in canon:
+		if not k in led:
+			led[k] = canon[k]
+	return led
 
 ## Raw cumulative fraction for one effect key (0.0 if none). Team-aware.
 func get_rnd_bonus(effect_key: String, team = null) -> float:
@@ -1572,10 +1777,18 @@ func economy_passive_income_bonus(team = null) -> float:
 ## their Studio level, plus a 15% headroom gap, so there's always room to save for it. Self-corrects if
 ## any project cost changes (no hardcoded per-level table to drift). A linear term is kept as a floor so
 ## the cap still grows every level (leveling always feels rewarding) and racing tasks have buffer.
-func get_rnd_rp_storage_cap() -> int:
-	var rnd = gs.campus_buildings.get("R&D Design Studio", {})
-	if not rnd.get("built", false): return 0
-	var level: int = int(rnd.get("level", 1))
+func get_rnd_rp_storage_cap(team = null) -> int:
+	## Resolve this team's Studio level. Player reads the real campus building; an AI team reads the
+	## seeded studio_level on its ledger (S41.4 — from teams.json buildings, clamped to the player
+	## 1..27 scale at team-generation). Level 0 → no Studio → no storage.
+	var level: int
+	if _is_player_ledger(team):
+		var rnd = gs.campus_buildings.get("R&D Design Studio", {})
+		if not rnd.get("built", false): return 0
+		level = int(rnd.get("level", 1))
+	else:
+		level = int(_ledger_for(team)["studio_level"])
+		if level <= 0: return 0
 	# Linear floor (also keeps growth visible level-to-level within a requirement plateau).
 	var floor_cap: int = 800 + (level - 1) * 400
 	# Dynamic requirement: 15% above the priciest P4/P5 project unlockable at this Studio level.
@@ -1647,8 +1860,74 @@ func _advance_wra_submissions() -> void:
 			"WRA approved: '%s'. Ready for CNC manufacturing." % bp.get("name", sub.blueprint_id),
 			"cnc_plant", "event")
 
+	## ── AI teams (S41.2, Phase 3) ────────────────────────────────────────────
+	## Every non-player team advances its own ledger's WRA submissions with the SAME rules: flat
+	## 1-week decision, P2-only 10% rejection, P1/P3 always approved. Differences from the player:
+	## no popups/notifications/TDL; AI approvals are silent (the world doesn't headline every AI
+	## manufacturing licence); AI *rejections* DO post world news + take a tier-scaled rep hit on that
+	## team (spec §3.2 — rejections feed the living world). Inert until the AI faucet/planner actually
+	## populate wra_active in later steps, but wired now so the pipeline is complete and save-safe.
+	for team in gs.all_teams:
+		if team == null or team.is_player_team:
+			continue
+		if not team.has_meta("rnd_ledger"):
+			continue
+		var led := _ledger_for(team)
+		var ai_decided: Array = []
+		for sub in led["wra_active"]:
+			sub.weeks_remaining -= 1
+			if sub.weeks_remaining <= 0:
+				ai_decided.append(sub)
+		for sub in ai_decided:
+			led["wra_active"].erase(sub)
+			var bp2 = led["known_blueprints"].get(sub.blueprint_id, {})
+			var pillar2 := int(sub.get("pillar", 1))
+			var rejected2 := pillar2 == 2 and randf() < WRA_P2_REJECT_CHANCE
+			if rejected2:
+				led["wra_rejected"].append({
+					"blueprint_id":    sub.blueprint_id,
+					"championship_id": sub.championship_id,
+					"pillar":          pillar2,
+					"rejected_season": gs.current_season,
+					"rejected_week":   gs.current_week,
+				})
+				var tier2 := _get_championship_tier(sub.get("championship_id", ""))
+				var rep_hit2 := WRA_REJECT_REP_PER_TIER * float(tier2)
+				team.reputation = max(0.0, team.reputation - rep_hit2)
+				gs.log_news("❌ WRA rejected %s's upgrade '%s'." % [
+					team.team_name, bp2.get("name", sub.blueprint_id)])
+				continue
+			led["wra_approved"].append({
+				"blueprint_id":    sub.blueprint_id,
+				"championship_id": sub.championship_id,
+				"pillar":          pillar2,
+				"approved_season": gs.current_season,
+				"approved_week":   gs.current_week,
+			})
 
-func submit_to_wra(blueprint_id: String) -> bool:
+
+func submit_to_wra(blueprint_id: String, team = null) -> bool:
+	if not _is_player_ledger(team):
+		## AI path: mirror the player logic against this team's ledger, minus the player-only UI
+		## (no popups, no notify_event, no TDL). Guards + the flat 1-week decision are identical.
+		var led := _ledger_for(team)
+		if not blueprint_id in led["known_blueprints"]: return false
+		for sub in led["wra_active"]:
+			if sub.blueprint_id == blueprint_id: return false
+		for app in led["wra_approved"]:
+			if app.blueprint_id == blueprint_id: return false
+		var ai_bp = led["known_blueprints"][blueprint_id]
+		var ai_cid = ai_bp.get("championship_id", "")
+		led["wra_active"].append({
+			"blueprint_id":     blueprint_id,
+			"championship_id":  ai_cid,
+			"pillar":           ai_bp.get("pillar", 1),
+			"submitted_season": gs.current_season,
+			"submitted_week":   gs.current_week,
+			"weeks_remaining":  1,
+			"tier":             _get_championship_tier(ai_cid),
+		})
+		return true
 	if not blueprint_id in gs.known_blueprints: return false
 	for sub in gs.active_wra_submissions:
 		if sub.blueprint_id == blueprint_id: return false
@@ -1679,14 +1958,22 @@ func submit_to_wra(blueprint_id: String) -> bool:
 	return true
 
 
-func is_blueprint_approved(blueprint_id: String) -> bool:
-	for app in gs.wra_approved_blueprints:
+func is_blueprint_approved(blueprint_id: String, team = null) -> bool:
+	if _is_player_ledger(team):
+		for app in gs.wra_approved_blueprints:
+			if app.blueprint_id == blueprint_id: return true
+		return false
+	for app in _ledger_for(team)["wra_approved"]:
 		if app.blueprint_id == blueprint_id: return true
 	return false
 
 
-func is_blueprint_submitted(blueprint_id: String) -> bool:
-	for sub in gs.active_wra_submissions:
+func is_blueprint_submitted(blueprint_id: String, team = null) -> bool:
+	if _is_player_ledger(team):
+		for sub in gs.active_wra_submissions:
+			if sub.blueprint_id == blueprint_id: return true
+		return false
+	for sub in _ledger_for(team)["wra_active"]:
 		if sub.blueprint_id == blueprint_id: return true
 	return false
 

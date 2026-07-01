@@ -31,7 +31,7 @@ These are the highest understanding-per-token files. Reading them + their versio
 | 5 | `resources/scripts/RaceSimulator.gd` | 946 | Race/lap engine, RP earning, degradation, fitness drop. |
 | 6 | `autoloads/AIManager.gd` | 613 | **The AI world entry point.** AI team behaviour, roster/assignment loading, the hook the AI economy build extends. Core from S40 onward. |
 
-**Read-order:** ARCHITECTURE.md (this file) → the 6 above → `Supporting Files/GDDv7.5.md` in full. Only then start design work.
+**Read-order:** ARCHITECTURE.md (this file) → the 6 above → `Supporting Files/GDD.md` in full. Only then start design work.
 
 ---
 
@@ -75,7 +75,7 @@ Largest/most-referenced: `scenes/MainHub.gd` (1,585), `scenes/buildings/HQ.gd` (
 
 ## COMPANION DOCS (in `Supporting Files/`)
 
-- **`GDDv7.5.md`** — THE single source of truth for design. Read in full at session start. (Do NOT use any `.docx` in the Claude project files as the GDD — those are legacy snapshots.)
+- **`GDDvGdd.md`** — THE single source of truth for design. Read in full at session start. (Do NOT use any `.docx` in the Claude project files as the GDD — those are legacy snapshots.)
 - `Brainstorm_Threads.md` — design vision & rationale (the "why").
 - `FEATURE_AI_Championship_Sim.md` — spec for the deferred living-world AI feature.
 - `Season_Transition_Pipeline_Spec_v1.md` — detailed companion to GDD §7.1.

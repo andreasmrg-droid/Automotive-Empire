@@ -1,6 +1,34 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v7.7 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+**Version:** v7.9 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v7.9: (S41.4) AI R&D ECONOMY — PHASE 4 (RP faucet mirror). AI teams now EARN Research Points by
+	the same distance-km faucet the player uses (§8.4): after AIChampionshipSim.simulate_round awards a
+	round's points, _ai_earn_race_rp_for_champ credits each non-player team that fielded a running car,
+	summed per running car, into its rnd_ledger.rp — capped by the team-aware RP storage cap.
+	earn_race_rp gained an optional `team` (player path byte-identical). AI Studio level is seeded from
+	teams.json buildings["RnD Studio"] at team generation, CLAMPED to the player's 1..27 R&D Design
+	Studio scale (the one balance-tunable knob for AI development speed); the AI Lead is the team's
+	highest-overall Designer; the difficulty knob is `ai_performance`. AI ledgers now FILL during racing
+	but SPENDING still awaits the planner (build-order step 5) — so this phase changes no race results
+	yet. §8.7 + §13.3 updated. Files: RaceSimulator.gd, GameState.gd, AIManager.gd, RnDEngine.gd
+	(team-aware cap). Analysis-checked (brace-balance + type audit); user parses/playtests. KNOWN latent
+	issue flagged (not fixed here): load_game() does not re-instantiate _lead_designer_engine/_tp_engine/
+	_commercial_market/_staff/_car/_driver managers — pre-existing; the Phase-4 faucet was decoupled from
+	_lead_designer_engine to avoid depending on it, but the broader gap should be fixed in its own pass. -->
+<!-- v7.8: (S41.2–S41.3) AI R&D ECONOMY — PHASE 3 (per-team RP ledger + routing). The storage
+	substrate for AI research landed: every non-player team now has a parallel `rnd_ledger` meta
+	(rp / active_tasks / completed_* / known_blueprints / wra_* / studio_level) that mirrors the
+	player's six singular R&D globals — the "pattern B" decision (do NOT rewrite the ~170 player-global
+	call-sites; give AI a parallel store like the existing rnd_bonuses meta). The R&D pipeline functions
+	are now team-routed via an optional `team` param (default → player): rnd_task_unlocked (P3 provenance
+	resolves against the requesting team's cars), rnd_task_active_or_done, start_rnd_task, submit_to_wra,
+	_advance_wra_submissions, _advance_rnd_tasks, _apply_rnd_effect, is_blueprint_approved/submitted. The
+	PLAYER path is byte-for-byte unchanged (every existing call omits `team` → hits the same globals).
+	AI ledgers save/load per team (fresh-seed fallback for old saves). SCOPE: this is storage + routing
+	ONLY — the AI RP FAUCET (spec §5), the forecast PLANNER that spends it (§6), retreat/backfill (§7),
+	and on-track uplift (§8) are the remaining build-order steps; until they land an AI ledger exists and
+	persists but stays EMPTY (intended). §8.7 (new) + §13.3 (new) document the ledger. Files:
+	RnDEngine.gd, GameState.gd. Analysis-checked (brace-balance + type audit); user parses/playtests. -->
 <!-- v7.7: (S41.0) AI R&D ECONOMY — PHASE 1 (player-facing prerequisites) + the design spec for the
 	full build (Supporting Files/AI_RnD_Economy_Spec_v2.md — per-AI-team RP ledger, a shared
 	forecast-driven Designer PLANNER, retreat-and-backfill to protect championship integrity, real
@@ -1183,6 +1211,42 @@ reads `current_season`). A P2 gain approved *after* the P1 design finished canno
 next-season blueprint. This is the design-timing tension: research the new car early (safe continuity,
 weaker baseline) vs late (better baseline, deadline risk).
 
+### 8.7 Per-team RP ledger — the AI R&D economy substrate (S41.2, Phase 3)
+
+The R&D pipeline above is written once and serves every team. The **player** keeps the six singular
+R&D globals on `GameState` (`research_points`, `active_rnd_tasks`, `completed_rnd/bp/upg_tasks`,
+`known_blueprints`, `active_wra_submissions` / `wra_approved` / `wra_rejected_blueprints`) exactly as
+before — they are read by ~170 sites across 7 UI scenes + CarManager + NotificationManager, so they are
+deliberately **not** rewritten. Every **non-player team** instead carries a parallel store on its own
+meta, `team.get_meta("rnd_ledger")`, mirroring the shape of those globals (`rp`, `active_tasks`,
+`completed_rnd/bp/upg`, `known_blueprints`, `wra_active/approved/rejected`, `studio_level`). This is the
+same "pattern B" the existing `rnd_bonuses` effect meta already uses.
+
+Routing is a single optional `team` parameter (default → player) on each pipeline function
+(`rnd_task_unlocked`, `rnd_task_active_or_done`, `start_rnd_task`, `submit_to_wra`,
+`_advance_wra_submissions`, `_advance_rnd_tasks`, `_apply_rnd_effect`, `is_blueprint_approved/submitted`).
+When the team is the player (or omitted) the function reads/writes the globals as it always has; otherwise
+it reads/writes that team's ledger via `RnDEngine._ledger_for(team)` (`_is_player_ledger` is the branch
+point; a fresh ledger is seeded on first touch). The player path is therefore provably unchanged. AI
+ledgers serialise into each team's save entry and restore on load, with a fresh-seed fallback for
+pre-Phase-3 saves.
+
+- **P3 provenance** is now team-scoped: a part is reverse-engineerable if the *requesting team's* garage
+  car for that championship carries it (granted/bought) and the team has not self-made it in CNC. (The
+  `car_installed_parts` "self-made drops out" clause is player-singular today, so an AI team's granted
+  car keeps every part RE-able until AI CnC exists — the explicitly-scoped next project.)
+- **WRA for AI:** approvals are silent (the world does not headline every AI manufacturing licence);
+  P2 rejections DO post world news + take a tier-scaled reputation hit, feeding the living world (§11).
+- **Scope (Phase 3 = storage + routing + save/load; Phase 4 = the RP faucet).** As of S41.4 the AI
+  **RP faucet** has landed (§8.4 formula applied to AI teams — see §13.3): AI ledgers now FILL with
+  Research Points during racing, seeded off a Studio level from `teams.json` (clamped 1..27). What
+  remains in `AI_RnD_Economy_Spec_v2.md`: the forecast **planner** that SPENDS the RP (step 5),
+  retreat/backfill (step 6), and **on-track uplift** (step 7 — AI research → `car_strength`). Until the
+  planner lands, an AI ledger accumulates RP but never spends it, and AI research still changes no race
+  results — the intended interim state. AI blueprint quality also skips the P2-carry-over/lineage
+  refinements for now (they read player-only approval globals); that fidelity arrives with the uplift
+  step, where AI blueprint values first affect race results.
+
 
 
 ## 9. STAFF — Roles, Stats & Formulas
@@ -1646,6 +1710,31 @@ reach = importance − vertical_distance − horizontal_distance
 The curated event list that actually feeds the news panel today (pre-filter) is the **NEWS FEED**
 list in §13.2.1; the soundwave `reach` scoring above is the FUTURE filter that will rank/limit those
 events by importance and distance once built.
+
+### 13.3 AI R&D economy — the first concrete "Develop" behaviour (S41.2, Phase 3)
+
+The ladder's **Develop** stage (§13.1) gets its first real system: a per-AI-team Research-Point
+economy. Phase 3 lands the **substrate** — each non-player team's `rnd_ledger` meta and the team-routed
+R&D pipeline (documented in §8.7). This is intentionally inert for now (no AI RP is earned or spent);
+the behaviour that makes it visible arrives in the remaining steps of `AI_RnD_Economy_Spec_v2.md`:
+
+- **RP faucet (§5 of spec) — LANDED S41.4:** AI teams earn RP by the same racing formula as the
+  player (§8.4), hooked after `AIChampionshipSim.simulate_round`, credited per running car into the
+  team's `rnd_ledger.rp` and capped by the team-aware storage cap. Studio level is seeded from
+  `teams.json` (clamped to the player's 1..27 scale); the Lead is the team's highest-overall Designer;
+  the difficulty knob is `ai_performance`. Fills ledgers only — spending awaits the planner below.
+- **Planner (§6):** a shared forecast+schedule function (in `LeadDesignerProposalEngine`) that predicts
+  each team's RP curve, backward-schedules the next-season car to a "latest safe start" week, and
+  sequences P2-now vs P1/P3-later — the player consumes it as Lead-Designer proposals, the AI applies it
+  directly. Governed by the new `planning` Designer attribute (§9-F). P4/P5 remain inert seams driven
+  later by the ladder state machine.
+- **Retreat & backfill (§7):** if a team's forecast can't finish next season's car in time it withdraws
+  and retreats to a lighter championship rather than DNS-ing; a neighbouring team is fake-boosted only if
+  the withdrawal would drop the championship below minimum participation. Every such event is world news.
+- **On-track uplift (§8):** `car_strength` gains a `× (1 + perf_bonus(team))` factor so a team whose
+  planner successfully researches performance blueprints fields a genuinely faster car.
+
+The AI **CnC manufacture / install / resale** mirror is the explicitly-scoped project *after* that.
 
 ---
 

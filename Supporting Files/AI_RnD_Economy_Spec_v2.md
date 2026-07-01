@@ -285,9 +285,16 @@ ends a season boundary registered in a championship with zero fielded cars.
    old-save backfill. NOTE: `data/staff_designer.json` does not yet carry per-designer `planning`
    values — the loader defaults a wide random roll, which is fine for now; authoring real values is an
    optional data pass (like the Lead-Designer surgery) if the balance pass wants hand-tuned planners.
-3. **Per-team ledger + routing** (§4): `_ledger_for`, generalise the pipeline functions with a `team`
-   param, save/load. Player path byte-for-byte unchanged.
-4. **RP faucet mirror** (§5) + team-aware storage cap.
+3. **✅ DONE (S41.2–S41.3)** — **Per-team ledger + routing** (§4): `_fresh_rnd_ledger` /
+   `_is_player_ledger` / `_ledger_for`; pipeline functions generalised with an optional `team` param
+   (default → player); AI ledger + rnd_bonuses save/load with fresh-seed fallback. Player path
+   byte-for-byte unchanged (all call-sites omit `team`). Analysis-checked; NOT Godot-parsed.
+4. **✅ DONE (S41.4)** — **RP faucet mirror** (§5) + team-aware storage cap. `earn_race_rp(km, team)`;
+   `_ai_earn_race_rp_for_champ` hooked after `simulate_round`; AI Studio level seeded from teams.json
+   (clamped 1..27); difficulty knob = `ai_performance`. Fills AI ledgers; spending awaits step 5.
+   Faucet decoupled from `_lead_designer_engine` (resolves the AI Lead inline). Analysis-checked; NOT
+   Godot-parsed. NOTE flagged: `load_game` doesn't re-init several engine singletons (pre-existing) —
+   fix in its own pass.
 5. **The planner** (§6): forecast + backward-schedule + feasibility, in LeadDesignerProposalEngine;
    activate `ai_fill_design_lines_all_teams` to apply it; wire player proposals to the same function.
 6. **Retreat & backfill** (§7) in SeasonManager + news.

@@ -4,6 +4,15 @@ class_name RaceSimulator
 ##   points, fuel/SP, wear — in calendar order. Single-session rounds + GK engine-dict entries run once,
 ##   identical to before (GK safeguarded). Per-session laps/distance_km come from the enriched session
 ##   (GameState precomputes km from tracks.json). Grid handoff deferred. Analysis-checked; NOT parsed.
+## Version: S41.4 — AI R&D ECONOMY, PHASE 4 (RP faucet mirror · spec §5). earn_race_rp gains an
+##   optional `team = null`: the player path is byte-for-byte unchanged (default → the existing
+##   gs.research_points faucet); a non-player team earns RP by the SAME distance-km formula into its
+##   rnd_ledger.rp, capped by the team-aware storage cap. AI studio_level comes from the ledger (seeded
+##   from teams.json in AIManager, clamped 1..27), the Lead is the team's highest-overall Designer, and
+##   the difficulty knob is `ai_performance` (AI-side counterpart of player_rnd). Hooked in GameState's
+##   weekly loop right after AIChampionshipSim.simulate_round via _ai_earn_race_rp_for_champ. Fills AI
+##   ledgers only — SPENDING awaits the planner (build-order step 5). Analysis-checked (brace-balance +
+##   type audit); NOT Godot-parsed.
 ## Version: S41.1b — RP faucet reads the calendar entry's authoritative `distance_km` (computed from
 ##   tracks.json for JSON championships; laps×lap_km for the engine-dict fallback/GK), instead of
 ##   recomputing laps×lap_km locally. Falls back to laps×lap_km if distance_km is absent. Analysis-
@@ -848,9 +857,41 @@ func consume_race_resources(champ: Championship = null) -> void:
 ##   rp_gained = distance_km × RP_PER_KM_BASE × studio_level × (lead_overall / 100) × difficulty_mult
 const RP_PER_KM_BASE := 0.75
 
-func earn_race_rp(distance_km: float) -> void:
+func earn_race_rp(distance_km: float, team = null) -> void:
 	if distance_km <= 0.0:
 		return   ## no real distance turned (e.g. all player cars DNS) → no RP.
+	## S41.4 — AI R&D Economy Phase 4 (RP faucet mirror, spec §5). A non-player team earns RP by the
+	## SAME formula as the player, written to its rnd_ledger.rp and capped by the team-aware storage
+	## cap. Studio level comes from the ledger (seeded from teams.json); the Lead is the team's
+	## highest-overall hired Designer; the difficulty knob is `ai_performance` (the AI-side counterpart
+	## of the player's `player_rnd` — it rises on harder difficulties, so a Master-difficulty AI world
+	## develops faster). No Studio or no Lead on the AI team → no RP (same gate as the player).
+	if not gs._rnd_engine._is_player_ledger(team):
+		var led: Dictionary = gs._rnd_engine._ledger_for(team)
+		var ai_studio := int(led["studio_level"])
+		if ai_studio <= 0:
+			return
+		## AI Lead = the team's highest-overall hired Designer (same rule as
+		## LeadDesignerProposalEngine._lead_designer_for). Resolved inline so the faucet carries no
+		## dependency on _lead_designer_engine (which the load path does not re-instantiate).
+		var ai_lead_id := ""
+		var best_overall := -1.0
+		for sid in gs.all_staff:
+			var s = gs.all_staff[sid]
+			if s.role != "Designer" or s.contract_team != team.id:
+				continue
+			var ov: float = s.get_overall_skill()
+			if ov > best_overall:
+				best_overall = ov
+				ai_lead_id = sid
+		if ai_lead_id == "":
+			return   ## no Designer hired → no Lead → no RP (same gate as the player)
+		var ai_lead_skill: float = gs.all_staff[ai_lead_id].get_overall_skill()
+		var ai_rp := distance_km * RP_PER_KM_BASE * float(ai_studio) * (ai_lead_skill / 100.0)
+		ai_rp *= gs.get_difficulty_mult()["ai_performance"]
+		var ai_cap: int = gs.get_rnd_rp_storage_cap(team)
+		led["rp"] = min(float(led["rp"]) + ai_rp, float(ai_cap))
+		return
 	var rnd_studio = gs.campus_buildings.get("R&D Design Studio", {})
 	if not rnd_studio.get("built", false):
 		return

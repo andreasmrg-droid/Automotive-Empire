@@ -1,4 +1,10 @@
 extends RefCounted
+## Version: S41.4 — AI R&D ECONOMY, PHASE 4: generate_teams() now seeds each AI team's rnd_ledger
+##   studio_level from teams.json buildings["RnD Studio"] (previously unread here), CLAMPED to the
+##   player's 1..27 R&D Design Studio scale so the RP faucet + design-line math match player and AI.
+##   Only the Studio level is seeded; the rest of the ledger stays fresh-zero until the faucet/planner
+##   touch it. The clamp/scale is the balance-tunable knob for AI development speed. Analysis-checked;
+##   NOT Godot-parsed.
 ## Version: S41.0 — Designer loader reads the new `planning` attribute (R&D scheduling skill) from
 ##   staff_designer.json; wide random roll when absent (mirrors talent_scouting). Feeds the AI R&D
 ##   planner (Supporting Files/AI_RnD_Economy_Spec_v2.md §6). Analysis-checked only; NOT Godot-parsed.
@@ -119,6 +125,27 @@ func generate_teams() -> void:
 		team.balance    = _starting_balance(rep)
 		team.weekly_driver_salary   = _scale(50.0,  500.0, rep)
 		team.weekly_mechanic_salary = _scale(80.0, 450.0, rep)
+
+		## S41.4 — AI R&D Economy Phase 4: seed the team's RP-ledger Studio level from teams.json.
+		## The data carries a per-team buildings["RnD Studio"] level (previously unread here). The
+		## player's R&D Design Studio building caps at level 27 (CampusManager), and design-line
+		## capacity = that level, so we CLAMP the JSON value (which ranges well past 27) to 1..27 to
+		## keep the RP faucet + line-capacity math on the SAME scale for player and AI. This is the one
+		## balance-tunable mapping in the AI faucet — retune the clamp/scale in the Phase-5 pass if the
+		## AI world develops too fast/slow. Only the Studio level is seeded now; the rest of the ledger
+		## stays at its fresh-zero defaults until the faucet (racing) and planner (spending) touch it.
+		var bld: Dictionary = td.get("buildings", {})
+		var raw_studio: int = int(bld.get("RnD Studio", 0))
+		if raw_studio > 0:
+			var seeded_level: int = clampi(raw_studio, 1, 27)
+			## Inline the canonical fresh ledger (mirrors RnDEngine._fresh_rnd_ledger) so team
+			## generation carries no init-order dependency on _rnd_engine. _ledger_for backfills any
+			## keys that drift, so this only needs the shape right + the seeded studio_level.
+			team.set_meta("rnd_ledger", {
+				"rp": 0.0, "active_tasks": [], "completed_rnd": [], "completed_bp": [],
+				"completed_upg": [], "known_blueprints": {}, "wra_active": [], "wra_approved": [],
+				"wra_rejected": [], "studio_level": seeded_level,
+			})
 
 		GameState.all_teams.append(team)
 

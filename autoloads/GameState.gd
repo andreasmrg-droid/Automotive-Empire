@@ -1,3 +1,18 @@
+## Version: S41.4 — AI R&D ECONOMY, PHASE 4 (RP faucet mirror · spec §5). Weekly loop: right after
+##   AIChampionshipSim.simulate_round(champ), _ai_earn_race_rp_for_champ awards RP to every non-player
+##   team fielding a running car in that round (same distance-km faucet as the player, summed per
+##   running car, via RaceSimulator.earn_race_rp(km, team)). New _find_team_by_id resolver. Storage-cap
+##   delegation gains `team`. AI ledgers now FILL with RP during racing; spending awaits the planner
+##   (step 5). Player faucet (inside _simulate_race) untouched. Analysis-checked; NOT Godot-parsed.
+## Version: S41.3 — AI R&D ECONOMY, PHASE 3 (per-team RP ledger). GameState side: R&D delegation
+##   pass-throughs gain an optional `team = null` (rnd_task_unlocked / rnd_task_active_or_done /
+##   start_rnd_task / _apply_rnd_effect / submit_to_wra / is_blueprint_approved / is_blueprint_submitted)
+##   so callers (the future planner) can route to a team; default null → player, so all ~current
+##   call-sites are unchanged. SAVE/LOAD: each NON-player team's `rnd_ledger` + `rnd_bonuses` meta now
+##   serialise into its per-team save entry and restore on load (fresh-seed fallback via
+##   RnDEngine._ledger_for for pre-Phase-3 saves). Player R&D state still lives in the singular globals
+##   + top-level rnd_bonuses key, untouched. Engine logic lives in RnDEngine S41.2. Analysis-checked
+##   (brace-balance + type audit); NOT Godot-parsed.
 ## Version: S41.2 — Multi-session rounds: _simulate_race now dispatches through
 ##   RaceSimulator.simulate_round (runs each race-session as its own race). JSON calendar entries now
 ##   carry track_id + per-session distance_km (enriched_sessions) so sprint+main / double races run
@@ -2350,14 +2365,14 @@ func get_blueprint_grid(champ_id: String) -> Dictionary:
 func get_rnd_perf_bonus_summary() -> String:
 	return _rnd_engine.get_rnd_perf_bonus_summary()
 
-func rnd_task_unlocked(task_id: String) -> bool:
-	return _rnd_engine.rnd_task_unlocked(task_id)
+func rnd_task_unlocked(task_id: String, team = null) -> bool:
+	return _rnd_engine.rnd_task_unlocked(task_id, team)
 
-func rnd_task_active_or_done(task_id: String) -> bool:
-	return _rnd_engine.rnd_task_active_or_done(task_id)
+func rnd_task_active_or_done(task_id: String, team = null) -> bool:
+	return _rnd_engine.rnd_task_active_or_done(task_id, team)
 
-func start_rnd_task(task_id: String, designer_id: String, championship_id: String = "") -> bool:
-	return _rnd_engine.start_rnd_task(task_id, designer_id, championship_id)
+func start_rnd_task(task_id: String, designer_id: String, championship_id: String = "", team = null) -> bool:
+	return _rnd_engine.start_rnd_task(task_id, designer_id, championship_id, team)
 
 func cancel_rnd_task(task_id: String) -> void:
 	_rnd_engine.cancel_rnd_task(task_id)
@@ -2365,8 +2380,8 @@ func cancel_rnd_task(task_id: String) -> void:
 func _advance_rnd_tasks() -> void:
 	_rnd_engine._advance_rnd_tasks()
 
-func _apply_rnd_effect(task: Dictionary) -> void:
-	_rnd_engine._apply_rnd_effect(task)
+func _apply_rnd_effect(task: Dictionary, team = null) -> void:
+	_rnd_engine._apply_rnd_effect(task, team)
 
 func get_rnd_bonus(effect_key: String) -> float:
 	return _rnd_engine.get_rnd_bonus(effect_key)
@@ -2379,20 +2394,20 @@ func rnd_tax_reduction() -> float:            return _rnd_engine.economy_tax_red
 func rnd_maintenance_reduction() -> float:    return _rnd_engine.economy_maintenance_reduction()
 func rnd_passive_income_bonus() -> float:     return _rnd_engine.economy_passive_income_bonus()
 
-func get_rnd_rp_storage_cap() -> int:
-	return _rnd_engine.get_rnd_rp_storage_cap()
+func get_rnd_rp_storage_cap(team = null) -> int:
+	return _rnd_engine.get_rnd_rp_storage_cap(team)
 
 func _advance_wra_submissions() -> void:
 	_rnd_engine._advance_wra_submissions()
 
-func submit_to_wra(blueprint_id: String) -> bool:
-	return _rnd_engine.submit_to_wra(blueprint_id)
+func submit_to_wra(blueprint_id: String, team = null) -> bool:
+	return _rnd_engine.submit_to_wra(blueprint_id, team)
 
-func is_blueprint_approved(blueprint_id: String) -> bool:
-	return _rnd_engine.is_blueprint_approved(blueprint_id)
+func is_blueprint_approved(blueprint_id: String, team = null) -> bool:
+	return _rnd_engine.is_blueprint_approved(blueprint_id, team)
 
-func is_blueprint_submitted(blueprint_id: String) -> bool:
-	return _rnd_engine.is_blueprint_submitted(blueprint_id)
+func is_blueprint_submitted(blueprint_id: String, team = null) -> bool:
+	return _rnd_engine.is_blueprint_submitted(blueprint_id, team)
 
 func _get_championship_tier(cid: String) -> int:
 	return _rnd_engine._get_championship_tier(cid)
@@ -2639,6 +2654,58 @@ func _consume_race_resources() -> void:
 
 func _earn_race_rp(distance_km: float) -> void:
 	_race_simulator.earn_race_rp(distance_km)
+
+## ── AI RP faucet (S41.4, AI R&D Economy Phase 4 · spec §5) ────────────────────
+## Called right after AIChampionshipSim.simulate_round(champ). Every non-player team fielding a
+## running car in `champ` earns RP by the same distance-km faucet the player uses, summed over its
+## running cars (an AI car "runs" if it has ≥1 seated driver; AI has no DNF model yet, so a fielded
+## car always completes the scheduled distance). RP lands in that team's rnd_ledger via
+## RaceSimulator.earn_race_rp(km, team). Round km mirrors the player path: the calendar entry's
+## authoritative distance_km, falling back to laps×lap_km. Inert on RP *spending* until the planner
+## (step 5) exists — this only FILLS ledgers so a team banks toward next season's car.
+func _ai_earn_race_rp_for_champ(champ: Championship, race: Dictionary) -> void:
+	if champ == null:
+		return
+	var cars: Array = ai_cars.get(champ.id, [])
+	if cars.is_empty():
+		return
+	## Round distance in km (same resolution as RaceSimulator's player faucet).
+	var round_km: float = float(race.get("distance_km", 0.0))
+	if round_km <= 0.0:
+		round_km = float(race.get("laps", 0)) * float(race.get("lap_km", 1.0))
+	if round_km <= 0.0:
+		return
+	## Sum running km per team (a team may field >1 car in a championship → multiple RP awards).
+	var km_by_team: Dictionary = {}
+	for car in cars:
+		if car == null:
+			continue
+		if car in player_team_cars:
+			continue   ## player's car is on the real faucet, not this one
+		if car.assigned_driver_ids().is_empty():
+			continue   ## no seated driver → DNS → ran 0 km
+		## Resolve the car's owning team via its representative driver's contract.
+		var rep_ids: Array = car.assigned_driver_ids()
+		if rep_ids.is_empty():
+			continue
+		var drv = all_drivers.get(rep_ids[0], null)
+		if drv == null or drv.contract_team == "":
+			continue
+		km_by_team[drv.contract_team] = float(km_by_team.get(drv.contract_team, 0.0)) + round_km
+	if km_by_team.is_empty():
+		return
+	for tid in km_by_team:
+		var team = _find_team_by_id(tid)
+		if team == null or team.is_player_team:
+			continue
+		_race_simulator.earn_race_rp(float(km_by_team[tid]), team)
+
+## Small id→Team resolver (all_teams is a flat array; no dict index by id today).
+func _find_team_by_id(tid: String):
+	for t in all_teams:
+		if t.id == tid:
+			return t
+	return null
 
 ## ── S35.3 CFO auto-buy ────────────────────────────────────────────────────────
 ## When the player fast-forwards to season end (simulating_to_season_end), the CFO keeps the
@@ -4092,6 +4159,10 @@ func advance_week() -> void:
 					## it only awards AI results. GK (C-001) is excluded — it has its own shadow sim
 					## below. The player's championship is handled by _simulate_race above.
 					_ai_championship_sim.simulate_round(champ)
+					## S41.4 — AI RP faucet (spec §5): award RP to AI teams that fielded a running car in
+					## this round, immediately after their result is scored. Player faucet is separate
+					## (inside _simulate_race). Fills ledgers only; spending awaits the planner (step 5).
+					_ai_earn_race_rp_for_champ(champ, race)
 			## Sponsor race bonuses handled by apply_sponsor_race_bonuses()
 			champ.current_round += 1
 
@@ -4716,7 +4787,7 @@ func save_game() -> void:
 
 	# Save all teams
 	for team in all_teams:
-		save_data["all_teams"].append({
+		var team_entry := {
 			"id": team.id,
 			"team_name": team.team_name,
 			"nationality": team.nationality if "nationality" in team else "British",
@@ -4726,7 +4797,16 @@ func save_game() -> void:
 			"drivers": team.drivers,
 			"weekly_driver_salary": team.weekly_driver_salary,
 			"weekly_mechanic_salary": team.weekly_mechanic_salary,
-		})
+		}
+		## S41.2 — AI R&D Economy Phase 3: persist each NON-player team's parallel R&D ledger + effect
+		## bonuses (the player's own R&D state lives in the singular globals + the top-level rnd_bonuses
+		## key, saved separately). Only written when present so old worlds/teams stay clean.
+		if not team.is_player_team:
+			if team.has_meta("rnd_ledger"):
+				team_entry["rnd_ledger"] = team.get_meta("rnd_ledger")
+			if team.has_meta("rnd_bonuses"):
+				team_entry["rnd_bonuses"] = team.get_meta("rnd_bonuses")
+		save_data["all_teams"].append(team_entry)
 
 	# Save all drivers
 	for driver_id in all_drivers:
@@ -4935,6 +5015,15 @@ func load_game(path: String = "user://save_game.json") -> void:
 			team.drivers.append(str(d))
 		team.weekly_driver_salary = team_data["weekly_driver_salary"]
 		team.weekly_mechanic_salary = team_data["weekly_mechanic_salary"]
+		## S41.2 — AI R&D Economy Phase 3: restore each non-player team's parallel R&D ledger + effect
+		## bonuses. Pre-Phase-3 saves have neither key → the team simply starts with no meta, and
+		## RnDEngine._ledger_for seeds a fresh ledger on first access (mirrors the rnd_bonuses backfill).
+		## We do NOT force-seed here: an unfed AI team needs no ledger until the faucet/planner touch it.
+		if not team.is_player_team:
+			if team_data.has("rnd_ledger"):
+				team.set_meta("rnd_ledger", team_data["rnd_ledger"])
+			if team_data.has("rnd_bonuses"):
+				team.set_meta("rnd_bonuses", team_data["rnd_bonuses"])
 		all_teams.append(team)
 		if team.is_player_team:
 			player_team = team
