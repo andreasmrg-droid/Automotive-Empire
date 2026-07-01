@@ -1,4 +1,7 @@
 extends RefCounted
+## Version: S41.0 — Designer loader reads the new `planning` attribute (R&D scheduling skill) from
+##   staff_designer.json; wide random roll when absent (mirrors talent_scouting). Feeds the AI R&D
+##   planner (Supporting Files/AI_RnD_Economy_Spec_v2.md §6). Analysis-checked only; NOT Godot-parsed.
 ## Version: S37.61 — Bug #38 CREW MODEL: AI standings register only the car representative (seat 0).
 ## Version: S37.60 — Bug #38 (multi-driver): AI cars get all seats sized (set_seat_count(dpc)) and
 ##   load_car_assignments fills EVERY seat from the JSON driver_ids array (was lead-only).
@@ -390,6 +393,9 @@ func _staff_from_dict(sd: Dictionary) -> Staff:
 			s.gearbox         = float(attrs.get("gearbox",         50.0))
 			s.reliability     = float(attrs.get("reliability",     50.0))
 			s.parts_knowledge = float(attrs.get("parts_knowledge", 50.0))
+			## S41.0 — R&D scheduling skill; wide random roll when the JSON omits it (mirrors how the
+			## TP's talent_scouting defaults). Feeds the forecast-driven planner.
+			s.planning        = float(attrs.get("planning",        randf_range(10.0, 90.0)))
 
 		"Race Strategist":
 			s.race_strategy       = float(attrs.get("race_strategy",       50.0))

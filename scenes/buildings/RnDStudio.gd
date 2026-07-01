@@ -1,3 +1,9 @@
+## Version: S41.0 — P3 (Reverse Engineering) catalog corrected to the all-parts model: RE-eligible =
+##   every part the garage car CARRIES (granted at new-game / bought via Logistics — spec AND open)
+##   EXCEPT parts the team self-manufactured in CNC. Was spec-only, which hid open parts and (with the
+##   S41.0 engine gate) locked the whole list ("Complete Season 1 L1 first" fall-through). Eligibility
+##   kept in lockstep with RnDEngine.rnd_task_unlocked. Removed the now-wrong "All parts Open → nothing
+##   to RE" early-out. Analysis-checked only; NOT Godot-parsed.
 ## Version: S40.15 — Designer column reworked to the Lead model: replaced the old per-designer
 ##   busy/available cards with a capacity readout (lines used / Studio-level capacity + bar), a single
 ##   Lead card (name, overall skill, comfort C vs active lines), and an over-stretch warning. Removed
@@ -149,6 +155,10 @@ const PART_SPEC = {
 	"C-023":[true,true,true,true,true,true],    "C-024":[false,false,false,false,false,false],
 }
 const PART_NAMES = ["Aero", "Engine", "Gearbox", "Suspension", "Brakes", "Chassis"]
+## S41.0 — part name → pcode, used by the P3 catalog to check own-CNC (car_installed_parts is keyed
+## by pcode) against the display part names.
+const _PART_NAME_TO_PCODE := {"Aero":"AER","Engine":"ENG","Gearbox":"GRB",
+	"Suspension":"SUS","Brakes":"BRK","Chassis":"CHS"}
 
 var _selected_pillar: int = 1
 var _selected_champ_id: String = ""   ## S35.12 — active championship tab
@@ -810,13 +820,15 @@ func _build_p2_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 		parent.add_child(_lbl_empty(Locale.t("rnd_no_upgrades")))
 
 
-# ── P3: Reverse Engineer the SPEC parts of cars the team owns (in the Garage) ─
-## S40.0 BUGFIX — P3 used to gate on part_inventory[cid] (the Logistics warehouse): you could only
-## reverse-engineer a spec part if you'd BOUGHT a physical copy into the warehouse. Wrong model.
-## RE means "we have the car, we tear down its spec part and copy it." So the gate is now the GARAGE:
-## if the team has a car in this championship, EVERY spec part of that championship is reverse-
-## engineerable from that car. We still always verify each part is actually Spec (spec_arr[i]); Open
-## parts are designed (P1), not reverse-engineered. No warehouse purchase required.
+# ── P3: Reverse Engineer the parts of cars the team owns (in the Garage) ─
+## S41.0 — CORRECTED MODEL: RE applies to ALL parts of a car the team owns (granted at new-game or
+## bought via the Logistics centre — either way the team did NOT build them), spec AND open, EXCEPT
+## parts the team has manufactured itself in CNC (those drop out). Previously spec-only, which both
+## hid open parts and — combined with the S41.0 engine gate — locked everything. Eligibility here is
+## kept in lockstep with rnd_task_unlocked (pillar 3): car carries the part in part_conditions AND the
+## part is not in car_installed_parts.
+## S40.0 (history) — P3 gate moved off part_inventory (the Logistics warehouse) to the GARAGE: having
+## the car is the unlock, no warehouse copy needed.
 func _build_p3_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 	if GameState.player_team_cars.is_empty():
 		parent.add_child(_lbl_empty(Locale.t("rnd_no_cars")))
@@ -827,21 +839,28 @@ func _build_p3_catalog(parent: VBoxContainer, free_designers: Array) -> void:
 		var cid = car.championship_id
 		if cid == "": continue
 		var reg = GameState.CHAMPIONSHIP_REGISTRY.get(cid, {})
-		var spec_arr = PART_SPEC.get(cid, [true,true,true,true,true,true])
 
-		## Spec parts of THIS car (in the Garage) — always verified Spec. Having the car is the
-		## unlock; no warehouse copy needed. Open parts go to P1 (Design), not here.
+		## S41.0 — RE eligibility now matches the engine gate (rnd_task_unlocked pillar 3): a part is
+		## reverse-engineerable if the garage car CARRIES it (granted/bought via Logistics — all six
+		## parts of a car you didn't build) and the team has NOT self-manufactured it in CNC. Previously
+		## this was spec-only (`if spec_arr[i]`), which hid the open parts a team can also RE. "owned_spec"
+		## kept as the variable name for minimal churn, but it now means "RE-eligible parts".
+		var installed_here: Dictionary = GameState.car_installed_parts.get(car.id, {})
 		var owned_spec: Array = []
 		for i in range(PART_NAMES.size()):
-			if spec_arr[i]:
-				owned_spec.append(PART_NAMES[i])
+			var pn: String = PART_NAMES[i]
+			## Skip parts the team already makes itself (own-CNC) — not RE-able.
+			if _PART_NAME_TO_PCODE.get(pn, pn) in installed_here:
+				continue
+			## The car carries this part (part_conditions holds all six on a granted/bought car).
+			if pn in car.part_conditions:
+				owned_spec.append(pn)
 
-		var all_open = true
-		for v in PART_SPEC.get(cid, [false,false,false,false,false,false]):
-			if v: all_open = false; break
-		if all_open:
+		## S41.0 — empty state is now "nothing RE-eligible" (all parts self-made, or the car carries
+		## none), NOT "all parts Open" — open parts ARE reverse-engineerable under the corrected model.
+		if owned_spec.is_empty():
 			var lbl = Label.new()
-			lbl.text = "🏎 %s  [%s] — All parts Open. Nothing to Reverse Engineer." % [
+			lbl.text = "🏎 %s  [%s] — nothing to Reverse Engineer (all parts self-manufactured)." % [
 				car.car_name if car.car_name != "" else "Car %d" % car.car_number,
 				reg.get("name", cid)]
 			lbl.add_theme_font_size_override("font_size", 24)

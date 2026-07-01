@@ -1,4 +1,9 @@
 class_name StaffManager
+## Version: S41.0 — Designer `planning` attribute populated in BOTH generation paths: the procedural
+##   free-agent generator (_generate_staff_attributes) and _create_starting_staff. The latter also
+##   gained a Designer branch it was missing entirely (starting GP Designers previously got all-zero
+##   design stats — latent bug now fixed). planning is independent of design quality (wide spread).
+##   Analysis-checked only; NOT Godot-parsed.
 ## Version: S40.7 — designer free-agent floor raised 6→12 (replenish_free_agent_pool): post Lead-
 ##   Designer rework each team fields ONE Lead, so the market must stay deep enough that a retiring
 ##   Lead is replaceable.
@@ -181,6 +186,9 @@ func _generate_staff_attributes(staff: Staff, base_quality: float) -> void:
 			staff.gearbox    = clamp(q * 0.7 + randf_range(-10.0, 10.0), 1.0, 100.0)
 			staff.reliability    = clamp(q + randf_range(-15.0, 15.0), 1.0, 100.0)
 			staff.parts_knowledge = clamp(q + randf_range(-10.0, 10.0), 1.0, 100.0)
+			## S41.0 — R&D scheduling skill. Independent of design quality (wide spread), so a strong
+			## designer isn't guaranteed a strong planner and vice-versa — the planner reads it directly.
+			staff.planning       = clamp(randf_range(20.0, 90.0), 1.0, 100.0)
 			staff.discipline_adaptation["GK"] = clamp(q * 0.4, 1.0, 100.0)
 			# Boost specialism by 15-25 points
 			match specialism:
@@ -342,6 +350,20 @@ func _create_starting_staff(role: String, skill_min: float, skill_max: float) ->
 			s.race_strategy    = skill
 			s.qualifying_timing= skill * 0.85
 			s.race_pace_reading= skill * 0.8
+		"Designer":
+			## S41.0 — this match block previously had NO Designer branch, so a starting Designer
+			## created here got all-zero design stats (latent bug). Populate the six part-design stats
+			## from `skill` plus the new `planning` scheduling attribute so the GP starting Designer is
+			## actually functional and can lead R&D.
+			s.engine      = clamp(skill + randf_range(-8.0, 8.0), 1.0, 100.0)
+			s.aero        = clamp(skill + randf_range(-8.0, 8.0), 1.0, 100.0)
+			s.brakes      = clamp(skill + randf_range(-8.0, 8.0), 1.0, 100.0)
+			s.suspension  = clamp(skill + randf_range(-8.0, 8.0), 1.0, 100.0)
+			s.chassis     = clamp(skill + randf_range(-8.0, 8.0), 1.0, 100.0)
+			s.gearbox     = clamp(skill + randf_range(-8.0, 8.0), 1.0, 100.0)
+			s.reliability = clamp(skill + randf_range(-10.0, 10.0), 1.0, 100.0)
+			s.parts_knowledge = clamp(skill + randf_range(-10.0, 10.0), 1.0, 100.0)
+			s.planning    = clamp(randf_range(30.0, 70.0), 1.0, 100.0)
 	var sal_range = gs.STAFF_BASE_SALARIES.get(role, {"min": 200.0, "max": 500.0})
 	s.weekly_salary = sal_range["min"] + \
 		(sal_range["max"] - sal_range["min"]) * (skill / 100.0)

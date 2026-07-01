@@ -1,11 +1,8 @@
 {
  "_meta": {
-  "source": "Master_Championship_Variables_Map_v2_8.xlsx · Race Calendar sheet (followed exactly)",
-  "version": "v3 (S37.26) — generated straight from Excel, all 21 championships. No code substitution. | S37.58: remapped 29 circuit-town race cities to nearby major cities (IP safety: Silverstone->Northampton, Monza->Milan, Spa->Liège, etc.). Rally country-bracket cities left as-is.",
-  "season_weeks": 52,
-  "championships": 21,
-  "total_rounds": 295,
-  "note": "Keyed by championship id (matches CHAMPIONSHIP_REGISTRY). Round count = rounds.size() for every championship, including GK (21 rounds)."
+  "source": "Master_Championship_Variables_Map.xlsx · Race Calendar tab",
+  "schema": "v4 (S41.1) — sessions[] per round; distance NOT stored (engine computes km from tracks.json). GP sprint(laps)+main(hours-as-laps) split; endurance hours→km via avg_speed_kmh; double race = 2 race-sessions. Fixes: T090→T092, T113→T084.",
+  "note": "GK (C-001) final-weekend semifinal/final structure is layered by the engine per GK_SAFEGUARD_SPEC — this file carries the flat Excel rounds."
  },
  "championships": {
   "C-001": {
@@ -16,296 +13,407 @@
 	{
 	 "round": 1,
 	 "week": 6,
-	 "city": "Chemnitz",
 	 "track_id": "T071",
-	 "laps": 24,
-	 "hours": 0,
+	 "city": "Chemnitz",
 	 "rain_probability": 15,
 	 "audience": 890,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 24,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 2,
 	 "week": 8,
-	 "city": "Marseille",
 	 "track_id": "T025",
-	 "laps": 27,
-	 "hours": 0,
+	 "city": "Marseille",
 	 "rain_probability": 0,
 	 "audience": 650,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 27,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 3,
 	 "week": 10,
-	 "city": "Tours",
 	 "track_id": "T076",
-	 "laps": 26,
-	 "hours": 0,
+	 "city": "Tours",
 	 "rain_probability": 25,
 	 "audience": 1450,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 26,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 4,
 	 "week": 12,
-	 "city": "Liège",
 	 "track_id": "T027",
-	 "laps": 25,
-	 "hours": 0,
+	 "city": "Liège",
 	 "rain_probability": 20,
 	 "audience": 720,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 25,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 5,
 	 "week": 14,
-	 "city": "Arlington",
 	 "track_id": "T051",
-	 "laps": 18,
-	 "hours": 0,
+	 "city": "Arlington",
 	 "rain_probability": 0,
 	 "audience": 1200,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 18,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 6,
 	 "week": 16,
-	 "city": "Charlotte",
 	 "track_id": "T016",
-	 "laps": 20,
-	 "hours": 0,
+	 "city": "Charlotte",
 	 "rain_probability": 15,
 	 "audience": 1650,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 20,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 7,
 	 "week": 18,
-	 "city": "Charlotte",
 	 "track_id": "T016",
-	 "laps": 24,
-	 "hours": 0,
+	 "city": "Charlotte",
 	 "rain_probability": 0,
 	 "audience": 4800,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 24,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 8,
 	 "week": 20,
-	 "city": "Jacksonville",
 	 "track_id": "T013",
-	 "laps": 20,
-	 "hours": 0,
+	 "city": "Jacksonville",
 	 "rain_probability": 0,
 	 "audience": 2100,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 20,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 9,
 	 "week": 22,
-	 "city": "Indianapolis",
 	 "track_id": "T041",
-	 "laps": 16,
-	 "hours": 0,
+	 "city": "Indianapolis",
 	 "rain_probability": 0,
 	 "audience": 1900,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 16,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 10,
 	 "week": 24,
-	 "city": "Las Vegas",
 	 "track_id": "T020",
-	 "laps": 15,
-	 "hours": 0,
+	 "city": "Las Vegas",
 	 "rain_probability": 45,
 	 "audience": 850,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 15,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 11,
 	 "week": 26,
-	 "city": "Los Angeles",
 	 "track_id": "T056",
-	 "laps": 18,
-	 "hours": 0,
+	 "city": "Los Angeles",
 	 "rain_probability": 5,
 	 "audience": 1450,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 18,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 12,
 	 "week": 28,
-	 "city": "Northampton",
 	 "track_id": "T028",
-	 "laps": 20,
-	 "hours": 0,
+	 "city": "Northampton",
 	 "rain_probability": 0,
 	 "audience": 3400,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 20,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 13,
 	 "week": 30,
-	 "city": "Arlington",
 	 "track_id": "T051",
-	 "laps": 20,
-	 "hours": 0,
+	 "city": "Arlington",
 	 "rain_probability": 0,
 	 "audience": 1200,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 20,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 14,
 	 "week": 32,
-	 "city": "Jacksonville",
 	 "track_id": "T013",
-	 "laps": 20,
-	 "hours": 0,
+	 "city": "Jacksonville",
 	 "rain_probability": 15,
 	 "audience": 2800,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 20,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 15,
 	 "week": 34,
-	 "city": "Indianapolis",
 	 "track_id": "T041",
-	 "laps": 24,
-	 "hours": 0,
+	 "city": "Indianapolis",
 	 "rain_probability": 0,
 	 "audience": 1500,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 24,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 16,
 	 "week": 36,
-	 "city": "Los Angeles",
 	 "track_id": "T056",
-	 "laps": 20,
-	 "hours": 0,
+	 "city": "Los Angeles",
 	 "rain_probability": 20,
 	 "audience": 950,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 20,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 17,
 	 "week": 38,
-	 "city": "Miami",
 	 "track_id": "T054",
-	 "laps": 20,
-	 "hours": 0,
+	 "city": "Miami",
 	 "rain_probability": 100,
 	 "audience": 400,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 20,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 18,
 	 "week": 40,
-	 "city": "Graz",
 	 "track_id": "T113",
-	 "laps": 20,
-	 "hours": 0,
+	 "city": "Graz",
 	 "rain_probability": 10,
 	 "audience": 1800,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 20,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 19,
 	 "week": 42,
-	 "city": "Charlotte",
 	 "track_id": "T016",
-	 "laps": 20,
-	 "hours": 0,
+	 "city": "Charlotte",
 	 "rain_probability": 0,
 	 "audience": 2300,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 20,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 20,
 	 "week": 44,
-	 "city": "Las Vegas",
 	 "track_id": "T020",
-	 "laps": 16,
-	 "hours": 0,
+	 "city": "Las Vegas",
 	 "rain_probability": 100,
 	 "audience": 550,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 16,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 21,
 	 "week": 46,
-	 "city": "Tours",
 	 "track_id": "T076",
-	 "laps": 28,
-	 "hours": 0,
+	 "city": "Tours",
 	 "rain_probability": 0,
 	 "audience": 2200,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": true,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 28,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 28,
+	   "distance_source": "laps"
+	  }
+	 ]
 	}
    ]
   },
@@ -317,72 +425,92 @@
 	{
 	 "round": 1,
 	 "week": 7,
-	 "city": "Monte Carlo (Monaco)",
 	 "track_id": "T077",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Monte Carlo (Monaco)",
 	 "rain_probability": 100,
 	 "audience": 45000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 2,
 	 "week": 15,
-	 "city": "Rijeka (Croatia)",
 	 "track_id": "T080",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Rijeka (Croatia)",
 	 "rain_probability": 80,
 	 "audience": 62000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 3,
 	 "week": 19,
-	 "city": "Jyväskylä (Finland)",
 	 "track_id": "T081",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Jyväskylä (Finland)",
 	 "rain_probability": 0,
 	 "audience": 88000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 4,
 	 "week": 31,
-	 "city": "Nagoya (Japan)",
 	 "track_id": "T082",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Nagoya (Japan)",
 	 "rain_probability": 20,
 	 "audience": 115000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 5,
 	 "week": 37,
-	 "city": "Encarnación (Paraguay)",
 	 "track_id": "T083",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Encarnación (Paraguay)",
 	 "rain_probability": 60,
 	 "audience": 38000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	}
    ]
   },
@@ -394,100 +522,128 @@
 	{
 	 "round": 1,
 	 "week": 4,
-	 "city": "Umeå (Sweden)",
 	 "track_id": "T078",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Umeå (Sweden)",
 	 "rain_probability": 0,
 	 "audience": 95000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 2,
 	 "week": 11,
-	 "city": "Naivasha (Kenya)",
 	 "track_id": "T079",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Naivasha (Kenya)",
 	 "rain_probability": 0,
 	 "audience": 140000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 3,
 	 "week": 15,
-	 "city": "Rijeka (Croatia)",
 	 "track_id": "T080",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Rijeka (Croatia)",
 	 "rain_probability": 80,
 	 "audience": 85000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 4,
 	 "week": 17,
-	 "city": "Matosinhos (Portugal)",
 	 "track_id": "T090",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Matosinhos (Portugal)",
 	 "rain_probability": 10,
 	 "audience": 110000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 5,
 	 "week": 26,
+	 "track_id": "T084",
 	 "city": "Alghero (Italy)",
-	 "track_id": "T113",
-	 "laps": 0,
-	 "hours": 0,
 	 "rain_probability": 0,
 	 "audience": 78000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 6,
 	 "week": 35,
-	 "city": "Tartu (Estonia)",
 	 "track_id": "T088",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Tartu (Estonia)",
 	 "rain_probability": 0,
 	 "audience": 64000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 7,
 	 "week": 40,
-	 "city": "Loutraki (Greece)",
 	 "track_id": "T084",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Loutraki (Greece)",
 	 "rain_probability": 50,
 	 "audience": 125000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	}
    ]
   },
@@ -499,198 +655,254 @@
 	{
 	 "round": 1,
 	 "week": 4,
-	 "city": "Umeå (Sweden)",
 	 "track_id": "T078",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Umeå (Sweden)",
 	 "rain_probability": 50,
 	 "audience": 110000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 2,
 	 "week": 7,
-	 "city": "Monte Carlo (Monaco)",
 	 "track_id": "T077",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Monte Carlo (Monaco)",
 	 "rain_probability": 80,
 	 "audience": 85000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 3,
 	 "week": 11,
-	 "city": "Naivasha (Kenya)",
 	 "track_id": "T079",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Naivasha (Kenya)",
 	 "rain_probability": 0,
 	 "audience": 145000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 4,
 	 "week": 15,
-	 "city": "Rijeka (Croatia)",
 	 "track_id": "T080",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Rijeka (Croatia)",
 	 "rain_probability": 30,
 	 "audience": 92000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 5,
 	 "week": 17,
-	 "city": "Matosinhos (Portugal)",
 	 "track_id": "T090",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Matosinhos (Portugal)",
 	 "rain_probability": 0,
 	 "audience": 115000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 6,
 	 "week": 19,
-	 "city": "Jyväskylä (Finland)",
 	 "track_id": "T081",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Jyväskylä (Finland)",
 	 "rain_probability": 0,
 	 "audience": 180000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 7,
 	 "week": 22,
-	 "city": "Concepción (Chile)",
 	 "track_id": "T086",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Concepción (Chile)",
 	 "rain_probability": 20,
 	 "audience": 130000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 8,
 	 "week": 26,
+	 "track_id": "T084",
 	 "city": "Alghero (Italy)",
-	 "track_id": "T113",
-	 "laps": 0,
-	 "hours": 0,
 	 "rain_probability": 0,
 	 "audience": 98000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 9,
 	 "week": 29,
-	 "city": "Jeddah (Saudi Arabia)",
 	 "track_id": "T087",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Jeddah (Saudi Arabia)",
 	 "rain_probability": 30,
 	 "audience": 105000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 10,
 	 "week": 31,
-	 "city": "Nagoya (Japan)",
 	 "track_id": "T082",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Nagoya (Japan)",
 	 "rain_probability": 0,
 	 "audience": 240000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 11,
 	 "week": 35,
-	 "city": "Tartu (Estonia)",
 	 "track_id": "T088",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Tartu (Estonia)",
 	 "rain_probability": 0,
 	 "audience": 72000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 12,
 	 "week": 37,
-	 "city": "Encarnación (Paraguay)",
 	 "track_id": "T083",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Encarnación (Paraguay)",
 	 "rain_probability": 60,
 	 "audience": 55000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 13,
 	 "week": 40,
-	 "city": "Loutraki (Greece)",
 	 "track_id": "T084",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Loutraki (Greece)",
 	 "rain_probability": 40,
 	 "audience": 112000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 14,
 	 "week": 46,
-	 "city": "Las Palmas (Spain)",
 	 "track_id": "T085",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Las Palmas (Spain)",
 	 "rain_probability": 0,
 	 "audience": 68000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	}
    ]
   },
@@ -702,198 +914,254 @@
 	{
 	 "round": 1,
 	 "week": 4,
-	 "city": "Umeå (Sweden)",
 	 "track_id": "T078",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Umeå (Sweden)",
 	 "rain_probability": 50,
 	 "audience": 185000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 2,
 	 "week": 7,
-	 "city": "Monte Carlo (Monaco)",
 	 "track_id": "T077",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Monte Carlo (Monaco)",
 	 "rain_probability": 80,
 	 "audience": 120000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 3,
 	 "week": 11,
-	 "city": "Naivasha (Kenya)",
 	 "track_id": "T079",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Naivasha (Kenya)",
 	 "rain_probability": 0,
 	 "audience": 260000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 4,
 	 "week": 15,
-	 "city": "Rijeka (Croatia)",
 	 "track_id": "T080",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Rijeka (Croatia)",
 	 "rain_probability": 30,
 	 "audience": 145000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 5,
 	 "week": 17,
-	 "city": "Matosinhos (Portugal)",
 	 "track_id": "T090",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Matosinhos (Portugal)",
 	 "rain_probability": 0,
 	 "audience": 165000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 6,
 	 "week": 19,
-	 "city": "Jyväskylä (Finland)",
 	 "track_id": "T081",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Jyväskylä (Finland)",
 	 "rain_probability": 0,
 	 "audience": 310000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 7,
 	 "week": 22,
-	 "city": "Concepción (Chile)",
 	 "track_id": "T086",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Concepción (Chile)",
 	 "rain_probability": 20,
 	 "audience": 190000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 8,
 	 "week": 26,
+	 "track_id": "T084",
 	 "city": "Alghero (Italy)",
-	 "track_id": "T113",
-	 "laps": 0,
-	 "hours": 0,
 	 "rain_probability": 0,
 	 "audience": 155000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 9,
 	 "week": 29,
-	 "city": "Jeddah (Saudi Arabia)",
 	 "track_id": "T087",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Jeddah (Saudi Arabia)",
 	 "rain_probability": 30,
 	 "audience": 135000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 10,
 	 "week": 31,
-	 "city": "Nagoya (Japan)",
 	 "track_id": "T082",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Nagoya (Japan)",
 	 "rain_probability": 0,
 	 "audience": 380000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 11,
 	 "week": 35,
-	 "city": "Tartu (Estonia)",
 	 "track_id": "T088",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Tartu (Estonia)",
 	 "rain_probability": 0,
 	 "audience": 110000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 12,
 	 "week": 37,
-	 "city": "Encarnación (Paraguay)",
 	 "track_id": "T083",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Encarnación (Paraguay)",
 	 "rain_probability": 60,
 	 "audience": 95000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 13,
 	 "week": 40,
-	 "city": "Loutraki (Greece)",
 	 "track_id": "T084",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Loutraki (Greece)",
 	 "rain_probability": 40,
 	 "audience": 175000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	},
 	{
 	 "round": 14,
 	 "week": 46,
-	 "city": "Las Palmas (Spain)",
 	 "track_id": "T085",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Las Palmas (Spain)",
 	 "rain_probability": 0,
 	 "audience": 115000,
 	 "points_scheme": "Standard_18",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "rally",
+	   "distance_source": "rally_km"
+	  }
+	 ]
 	}
    ]
   },
@@ -905,86 +1173,152 @@
 	{
 	 "round": 1,
 	 "week": 8,
-	 "city": "Marseille",
 	 "track_id": "T025",
-	 "laps": 32,
-	 "hours": 0,
+	 "city": "Marseille",
 	 "rain_probability": 0,
 	 "audience": 12500,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": true
+	 "double_race": true,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 32,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 32,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 2,
 	 "week": 14,
+	 "track_id": "T092",
 	 "city": "London",
-	 "track_id": "T090",
-	 "laps": 37,
-	 "hours": 0,
 	 "rain_probability": 30,
 	 "audience": 18200,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": true
+	 "double_race": true,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 37,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 37,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 3,
 	 "week": 20,
-	 "city": "Rimini",
 	 "track_id": "T091",
-	 "laps": 35,
-	 "hours": 0,
+	 "city": "Rimini",
 	 "rain_probability": 0,
 	 "audience": 14900,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": true
+	 "double_race": true,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 35,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 35,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 4,
 	 "week": 26,
-	 "city": "Liège",
 	 "track_id": "T027",
-	 "laps": 26,
-	 "hours": 0,
+	 "city": "Liège",
 	 "rain_probability": 70,
 	 "audience": 28000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": true
+	 "double_race": true,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 26,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 26,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 5,
 	 "week": 34,
-	 "city": "Mannheim",
 	 "track_id": "T092",
-	 "laps": 34,
-	 "hours": 0,
+	 "city": "Mannheim",
 	 "rain_probability": 0,
 	 "audience": 21500,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": true
+	 "double_race": true,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 34,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 34,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 6,
 	 "week": 42,
-	 "city": "Barcelona",
 	 "track_id": "T024",
-	 "laps": 33,
-	 "hours": 0,
+	 "city": "Barcelona",
 	 "rain_probability": 0,
 	 "audience": 34200,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": true
+	 "double_race": true,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 33,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 33,
+	   "distance_source": "laps"
+	  }
+	 ]
 	}
    ]
   },
@@ -996,86 +1330,122 @@
 	{
 	 "round": 1,
 	 "week": 5,
-	 "city": "Sydney",
 	 "track_id": "T038",
-	 "laps": 0,
-	 "hours": 12,
+	 "city": "Sydney",
 	 "rain_probability": 0,
 	 "audience": 53000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "hours": 12,
+	   "distance_source": "hours",
+	   "avg_speed_kmh": 185.0
+	  }
+	 ]
 	},
 	{
 	 "round": 2,
 	 "week": 22,
-	 "city": "Cologne",
 	 "track_id": "T037",
-	 "laps": 0,
-	 "hours": 24,
+	 "city": "Cologne",
 	 "rain_probability": 75,
 	 "audience": 235000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "hours": 24,
+	   "distance_source": "hours",
+	   "avg_speed_kmh": 185.0
+	  }
+	 ]
 	},
 	{
 	 "round": 3,
 	 "week": 24,
-	 "city": "Tours",
 	 "track_id": "T036",
-	 "laps": 0,
-	 "hours": 24,
+	 "city": "Tours",
 	 "rain_probability": 35,
 	 "audience": 332000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "hours": 24,
+	   "distance_source": "hours",
+	   "avg_speed_kmh": 185.0
+	  }
+	 ]
 	},
 	{
 	 "round": 4,
 	 "week": 26,
-	 "city": "Liège",
 	 "track_id": "T027",
-	 "laps": 0,
-	 "hours": 24,
+	 "city": "Liège",
 	 "rain_probability": 45,
 	 "audience": 85000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "hours": 24,
+	   "distance_source": "hours",
+	   "avg_speed_kmh": 185.0
+	  }
+	 ]
 	},
 	{
 	 "round": 5,
 	 "week": 40,
-	 "city": "Indianapolis",
 	 "track_id": "T041",
-	 "laps": 0,
-	 "hours": 8,
+	 "city": "Indianapolis",
 	 "rain_probability": 20,
 	 "audience": 38000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "hours": 8,
+	   "distance_source": "hours",
+	   "avg_speed_kmh": 185.0
+	  }
+	 ]
 	},
 	{
 	 "round": 6,
 	 "week": 48,
-	 "city": "Johannesburg",
 	 "track_id": "T093",
-	 "laps": 0,
-	 "hours": 9,
+	 "city": "Johannesburg",
 	 "rain_probability": 30,
 	 "audience": 42500,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "hours": 9,
+	   "distance_source": "hours",
+	   "avg_speed_kmh": 185.0
+	  }
+	 ]
 	}
    ]
   },
@@ -1087,114 +1457,202 @@
 	{
 	 "round": 1,
 	 "week": 10,
-	 "city": "Arlington",
 	 "track_id": "T001",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Arlington",
 	 "rain_probability": 20,
 	 "audience": 25000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": true
+	 "double_race": true,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 45,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 45,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 2,
 	 "week": 19,
-	 "city": "Speedway",
 	 "track_id": "T002",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Speedway",
 	 "rain_probability": 18,
 	 "audience": 45000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": true
+	 "double_race": true,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 35,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 35,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 3,
 	 "week": 25,
-	 "city": "Milwaukee",
 	 "track_id": "T004",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Milwaukee",
 	 "rain_probability": 22,
 	 "audience": 40000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": true
+	 "double_race": true,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 20,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 20,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 4,
 	 "week": 27,
-	 "city": "Lexington",
 	 "track_id": "T005",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Lexington",
 	 "rain_probability": 20,
 	 "audience": 35000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": true
+	 "double_race": true,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 35,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 35,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 5,
 	 "week": 32,
-	 "city": "Portland",
 	 "track_id": "T006",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Portland",
 	 "rain_probability": 18,
 	 "audience": 30000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": true
+	 "double_race": true,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 35,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 35,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 6,
 	 "week": 34,
-	 "city": "Markham",
 	 "track_id": "T007",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Markham",
 	 "rain_probability": 20,
 	 "audience": 28000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": true
+	 "double_race": true,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 60,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 60,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 7,
 	 "week": 36,
-	 "city": "West Allis",
 	 "track_id": "T008",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "West Allis",
 	 "rain_probability": 12,
 	 "audience": 22000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": true
+	 "double_race": true,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 35,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 35,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 8,
 	 "week": 39,
-	 "city": "Milwaukee",
 	 "track_id": "T004",
-	 "laps": 0,
-	 "hours": 0,
+	 "city": "Milwaukee",
 	 "rain_probability": 22,
 	 "audience": 42000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": true
+	 "double_race": true,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 35,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 35,
+	   "distance_source": "laps"
+	  }
+	 ]
 	}
    ]
   },
@@ -1206,170 +1664,242 @@
 	{
 	 "round": 1,
 	 "week": 10,
-	 "city": "St. Petersburg",
 	 "track_id": "T007",
-	 "laps": 45,
-	 "hours": 0,
+	 "city": "St. Petersburg",
 	 "rain_probability": 0,
 	 "audience": 65000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 45,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 2,
 	 "week": 17,
-	 "city": "Birmingham",
 	 "track_id": "T008",
-	 "laps": 35,
-	 "hours": 0,
+	 "city": "Birmingham",
 	 "rain_probability": 15,
 	 "audience": 38000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 35,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 3,
 	 "week": 20,
-	 "city": "Speedway",
 	 "track_id": "T040",
-	 "laps": 35,
-	 "hours": 0,
+	 "city": "Speedway",
 	 "rain_probability": 0,
 	 "audience": 52000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": true
+	 "double_race": true,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 35,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 35,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 4,
 	 "week": 22,
-	 "city": "Detroit",
 	 "track_id": "T009",
-	 "laps": 45,
-	 "hours": 0,
+	 "city": "Detroit",
 	 "rain_probability": 0,
 	 "audience": 78000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 45,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 5,
 	 "week": 24,
-	 "city": "Milwaukee",
 	 "track_id": "T004",
-	 "laps": 20,
-	 "hours": 0,
+	 "city": "Milwaukee",
 	 "rain_probability": 0,
 	 "audience": 85000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 20,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 6,
 	 "week": 27,
-	 "city": "Georgetown",
 	 "track_id": "T005",
-	 "laps": 35,
-	 "hours": 0,
+	 "city": "Georgetown",
 	 "rain_probability": 35,
 	 "audience": 42000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 35,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 7,
 	 "week": 28,
-	 "city": "Iowa",
 	 "track_id": "T042",
-	 "laps": 95,
-	 "hours": 0,
+	 "city": "Iowa",
 	 "rain_probability": 0,
 	 "audience": 34000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 95,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 8,
 	 "week": 29,
-	 "city": "Toronto",
 	 "track_id": "T007",
-	 "laps": 35,
-	 "hours": 0,
+	 "city": "Toronto",
 	 "rain_probability": 55,
 	 "audience": 58000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 35,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 9,
 	 "week": 32,
-	 "city": "Avondale",
 	 "track_id": "T010",
-	 "laps": 60,
-	 "hours": 0,
+	 "city": "Avondale",
 	 "rain_probability": 0,
 	 "audience": 29000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 60,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 10,
 	 "week": 35,
-	 "city": "Portland",
 	 "track_id": "T006",
-	 "laps": 35,
-	 "hours": 0,
+	 "city": "Portland",
 	 "rain_probability": 0,
 	 "audience": 31500,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 35,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 11,
 	 "week": 36,
-	 "city": "West Allis",
 	 "track_id": "T006",
-	 "laps": 90,
-	 "hours": 0,
+	 "city": "West Allis",
 	 "rain_probability": 0,
 	 "audience": 26000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 90,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 12,
 	 "week": 39,
-	 "city": "Monterey",
 	 "track_id": "T012",
-	 "laps": 35,
-	 "hours": 0,
+	 "city": "Monterey",
 	 "rain_probability": 10,
 	 "audience": 49000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": true
+	 "double_race": true,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 35,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 35,
+	   "distance_source": "laps"
+	  }
+	 ]
 	}
    ]
   },
@@ -1381,212 +1911,293 @@
 	{
 	 "round": 1,
 	 "week": 9,
-	 "city": "St. Petersburg",
 	 "track_id": "T007",
-	 "laps": 100,
-	 "hours": 0,
+	 "city": "St. Petersburg",
 	 "rain_probability": 0,
 	 "audience": 145000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 100,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 2,
 	 "week": 16,
-	 "city": "Long Beach",
 	 "track_id": "T011",
-	 "laps": 85,
-	 "hours": 0,
+	 "city": "Long Beach",
 	 "rain_probability": 0,
 	 "audience": 192000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 85,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 3,
 	 "week": 17,
-	 "city": "Arlington",
 	 "track_id": "T001",
-	 "laps": 90,
-	 "hours": 0,
+	 "city": "Arlington",
 	 "rain_probability": 15,
 	 "audience": 82000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 90,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 4,
 	 "week": 19,
-	 "city": "Lexington",
 	 "track_id": "T003",
-	 "laps": 85,
-	 "hours": 0,
+	 "city": "Lexington",
 	 "rain_probability": 0,
 	 "audience": 68000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 85,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 5,
 	 "week": 20,
-	 "city": "Indianapolis",
 	 "track_id": "T041",
-	 "laps": 200,
-	 "hours": 0,
+	 "city": "Indianapolis",
 	 "rain_probability": 0,
 	 "audience": 345000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 200,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 6,
 	 "week": 22,
-	 "city": "Detroit",
 	 "track_id": "T009",
-	 "laps": 100,
-	 "hours": 0,
+	 "city": "Detroit",
 	 "rain_probability": 100,
 	 "audience": 110000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 100,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 7,
 	 "week": 23,
-	 "city": "Milwaukee",
 	 "track_id": "T004",
-	 "laps": 55,
-	 "hours": 0,
+	 "city": "Milwaukee",
 	 "rain_probability": 0,
 	 "audience": 125000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 55,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 8,
 	 "week": 25,
-	 "city": "Monterey",
 	 "track_id": "T012",
-	 "laps": 95,
-	 "hours": 0,
+	 "city": "Monterey",
 	 "rain_probability": 0,
 	 "audience": 84000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 95,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 9,
 	 "week": 29,
-	 "city": "Toronto",
 	 "track_id": "T007",
-	 "laps": 85,
-	 "hours": 0,
+	 "city": "Toronto",
 	 "rain_probability": 50,
 	 "audience": 95000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 85,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 10,
 	 "week": 32,
-	 "city": "Avondale",
 	 "track_id": "T010",
-	 "laps": 250,
-	 "hours": 0,
+	 "city": "Avondale",
 	 "rain_probability": 0,
 	 "audience": 48000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 250,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 11,
 	 "week": 33,
-	 "city": "Phoenix",
 	 "track_id": "T048",
-	 "laps": 250,
-	 "hours": 0,
+	 "city": "Phoenix",
 	 "rain_probability": 0,
 	 "audience": 52000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 250,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 12,
 	 "week": 34,
-	 "city": "Dover",
 	 "track_id": "T049",
-	 "laps": 260,
-	 "hours": 0,
+	 "city": "Dover",
 	 "rain_probability": 0,
 	 "audience": 41000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 260,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 13,
 	 "week": 35,
-	 "city": "Portland",
 	 "track_id": "T006",
-	 "laps": 110,
-	 "hours": 0,
+	 "city": "Portland",
 	 "rain_probability": 0,
 	 "audience": 46000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 110,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 14,
 	 "week": 36,
-	 "city": "West Allis",
 	 "track_id": "T006",
-	 "laps": 250,
-	 "hours": 0,
+	 "city": "West Allis",
 	 "rain_probability": 0,
 	 "audience": 31000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": true
+	 "double_race": true,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 250,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 250,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 16,
 	 "week": 38,
-	 "city": "Nashville",
 	 "track_id": "T044",
-	 "laps": 206,
-	 "hours": 0,
+	 "city": "Nashville",
 	 "rain_probability": 0,
 	 "audience": 68000,
 	 "points_scheme": "Standard_50",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 206,
+	   "distance_source": "laps"
+	  }
+	 ]
 	}
    ]
   },
@@ -1598,282 +2209,382 @@
 	{
 	 "round": 1,
 	 "week": 7,
-	 "city": "Jacksonville",
 	 "track_id": "T013",
-	 "laps": 80,
-	 "hours": 0,
+	 "city": "Jacksonville",
 	 "rain_probability": 0,
 	 "audience": 45000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 80,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 2,
 	 "week": 10,
-	 "city": "Avondale",
 	 "track_id": "T010",
-	 "laps": 150,
-	 "hours": 0,
+	 "city": "Avondale",
 	 "rain_probability": 0,
 	 "audience": 32000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 150,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 3,
 	 "week": 16,
-	 "city": "Montgomery",
 	 "track_id": "T014",
-	 "laps": 76,
-	 "hours": 0,
+	 "city": "Montgomery",
 	 "rain_probability": 0,
 	 "audience": 55000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 76,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 4,
 	 "week": 18,
-	 "city": "Kansas City",
 	 "track_id": "T015",
-	 "laps": 100,
-	 "hours": 0,
+	 "city": "Kansas City",
 	 "rain_probability": 0,
 	 "audience": 22000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 100,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 5,
 	 "week": 21,
-	 "city": "Charlotte",
 	 "track_id": "T016",
-	 "laps": 100,
-	 "hours": 0,
+	 "city": "Charlotte",
 	 "rain_probability": 0,
 	 "audience": 28500,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 100,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 6,
 	 "week": 24,
-	 "city": "Iowa",
 	 "track_id": "T042",
-	 "laps": 150,
-	 "hours": 0,
+	 "city": "Iowa",
 	 "rain_probability": 0,
 	 "audience": 19000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 150,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 7,
 	 "week": 25,
-	 "city": "Berlin",
 	 "track_id": "T123",
-	 "laps": 200,
-	 "hours": 0,
+	 "city": "Berlin",
 	 "rain_probability": 0,
 	 "audience": 8200,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 200,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 8,
 	 "week": 26,
-	 "city": "Elko",
 	 "track_id": "T124",
-	 "laps": 250,
-	 "hours": 0,
+	 "city": "Elko",
 	 "rain_probability": 0,
 	 "audience": 6400,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 250,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 9,
 	 "week": 27,
-	 "city": "Lexington",
 	 "track_id": "T005",
-	 "laps": 48,
-	 "hours": 0,
+	 "city": "Lexington",
 	 "rain_probability": 35,
 	 "audience": 18500,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 48,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 10,
 	 "week": 29,
-	 "city": "Long Pond",
 	 "track_id": "T021",
-	 "laps": 60,
-	 "hours": 0,
+	 "city": "Long Pond",
 	 "rain_probability": 0,
 	 "audience": 31000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 60,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 11,
 	 "week": 30,
-	 "city": "Indianapolis",
 	 "track_id": "T041",
-	 "laps": 200,
-	 "hours": 0,
+	 "city": "Indianapolis",
 	 "rain_probability": 0,
 	 "audience": 15200,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 200,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 12,
 	 "week": 31,
-	 "city": "Salem",
 	 "track_id": "T122",
-	 "laps": 200,
-	 "hours": 0,
+	 "city": "Salem",
 	 "rain_probability": 0,
 	 "audience": 9500,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 200,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 13,
 	 "week": 33,
-	 "city": "Michigan",
 	 "track_id": "T116",
-	 "laps": 50,
-	 "hours": 0,
+	 "city": "Michigan",
 	 "rain_probability": 0,
 	 "audience": 44000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 50,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 14,
 	 "week": 34,
-	 "city": "Springfield",
 	 "track_id": "T125",
-	 "laps": 100,
-	 "hours": 0,
+	 "city": "Springfield",
 	 "rain_probability": 0,
 	 "audience": 12000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 100,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 15,
 	 "week": 35,
-	 "city": "West Allis",
 	 "track_id": "T006",
-	 "laps": 150,
-	 "hours": 0,
+	 "city": "West Allis",
 	 "rain_probability": 0,
 	 "audience": 16500,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 150,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 16,
 	 "week": 36,
-	 "city": "DuQuoin",
 	 "track_id": "T126",
-	 "laps": 100,
-	 "hours": 0,
+	 "city": "DuQuoin",
 	 "rain_probability": 0,
 	 "audience": 10800,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 100,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 17,
 	 "week": 37,
-	 "city": "Rochester",
 	 "track_id": "T022",
-	 "laps": 41,
-	 "hours": 0,
+	 "city": "Rochester",
 	 "rain_probability": 10,
 	 "audience": 26000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 41,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 18,
 	 "week": 38,
-	 "city": "Bristol",
 	 "track_id": "T017",
-	 "laps": 200,
-	 "hours": 0,
+	 "city": "Bristol",
 	 "rain_probability": 0,
 	 "audience": 38000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 200,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 19,
 	 "week": 39,
-	 "city": "Kansas City",
 	 "track_id": "T015",
-	 "laps": 100,
-	 "hours": 0,
+	 "city": "Kansas City",
 	 "rain_probability": 0,
 	 "audience": 24500,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 100,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 20,
 	 "week": 41,
-	 "city": "Toledo",
 	 "track_id": "T123",
-	 "laps": 200,
-	 "hours": 0,
+	 "city": "Toledo",
 	 "rain_probability": 0,
 	 "audience": 11500,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 200,
+	   "distance_source": "laps"
+	  }
+	 ]
 	}
    ]
   },
@@ -1885,324 +2596,439 @@
 	{
 	 "round": 1,
 	 "week": 7,
-	 "city": "Jacksonville",
 	 "track_id": "T013",
-	 "laps": 100,
-	 "hours": 0,
+	 "city": "Jacksonville",
 	 "rain_probability": 0,
 	 "audience": 68000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 100,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 2,
 	 "week": 8,
-	 "city": "Avondale",
 	 "track_id": "T010",
-	 "laps": 135,
-	 "hours": 0,
+	 "city": "Avondale",
 	 "rain_probability": 0,
 	 "audience": 41000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 135,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 3,
 	 "week": 9,
-	 "city": "Kansas City",
 	 "track_id": "T015",
-	 "laps": 134,
-	 "hours": 0,
+	 "city": "Kansas City",
 	 "rain_probability": 0,
 	 "audience": 34500,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 134,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 4,
 	 "week": 11,
-	 "city": "Bristol",
 	 "track_id": "T017",
-	 "laps": 150,
-	 "hours": 0,
+	 "city": "Bristol",
 	 "rain_probability": 0,
 	 "audience": 52000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 150,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 5,
 	 "week": 12,
-	 "city": "Milwaukee",
 	 "track_id": "T004",
-	 "laps": 42,
-	 "hours": 0,
+	 "city": "Milwaukee",
 	 "rain_probability": 10,
 	 "audience": 64000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 42,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 6,
 	 "week": 15,
-	 "city": "Las Vegas",
 	 "track_id": "T020",
-	 "laps": 167,
-	 "hours": 0,
+	 "city": "Las Vegas",
 	 "rain_probability": 0,
 	 "audience": 38000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 167,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 7,
 	 "week": 16,
-	 "city": "Richmond",
 	 "track_id": "T047",
-	 "laps": 200,
-	 "hours": 0,
+	 "city": "Richmond",
 	 "rain_probability": 0,
 	 "audience": 43000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 200,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 8,
 	 "week": 18,
-	 "city": "Kansas City",
 	 "track_id": "T015",
-	 "laps": 134,
-	 "hours": 0,
+	 "city": "Kansas City",
 	 "rain_probability": 0,
 	 "audience": 29000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 134,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 9,
 	 "week": 19,
-	 "city": "Darlington",
 	 "track_id": "T019",
-	 "laps": 147,
-	 "hours": 0,
+	 "city": "Darlington",
 	 "rain_probability": 0,
 	 "audience": 58000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 147,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 10,
 	 "week": 20,
-	 "city": "North Wilkesboro",
 	 "track_id": "T119",
-	 "laps": 250,
-	 "hours": 0,
+	 "city": "North Wilkesboro",
 	 "rain_probability": 100,
 	 "audience": 22500,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 250,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 11,
 	 "week": 21,
-	 "city": "Charlotte",
 	 "track_id": "T016",
-	 "laps": 134,
-	 "hours": 0,
+	 "city": "Charlotte",
 	 "rain_probability": 0,
 	 "audience": 47000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 134,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 12,
 	 "week": 22,
-	 "city": "Texas",
 	 "track_id": "T046",
-	 "laps": 160,
-	 "hours": 0,
+	 "city": "Texas",
 	 "rain_probability": 0,
 	 "audience": 39000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 160,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 13,
 	 "week": 25,
-	 "city": "Las Vegas",
 	 "track_id": "T020",
-	 "laps": 250,
-	 "hours": 0,
+	 "city": "Las Vegas",
 	 "rain_probability": 0,
 	 "audience": 24000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 250,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 14,
 	 "week": 26,
-	 "city": "Charlotte",
 	 "track_id": "T016",
-	 "laps": 150,
-	 "hours": 0,
+	 "city": "Charlotte",
 	 "rain_probability": 0,
 	 "audience": 31500,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 150,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 15,
 	 "week": 29,
-	 "city": "Long Pond",
 	 "track_id": "T021",
-	 "laps": 60,
-	 "hours": 0,
+	 "city": "Long Pond",
 	 "rain_probability": 0,
 	 "audience": 55000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 60,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 16,
 	 "week": 31,
-	 "city": "Avondale",
 	 "track_id": "T010",
-	 "laps": 250,
-	 "hours": 0,
+	 "city": "Avondale",
 	 "rain_probability": 0,
 	 "audience": 36000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 250,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 17,
 	 "week": 32,
-	 "city": "Texas",
 	 "track_id": "T046",
-	 "laps": 200,
-	 "hours": 0,
+	 "city": "Texas",
 	 "rain_probability": 10,
 	 "audience": 18200,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 200,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 18,
 	 "week": 35,
-	 "city": "Las Vegas",
 	 "track_id": "T020",
-	 "laps": 175,
-	 "hours": 0,
+	 "city": "Las Vegas",
 	 "rain_probability": 0,
 	 "audience": 21000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 175,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 19,
 	 "week": 38,
-	 "city": "Richmond",
 	 "track_id": "T047",
-	 "laps": 200,
-	 "hours": 0,
+	 "city": "Richmond",
 	 "rain_probability": 0,
 	 "audience": 62000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 200,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 20,
 	 "week": 39,
-	 "city": "Kansas City",
 	 "track_id": "T015",
-	 "laps": 134,
-	 "hours": 0,
+	 "city": "Kansas City",
 	 "rain_probability": 0,
 	 "audience": 33000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 134,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 21,
 	 "week": 40,
-	 "city": "Jacksonville",
 	 "track_id": "T013",
-	 "laps": 94,
-	 "hours": 0,
+	 "city": "Jacksonville",
 	 "rain_probability": 0,
 	 "audience": 85000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 94,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 22,
 	 "week": 43,
-	 "city": "Charlotte",
 	 "track_id": "T016",
-	 "laps": 134,
-	 "hours": 0,
+	 "city": "Charlotte",
 	 "rain_probability": 0,
 	 "audience": 42000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 134,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 23,
 	 "week": 45,
-	 "city": "Avondale",
 	 "track_id": "T010",
-	 "laps": 150,
-	 "hours": 0,
+	 "city": "Avondale",
 	 "rain_probability": 0,
 	 "audience": 76000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 150,
+	   "distance_source": "laps"
+	  }
+	 ]
 	}
    ]
   },
@@ -2214,464 +3040,629 @@
 	{
 	 "round": 1,
 	 "week": 7,
-	 "city": "Jacksonville",
 	 "track_id": "T013",
-	 "laps": 120,
-	 "hours": 0,
+	 "city": "Jacksonville",
 	 "rain_probability": 0,
 	 "audience": 95000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 120,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 2,
 	 "week": 8,
-	 "city": "Atlanta",
 	 "track_id": "T045",
-	 "laps": 163,
-	 "hours": 0,
+	 "city": "Atlanta",
 	 "rain_probability": 0,
 	 "audience": 58000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 163,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 3,
 	 "week": 9,
-	 "city": "Milwaukee",
 	 "track_id": "T004",
-	 "laps": 46,
-	 "hours": 0,
+	 "city": "Milwaukee",
 	 "rain_probability": 10,
 	 "audience": 74000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 46,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 4,
 	 "week": 10,
-	 "city": "Avondale",
 	 "track_id": "T010",
-	 "laps": 200,
-	 "hours": 0,
+	 "city": "Avondale",
 	 "rain_probability": 0,
 	 "audience": 62000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 200,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 5,
 	 "week": 11,
-	 "city": "Las Vegas",
 	 "track_id": "T020",
-	 "laps": 134,
-	 "hours": 0,
+	 "city": "Las Vegas",
 	 "rain_probability": 0,
 	 "audience": 48000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 134,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 6,
 	 "week": 12,
-	 "city": "Darlington",
 	 "track_id": "T019",
-	 "laps": 147,
-	 "hours": 0,
+	 "city": "Darlington",
 	 "rain_probability": 0,
 	 "audience": 68000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 147,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 7,
 	 "week": 13,
-	 "city": "Martinsville",
 	 "track_id": "T018",
-	 "laps": 250,
-	 "hours": 0,
+	 "city": "Martinsville",
 	 "rain_probability": 0,
 	 "audience": 46000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 250,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 8,
 	 "week": 14,
-	 "city": "Richmond",
 	 "track_id": "T047",
-	 "laps": 200,
-	 "hours": 0,
+	 "city": "Richmond",
 	 "rain_probability": 0,
 	 "audience": 38000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 200,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 9,
 	 "week": 15,
-	 "city": "Bristol",
 	 "track_id": "T017",
-	 "laps": 300,
-	 "hours": 0,
+	 "city": "Bristol",
 	 "rain_probability": 0,
 	 "audience": 72000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 300,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 10,
 	 "week": 16,
-	 "city": "Kansas City",
 	 "track_id": "T015",
-	 "laps": 200,
-	 "hours": 0,
+	 "city": "Kansas City",
 	 "rain_probability": 0,
 	 "audience": 39000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 200,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 11,
 	 "week": 17,
-	 "city": "Montgomery",
 	 "track_id": "T014",
-	 "laps": 113,
-	 "hours": 0,
+	 "city": "Montgomery",
 	 "rain_probability": 0,
 	 "audience": 115000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 113,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 12,
 	 "week": 18,
-	 "city": "Charlotte",
 	 "track_id": "T016",
-	 "laps": 200,
-	 "hours": 0,
+	 "city": "Charlotte",
 	 "rain_probability": 0,
 	 "audience": 52000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 200,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 13,
 	 "week": 19,
-	 "city": "Rochester",
 	 "track_id": "T022",
-	 "laps": 82,
-	 "hours": 0,
+	 "city": "Rochester",
 	 "rain_probability": 30,
 	 "audience": 64500,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 82,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 14,
 	 "week": 20,
-	 "city": "Richmond",
 	 "track_id": "T047",
-	 "laps": 200,
-	 "hours": 0,
+	 "city": "Richmond",
 	 "rain_probability": 0,
 	 "audience": 64000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 200,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 15,
 	 "week": 21,
-	 "city": "Charlotte",
 	 "track_id": "T016",
-	 "laps": 200,
-	 "hours": 0,
+	 "city": "Charlotte",
 	 "rain_probability": 0,
 	 "audience": 78000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 200,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 16,
 	 "week": 22,
-	 "city": "Nashville",
 	 "track_id": "T044",
-	 "laps": 250,
-	 "hours": 0,
+	 "city": "Nashville",
 	 "rain_probability": 0,
 	 "audience": 48000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 250,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 17,
 	 "week": 24,
-	 "city": "Long Pond",
 	 "track_id": "T021",
-	 "laps": 90,
-	 "hours": 0,
+	 "city": "Long Pond",
 	 "rain_probability": 0,
 	 "audience": 62000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 90,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 18,
 	 "week": 25,
-	 "city": "Sonoma",
 	 "track_id": "T023",
-	 "laps": 60,
-	 "hours": 0,
+	 "city": "Sonoma",
 	 "rain_probability": 0,
 	 "audience": 82000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 60,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 19,
 	 "week": 26,
-	 "city": "Sonoma",
 	 "track_id": "T023",
-	 "laps": 79,
-	 "hours": 0,
+	 "city": "Sonoma",
 	 "rain_probability": 10,
 	 "audience": 41500,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 79,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 20,
 	 "week": 27,
-	 "city": "Chicagoland",
 	 "track_id": "T115",
-	 "laps": 200,
-	 "hours": 0,
+	 "city": "Chicagoland",
 	 "rain_probability": 0,
 	 "audience": 59000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 200,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 21,
 	 "week": 28,
-	 "city": "Atlanta",
 	 "track_id": "T045",
-	 "laps": 163,
-	 "hours": 0,
+	 "city": "Atlanta",
 	 "rain_probability": 0,
 	 "audience": 61000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 163,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 22,
 	 "week": 30,
-	 "city": "Jacksonville",
 	 "track_id": "T013",
-	 "laps": 100,
-	 "hours": 0,
+	 "city": "Jacksonville",
 	 "rain_probability": 0,
 	 "audience": 78000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 100,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 23,
 	 "week": 32,
-	 "city": "Iowa",
 	 "track_id": "T042",
-	 "laps": 250,
-	 "hours": 0,
+	 "city": "Iowa",
 	 "rain_probability": 0,
 	 "audience": 24000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 250,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 24,
 	 "week": 35,
-	 "city": "Las Vegas",
 	 "track_id": "T020",
-	 "laps": 100,
-	 "hours": 0,
+	 "city": "Las Vegas",
 	 "rain_probability": 0,
 	 "audience": 86000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 100,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 25,
 	 "week": 36,
-	 "city": "Darlington",
 	 "track_id": "T019",
-	 "laps": 147,
-	 "hours": 0,
+	 "city": "Darlington",
 	 "rain_probability": 0,
 	 "audience": 71000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 147,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 26,
 	 "week": 37,
-	 "city": "Avondale",
 	 "track_id": "T010",
-	 "laps": 200,
-	 "hours": 0,
+	 "city": "Avondale",
 	 "rain_probability": 0,
 	 "audience": 43500,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 200,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 27,
 	 "week": 38,
-	 "city": "Bristol",
 	 "track_id": "T017",
-	 "laps": 300,
-	 "hours": 0,
+	 "city": "Bristol",
 	 "rain_probability": 0,
 	 "audience": 88000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 300,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 28,
 	 "week": 40,
-	 "city": "Las Vegas",
 	 "track_id": "T020",
-	 "laps": 201,
-	 "hours": 0,
+	 "city": "Las Vegas",
 	 "rain_probability": 0,
 	 "audience": 52000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 201,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 29,
 	 "week": 41,
-	 "city": "Rochester",
 	 "track_id": "T022",
-	 "laps": 67,
-	 "hours": 0,
+	 "city": "Rochester",
 	 "rain_probability": 20,
 	 "audience": 61000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 67,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 30,
 	 "week": 42,
-	 "city": "Avondale",
 	 "track_id": "T010",
-	 "laps": 200,
-	 "hours": 0,
+	 "city": "Avondale",
 	 "rain_probability": 0,
 	 "audience": 68000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 200,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 31,
 	 "week": 43,
-	 "city": "Montgomery",
 	 "track_id": "T014",
-	 "laps": 113,
-	 "hours": 0,
+	 "city": "Montgomery",
 	 "rain_probability": 0,
 	 "audience": 122000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 113,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 32,
 	 "week": 44,
-	 "city": "Martinsville",
 	 "track_id": "T018",
-	 "laps": 250,
-	 "hours": 0,
+	 "city": "Martinsville",
 	 "rain_probability": 0,
 	 "audience": 51000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 250,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 33,
 	 "week": 45,
-	 "city": "Homestead",
 	 "track_id": "T013",
-	 "laps": 200,
-	 "hours": 0,
+	 "city": "Homestead",
 	 "rain_probability": 0,
 	 "audience": 58000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 200,
+	   "distance_source": "laps"
+	  }
+	 ]
 	}
    ]
   },
@@ -2683,506 +3674,686 @@
 	{
 	 "round": 1,
 	 "week": 7,
-	 "city": "Jacksonville",
 	 "track_id": "T013",
-	 "laps": 200,
-	 "hours": 0,
+	 "city": "Jacksonville",
 	 "rain_probability": 0,
 	 "audience": 150000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 200,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 2,
 	 "week": 8,
-	 "city": "Atlanta",
 	 "track_id": "T045",
-	 "laps": 260,
-	 "hours": 0,
+	 "city": "Atlanta",
 	 "rain_probability": 0,
 	 "audience": 78000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 260,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 3,
 	 "week": 9,
-	 "city": "Milwaukee",
 	 "track_id": "T004",
-	 "laps": 68,
-	 "hours": 0,
+	 "city": "Milwaukee",
 	 "rain_probability": 10,
 	 "audience": 84000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 68,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 4,
 	 "week": 10,
-	 "city": "Avondale",
 	 "track_id": "T010",
-	 "laps": 312,
-	 "hours": 0,
+	 "city": "Avondale",
 	 "rain_probability": 0,
 	 "audience": 64000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 312,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 5,
 	 "week": 11,
-	 "city": "Las Vegas",
 	 "track_id": "T020",
-	 "laps": 267,
-	 "hours": 0,
+	 "city": "Las Vegas",
 	 "rain_probability": 0,
 	 "audience": 82000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 267,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 6,
 	 "week": 12,
-	 "city": "Darlington",
 	 "track_id": "T019",
-	 "laps": 293,
-	 "hours": 0,
+	 "city": "Darlington",
 	 "rain_probability": 0,
 	 "audience": 61000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 293,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 7,
 	 "week": 13,
-	 "city": "Martinsville",
 	 "track_id": "T018",
-	 "laps": 400,
-	 "hours": 0,
+	 "city": "Martinsville",
 	 "rain_probability": 0,
 	 "audience": 52000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 400,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 8,
 	 "week": 15,
-	 "city": "Bristol",
 	 "track_id": "T017",
-	 "laps": 500,
-	 "hours": 0,
+	 "city": "Bristol",
 	 "rain_probability": 0,
 	 "audience": 92000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 500,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 9,
 	 "week": 16,
-	 "city": "Charlotte",
 	 "track_id": "T016",
-	 "laps": 267,
-	 "hours": 0,
+	 "city": "Charlotte",
 	 "rain_probability": 0,
 	 "audience": 58000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 267,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 10,
 	 "week": 17,
-	 "city": "Texas",
 	 "track_id": "T046",
-	 "laps": 188,
-	 "hours": 0,
+	 "city": "Texas",
 	 "rain_probability": 0,
 	 "audience": 135000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 188,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 11,
 	 "week": 18,
-	 "city": "Long Pond",
 	 "track_id": "T021",
-	 "laps": 267,
-	 "hours": 0,
+	 "city": "Long Pond",
 	 "rain_probability": 0,
 	 "audience": 68000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 267,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 12,
 	 "week": 19,
-	 "city": "Rochester",
 	 "track_id": "T022",
-	 "laps": 100,
-	 "hours": 0,
+	 "city": "Rochester",
 	 "rain_probability": 30,
 	 "audience": 71000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 100,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 13,
 	 "week": 21,
-	 "city": "Charlotte",
 	 "track_id": "T016",
-	 "laps": 400,
-	 "hours": 0,
+	 "city": "Charlotte",
 	 "rain_probability": 0,
 	 "audience": 142000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 400,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 14,
 	 "week": 22,
-	 "city": "Texas",
 	 "track_id": "T046",
-	 "laps": 400,
-	 "hours": 0,
+	 "city": "Texas",
 	 "rain_probability": 0,
 	 "audience": 51000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 400,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 15,
 	 "week": 23,
-	 "city": "Michigan",
 	 "track_id": "T116",
-	 "laps": 200,
-	 "hours": 0,
+	 "city": "Michigan",
 	 "rain_probability": 0,
 	 "audience": 85000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 200,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 16,
 	 "week": 24,
-	 "city": "Long Pond",
 	 "track_id": "T021",
-	 "laps": 160,
-	 "hours": 0,
+	 "city": "Long Pond",
 	 "rain_probability": 0,
 	 "audience": 73000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 160,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 17,
 	 "week": 25,
-	 "city": "New Hampshire",
 	 "track_id": "T117",
-	 "laps": 100,
-	 "hours": 0,
+	 "city": "New Hampshire",
 	 "rain_probability": 0,
 	 "audience": 112000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 100,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 18,
 	 "week": 26,
-	 "city": "Sonoma",
 	 "track_id": "T023",
-	 "laps": 110,
-	 "hours": 0,
+	 "city": "Sonoma",
 	 "rain_probability": 10,
 	 "audience": 48500,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 110,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 19,
 	 "week": 27,
-	 "city": "Chicagoland",
 	 "track_id": "T115",
-	 "laps": 267,
-	 "hours": 0,
+	 "city": "Chicagoland",
 	 "rain_probability": 0,
 	 "audience": 67000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 267,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 20,
 	 "week": 28,
-	 "city": "Atlanta",
 	 "track_id": "T045",
-	 "laps": 260,
-	 "hours": 0,
+	 "city": "Atlanta",
 	 "rain_probability": 0,
 	 "audience": 62000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 260,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 21,
 	 "week": 29,
-	 "city": "Richmond",
 	 "track_id": "T047",
-	 "laps": 400,
-	 "hours": 0,
+	 "city": "Richmond",
 	 "rain_probability": 0,
 	 "audience": 38000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 400,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 22,
 	 "week": 30,
-	 "city": "Indianapolis",
 	 "track_id": "T041",
-	 "laps": 160,
-	 "hours": 0,
+	 "city": "Indianapolis",
 	 "rain_probability": 0,
 	 "audience": 125000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 160,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 23,
 	 "week": 32,
-	 "city": "Iowa",
 	 "track_id": "T042",
-	 "laps": 350,
-	 "hours": 0,
+	 "city": "Iowa",
 	 "rain_probability": 0,
 	 "audience": 32000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 350,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 24,
 	 "week": 33,
-	 "city": "Richmond",
 	 "track_id": "T047",
-	 "laps": 400,
-	 "hours": 0,
+	 "city": "Richmond",
 	 "rain_probability": 0,
 	 "audience": 46000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 400,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 25,
 	 "week": 34,
-	 "city": "New Hampshire",
 	 "track_id": "T117",
-	 "laps": 301,
-	 "hours": 0,
+	 "city": "New Hampshire",
 	 "rain_probability": 0,
 	 "audience": 52000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 301,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 26,
 	 "week": 35,
-	 "city": "Jacksonville",
 	 "track_id": "T013",
-	 "laps": 160,
-	 "hours": 0,
+	 "city": "Jacksonville",
 	 "rain_probability": 0,
 	 "audience": 101000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 160,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 27,
 	 "week": 36,
-	 "city": "Darlington",
 	 "track_id": "T019",
-	 "laps": 367,
-	 "hours": 0,
+	 "city": "Darlington",
 	 "rain_probability": 0,
 	 "audience": 78000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 367,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 28,
 	 "week": 37,
-	 "city": "Chicagoland",
 	 "track_id": "T115",
-	 "laps": 200,
-	 "hours": 0,
+	 "city": "Chicagoland",
 	 "rain_probability": 0,
 	 "audience": 54000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 200,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 29,
 	 "week": 38,
-	 "city": "Bristol",
 	 "track_id": "T017",
-	 "laps": 500,
-	 "hours": 0,
+	 "city": "Bristol",
 	 "rain_probability": 0,
 	 "audience": 105000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 500,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 30,
 	 "week": 39,
-	 "city": "Las Vegas",
 	 "track_id": "T020",
-	 "laps": 267,
-	 "hours": 0,
+	 "city": "Las Vegas",
 	 "rain_probability": 0,
 	 "audience": 68000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 267,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 31,
 	 "week": 40,
-	 "city": "Las Vegas",
 	 "track_id": "T020",
-	 "laps": 267,
-	 "hours": 0,
+	 "city": "Las Vegas",
 	 "rain_probability": 0,
 	 "audience": 74000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 267,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 32,
 	 "week": 41,
-	 "city": "Rochester",
 	 "track_id": "T022",
-	 "laps": 109,
-	 "hours": 0,
+	 "city": "Rochester",
 	 "rain_probability": 0,
 	 "audience": 89000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 109,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 33,
 	 "week": 42,
-	 "city": "Jacksonville",
 	 "track_id": "T013",
-	 "laps": 312,
-	 "hours": 0,
+	 "city": "Jacksonville",
 	 "rain_probability": 0,
 	 "audience": 72000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 312,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 34,
 	 "week": 43,
-	 "city": "Montgomery",
 	 "track_id": "T014",
-	 "laps": 188,
-	 "hours": 0,
+	 "city": "Montgomery",
 	 "rain_probability": 0,
 	 "audience": 141000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 188,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 35,
 	 "week": 44,
-	 "city": "Martinsville",
 	 "track_id": "T018",
-	 "laps": 500,
-	 "hours": 0,
+	 "city": "Martinsville",
 	 "rain_probability": 0,
 	 "audience": 61000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 500,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 36,
 	 "week": 45,
-	 "city": "Homestead",
 	 "track_id": "T013",
-	 "laps": 267,
-	 "hours": 0,
+	 "city": "Homestead",
 	 "rain_probability": 0,
 	 "audience": 68000,
 	 "points_scheme": "NASCAR_Stage",
-	 "sprint_race": false,
 	 "playoff_race": true,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 267,
+	   "distance_source": "laps"
+	  }
+	 ]
 	}
    ]
   },
@@ -3194,86 +4365,116 @@
 	{
 	 "round": 1,
 	 "week": 6,
-	 "city": "Jacksonville",
 	 "track_id": "T013",
-	 "laps": 0,
-	 "hours": 24,
+	 "city": "Jacksonville",
 	 "rain_probability": 0,
 	 "audience": 24000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 24,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 2,
 	 "week": 11,
-	 "city": "Orlando",
 	 "track_id": "T039",
-	 "laps": 0,
-	 "hours": 19,
+	 "city": "Orlando",
 	 "rain_probability": 10,
 	 "audience": 18500,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 19,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 3,
 	 "week": 23,
-	 "city": "Lexington",
 	 "track_id": "T005",
-	 "laps": 0,
-	 "hours": 22,
+	 "city": "Lexington",
 	 "rain_probability": 0,
 	 "audience": 15000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 22,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 4,
 	 "week": 28,
-	 "city": "Bowmanville",
 	 "track_id": "T128",
-	 "laps": 0,
-	 "hours": 26,
+	 "city": "Bowmanville",
 	 "rain_probability": 0,
 	 "audience": 21000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 26,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 5,
 	 "week": 34,
-	 "city": "Virginia",
 	 "track_id": "T127",
-	 "laps": 0,
-	 "hours": 16,
+	 "city": "Virginia",
 	 "rain_probability": 45,
 	 "audience": 13200,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 16,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 6,
 	 "week": 41,
-	 "city": "Athens",
 	 "track_id": "T128",
-	 "laps": 0,
-	 "hours": 24,
+	 "city": "Athens",
 	 "rain_probability": 0,
 	 "audience": 38500,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 24,
+	   "distance_source": "laps"
+	  }
+	 ]
 	}
    ]
   },
@@ -3285,100 +4486,142 @@
 	{
 	 "round": 1,
 	 "week": 16,
-	 "city": "Barcelona",
 	 "track_id": "T024",
-	 "laps": 0,
-	 "hours": 4,
+	 "city": "Barcelona",
 	 "rain_probability": 0,
 	 "audience": 24500,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "hours": 4,
+	   "distance_source": "hours",
+	   "avg_speed_kmh": 200.0
+	  }
+	 ]
 	},
 	{
 	 "round": 2,
 	 "week": 19,
-	 "city": "Marseille",
 	 "track_id": "T025",
-	 "laps": 0,
-	 "hours": 4,
+	 "city": "Marseille",
 	 "rain_probability": 0,
 	 "audience": 18000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "hours": 4,
+	   "distance_source": "hours",
+	   "avg_speed_kmh": 200.0
+	  }
+	 ]
 	},
 	{
 	 "round": 3,
 	 "week": 24,
-	 "city": "Tours",
 	 "track_id": "T036",
-	 "laps": 0,
-	 "hours": 24,
+	 "city": "Tours",
 	 "rain_probability": 35,
 	 "audience": 332000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "hours": 24,
+	   "distance_source": "hours",
+	   "avg_speed_kmh": 200.0
+	  }
+	 ]
 	},
 	{
 	 "round": 4,
 	 "week": 28,
-	 "city": "Bologna",
 	 "track_id": "T026",
-	 "laps": 0,
-	 "hours": 4,
+	 "city": "Bologna",
 	 "rain_probability": 30,
 	 "audience": 31500,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "hours": 4,
+	   "distance_source": "hours",
+	   "avg_speed_kmh": 200.0
+	  }
+	 ]
 	},
 	{
 	 "round": 5,
 	 "week": 35,
-	 "city": "Liège",
 	 "track_id": "T027",
-	 "laps": 0,
-	 "hours": 4,
+	 "city": "Liège",
 	 "rain_probability": 65,
 	 "audience": 43000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "hours": 4,
+	   "distance_source": "hours",
+	   "avg_speed_kmh": 200.0
+	  }
+	 ]
 	},
 	{
 	 "round": 6,
 	 "week": 39,
-	 "city": "Northampton",
 	 "track_id": "T028",
-	 "laps": 0,
-	 "hours": 4,
+	 "city": "Northampton",
 	 "rain_probability": 80,
 	 "audience": 52000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "hours": 4,
+	   "distance_source": "hours",
+	   "avg_speed_kmh": 200.0
+	  }
+	 ]
 	},
 	{
 	 "round": 7,
 	 "week": 42,
-	 "city": "Faro",
 	 "track_id": "T110",
-	 "laps": 0,
-	 "hours": 4,
+	 "city": "Faro",
 	 "rain_probability": 0,
 	 "audience": 36000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "hours": 4,
+	   "distance_source": "hours",
+	   "avg_speed_kmh": 200.0
+	  }
+	 ]
 	}
    ]
   },
@@ -3390,114 +4633,162 @@
 	{
 	 "round": 1,
 	 "week": 9,
-	 "city": "Doha",
 	 "track_id": "T105",
-	 "laps": 0,
-	 "hours": 10,
+	 "city": "Doha",
 	 "rain_probability": 0,
 	 "audience": 32000,
 	 "points_scheme": "Standard_38",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "hours": 10,
+	   "distance_source": "hours",
+	   "avg_speed_kmh": 210.0
+	  }
+	 ]
 	},
 	{
 	 "round": 2,
 	 "week": 16,
-	 "city": "Bologna",
 	 "track_id": "T026",
-	 "laps": 0,
-	 "hours": 6,
+	 "city": "Bologna",
 	 "rain_probability": 80,
 	 "audience": 68000,
 	 "points_scheme": "Standard_38",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "hours": 6,
+	   "distance_source": "hours",
+	   "avg_speed_kmh": 210.0
+	  }
+	 ]
 	},
 	{
 	 "round": 3,
 	 "week": 19,
-	 "city": "Liège",
 	 "track_id": "T027",
-	 "laps": 0,
-	 "hours": 6,
+	 "city": "Liège",
 	 "rain_probability": 100,
 	 "audience": 82000,
 	 "points_scheme": "Standard_38",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "hours": 6,
+	   "distance_source": "hours",
+	   "avg_speed_kmh": 210.0
+	  }
+	 ]
 	},
 	{
 	 "round": 4,
 	 "week": 24,
-	 "city": "Tours",
 	 "track_id": "T036",
-	 "laps": 0,
-	 "hours": 24,
+	 "city": "Tours",
 	 "rain_probability": 35,
 	 "audience": 332000,
 	 "points_scheme": "Standard_38",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "hours": 24,
+	   "distance_source": "hours",
+	   "avg_speed_kmh": 210.0
+	  }
+	 ]
 	},
 	{
 	 "round": 5,
 	 "week": 28,
-	 "city": "São Paulo",
 	 "track_id": "T108",
-	 "laps": 0,
-	 "hours": 6,
+	 "city": "São Paulo",
 	 "rain_probability": 25,
 	 "audience": 74000,
 	 "points_scheme": "Standard_38",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "hours": 6,
+	   "distance_source": "hours",
+	   "avg_speed_kmh": 210.0
+	  }
+	 ]
 	},
 	{
 	 "round": 6,
 	 "week": 35,
-	 "city": "Austin",
 	 "track_id": "T035",
-	 "laps": 0,
-	 "hours": 6,
+	 "city": "Austin",
 	 "rain_probability": 0,
 	 "audience": 61000,
 	 "points_scheme": "Standard_38",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "hours": 6,
+	   "distance_source": "hours",
+	   "avg_speed_kmh": 210.0
+	  }
+	 ]
 	},
 	{
 	 "round": 7,
 	 "week": 37,
-	 "city": "Yokohama",
 	 "track_id": "T100",
-	 "laps": 0,
-	 "hours": 6,
+	 "city": "Yokohama",
 	 "rain_probability": 50,
 	 "audience": 54000,
 	 "points_scheme": "Standard_38",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "hours": 6,
+	   "distance_source": "hours",
+	   "avg_speed_kmh": 210.0
+	  }
+	 ]
 	},
 	{
 	 "round": 8,
 	 "week": 44,
-	 "city": "Manama",
 	 "track_id": "T031",
-	 "laps": 0,
-	 "hours": 8,
+	 "city": "Manama",
 	 "rain_probability": 0,
 	 "audience": 41000,
 	 "points_scheme": "Standard_38",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "hours": 8,
+	   "distance_source": "hours",
+	   "avg_speed_kmh": 210.0
+	  }
+	 ]
 	}
    ]
   },
@@ -3509,86 +4800,116 @@
 	{
 	 "round": 1,
 	 "week": 14,
+	 "track_id": "T092",
 	 "city": "London",
-	 "track_id": "T090",
-	 "laps": 24,
-	 "hours": 0,
 	 "rain_probability": 0,
 	 "audience": 14000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 24,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 2,
 	 "week": 18,
-	 "city": "Nottingham",
 	 "track_id": "T094",
-	 "laps": 18,
-	 "hours": 0,
+	 "city": "Nottingham",
 	 "rain_probability": 20,
 	 "audience": 12200,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 18,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 3,
 	 "week": 22,
-	 "city": "Southampton",
 	 "track_id": "T095",
-	 "laps": 17,
-	 "hours": 0,
+	 "city": "Southampton",
 	 "rain_probability": 60,
 	 "audience": 16500,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 17,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 4,
 	 "week": 26,
-	 "city": "Manchester",
 	 "track_id": "T096",
-	 "laps": 15,
-	 "hours": 0,
+	 "city": "Manchester",
 	 "rain_probability": 45,
 	 "audience": 18900,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 15,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 5,
 	 "week": 32,
-	 "city": "Newcastle",
 	 "track_id": "T097",
-	 "laps": 16,
-	 "hours": 0,
+	 "city": "Newcastle",
 	 "rain_probability": 0,
 	 "audience": 11000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 16,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 6,
 	 "week": 38,
-	 "city": "Northampton",
 	 "track_id": "T028",
-	 "laps": 21,
-	 "hours": 0,
+	 "city": "Northampton",
 	 "rain_probability": 20,
 	 "audience": 28500,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 21,
+	   "distance_source": "laps"
+	  }
+	 ]
 	}
    ]
   },
@@ -3600,142 +4921,252 @@
 	{
 	 "round": 1,
 	 "week": 10,
-	 "city": "Melbourne",
 	 "track_id": "T033",
-	 "laps": 20,
-	 "hours": 23,
+	 "city": "Melbourne",
 	 "rain_probability": 20,
 	 "audience": 125000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 20,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 23,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 2,
 	 "week": 15,
-	 "city": "Manama",
 	 "track_id": "T031",
-	 "laps": 19,
-	 "hours": 22,
+	 "city": "Manama",
 	 "rain_probability": 0,
 	 "audience": 95000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 19,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 22,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 3,
 	 "week": 18,
-	 "city": "Bologna",
 	 "track_id": "T026",
-	 "laps": 18,
-	 "hours": 22,
+	 "city": "Bologna",
 	 "rain_probability": 15,
 	 "audience": 88000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 18,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 22,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 4,
 	 "week": 23,
-	 "city": "Monaco",
 	 "track_id": "T030",
-	 "laps": 23,
-	 "hours": 27,
+	 "city": "Monaco",
 	 "rain_probability": 5,
 	 "audience": 110000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 23,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 27,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 5,
 	 "week": 25,
-	 "city": "Barcelona",
 	 "track_id": "T024",
-	 "laps": 21,
-	 "hours": 25,
+	 "city": "Barcelona",
 	 "rain_probability": 0,
 	 "audience": 92000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 21,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 25,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 6,
 	 "week": 26,
-	 "city": "Graz",
 	 "track_id": "T113",
-	 "laps": 21,
-	 "hours": 24,
+	 "city": "Graz",
 	 "rain_probability": 15,
 	 "audience": 105000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 21,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 24,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 7,
 	 "week": 27,
-	 "city": "Northampton",
 	 "track_id": "T028",
-	 "laps": 18,
-	 "hours": 22,
+	 "city": "Northampton",
 	 "rain_probability": 45,
 	 "audience": 140000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 18,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 22,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 8,
 	 "week": 29,
-	 "city": "Liège",
 	 "track_id": "T027",
-	 "laps": 12,
-	 "hours": 15,
+	 "city": "Liège",
 	 "rain_probability": 45,
 	 "audience": 115000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 12,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 15,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 9,
 	 "week": 30,
-	 "city": "Budapest",
 	 "track_id": "T100",
-	 "laps": 19,
-	 "hours": 24,
+	 "city": "Budapest",
 	 "rain_probability": 0,
 	 "audience": 98000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 19,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 24,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 10,
 	 "week": 36,
-	 "city": "Milan",
 	 "track_id": "T029",
-	 "laps": 18,
-	 "hours": 22,
+	 "city": "Milan",
 	 "rain_probability": 5,
 	 "audience": 135000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 18,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 22,
+	   "distance_source": "laps"
+	  }
+	 ]
 	}
    ]
   },
@@ -3747,198 +5178,352 @@
 	{
 	 "round": 1,
 	 "week": 10,
-	 "city": "Melbourne",
 	 "track_id": "T033",
-	 "laps": 22,
-	 "hours": 33,
+	 "city": "Melbourne",
 	 "rain_probability": 20,
 	 "audience": 131000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 22,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 33,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 2,
 	 "week": 15,
-	 "city": "Manama",
 	 "track_id": "T031",
-	 "laps": 23,
-	 "hours": 32,
+	 "city": "Manama",
 	 "rain_probability": 0,
 	 "audience": 97000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 23,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 32,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 3,
 	 "week": 16,
-	 "city": "Jeddah",
 	 "track_id": "T032",
-	 "laps": 20,
-	 "hours": 28,
+	 "city": "Jeddah",
 	 "rain_probability": 0,
 	 "audience": 85000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 20,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 28,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 4,
 	 "week": 18,
-	 "city": "Bologna",
 	 "track_id": "T026",
-	 "laps": 25,
-	 "hours": 35,
+	 "city": "Bologna",
 	 "rain_probability": 15,
 	 "audience": 92000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 25,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 35,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 5,
 	 "week": 23,
-	 "city": "Monaco",
 	 "track_id": "T030",
-	 "laps": 30,
-	 "hours": 42,
+	 "city": "Monaco",
 	 "rain_probability": 5,
 	 "audience": 115000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 30,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 42,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 6,
 	 "week": 25,
-	 "city": "Barcelona",
 	 "track_id": "T024",
-	 "laps": 26,
-	 "hours": 37,
+	 "city": "Barcelona",
 	 "rain_probability": 0,
 	 "audience": 96000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 26,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 37,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 7,
 	 "week": 26,
-	 "city": "Graz",
 	 "track_id": "T113",
-	 "laps": 28,
-	 "hours": 40,
+	 "city": "Graz",
 	 "rain_probability": 15,
 	 "audience": 108000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 28,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 40,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 8,
 	 "week": 27,
-	 "city": "Northampton",
 	 "track_id": "T028",
-	 "laps": 21,
-	 "hours": 29,
+	 "city": "Northampton",
 	 "rain_probability": 45,
 	 "audience": 144000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 21,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 29,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 9,
 	 "week": 29,
-	 "city": "Liège",
 	 "track_id": "T027",
-	 "laps": 18,
-	 "hours": 25,
+	 "city": "Liège",
 	 "rain_probability": 45,
 	 "audience": 120000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 18,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 25,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 10,
 	 "week": 30,
-	 "city": "Budapest",
 	 "track_id": "T100",
-	 "laps": 28,
-	 "hours": 37,
+	 "city": "Budapest",
 	 "rain_probability": 0,
 	 "audience": 99000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 28,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 37,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 11,
 	 "week": 36,
-	 "city": "Milan",
 	 "track_id": "T029",
-	 "laps": 21,
-	 "hours": 30,
+	 "city": "Milan",
 	 "rain_probability": 5,
 	 "audience": 140000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 21,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 30,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 12,
 	 "week": 39,
-	 "city": "Baku",
 	 "track_id": "T102",
-	 "laps": 21,
-	 "hours": 29,
+	 "city": "Baku",
 	 "rain_probability": 0,
 	 "audience": 72000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 21,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 29,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 13,
 	 "week": 48,
-	 "city": "Doha",
 	 "track_id": "T105",
-	 "laps": 22,
-	 "hours": 31,
+	 "city": "Doha",
 	 "rain_probability": 0,
 	 "audience": 45000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 22,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 31,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 14,
 	 "week": 49,
-	 "city": "Abu Dhabi",
 	 "track_id": "T104",
-	 "laps": 23,
-	 "hours": 33,
+	 "city": "Abu Dhabi",
 	 "rain_probability": 0,
 	 "audience": 115000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 23,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 33,
+	   "distance_source": "laps"
+	  }
+	 ]
 	}
    ]
   },
@@ -3950,338 +5535,494 @@
 	{
 	 "round": 1,
 	 "week": 10,
-	 "city": "Melbourne",
 	 "track_id": "T033",
-	 "laps": 0,
-	 "hours": 58,
+	 "city": "Melbourne",
 	 "rain_probability": 0,
 	 "audience": 145000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 58,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 2,
 	 "week": 11,
-	 "city": "Shanghai",
 	 "track_id": "T133",
-	 "laps": 19,
-	 "hours": 56,
+	 "city": "Shanghai",
 	 "rain_probability": 10,
 	 "audience": 110000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 19,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 56,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 3,
 	 "week": 13,
-	 "city": "Osaka",
 	 "track_id": "T101",
-	 "laps": 0,
-	 "hours": 53,
+	 "city": "Osaka",
 	 "rain_probability": 35,
 	 "audience": 125000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 53,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 4,
 	 "week": 15,
-	 "city": "Manama",
 	 "track_id": "T031",
-	 "laps": 0,
-	 "hours": 57,
+	 "city": "Manama",
 	 "rain_probability": 0,
 	 "audience": 98000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 57,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 5,
 	 "week": 16,
-	 "city": "Jeddah",
 	 "track_id": "T032",
-	 "laps": 0,
-	 "hours": 50,
+	 "city": "Jeddah",
 	 "rain_probability": 0,
 	 "audience": 85000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 50,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 6,
 	 "week": 18,
-	 "city": "Bologna",
 	 "track_id": "T026",
-	 "laps": 19,
-	 "hours": 57,
+	 "city": "Bologna",
 	 "rain_probability": 20,
 	 "audience": 92000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 19,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 57,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 7,
 	 "week": 21,
-	 "city": "Montréal",
 	 "track_id": "T022",
-	 "laps": 0,
-	 "hours": 70,
+	 "city": "Montréal",
 	 "rain_probability": 40,
 	 "audience": 135000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 70,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 8,
 	 "week": 23,
-	 "city": "Monaco",
 	 "track_id": "T030",
-	 "laps": 0,
-	 "hours": 78,
+	 "city": "Monaco",
 	 "rain_probability": 5,
 	 "audience": 68000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 78,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 9,
 	 "week": 25,
-	 "city": "Barcelona",
 	 "track_id": "T024",
-	 "laps": 0,
-	 "hours": 66,
+	 "city": "Barcelona",
 	 "rain_probability": 0,
 	 "audience": 115000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 66,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 10,
 	 "week": 26,
-	 "city": "Graz",
 	 "track_id": "T113",
-	 "laps": 0,
-	 "hours": 71,
+	 "city": "Graz",
 	 "rain_probability": 0,
 	 "audience": 105000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 71,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 11,
 	 "week": 27,
-	 "city": "Northampton",
 	 "track_id": "T028",
-	 "laps": 0,
-	 "hours": 52,
+	 "city": "Northampton",
 	 "rain_probability": 35,
 	 "audience": 150000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 52,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 12,
 	 "week": 29,
-	 "city": "Liège",
 	 "track_id": "T027",
-	 "laps": 15,
-	 "hours": 44,
+	 "city": "Liège",
 	 "rain_probability": 75,
 	 "audience": 120000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 15,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 44,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 13,
 	 "week": 30,
-	 "city": "Budapest",
 	 "track_id": "T100",
-	 "laps": 0,
-	 "hours": 70,
+	 "city": "Budapest",
 	 "rain_probability": 10,
 	 "audience": 98000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 70,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 14,
 	 "week": 34,
-	 "city": "Amsterdam",
 	 "track_id": "T103",
-	 "laps": 0,
-	 "hours": 72,
+	 "city": "Amsterdam",
 	 "rain_probability": 0,
 	 "audience": 105000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 72,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 15,
 	 "week": 36,
-	 "city": "Milan",
 	 "track_id": "T029",
-	 "laps": 0,
-	 "hours": 53,
+	 "city": "Milan",
 	 "rain_probability": 0,
 	 "audience": 118000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 53,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 16,
 	 "week": 37,
-	 "city": "Madrid",
 	 "track_id": "T024",
-	 "laps": 0,
-	 "hours": 56,
+	 "city": "Madrid",
 	 "rain_probability": 0,
 	 "audience": 125000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 56,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 17,
 	 "week": 39,
-	 "city": "Baku",
 	 "track_id": "T102",
-	 "laps": 0,
-	 "hours": 51,
+	 "city": "Baku",
 	 "rain_probability": 0,
 	 "audience": 75000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 51,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 18,
 	 "week": 41,
-	 "city": "Singapore",
 	 "track_id": "T034",
-	 "laps": 0,
-	 "hours": 62,
+	 "city": "Singapore",
 	 "rain_probability": 20,
 	 "audience": 88000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 62,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 19,
 	 "week": 43,
-	 "city": "Austin",
 	 "track_id": "T035",
-	 "laps": 19,
-	 "hours": 56,
+	 "city": "Austin",
 	 "rain_probability": 0,
 	 "audience": 140000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 19,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 56,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 20,
 	 "week": 44,
-	 "city": "Mexico City",
 	 "track_id": "T107",
-	 "laps": 0,
-	 "hours": 71,
+	 "city": "Mexico City",
 	 "rain_probability": 0,
 	 "audience": 130000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 71,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 21,
 	 "week": 45,
-	 "city": "São Paulo",
 	 "track_id": "T108",
-	 "laps": 24,
-	 "hours": 71,
+	 "city": "São Paulo",
 	 "rain_probability": 50,
 	 "audience": 90000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 24,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 71,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 22,
 	 "week": 47,
-	 "city": "Spring Valley",
 	 "track_id": "T114",
-	 "laps": 50,
-	 "hours": 0,
+	 "city": "Spring Valley",
 	 "rain_probability": 0,
 	 "audience": 105000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 50,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 23,
 	 "week": 48,
-	 "city": "Doha",
 	 "track_id": "T105",
-	 "laps": 18,
-	 "hours": 57,
+	 "city": "Doha",
 	 "rain_probability": 0,
 	 "audience": 55000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "sprint",
+	   "laps": 18,
+	   "distance_source": "laps"
+	  },
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 57,
+	   "distance_source": "laps"
+	  }
+	 ]
 	},
 	{
 	 "round": 24,
 	 "week": 49,
-	 "city": "Abu Dhabi",
 	 "track_id": "T104",
-	 "laps": 0,
-	 "hours": 58,
+	 "city": "Abu Dhabi",
 	 "rain_probability": 0,
 	 "audience": 14000,
 	 "points_scheme": "Standard_25",
-	 "sprint_race": false,
 	 "playoff_race": false,
-	 "double_race": false
+	 "double_race": false,
+	 "sessions": [
+	  {
+	   "type": "race",
+	   "role": "main",
+	   "laps": 58,
+	   "distance_source": "laps"
+	  }
+	 ]
 	}
    ]
   }

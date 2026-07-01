@@ -1,4 +1,9 @@
 class_name Staff
+## Version: S41.0 — Added Designer `planning` attribute (R&D scheduling skill for the forecast-driven
+##   planner; see Supporting Files/AI_RnD_Economy_Spec_v2.md §6.5). Loaded from staff_designer.json
+##   attributes (default wide random roll when absent, mirroring talent_scouting). DELIBERATELY NOT in
+##   get_overall_skill() — it governs WHEN to research, not part quality, so Lead selection + the RP
+##   faucet are unchanged. Analysis-checked only; NOT Godot-parsed.
 ## Version: S37.18 — #1: CFO get_primary_skill_label() "Resources"→"Negotiation" to match the
 ##   returned stat (sponsor_negotiation); the Skill column was mislabeled.
 ## Version: S37.15 — #18 hidden-gems: added talent_scouting TP stat ("eye for talent") + included
@@ -108,6 +113,14 @@ extends Resource
 @export var chassis: float = 0.0     # Chassis development skill
 @export var gearbox: float = 0.0     # Gearbox development skill
 @export var reliability: float = 0.0 # Reduces part failure probability
+## S41.0 — PLANNING: the Lead Designer's R&D scheduling skill. Governs the forecast-driven planner
+## (AI_RnD_Economy_Spec §6): how far ahead the Designer forecasts RP/CR/weeks and how precisely it
+## hits the "latest safe start" for the next-season car (high planning → later, more efficient switch
+## to P1/P3, more P2 value banked; low planning → adds a safety buffer, starts the car earlier,
+## occasionally mis-sequences). Deliberately EXCLUDED from get_overall_skill() (like reliability):
+## it affects WHEN to research, not part QUALITY, so it must not change Lead selection or the RP
+## faucet. Read directly by the planner. Same attribute drives the player's Lead-Designer automation.
+@export var planning: float = 0.0
 
 # ── Race Strategist attributes ────────────────────────────────────────────────
 # race_strategy, race_pace_reading, track_knowledge shared with TP fields above

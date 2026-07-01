@@ -1,3 +1,18 @@
+## Version: S41.2 — Multi-session rounds: _simulate_race now dispatches through
+##   RaceSimulator.simulate_round (runs each race-session as its own race). JSON calendar entries now
+##   carry track_id + per-session distance_km (enriched_sessions) so sprint+main / double races run
+##   with correct per-session km/points/wear. Round counting unchanged (current_round still +1 per
+##   round). GK unaffected. Analysis-checked only; NOT Godot-parsed.
+## Version: S41.1 — RACE CALENDAR → JSON migration (step 1: loader). Non-GK championships now build
+##   champ.calendar from data/race_calendar.json (sessions[] schema) with per-round km computed from
+##   data/tracks.json (new tracks_data + _load_tracks). GK (C-001) stays on CHAMPIONSHIP_CALENDARS to
+##   preserve its elimination flags (GK_SAFEGUARD_SPEC); the dict is also the fallback for any champ
+##   missing from JSON. PARITY: one calendar entry per ROUND (round counting unchanged); sessions are
+##   embedded + distance_km is the round's total race distance for the RP faucet. The per-session race
+##   LOOP (sprint/main as separate races) is a later step. Analysis-checked only; NOT Godot-parsed.
+## Version: S41.0 — Designer `planning` attribute added to save/load (backfilled mid-range on old
+##   saves so pre-S41 designers aren't stuck at 0). Part of the AI R&D economy planner substrate
+##   (Supporting Files/AI_RnD_Economy_Spec_v2.md §6.5). Analysis-checked only; NOT Godot-parsed.
 ## Version: S40.1 — LEAD DESIGNER REWORK (thread #6) wiring: declared + instantiated
 ## Version: S40.13 — P4 accessor delegations: rnd_perf_bonus / rnd_reliability_bonus / rnd_fatigue_bonus
 ##   / rnd_tax_reduction / rnd_maintenance_reduction / rnd_passive_income_bonus (→ RnDEngine cluster getters).
@@ -1315,6 +1330,11 @@ var cnc_production_queue: Array = []
 ## custom_calendar_events: the ONLY persisted calendar state. Player-created reminders.
 ##   Each entry: { "week": int, "title": String, "note": String }.
 var race_calendar_data: Dictionary = {}
+## S41.1 — tracks_data: loaded once from res://data/tracks.json. Holds ALL per-track data (lap_km,
+## rally_km, traction, flags probabilities, etc.). Distances live HERE; the race calendar stores only
+## laps/hours per session and the engine computes km at calendar-build time from this file. Read-only,
+## reloaded from JSON each launch (not saved).
+var tracks_data: Dictionary = {}
 ## S37.32 — part PURCHASE prices (Base_Cost × (1+Manufacturer_Profit) × Manufacturer_Quality),
 ## loaded from res://data/part_costs.json (generated from Excel CNC sheet). Replaces the
 ## stale hardcoded PART_COSTS (which had GK at 0 → the 'parts don't cost credits' bug).
@@ -2082,6 +2102,7 @@ func _ready() -> void:
 	_lead_designer_engine = LeadDesignerProposalEngine.new(self)   ## S40.0
 	_calendar_manager = _CalendarManagerScript.new(self)   ## S37.26
 	_load_race_calendar()                                  ## S37.26
+	_load_tracks()                                         ## S41.1 — track distances/params
 	_load_part_costs()                                     ## S37.32
 	_sponsor_manager = SponsorManager.new(self)
 	_staff_manager = StaffManager.new(self)
@@ -2616,8 +2637,8 @@ func _get_championship_driver_salary() -> float:
 func _consume_race_resources() -> void:
 	_race_simulator.consume_race_resources()
 
-func _earn_race_rp(laps: int) -> void:
-	_race_simulator.earn_race_rp(laps)
+func _earn_race_rp(distance_km: float) -> void:
+	_race_simulator.earn_race_rp(distance_km)
 
 ## ── S35.3 CFO auto-buy ────────────────────────────────────────────────────────
 ## When the player fast-forwards to season end (simulating_to_season_end), the CFO keeps the
@@ -3871,19 +3892,27 @@ func _setup_championship() -> void:
 		champ.service_park_every_n_stages = 0
 		champ.pit_stop_repair_pct         = 0.0
 		champ.calendar = []
-		for race in CHAMPIONSHIP_CALENDARS.get(cid, CHAMPIONSHIP_CALENDARS.get("C-001", [])):
-			var entry = {
-				"round": race["round"], "name": race["name"], "week": race["week"],
-				"rain_probability": race["rain"], "laps": race["laps"],
-				"lap_km": race.get("lap_km", 1.0), "audience": race["audience"],
-			}
-			## Preserve GK round/elimination flags (gk_round, is_semifinal, is_final) — the
-			## final-weekend cut logic reads these off the calendar entry. Dropping them (the old
-			## bug) meant the Semi-Final was never detected, so no elimination ran.
-			if race.has("gk_round"): entry["gk_round"] = race["gk_round"]
-			if race.has("is_semifinal"): entry["is_semifinal"] = race["is_semifinal"]
-			if race.has("is_final"): entry["is_final"] = race["is_final"]
-			champ.calendar.append(entry)
+		## S41.1 — non-GK from race_calendar.json (sessions[] + km from tracks.json); GK + fallback
+		## from the engine dict (keeps GK elimination flags). See _build_calendar_from_json / GK spec.
+		var json_cal2: Array = _build_calendar_from_json(cid) if cid != "C-001" else []
+		if not json_cal2.is_empty():
+			champ.calendar = json_cal2
+		else:
+			for race in CHAMPIONSHIP_CALENDARS.get(cid, CHAMPIONSHIP_CALENDARS.get("C-001", [])):
+				var entry = {
+					"round": race["round"], "name": race["name"], "week": race["week"],
+					"rain_probability": race["rain"], "laps": race["laps"],
+					"lap_km": race.get("lap_km", 1.0), "audience": race["audience"],
+					"distance_km": float(race["laps"]) * float(race.get("lap_km", 1.0)),
+				}
+				## Preserve GK round/elimination flags (gk_round, is_semifinal, is_final) — the
+				## final-weekend cut logic reads these off the calendar entry. Dropping them (the old
+				## bug) meant the Semi-Final was never detected, so no elimination ran.
+				if race.has("gk_round"): entry["gk_round"] = race["gk_round"]
+				if race.has("is_semifinal"): entry["is_semifinal"] = race["is_semifinal"]
+				if race.has("is_final"): entry["is_final"] = race["is_final"]
+				champ.calendar.append(entry)
+		champ.num_races = champ.calendar.size()
 		active_championships.append(champ)
 
 	print("[GameState] %d championships created" % active_championships.size())
@@ -4033,8 +4062,13 @@ func advance_week() -> void:
 			## GK result screen for a non-GK player (the reported "GK is still there" symptom). The GK
 			## world still advances: the semifinal hook (below) and the shadow-sim / round-advance
 			## blocks after this loop drive every GK group, including group 0.
+			## S41.2 — skip the real GK sim when the player isn't in GK OR has been ELIMINATED. An
+			## eliminated player has no car on track, so running the sim (and its RP faucet) each
+			## remaining GK week wrongly accrued RP after a Round-1 exit. The GK world still advances
+			## via the shadow sim + round-advance blocks below.
 			var gk_skip_real_sim = (champ.id == "C-001" and gk_discipline != null
-				and not gk_discipline.player_in_gk)
+				and (not gk_discipline.player_in_gk
+					or gk_discipline.is_player_eliminated(player_team.drivers)))
 			if not gk_skip_real_sim:
 				if is_player_champ:
 					## S35.3: when fast-forwarding to season end, the CFO keeps the cars race-ready
@@ -4245,7 +4279,9 @@ func _apply_weekly_fitness_recovery() -> void:
 	_race_simulator.apply_weekly_fitness_recovery()
 
 func _simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
-	_race_simulator.simulate_race(race_data, champ)
+	## S41.2 — dispatch through simulate_round so a round with multiple race-sessions (GP sprint+main,
+	## a double race) runs each as its own full race. Single-session rounds + GK entries are unchanged.
+	_race_simulator.simulate_round(race_data, champ)
 
 func _update_driver_stats_after_race(driver: Driver, standing_position: int, laps: int, is_wet: bool, grid_size: int, track_id: String = "") -> void:
 	_race_simulator._update_driver_stats_after_race(driver, standing_position, laps, is_wet, grid_size, track_id)
@@ -4299,9 +4335,21 @@ func _create_championship(champ_id: String) -> Championship:
 	champ.fuel_per_car_per_race = 15.0
 	champ.condition_loss_per_lap = 0.5
 	champ.has_mid_race_repairs = false
-	# Load real calendar from CHAMPIONSHIP_CALENDARS
-	var cal = CHAMPIONSHIP_CALENDARS.get(champ_id, [])
+	# S41.1 — CALENDAR SOURCE:
+	#   • GK (C-001) keeps the engine dict — it carries the elimination flags (gk_round / is_semifinal
+	#     / is_final) that the final-weekend cut depends on (see GK_SAFEGUARD_SPEC). Not migrated here.
+	#   • Every other championship builds from race_calendar.json (sessions[]) with km computed from
+	#     tracks.json. If the JSON is missing/empty for a champ, we fall back to the engine dict so
+	#     nothing hard-breaks.
 	champ.calendar = []
+	if champ_id != "C-001":
+		var json_cal := _build_calendar_from_json(champ_id)
+		if not json_cal.is_empty():
+			champ.calendar = json_cal
+			champ.num_races = champ.calendar.size()
+			return champ
+	# Fallback (and GK): load from CHAMPIONSHIP_CALENDARS.
+	var cal = CHAMPIONSHIP_CALENDARS.get(champ_id, [])
 	for race in cal:
 		var entry = {
 			"round": race["round"],
@@ -4311,6 +4359,9 @@ func _create_championship(champ_id: String) -> Championship:
 			"laps": race["laps"],
 			"lap_km": race.get("lap_km", 1.0),
 			"audience": race["audience"],
+			## S41.1 — compute km for dict-sourced entries too, so the RP faucet is unit-consistent
+			## regardless of source. Dict laps are true laps and lap_km is per-lap, so laps×lap_km = km.
+			"distance_km": float(race["laps"]) * float(race.get("lap_km", 1.0)),
 		}
 		## Preserve GK round/elimination flags so the final-weekend cut can detect the Semi-Final.
 		if race.has("gk_round"): entry["gk_round"] = race["gk_round"]
@@ -4435,6 +4486,106 @@ func _load_race_calendar() -> void:
 		race_calendar_data = parsed
 	else:
 		push_warning("race_calendar.json did not parse to a Dictionary.")
+
+## S41.1 — load tracks.json (per-track distances + params). Mirrors _load_race_calendar.
+func _load_tracks() -> void:
+	var path := "res://data/tracks.json"
+	if not FileAccess.file_exists(path):
+		push_warning("tracks.json not found at %s — JSON calendar km will fall back to 1.0/lap." % path)
+		return
+	var txt := FileAccess.get_file_as_string(path)
+	var parsed = JSON.parse_string(txt)
+	if typeof(parsed) == TYPE_DICTIONARY:
+		tracks_data = parsed
+	else:
+		push_warning("tracks.json did not parse to a Dictionary.")
+
+## S41.1 — Returns a track's record from tracks.json (or {} if absent).
+func get_track(track_id: String) -> Dictionary:
+	var tracks: Dictionary = tracks_data.get("tracks", {})
+	var t = tracks.get(track_id, {})
+	return t if typeof(t) == TYPE_DICTIONARY else {}
+
+## S41.1 — Compute a single race-SESSION's distance in KM from tracks.json.
+## The calendar stores only laps/hours + a distance_source; distances live in tracks.json.
+##   distance_source == "rally_km" -> the track's full rally length
+##   distance_source == "hours"    -> hours × session avg_speed_kmh (endurance timed races)
+##   distance_source == "laps" (default) -> laps × the track's lap_km
+## Returns 0.0 if it cannot be resolved (caller may treat 0 as "no RP / no distance").
+func session_distance_km(session: Dictionary, track_id: String) -> float:
+	var track := get_track(track_id)
+	var src := str(session.get("distance_source", "laps"))
+	if src == "rally_km":
+		var rk_val = track.get("rally_km", 0.0)
+		return float(rk_val) if rk_val != null else 0.0
+	if src == "hours":
+		var hrs := float(session.get("hours", 0))
+		var spd := float(session.get("avg_speed_kmh", 0.0))
+		return hrs * spd
+	# default: laps × lap_km
+	var laps := float(session.get("laps", 0))
+	var lkm_val = track.get("lap_km", 0.0)
+	var lkm := float(lkm_val) if lkm_val != null else 0.0
+	return laps * lkm
+
+## S41.1 — Build champ.calendar ENTRIES from race_calendar.json for a non-GK championship.
+## PARITY-FIRST: emits ONE entry per ROUND (so calendar.size() == round count and NOTHING about
+## current_round / num_races / is_season_finished changes vs the old dict path). The round's race
+## sessions are embedded under "sessions", and "distance_km" is the round's TOTAL race distance
+## (summed across its race sessions, incl. double races) so the RP faucet gets correct km now. The
+## per-session RACE LOOP (running sprint+main as separate races) is a SEPARATE later step — it also
+## has to update the weekly loop's round counting, so it is intentionally NOT done here.
+## Returns [] if the champ isn't in the JSON (caller falls back to the engine dict). GK (C-001) is
+## never routed here (keeps its engine-dict elimination flags — see GK_SAFEGUARD_SPEC).
+func _build_calendar_from_json(champ_id: String) -> Array:
+	var out: Array = []
+	var champs: Dictionary = race_calendar_data.get("championships", {})
+	var champ: Dictionary = champs.get(champ_id, {})
+	var rounds: Array = champ.get("rounds", [])
+	if rounds.is_empty():
+		return out
+	for rd in rounds:
+		var tid: String = str(rd.get("track_id", ""))
+		var track := get_track(tid)
+		var city: String = str(rd.get("city", "")) if rd.get("city") != null else ""
+		if city == "":
+			city = str(track.get("city", tid))
+		var sessions: Array = rd.get("sessions", [])
+		## Build an enriched session list: each race session gets its distance_km precomputed from
+		## tracks.json (so simulate_round can run each session with the right km without recomputing).
+		## Sum race-session distances → the round's total km (double race already = 2 sessions).
+		## Also capture the primary race session's laps for the legacy "laps" field (used by wear).
+		var enriched_sessions: Array = []
+		var total_km := 0.0
+		var primary_laps := 0
+		for s in sessions:
+			if typeof(s) != TYPE_DICTIONARY:
+				continue
+			var s2: Dictionary = s.duplicate(true)
+			if str(s.get("type", "race")) == "race":
+				var skm := session_distance_km(s, tid)
+				s2["distance_km"] = skm
+				total_km += skm
+				if primary_laps == 0:
+					primary_laps = int(s.get("laps", 0))
+			enriched_sessions.append(s2)
+		var entry := {
+			"round": int(rd.get("round", 0)),
+			"name": city,
+			"track_id": tid,
+			"week": int(rd.get("week", 0)),
+			"rain_probability": rd.get("rain_probability", 0),
+			"laps": primary_laps,
+			"lap_km": float(track.get("lap_km", 1.0)) if track.get("lap_km") != null else 1.0,
+			"audience": rd.get("audience", 0),
+			## S41.1 — round's total race distance in km (from tracks.json), what the RP faucet reads.
+			"distance_km": total_km,
+			"sessions": enriched_sessions,
+			"double_race": bool(rd.get("double_race", false)),
+			"playoff_race": bool(rd.get("playoff_race", false)),
+		}
+		out.append(entry)
+	return out
 
 ## S37.59 — Returns the display CITY for a given championship+round from race_calendar.json
 ## (the canonical visual schedule). The race ENGINE still runs off CHAMPIONSHIP_CALENDARS, but the
@@ -4989,6 +5140,7 @@ func _serialize_staff() -> Dictionary:
 			"engine": s.engine, "aero": s.aero, "brakes": s.brakes,
 			"suspension": s.suspension, "chassis": s.chassis, "gearbox": s.gearbox,
 			"reliability": s.reliability,
+			"planning": s.planning,   ## S41.0 — Designer R&D scheduling attribute
 			"practice_scheduling": s.practice_scheduling,
 			"qualifying_timing": s.qualifying_timing,
 			"championship_bonus": s.championship_bonus,
@@ -5051,6 +5203,9 @@ func _deserialize_staff(data_dict: Dictionary) -> void:
 		s.chassis = sd.get("chassis", 0.0)
 		s.gearbox = sd.get("gearbox", 0.0)
 		s.reliability = sd.get("reliability", 0.0)
+		## S41.0 — Designer R&D scheduling attribute. Old saves lack it → backfill a mid-range roll so
+		## pre-S41 designers aren't stuck at 0 planning (which would make the planner over-cautious).
+		s.planning = sd.get("planning", randf_range(30.0, 70.0))
 		s.parts_knowledge = sd.get("parts_knowledge", 0.0)
 		s.practice_scheduling = sd.get("practice_scheduling", 0.0)
 		s.qualifying_timing   = sd.get("qualifying_timing", 0.0)

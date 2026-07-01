@@ -1,5 +1,8 @@
 extends Resource
 class_name GKDiscipline
+## Version: S41.2 — Added is_player_eliminated(player_driver_ids): true when the player is in GK but
+##   all their GK drivers are eliminated. GameState uses it to skip the real GK sim (and its RP faucet)
+##   for the rest of the season — fixes RP still accruing after a Round-1 exit. Analysis-checked; NOT parsed.
 ## Version: S37.60 — Bug #38 (multi-driver): GK seat read uses assigned_driver_ids() (GK stays 1-seat;
 ##   robust against the new array model).
 ## Version: S37.2 — Added get_round_count() accessor (total GK rounds) for the Racing World world
@@ -460,6 +463,19 @@ func get_champion() -> Dictionary:
 
 func is_eliminated(driver_id: String) -> bool:
 	return eliminated.has(driver_id)
+
+## S41.2 — True if the player is racing GK but ALL of their GK drivers have been eliminated (so the
+## player has no car on track and must not run the real race sim or earn RP). False if the player
+## isn't in GK, or still has at least one surviving driver. Mirrors the advance_week elimination check.
+func is_player_eliminated(player_driver_ids: Array) -> bool:
+	if not player_in_gk:
+		return false
+	if player_driver_ids.is_empty():
+		return false
+	for did in player_driver_ids:
+		if not is_eliminated(did):
+			return false
+	return true
 
 
 ## Stub — GK TP proposals now handled by standard system like all other championships

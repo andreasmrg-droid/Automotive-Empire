@@ -1,4 +1,20 @@
 class_name RaceSimulator
+## Version: S41.2 — MULTI-SESSION ROUNDS: new simulate_round() runs each RACE session of a round
+##   (GP sprint+main, a double race) as its own full race via simulate_race — separate result screens,
+##   points, fuel/SP, wear — in calendar order. Single-session rounds + GK engine-dict entries run once,
+##   identical to before (GK safeguarded). Per-session laps/distance_km come from the enriched session
+##   (GameState precomputes km from tracks.json). Grid handoff deferred. Analysis-checked; NOT parsed.
+## Version: S41.1b — RP faucet reads the calendar entry's authoritative `distance_km` (computed from
+##   tracks.json for JSON championships; laps×lap_km for the engine-dict fallback/GK), instead of
+##   recomputing laps×lap_km locally. Falls back to laps×lap_km if distance_km is absent. Analysis-
+##   checked only; NOT Godot-parsed.
+## Version: S41.1 — RP DISTANCE UNIT FIX: RP now scales with real race distance in KILOMETRES
+##   (distance_km = laps × lap_km, summed over the player's running cars), not raw lap count. Laps
+##   were inconsistent across disciplines (rally stage-laps, huge oval lap counts, few long road laps),
+##   imbalancing the faucet. km is uniform (the calendar data already encodes laps×lap_km per race).
+##   RP_PER_LAP_BASE → RP_PER_KM_BASE, re-anchored 3.0 → 0.75 so a typical GK round (~96 km) yields
+##   roughly the same as before while rally/oval/endurance scale by true distance. earn_race_rp now
+##   takes a float km. Analysis-checked only; NOT Godot-parsed.
 ## Version: S41.0 — RP_PER_LAP_BASE 1.0 → 3.0 (the everyday-tree faucet retune GDD §8.4 documents;
 ##   the file had lagged the doc). A fresh Studio L2 now affords the everyday P1/P2/P3 tree within a
 ##   season without trivialising P4. Applies to AI teams too once they share this faucet (AI R&D
@@ -167,6 +183,59 @@ func can_car_race(driver_id: String) -> bool:
 			return false
 
 	return true
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ROUND → SESSION DISPATCH (S41.2)
+# ═══════════════════════════════════════════════════════════════════════════
+
+## S41.2 — A calendar entry (round) may carry multiple RACE sessions (GP sprint+main, a double race).
+## simulate_round runs each race-session as its own FULL race via simulate_race — separate result
+## screens, points, fuel/SP, and wear — in calendar order. Single-session rounds (and GK's engine-dict
+## entries, which have no `sessions`) run exactly once, identical to before. Grid handoff between
+## sessions is deferred (each session starts from normal qualifying/strength order for now).
+func simulate_round(race_data: Dictionary, champ: Championship = null) -> void:
+	var sessions: Array = race_data.get("sessions", [])
+	## Collect only the RACE sessions (practice/quali are not races and are not yet implemented).
+	var race_sessions: Array = []
+	for s in sessions:
+		if typeof(s) == TYPE_DICTIONARY and str(s.get("type", "race")) == "race":
+			race_sessions.append(s)
+	## No session list (GK dict entries, or a plain round) → run the round as a single race as before.
+	if race_sessions.size() <= 1:
+		if race_sessions.size() == 1:
+			simulate_race(_session_race_data(race_data, race_sessions[0]), champ)
+		else:
+			simulate_race(race_data, champ)
+		return
+	## Multi-session round: run each race-session as its own full race.
+	for s in race_sessions:
+		simulate_race(_session_race_data(race_data, s), champ)
+
+## S41.2 — Build a per-SESSION race_data view from the round entry + one session. Overrides laps and
+## distance_km with the session's own values (distance computed at calendar-build time by GameState),
+## and tags the session role/name so the results screen can distinguish Sprint vs Main vs a double's
+## race 1/2. Everything else (track, rain, audience, flags) is inherited from the round.
+func _session_race_data(round_data: Dictionary, session: Dictionary) -> Dictionary:
+	var out: Dictionary = round_data.duplicate(true)
+	var role: String = str(session.get("role", "main"))
+	out["laps"] = int(session.get("laps", round_data.get("laps", 0)))
+	## Per-session km: prefer a session distance_km if present; else recompute via GameState from the
+	## round's track + this session (so RP/points reflect THIS session's distance, not the round total).
+	var tid: String = str(round_data.get("track_id", ""))
+	if session.has("distance_km"):
+		out["distance_km"] = float(session["distance_km"])
+	elif tid != "":
+		out["distance_km"] = gs.session_distance_km(session, tid)
+	out["session_role"] = role
+	## Distinguish the result-screen name for multi-race weekends without touching GK's naming.
+	var base_name: String = str(round_data.get("name", ""))
+	if role == "sprint":
+		out["name"] = "%s — Sprint" % base_name
+	elif role == "main" and round_data.get("double_race", false):
+		out["name"] = base_name  ## double race: two mains; keep the base name for both
+	out["is_session"] = true
+	return out
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -505,7 +574,7 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 		if _city == "":
 			_city = str(race_data["name"])   ## final fallback
 	if race_data.get("is_final", false):
-		gs.last_race_name = "GK Championship Final — %s" % _city
+		gs.last_race_name = "GK Final — %s" % _city
 	else:
 		gs.last_race_name = _city
 	gs.last_race_wet = is_wet
@@ -560,16 +629,19 @@ func simulate_race(race_data: Dictionary, champ: Championship = null) -> void:
 	## Bug 13 fix: designers were earning RP from all 21 championships
 	if c.id in gs.player_registered_championships:
 		consume_race_resources(c)
-		## S40.6 — RP counts ACTUAL laps the player's cars completed, not the scheduled race
-		## distance. A DNS car ran 0 laps and must not accumulate RP. Laps are SUMMED across every
-		## player car in this championship that actually started (two running cars → double laps).
-		## Today a started car completes the full distance (no partial DNF model yet); when
-		## practice/qualifying laps land, they add into this same "real laps turned" accounting.
-		var player_laps := 0
+		## S41.1 — RP scales with real race DISTANCE in KILOMETRES. The calendar entry now carries an
+		## authoritative `distance_km` (computed from tracks.json for JSON-sourced championships; from
+		## laps×lap_km for the engine-dict fallback / GK). It is the ROUND's total race distance (a
+		## double race already sums its two sessions). Summed across every player car that actually
+		## STARTED (a DNS car ran 0 km). Fallback to laps×lap_km if distance_km is somehow absent.
+		var round_km: float = float(race_data.get("distance_km", 0.0))
+		if round_km <= 0.0:
+			round_km = float(race_data.get("laps", 0)) * float(race_data.get("lap_km", 1.0))
+		var player_km := 0.0
 		for car in cars_for_champ:
 			if not car.id in dns_car_ids:
-				player_laps += int(race_data["laps"])
-		earn_race_rp(player_laps)
+				player_km += round_km
+		earn_race_rp(player_km)
 
 	# Season ends at week 52 regardless
 	if gs.current_week >= gs.max_weeks:
@@ -766,16 +838,19 @@ func consume_race_resources(champ: Championship = null) -> void:
 		gs.fuel_kg = max(gs.fuel_kg, 0.0)
 
 
-## S40.5 — RP-per-race now scales with R&D STUDIO LEVEL × the LEAD DESIGNER's skill, replacing the
-## old "sum of every hired designer's skill" (which rewarded stacking designers — contra the one-Lead
-## model). Both inputs matter: a bigger Studio and a better Lead each raise RP income. RP_PER_LAP_BASE
-## is the single faucet knob for the pending RP-economy balance pass.
-##   rp_gained = laps × RP_PER_LAP_BASE × studio_level × (lead_overall / 100) × difficulty_mult
-const RP_PER_LAP_BASE := 3.0
+## S40.5 — RP-per-race scales with R&D STUDIO LEVEL × the LEAD DESIGNER's skill (not headcount).
+## S41.1 — the distance unit is now KILOMETRES, not laps (laps were an inconsistent cross-discipline
+## unit — see the call site). RP_PER_KM_BASE replaces RP_PER_LAP_BASE. VALUE RE-ANCHORED so a typical
+## race yields roughly what the old lap-based 3.0 did: a GK round is ~24 laps × ~4 km ≈ 96 km, and the
+## old formula gave 24 × 3.0 = 72 "units", so per-km ≈ 72/96 = 0.75 keeps GK's yield stable while
+## rally/oval/endurance now scale by real distance instead of lap count. This is the single faucet knob
+## for the RP-economy balance pass (GDD §8.4); re-tune here if the everyday P1/P2/P3 tree needs it.
+##   rp_gained = distance_km × RP_PER_KM_BASE × studio_level × (lead_overall / 100) × difficulty_mult
+const RP_PER_KM_BASE := 0.75
 
-func earn_race_rp(laps: int) -> void:
-	if laps <= 0:
-		return   ## S40.6 — no real laps turned (e.g. all player cars DNS) → no RP.
+func earn_race_rp(distance_km: float) -> void:
+	if distance_km <= 0.0:
+		return   ## no real distance turned (e.g. all player cars DNS) → no RP.
 	var rnd_studio = gs.campus_buildings.get("R&D Design Studio", {})
 	if not rnd_studio.get("built", false):
 		return
@@ -789,7 +864,7 @@ func earn_race_rp(laps: int) -> void:
 		return
 	var lead_skill: float = gs.all_staff[lead_id].get_overall_skill()   # 0..100, 6-stat mean
 
-	var rp_gained := float(laps) * RP_PER_LAP_BASE * float(studio_level) * (lead_skill / 100.0)
+	var rp_gained := distance_km * RP_PER_KM_BASE * float(studio_level) * (lead_skill / 100.0)
 	rp_gained *= gs.get_difficulty_mult()["player_rnd"]
 	var rp_cap = gs.get_rnd_rp_storage_cap()
 	gs.research_points = min(gs.research_points + rp_gained, float(rp_cap))

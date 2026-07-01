@@ -2,9 +2,11 @@ class_name RnDEngine
 ## Version: S41.0 — AI R&D ECONOMY, PHASE 1 (player-facing prerequisites). Three changes:
 ##   (1) P3 REVERSE ENGINEERING now generated for ALL parts (spec + open), not spec-only — fixes the
 ##       bug where a team could never RE the open parts of a bought car. Startability is gated at
-##       runtime in rnd_task_unlocked() by PROVENANCE: the part must be on a garage car for that
-##       championship AND bought via the Logistics centre (in car_provider_parts, not car_installed_
-##       parts) — you can't reverse-engineer a part you already make in-house.
+##       runtime in rnd_task_unlocked() by PROVENANCE: the garage car for that championship must CARRY
+##       the part (part_conditions — a granted/bought car carries all six; the car itself is the
+##       Logistics-sourced unlock) AND the team must NOT have self-made the part in CNC
+##       (car_installed_parts). NB: a granted/bought car's parts live in part_conditions, NOT
+##       car_provider_parts (only populated by an explicit provider-part install).
 ##   (2) WRA submission is a flat 1 week (was the {1:1,2:2,3:4,4:5} tier table); the planner's
 ##       latest-safe-start math depends on this constant.
 ##   (3) WRA REJECTION: P2 upgrades carry a 10% rejection chance (P1/P3 always approved). A rejected
@@ -936,18 +938,29 @@ func rnd_task_unlocked(task_id: String) -> bool:
 	if task.get("pillar", 0) == 3:
 		var p3_cid: String = task.get("championship_id", "")
 		var p3_pcode: String = task.get("part_code", "")
-		if p3_cid == "" or p3_pcode == "":
+		var p3_pname: String = task.get("part", "")
+		if p3_cid == "":
 			return false
-		var found_bought := false
+		## A part is RE-able when the team HAS the car for this championship (it was granted/bought
+		## via Logistics — a starting car is granted, an in-season car is bought; either way it is NOT
+		## self-made) AND the team has NOT manufactured its OWN copy of this part in CNC. Once the team
+		## builds the part itself (it lands in car_installed_parts), it is no longer reverse-engineerable.
+		## NB: a granted/bought car's parts live in car.part_conditions (add_car), NOT car_provider_parts
+		## (which is only populated when a provider part is EXPLICITLY installed) — so we check the car's
+		## presence + part_conditions, not provider-dict membership.
+		var re_available := false
 		for car in gs.get_cars_for_team(gs.player_team):
 			if car.championship_id != p3_cid:
 				continue
-			var provider: Dictionary = gs.car_provider_parts.get(car.id, {})
+			## Self-made (own-CNC) parts drop out of P3.
 			var installed: Dictionary = gs.car_installed_parts.get(car.id, {})
-			if p3_pcode in provider and not p3_pcode in installed:
-				found_bought = true
+			if p3_pcode in installed:
+				continue
+			## The car carries this part (granted/bought). part_conditions is keyed by part NAME.
+			if p3_pname != "" and p3_pname in car.part_conditions:
+				re_available = true
 				break
-		if not found_bought:
+		if not re_available:
 			return false
 	return true
 

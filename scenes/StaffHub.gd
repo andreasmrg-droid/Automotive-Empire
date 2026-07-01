@@ -1,3 +1,7 @@
+## Version: S41.0 — Staff detail card: (1) added the Designer PLANNING attribute to the ATTRIBUTES
+##   list; (2) card now sizes to content inside a viewport-capped ScrollContainer (was a fixed 760px
+##   box that clipped the Designer, the longest attribute list) so every role fits / scrolls cleanly.
+##   Analysis-checked only; NOT Godot-parsed.
 ## Version: S37.37 — Notification & News Roadmap, Phase 1: generic error add_notification(err)
 ##   passthrough converted to GameState.show_popup() (on-the-spot AcceptDialog), consistent with the
 ##   existing scene popups (#41 / S29.0). Specific cases (not_interested / team_refused) unchanged.
@@ -821,18 +825,17 @@ func _show_staff_card(staff_id: String) -> void:
 		return
 
 	card_overlay = PanelContainer.new()
-	## Centered on screen (anchors at 0.5) with a fixed ~640px width and symmetric offsets, so the
-	## card sits in the middle rather than hugging the right edge. Vertically centered too. (Popup
-	## position pass — keeps long values fully on-screen.)
+	## S41.0 — bigger fixed card (760 wide × 920 tall) so the longest role (Designer) fits without
+	## clipping. Centered via anchors.
 	card_overlay.anchor_left   = 0.5
 	card_overlay.anchor_top    = 0.5
 	card_overlay.anchor_right  = 0.5
 	card_overlay.anchor_bottom = 0.5
-	card_overlay.offset_left   = -320
-	card_overlay.offset_top    = -380
-	card_overlay.offset_right  = 320
-	card_overlay.offset_bottom = 380
-	card_overlay.custom_minimum_size = Vector2(640, 0)
+	card_overlay.offset_left   = -380
+	card_overlay.offset_top    = -460
+	card_overlay.offset_right  = 380
+	card_overlay.offset_bottom = 460
+	card_overlay.custom_minimum_size = Vector2(760, 920)
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.12, 0.12, 0.16, 0.98)
 	style.border_width_left = 2
@@ -1589,7 +1592,8 @@ func _get_staff_attrs(staff) -> Array:
 			return [["Engine", staff.engine], ["Aero", staff.aero],
 				["Chassis", staff.chassis], ["Gearbox", staff.gearbox],
 				["Suspension", staff.suspension], ["Brakes", staff.brakes],
-				["Reliability", staff.reliability], ["Parts Knowledge", staff.parts_knowledge]]
+				["Reliability", staff.reliability], ["Parts Knowledge", staff.parts_knowledge],
+				["Planning", staff.planning]]
 		"Race Strategist":
 			return [["Race Strategy", staff.race_strategy],
 				["Race Pace Reading", staff.race_pace_reading],

@@ -1,4 +1,7 @@
 extends Control
+## Version: S41.2 — Next Race line: strip GK's branded "GK Semi-Final — / GK Grand Final — " prefix
+##   from the engine-name fallback so it shows just the city (no stray Semi-Final label on GK rounds).
+##   Analysis-checked only; NOT Godot-parsed.
 ## Version: S40.0 — TDL routing: the new "Financial Department is not optimized" row (no-CFO companion)
 ##   routes to the Staff screen, same as the optional-CFO row.
 ## Version: S39.5 — news rendered newest-first
@@ -347,6 +350,11 @@ func _update_display() -> void:
 		var race_city: String = GameState.get_calendar_city(soonest_champ.id, soonest_race["round"])
 		if race_city == "":
 			race_city = soonest_race["name"]
+		## S41.2 — GK's engine entry names carry branded prefixes ("GK Semi-Final — Las Vegas",
+		## "GK Grand Final — Le Mans"). The player doesn't want a Semi-Final callout here — show just
+		## the city. (The real Final is labelled "GK Final" by the results screen via the is_final flag.)
+		if race_city.contains(" — "):
+			race_city = race_city.split(" — ")[-1]
 		next_race_label.text = "Season %d  ·  Week %d / 52      🏎 Next Race: Round %d — %s%s  (Week %d)" % [
 			GameState.current_season, GameState.current_week,
 			soonest_race["round"], race_city, champ_tag, soonest_race["week"]]

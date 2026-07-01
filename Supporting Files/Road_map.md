@@ -31,10 +31,12 @@ Save/Load continuity
 Demo
 All championships available in new game
 All Championships racing Calendar
+Redefine the PR calculation formula
 End of season and Beginning of Season redesign
 Pick an existing team new game mode
 Tooltips
 Tutorials
 Localization
 Save/Load continuity
+Optimize the code
 Publish 

@@ -1,4 +1,10 @@
 extends Control
+## Version: S41.2 — GK card fixes: (1) Next-race line strips GK's branded engine names ("GK Semi-Final
+##   — Las Vegas") → shows just the city (prefers JSON city). (2) GK champion banner (both the active
+##   card and the compact world card) now gates on GKDiscipline.is_complete() — get_champion() returns
+##   a PROVISIONAL leader the moment the final round populates, so it was showing a changing "Champion:
+##   X · 0 pts" mid-season. Also dropped the meaningless "0 pts" (GK champion = final race winner).
+##   Analysis-checked only; NOT Godot-parsed.
 ## Version: S37.62 — All driver-name displays (pos text, mini standings, leaders) use the combined
 ##   crew label so multi-driver cars show "Smith / Jones" consistently.
 ## Version: S37.61 — Bug #38 CREW MODEL: driver standings/leader lines show the combined crew label.
@@ -308,9 +314,16 @@ func _build_gk_active_card(cid: String, champ: Championship,
 	lbl_you.add_theme_color_override("font_color", Color(0.4, 0.9, 0.5))
 	hdr.add_child(lbl_you)
 
-	## Round / next race
+	## Round / next race. S41.2 — GK runs 22 ENGINE rounds (the final weekend is a semifinal + a final),
+	## but the player sees it as a 21-round calendar (the final weekend = ONE "GK Final" round). Display
+	## a capped 21/21 and label the final round "GK Final" instead of "Round 22 / 22".
+	var gk_disp_total := 21
+	var gk_disp_round: int = min(int(champ.current_round), gk_disp_total)
 	var lbl_round = Label.new()
-	lbl_round.text = "Round %d / %d" % [champ.current_round, champ.num_races]
+	if gk_disp_round >= gk_disp_total:
+		lbl_round.text = "GK Final  ·  Round %d / %d" % [gk_disp_total, gk_disp_total]
+	else:
+		lbl_round.text = "Round %d / %d" % [gk_disp_round, gk_disp_total]
 	lbl_round.add_theme_font_size_override("font_size", 22)
 	lbl_round.modulate = Color(0.6, 0.6, 0.6)
 	vb.add_child(lbl_round)
@@ -318,7 +331,14 @@ func _build_gk_active_card(cid: String, champ: Championship,
 	var next_race = champ.get_next_race()
 	if next_race:
 		var lbl_next = Label.new()
-		lbl_next.text = "Next: %s  (Week %d)" % [next_race["name"], next_race["week"]]
+		## S41.2 — show the city only; strip GK's branded engine names ("GK Semi-Final — Las Vegas").
+		## Prefer the JSON city; fall back to the engine name with the " — " prefix stripped.
+		var nr_city: String = GameState.get_calendar_city(cid, int(next_race.get("round", 0)))
+		if nr_city == "":
+			nr_city = str(next_race["name"])
+		if nr_city.contains(" — "):
+			nr_city = nr_city.split(" — ")[-1]
+		lbl_next.text = "Next: %s  (Week %d)" % [nr_city, next_race["week"]]
 		lbl_next.add_theme_font_size_override("font_size", 24)
 		lbl_next.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
 		vb.add_child(lbl_next)
@@ -327,14 +347,17 @@ func _build_gk_active_card(cid: String, champ: Championship,
 	## (GKDiscipline.get_champion()), NOT champ.standings, so when the player is eliminated or out
 	## of the final, "YOUR GROUP" is empty and the card otherwise never shows who actually won the
 	## drivers' title. Surface the champion here once it's decided (same source as the world card).
-	if gkd != null:
+	## S41.2 — gate on is_complete(): get_champion() returns a PROVISIONAL leader the moment the final
+	## round is populated (before the Grand Final has run), so it was showing a changing "Champion: X ·
+	## 0 pts" mid-season. Only show once the Grand Final has actually run, and drop the meaningless
+	## "0 pts" — the GK champion is the final RACE WINNER, not a points total.
+	if gkd != null and gkd.is_complete():
 		var gk_champ: Dictionary = gkd.get_champion()
 		if not gk_champ.is_empty():
 			var champ_d = GameState.all_drivers.get(gk_champ.get("driver_id", ""))
 			var lbl_champion = Label.new()
-			lbl_champion.text = "🏆 Champion: %s  ·  %d pts" % [
-				champ_d.full_name() if champ_d else gk_champ.get("driver_id", "Unknown"),
-				gk_champ.get("points", 0)]
+			lbl_champion.text = "🏆 GK Champion: %s" % [
+				champ_d.full_name() if champ_d else gk_champ.get("driver_id", "Unknown")]
 			lbl_champion.add_theme_font_size_override("font_size", 24)
 			lbl_champion.add_theme_color_override("font_color", Color(0.95, 0.82, 0.35))
 			vb.add_child(lbl_champion)
@@ -501,15 +524,18 @@ func _build_world_card(cid: String, champ,
 			## view for a non-GK career. The real GK field + champion live in GKDiscipline's shadow
 			## standings, so read those instead.
 			var gkd = GameState.gk_discipline
-			var champ_entry: Dictionary = gkd.get_champion()  ## non-empty only once decided
+			## S41.2 — gate on is_complete(): get_champion() returns a PROVISIONAL leader the moment the
+			## final round is populated (before the Grand Final runs), which made the world card flip to
+			## "Season complete / Champion: X · 0 pts" mid-final-weekend. Require the season actually done.
+			var champ_entry: Dictionary = gkd.get_champion() if (gkd != null and gkd.is_complete()) else {}
 			if not champ_entry.is_empty():
 				lbl_sub.text = "Season complete"
 				info.add_child(lbl_sub)
 				var champ_d = GameState.all_drivers.get(champ_entry.get("driver_id", ""))
 				var lbl_champ = Label.new()
-				lbl_champ.text = "🏆 Champion: %s  ·  %d pts" % [
-					champ_d.full_name() if champ_d else champ_entry.get("driver_id", "Unknown"),
-					champ_entry.get("points", 0)]
+				## GK champion = final race winner (no points total).
+				lbl_champ.text = "🏆 Champion: %s" % [
+					champ_d.full_name() if champ_d else champ_entry.get("driver_id", "Unknown")]
 				lbl_champ.add_theme_font_size_override("font_size", 22)
 				lbl_champ.modulate = Color(0.65, 0.6, 0.45)
 				info.add_child(lbl_champ)
