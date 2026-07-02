@@ -1,6 +1,41 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v7.11 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+**Version:** v7.12 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v7.12: (S41.7–S41.10) AI R&D ECONOMY — LOAD FIX, DESIGN-COST REBALANCE, INTERIM BUDGET, LEDGER PRUNE.
+	(S41.7) CRITICAL LOAD-PATH FIX: ai_cars (the {championship_id → [Car]} dict linking every AI team to
+	its championships) was never serialised and never rebuilt on load, so a loaded save left it empty →
+	get_cars_for_team(ai_team) returned [] → the AI R&D planner early-outed "no_championships" for all 172
+	teams every week AND AIChampionshipSim stopped awarding AI standings. FIX: save_game serialises ai_cars
+	(new _serialize_ai_cars, verbatim incl. mid-season condition/parts per owner choice); load_game restores
+	via _deserialize_ai_cars right after the player cars. Old saves without the key self-heal at the next
+	rollover. §7/§8.7 updated. File: GameState.gd. CONFIRMED WORKING in-game by the user.
+	(S41.8/S41.8b) DESIGN-COST REBALANCE (P1/P3 L1 CR only): the L1 blueprint design CR was a flat
+	~104k/152k × tier_mult, decoupled from the car's value, so self-designing a GK car cost 16× its
+	manufacturing cost while a GP1 car cost ~1%. Now whole-car P1 L1 design CR = CNC_DATA.base_total_cost ×
+	DESIGN_RATIO[tier] (T1 0.6 / T2 1.0 / T3 1.8 / T4 3.5), split by locked per-part weights; P3 L1 CR =
+	0.8 × the matching P1 (S41.8b — RE is the cheaper budget/survival route, replacing the old RE premium).
+	WEEKS (incl. the §8.6 refresh half-weeks), RP, effects/values, L2 and all P2 tiers UNCHANGED. §8.6/§8.7
+	updated. File: RnDEngine.gd.
+	(S41.9) INTERIM AI BUDGET GRANT: AI teams have NO income wired (FinancialEngine only drains salaries),
+	so balances bled to zero and the R&D CR/feasibility gates falsely locked teams out. start_new_season()
+	now credits each non-player team, per championship it's registered in, (entry_fee + car_buy_cost +
+	2-car season salaries + 6× P1 L1 design CR) × 1.30 — LIVE-sourced so it tracks cost tuning. STOPGAP for
+	the missing §3 AI economy; remove when real income streams land. §13.3 updated. File: SeasonManager.gd.
+	(S41.10) AI-LEDGER ROLLOVER PRUNE: the player's rollover P2/UPG purge was never mirrored to the 172 AI
+	ledgers, so completed_upg / P2 blueprints / WRA entries accumulated unbounded each season (a modest
+	memory leak). prune_ai_ledgers_for_new_season() now mirrors the player prune exactly, per AI ledger,
+	each rollover. Files: RnDEngine.gd, SeasonManager.gd.
+	KNOWN INTERIM IMBALANCES (flagged for revisit when the AI-CnC market is built — see §13.3): with the
+	grant + generous double-cover in place, ~90% of AI teams now self-design every season (up from ~50%),
+	and the grant injects ~4.2 BILLION CR/season across the grid (dominated by GP1 at ~158M/team). These are
+	artifacts of an intentionally imbalanced stopgap economy created purely to unblock AI R&D; the real
+	picture only emerges once the AI CnC buy-vs-build market exists. DO NOT read these as intended balance.
+	FUTURE TASK (flagged, §7.1/§19): retired_personnel / history archives grow unbounded — at season 60–100
+	this matters; filter archived entries to highly-rated personnel (threshold TBD) rather than everyone.
+	All S41.7–S41.10 analysis-checked (brace-balance + type audit) EXCEPT S41.7 which is user-confirmed
+	working; S41.8b/S41.9/S41.10 await the user's parse/playtest. A fast-forward-to-end playtest crashed to
+	desktop at ~S8; log was truncated with no error captured — cause NOT yet identified (the ledger leak is
+	real but ~MB-scale, too small to be the crash). User re-running with per-season output to diagnose. -->
 <!-- v7.11: (S41.6) AI R&D ECONOMY — PHASE 5 (THE PLANNER). Activates the forecast-driven scheduler in
 	LeadDesignerProposalEngine that SPENDS AI teams' banked RP, run every week from advance_week (after
 	the race loop). Per team: computes the next-season car's latest-safe-start week; before it fills idle
@@ -1015,6 +1050,14 @@ drivers. If GK stops refilling, the whole pyramid's supply dries up — which is
    before erasure — **not** in `hall_of_fame`, which holds race-win records (a career-exit entry
    there would corrupt the win tally).
 
+   > **FUTURE TASK (flagged S41.10) — bound the history archives.** `retired_personnel` (and any
+   > history-book archive) currently grows **unbounded** — every retiree is archived regardless of
+   > significance. This is harmless now but at season 60–100 it becomes real memory/scroll bloat.
+   > Fix: filter archived entries to **highly-rated personnel only** (a champion, a title-winning
+   > driver, or an elite-talent/high-reputation staffer) — nobody needs a permanent record of a
+   > mid-pack RALLY2 driver or a journeyman mechanic. Threshold basis (peak reputation vs talent vs
+   > titles) and the bar are TBD; decide when scheduled (§19).
+
 Downstream of A→E sits presentation/reset (car wipe, championship reset, notifications, R&D
 carry-over, WRA-cycle check, stale-state flush); order among those is cosmetic.
 
@@ -1214,6 +1257,21 @@ team's first season or the first season after a regulation reset) or **0.5** mid
 the discount — RP/CR cost is unchanged**, so tier still makes cars expensive, just not
 un-buildable-in-time. From-scratch vs mid-cycle is detected per championship via
 `RnDEngine._is_from_scratch_design(cid, design_season)` (cycle position; per-group cycle length 4–10, §11).
+
+- **L1 blueprint CR — car-anchored (S41.8 / S41.8b).** Separate from the weeks rule above (which is
+unchanged): the L1 *design CR* used to be a flat `PART_BASE_P1.cr` sum (~104k, ×tier_mult), decoupled from
+the car's actual value — so self-designing a GK car cost 16× its manufacturing cost while a GP1 car cost
+~1% of it. L1 design CR is now **anchored to the car**: the whole-car P1 L1 CR =
+`CNC_DATA.base_total_cost × DESIGN_RATIO[tier]` with `DESIGN_RATIO = {1:0.6, 2:1.0, 3:1.8, 4:3.5}`,
+distributed across the six parts by the locked `P1_CR_WEIGHT` (the old per-part CR shares). This yields a
+constant design:manufacturing ratio per tier (spec series cheap to self-design, prototype series a real
+commitment — anchored to real-world NRE-vs-manufacturing ratios, which span <10% for spec parts up to
+~5–8× for full prototypes). **P3 (Reverse Engineering) L1 CR = 0.8 × the matching P1 L1 CR** (S41.8b): RE
+copies a physical reference, so it's the *cheaper* budget/survival route — this replaced the old RE
+*premium* (P3 was ~1.2–1.67× P1), which had contradicted the planner's "pick P3 as the cheapest legal
+part" survival logic. Only L1 CR changed; weeks, RP, effects/values, the L2 chain and all P2 upgrade tiers
+are untouched. Championships with no `CNC_DATA` base fall back to the legacy flat CR. The design cost is a
+**recurring annual** cost (P1 is rebuilt every season; the refresh discount touches weeks only, not cost).
 - **Why:** the un-discounted weeks made a full car un-designable within a season at high tiers — the
 Chassis L1+L2 chain alone reached 60 weeks at tier 4 (Chassis has the highest base design-weeks, 8; RP
 was never the constraint, *time* was). The mid-cycle halving fixes this while keeping from-scratch years
@@ -1251,6 +1309,25 @@ it reads/writes that team's ledger via `RnDEngine._ledger_for(team)` (`_is_playe
 point; a fresh ledger is seeded on first touch). The player path is therefore provably unchanged. AI
 ledgers serialise into each team's save entry and restore on load, with a fresh-seed fallback for
 pre-Phase-3 saves.
+
+**Load-path completeness (S41.7 — critical fix).** The ledgers restoring was not sufficient on its own:
+`ai_cars` — the `{championship_id → [Car]}` dict that *links* each AI team to the championships it races —
+was never serialised and never rebuilt on load. On any loaded save it stayed empty, so
+`get_cars_for_team(ai_team)` returned `[]`, `_team_championships()` returned `[]`, and the whole AI R&D
+planner early-outed with `no_championships` for all 172 teams every week (confirmed in a loaded-save
+playtest) — and `AIChampionshipSim.simulate_round` (which also reads `ai_cars`) stopped awarding AI
+standings. FIX: `save_game` now serialises `ai_cars` verbatim (preserving exact mid-season condition/parts,
+per owner decision) and `load_game` restores it right after the player cars; old saves without the key keep
+the pre-fix empty state and self-heal at the next season rollover (which rebuilds `ai_cars`). This is
+CONFIRMED WORKING in-game.
+
+**Season-rollover prune (S41.10).** The player's R&D state is purged of current-season P2/UPG at every
+rollover (see §7 pipeline: `completed_upg` cleared, P2 blueprints erased from `known_blueprints` + WRA).
+The AI ledgers previously received NONE of this, so their `completed_upg` / P2 `known_blueprints` / WRA
+entries accumulated unbounded every season — a real (if modest, ~MB-scale) memory leak that compounds now
+that most AI teams self-design annually. `RnDEngine.prune_ai_ledgers_for_new_season()` now mirrors the
+player prune EXACTLY across all AI ledgers, called from `start_new_season()` right after the player's own
+prune. P1/P3 next-season blueprints are kept (same as the player).
 
 - **P3 provenance** is now team-scoped: a part is reverse-engineerable if the *requesting team's* garage
   car for that championship carries it (granted/bought) and the team has not self-made it in CNC. (The
@@ -1760,6 +1837,30 @@ the behaviour that makes it visible arrives in the remaining steps of `AI_RnD_Ec
   planner successfully researches performance blueprints fields a genuinely faster car.
 
 The AI **CnC manufacture / install / resale** mirror is the explicitly-scoped project *after* that.
+
+**Interim AI budget grant (S41.9) — a stopgap, explicitly flagged.** The AI economy (§3 income streams:
+sponsor / prize / commercial) is not wired: `FinancialEngine` only *drains* AI salaries, with zero income,
+so AI balances bled toward zero over a few seasons and the R&D CR/feasibility gates falsely locked teams
+out (a team with ample RP but a poor balance failed the CR affordability gate — the real cause of the
+"infeasible flood", not RP starvation). Until the real economy exists, `start_new_season()` credits each
+non-player team a per-season budget, per championship it's registered in:
+`(entry_fee + car_buy_cost + 2-car season salaries + 6× P1 L1 design CR) × 1.30`, all live-sourced from the
+registry / `CNC_DATA` / current `RND_TASKS` so it tracks any cost tuning (e.g. the S41.8b rebalance). This
+realises the ladder's **Survive** floor (§13.1 "don't go bankrupt") synthetically. **Remove it when the
+real §3 AI income lands.**
+
+> **KNOWN INTERIM IMBALANCES — revisit when the AI-CnC market is built.** With the grant + the deliberately
+> generous double-cover (the grant sums BOTH the car-buy cost AND the design CR), the AI R&D economy is now
+> intentionally *over*-funded to unblock development: **~90% of AI teams self-design their car every season**
+> (up from ~50% before the fixes), and the grant injects **~4.2 billion CR/season across the grid**
+> (dominated by GP1 at ~158M/team). Neither figure is intended balance — they are artifacts of a stopgap
+> economy stood up purely so the R&D pipeline could be exercised and tested. The true buy-vs-build split,
+> the right grant size, and whether low-tier teams *should* mostly buy-and-bank (per §13.1) only become
+> answerable once the **AI CnC buy-vs-build market** exists and teams face a real cost trade-off. Treat the
+> current numbers as scaffolding, not design intent; rebalance the grant and the design-cost ratios (§8.6)
+> together at that point. The remaining genuine `INFEASIBLE` holds now concentrate in the low-km / short-
+> calendar championships (GK, RALLY4/3, EPC Series, SC Truck) — those are the *honest* RP-constrained cases,
+> not false positives.
 
 ---
 

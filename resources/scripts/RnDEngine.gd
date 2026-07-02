@@ -1,4 +1,18 @@
 class_name RnDEngine
+## Version: S41.8b — P3 (Reverse Engineering) L1 CR is now 0.8 × the matching P1 L1 CR (was an RE PREMIUM
+##   of ~1.2–1.67× under S41.8). RE is the cheaper budget/survival route, which also aligns with the
+##   planner treating P3 as the cheapest legal part. Only the P3_OVER_P1_CR constant changed; all S41.8
+##   anchoring, weeks, RP, effects/values, L2 and P2 are unchanged. Analysis-checked; NOT Godot-parsed.
+## Version: S41.8 — DESIGN-COST REBALANCE (P1/P3 L1 CR only). The L1 blueprint design CR was a flat
+##   ~104k/152k × tier_mult, decoupled from the car's value, so self-designing a GK car cost 16× its
+##   manufacturing cost while a GP1 car cost ~1%. Now the whole-car P1 L1 design CR is anchored to the
+##   car: CNC_DATA.base_total_cost × DESIGN_RATIO[tier] (T1 0.6 / T2 1.0 / T3 1.8 / T4 3.5), split across
+##   parts by the LOCKED P1_CR_WEIGHT (old per-part CR shares); P3 L1 CR = that × the LOCKED P3_OVER_P1_CR
+##   ratio (RE premium unchanged). Yields a constant design:manufacturing ratio per tier. WEEKS, RP,
+##   effects/values, and the L2 + all P2 upgrade tiers are UNCHANGED. Championships with no CNC_DATA base
+##   fall back to the legacy flat CR. Recurring annual cost model confirmed (P1 rebuilt every season;
+##   refresh years discount WEEKS only, not cost — unchanged). Analysis-checked (brace-balance +
+##   type-inference audit; new := infer as int/float cleanly); NOT Godot-parsed.
 ## Version: S41.4 — AI R&D ECONOMY, PHASE 4 seam: get_rnd_rp_storage_cap gains an optional `team`
 ##   (player → campus Studio level as before; AI → the ledger's seeded studio_level), so the RP faucet
 ##   caps an AI team's banked RP on the same curve as the player. No other change here; the faucet
@@ -239,6 +253,30 @@ func _build_rnd_tasks_for_season(season: int) -> Dictionary:
 	const PART_NAMES_ORDER = ["Aero","Engine","Gearbox","Suspension","Brakes","Chassis"]
 	const UPG_LEVEL_MULTS = [1.0, 1.5, 2.2, 3.0, 4.0]
 
+	## S41.8 — DESIGN-COST REBALANCE (L1 CR only). Previously the P1/P3 L1 design CR was a FLAT sum
+	## (~104k/152k) × tier_mult, completely decoupled from the car's actual value (CNC_DATA.base_total_cost).
+	## That made GK (base 6.5k) cost 16× its manufacturing cost to self-design, while GP1 (base 20M) cost
+	## ~1%. Now the whole-car P1 L1 design CR is anchored to the car: base_total_cost × DESIGN_RATIO[tier],
+	## distributed across parts by the LOCKED weights below (the old P1 per-part CR shares), and P3 L1 CR is
+	## derived per part by the LOCKED P3:P1 ratio (identical to the old arrays). Result: a constant, sane
+	## design:manufacturing ratio per tier. WEEKS, RP, effects, values, and the L2/P2 tiers are UNCHANGED —
+	## this touches L1 CR only. If a championship has no CNC_DATA entry, we fall back to the legacy flat CR.
+	const DESIGN_RATIO = {1: 0.6, 2: 1.0, 3: 1.8, 4: 3.5}   ## whole-car P1 L1 design CR ÷ manufacturing cost
+	## Locked per-part share of the whole-car P1 L1 design CR (= old PART_BASE_P1 cr / 104000).
+	const P1_CR_WEIGHT = {
+		"Aero": 15000.0/104000.0, "Engine": 25000.0/104000.0, "Chassis": 30000.0/104000.0,
+		"Gearbox": 12000.0/104000.0, "Brakes": 10000.0/104000.0, "Suspension": 12000.0/104000.0,
+	}
+	## S41.8b — P3 L1 CR = 0.8 × the matching P1 L1 CR per part. Reverse-engineering a bought part is the
+	## CHEAPER budget/survival route (you have a physical reference), so it undercuts clean-sheet design by
+	## 20%. This replaces the old RE PREMIUM (P3 was ~1.2–1.67× P1), which had P3 cost MORE than P1 and
+	## contradicted the planner's "pick P3 as the cheapest legal part" survival logic. Flat 0.8 across all
+	## parts; the per-part P1 weighting already carries the shape.
+	const P3_OVER_P1_CR = {
+		"Aero": 0.8, "Engine": 0.8, "Chassis": 0.8,
+		"Gearbox": 0.8, "Brakes": 0.8, "Suspension": 0.8,
+	}
+
 	for cid in gs.CHAMP_CODES.keys():
 		var code = gs.CHAMP_CODES[cid]
 		var tier = CHAMP_TIER.get(cid, 1)
@@ -246,6 +284,13 @@ func _build_rnd_tasks_for_season(season: int) -> Dictionary:
 		var spec_arr = PART_SPEC_MAP.get(cid, [false,false,false,false,false,false])
 		var reg = gs.CHAMPIONSHIP_REGISTRY.get(cid, {})
 		var champ_name = reg.get("name", cid)
+
+		## S41.8 — whole-car P1 L1 design-CR budget for this championship, anchored to the car's
+		## manufacturing cost (CNC_DATA.base_total_cost) × the tier's DESIGN_RATIO. Distributed across the
+		## 6 parts below by P1_CR_WEIGHT. Falls back to 0 when no CNC_DATA entry exists, which makes the
+		## per-part code below use the legacy flat CR instead (safety for any unlisted championship).
+		var cnc_base: float = float((gs.CNC_DATA.get(cid, {}) as Dictionary).get("base_total_cost", 0.0))
+		var p1_car_cr_budget: float = cnc_base * float(DESIGN_RATIO.get(tier, 1.0))
 
 		## S35.11 — Season anchoring split:
 		##   • P1 (Design) and P3 (Reverse Engineering) build NEXT season's car → stamped
@@ -271,12 +316,16 @@ func _build_rnd_tasks_for_season(season: int) -> Dictionary:
 			## is what lets every team finish all six L1 blueprints before their championship's
 			## registration deadline. Only WEEKS are discounted — RP/CR cost is unchanged.
 			var l1_wk_mult := 1.0 if _is_from_scratch_design(cid, design_season) else P1_REFRESH_WEEKS_MULT
+			## S41.8 — P1 L1 CR anchored to the car (base_total_cost × DESIGN_RATIO[tier] × part weight).
+			## Falls back to the legacy flat CR (p1b[2]×tier_mult) if this championship has no CNC_DATA base.
+			var p1_l1_cr := int(round(p1_car_cr_budget * float(P1_CR_WEIGHT.get(part, 0.0)))) \
+				if p1_car_cr_budget > 0.0 else int(p1b[2] * tier_mult)
 			tasks[p1_id] = {
 				"name": "%s — %s S%s Blueprint L1" % [champ_name, part, ns],
 				"pillar":1,"part":part,"part_code":pcode,"championship_id":cid,
 				"season":design_season,"level":1,"blueprint_id":p1_id,
 				"weeks":max(1,int(p1b[0]*tier_mult*l1_wk_mult)),"rp":int(p1b[1]*tier_mult),
-				"cr":int(p1b[2]*tier_mult),"effect":p1b[3],"value":p1b[4],
+				"cr":p1_l1_cr,"effect":p1b[3],"value":p1b[4],
 			}
 			tasks[p1_l2] = {
 				"name": "%s — %s S%s Blueprint L2" % [champ_name, part, ns],
@@ -322,12 +371,16 @@ func _build_rnd_tasks_for_season(season: int) -> Dictionary:
 			## S40.17 — same from-scratch vs mid-cycle refresh weeks discount as P1 L1: an RE is the
 			## L1-equivalent, so it must also fit the registration budget mid-cycle.
 			var re_wk_mult := 1.0 if _is_from_scratch_design(cid, design_season) else P1_REFRESH_WEEKS_MULT
+			## S41.8 — P3 L1 CR = new P1 L1 CR × LOCKED P3:P1 ratio (preserves the RE premium exactly).
+			## Same CNC-base fallback: if the P1 CR came from the legacy flat path, so does this.
+			var re_l1_cr := int(round(float(p1_l1_cr) * float(P3_OVER_P1_CR.get(part, 1.0)))) \
+				if p1_car_cr_budget > 0.0 else int(p3b[2] * tier_mult)
 			tasks[re_id] = {
 				"name": "%s — %s S%s RE L1" % [champ_name, part, ns],
 				"pillar":3,"part":part,"part_code":pcode,"championship_id":cid,
 				"season":design_season,"level":1,"blueprint_id":re_id,
 				"weeks":max(1,int(p3b[0]*tier_mult*re_wk_mult)),"rp":int(p3b[1]*tier_mult),
-				"cr":int(p3b[2]*tier_mult),"effect":p3b[3],"value":p3b[4],
+				"cr":re_l1_cr,"effect":p3b[3],"value":p3b[4],
 			}
 
 	# P4: Special Projects — not season-specific

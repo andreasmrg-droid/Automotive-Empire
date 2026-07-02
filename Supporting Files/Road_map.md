@@ -1,13 +1,16 @@
 Commercial market news | Completed!
 Click sound | Completed!
-Redesign of the Designers
+Redesign of the Designers (RP formuala must optimized to give the same affount of RP per same tier of the principles)
 BUG REPORT — Driver & Staff Pool Depletion
 Complete the CNC Market
 Apply the RnD P4 boosts
+AI Economy intial pass
 Bankruptcy 
+Transfer Market
 CEO Market
 Finish all the buildings (Fitness clinic Levels, To enter the highest tier of every discipline the must have a merchandise store at least level 1, upkeep and upgrade cost for each building)
 Apply the RnD P4 boosts
+AI Economy Second pass
 Build the Race Screens and one race
 Apply the RnD P4 boosts
 Go on Steam
@@ -16,6 +19,7 @@ Apply the RnD P4 boosts
 AI Championship simulation
 Apply the RnD P4 boosts
 Stock market
+AI Economy final pass
 Financial Department indexes
 Apply the RnD P4 boosts
 Investigation of all the attributes of staff/drivers/cars and how they interact, is anything not in the code, do we need anything else?
@@ -27,7 +31,7 @@ Save/Load continuity
 GK full championship racing Calendar
 Settings menu
 Load game recognition
-UI/UX, Images, Avatars, Badges and Sounds
+UI/UX, Images, Avatars, Badges and Sounds, Check all scrrens lay out
 Save/Load continuity
 Demo
 All championships available in new game

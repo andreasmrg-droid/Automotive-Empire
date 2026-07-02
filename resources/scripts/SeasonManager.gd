@@ -1,4 +1,13 @@
 class_name SeasonManager
+## Version: S41.9 — INTERIM AI BUDGET GRANT. AI teams have no income wired (FinancialEngine only drains
+##   their salaries), so balances bled to zero over a few seasons and the R&D CR/feasibility gates falsely
+##   locked teams out. start_new_season() now calls _ai_apply_season_budget_grant() (right after the R&D
+##   catalog rebuild, before the weekly loop / R&D planner): each non-player team is credited, per
+##   championship it's registered in, ( entry_fee + car_buy_cost + 2-car season salaries + 6× P1 L1 design
+##   CR ) × 1.30 — all LIVE-sourced from the registry / CNC_DATA / current RND_TASKS so it tracks cost
+##   tuning (e.g. S41.8b). Deliberately generous (sums buy AND design cost). Stopgap until the real §3 AI
+##   economy (sponsor/prize/commercial income) lands — remove then. Analysis-checked (brace-balance +
+##   type-inference audit; gs-sourced := explicitly typed); NOT Godot-parsed.
 ## Version: S40.14 — end_season() deducts corporate tax (gs.apply_season_end_tax) after awards;
 ##   start_new_season() snapshots the season-start balance for the next profit basis.
 ## Version: S37.63 — Champions, retirements and season dividers routed to news_feed (log_news);
@@ -363,6 +372,15 @@ func start_new_season() -> void:
 	gs._rebuild_seasonal_rnd_tasks()
 	gs.add_log("🔬 R&D catalog updated for Season %d." % gs.current_season)
 
+	## S41.9 — INTERIM AI BUDGET GRANT (stopgap until the real §3 AI economy exists). AI teams have NO
+	## income wired (FinancialEngine only DRAINS their salaries), so their balances bleed to zero over a
+	## few seasons and the R&D feasibility/CR gates falsely lock them out. Credit each non-player team a
+	## per-season budget covering its championships' running costs so the world stays solvent & plausible
+	## (GDD §13.1 "Survive"). Runs here — after teams/cars/championships/R&D-catalog are set for the new
+	## season and BEFORE the weekly loop (and thus before the R&D planner) first runs. Remove when the
+	## real AI income streams (sponsor/prize/commercial) land.
+	_ai_apply_season_budget_grant()
+
 	# ── Flush stale planning state from last season (don't re-clear registrations) ──
 	gs.custom_todo_items.clear()
 	gs.dismissed_todo_items.clear()
@@ -512,6 +530,72 @@ func _ai_auto_renew_contracts() -> void:
 			renewed += 1
 	if renewed > 0:
 		gs.add_log("📋 AI teams renewed %d expiring contracts for the new season." % renewed)
+
+
+## S41.9 — INTERIM AI budget grant. For each non-player team, credit a per-season budget sized to its
+## running costs across the championships it's registered in (one contribution per championship its cars
+## race). Per championship the budget is:
+##     ( entry_fee + car_acquisition_cost + season_salaries + blueprint_design_CR ) × GRANT_MARKUP
+## sourced LIVE from the registry / CNC_DATA / current R&D catalog, so it tracks any cost tuning (e.g.
+## the S41.8b design-cost rebalance) automatically. Owner decisions: sum both the car-buy AND the design
+## CR (deliberately generous), scope per registered championship, credit once here at rollover. This is a
+## stopgap for the missing §3 AI economy — see the call site in start_new_season().
+const GRANT_MARKUP := 1.30
+
+func _ai_apply_season_budget_grant() -> void:
+	var pid: String = gs.player_team.id if gs.player_team != null else ""
+	var total_granted := 0.0
+	var teams_paid := 0
+	for team in gs.all_teams:
+		if team == null or team.is_player_team or team.id == pid:
+			continue
+		## Collect the distinct championships this team is registered in (via its running cars).
+		var champ_ids := {}
+		for car in gs.get_cars_for_team(team):
+			if car == null:
+				continue
+			var cid := str(car.championship_id)
+			if cid != "":
+				champ_ids[cid] = true
+		if champ_ids.is_empty():
+			continue
+		var grant := 0.0
+		for cid_key in champ_ids.keys():
+			var cid: String = str(cid_key)
+			grant += _ai_season_cost_for_champ(team, cid)
+		grant = round(grant * GRANT_MARKUP)
+		if grant > 0.0:
+			team.balance += grant
+			total_granted += grant
+			teams_paid += 1
+	if teams_paid > 0:
+		gs.add_log("💰 AI budget: granted CR %s across %d teams for Season %d." % [
+			gs._fmt_int(int(total_granted)), teams_paid, gs.current_season])
+
+## Per-championship running-cost basis for one team (pre-markup). Live-sourced so it tracks tuning.
+func _ai_season_cost_for_champ(team, cid: String) -> float:
+	var reg: Dictionary = gs.CHAMPIONSHIP_REGISTRY.get(cid, {})
+	if reg.is_empty():
+		return 0.0
+	var tier := int(reg.get("tier", 1))
+	# 1) one-time entry fee for the season
+	var entry := float(reg.get("entry_fee", 0))
+	# 2) car acquisition (Logistics buy price — the higher, safer figure)
+	var car_cost := float(gs.get_provider_car_cost(cid))
+	# 3) season salaries: cover 2 cars → (drivers_per_car × 2) drivers + 2 mechanics, × 52 weeks
+	var dpc := int(gs.get_drivers_per_car(cid))
+	var drv_sal := float(team.weekly_driver_salary)
+	var mech_sal := float(team.weekly_mechanic_salary)
+	var season_salary := (drv_sal * float(dpc * 2) + mech_sal * 2.0) * 52.0
+	# 4) blueprint design CR — the six P1 L1 tasks for NEXT season's car (S41.8b anchored values), live
+	var design_cr := 0.0
+	var ns := int(gs.current_season) + 1
+	var code: String = str(gs.CHAMP_CODES.get(cid, ""))
+	if code != "":
+		for pcode in ["AER", "ENG", "GRB", "SUS", "BRK", "CHS"]:
+			var tid := "BP-%s-%s-S%d-L1" % [code, pcode, ns]
+			design_cr += float(gs.RND_TASKS.get(tid, {}).get("cr", 0))
+	return entry + car_cost + season_salary + design_cr
 
 
 ## Rule 1 (drivers) + Rule 2 (drivers): age retirement and free-agent decay.
