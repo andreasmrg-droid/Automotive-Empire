@@ -1,6 +1,26 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v7.16 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+**Version:** v7.17 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v7.17: (S41.16) LEAD-DESIGNER PROPOSALS SURFACE (point 3 — RESOLVED). The TDL/notification said
+	"proposals ready" but the R&D Studio had nowhere to show them (RnDStudio never read _last_design_
+	proposals). Now the Designer column has a "Lead Designer Proposals" button (count + critical state,
+	from the read-only peek_design_proposals so opening the Studio never re-fires the notification) that
+	opens a centred DesignProposalsPopup — mirrors TPProposalsPopup: full-rect dim, centred panel,
+	Accept-All / per-row Accept / skip, adopts the regenerated _last_design_proposals single source. Per
+	owner UI spec: centred, WIDER than TP (±460) to fit the design text, VERTICAL scroll only (horizontal
+	disabled), height anchor-based (6%→94% of screen) so a long list scrolls INSIDE the panel and never
+	overflows the bottom. IMPLEMENTATION NOTE: the popup is instantiated SCRIPT-ONLY via
+	preload("res://scenes/DesignProposalsPopup.gd").new() (repo precedent: VehicleFactory→ModelNamePopup),
+	NOT a .tscn — the first attempt shipped a .tscn whose ext_resource referenced an invented uid Godot's
+	import cache didn't have, so the script never attached and the node stayed a bare Control ("Nonexistent
+	function 'open'"). The popup builds its whole UI in _ready()/_build_ui() (sets its own anchors), so it
+	needs no scene file. Closes the loop: TDL → R&D Studio (S41.15 arrow) → Proposals button → popup. New
+	file: scenes/DesignProposalsPopup.gd (script-only, no .tscn/.uid). Edited: scenes/buildings/RnDStudio.gd.
+	Analysis-checked; NOT Godot-parsed — verify: the button shows the right count, opens a centred popup
+	that scrolls vertically without a horizontal bar, Accept starts the blueprint and the row drops out.
+	STILL OPEN after this: (b) the 5-PILLAR FORECAST/PROJECTION ADVISOR (point 4) — needs a player-correct
+	end-of-season RP forecast first (_forecast_rp_by_week returns rp=0 for the player: reads a throwaway
+	ledger via _ledger_for(player), NOT gs.research_points). (c) Retreat & backfill (spec step 6). -->
 <!-- v7.16: (S41.13–S41.15) AI R&D ECONOMY — P4 ON-TRACK UPLIFT, §8.6 FIRST-TEAM WEEKS, PLAYER PROPOSALS
 	(CHANGE-GATED). Folds the S41.13 code (committed) + the S41.15 player-proposal correction into the GDD
 	(the v7.15 draft was never committed; code had outrun the doc — code is truth, doc now caught up).

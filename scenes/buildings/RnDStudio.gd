@@ -1,3 +1,13 @@
+## Version: S41.16 — LEAD-DESIGNER PROPOSALS SURFACE (point 3). The Designer column gains a "Lead
+##   Designer Proposals" button (count + critical state, read from the read-only peek_design_proposals
+##   so opening the Studio never re-fires the notification) that opens the centred DesignProposalsPopup.
+##   _open_design_proposals_popup instantiates the popup SCRIPT directly (preload(...).new() — the same
+##   pattern VehicleFactory uses for ModelNamePopup), NOT a .tscn: the first attempt used a .tscn with an
+##   invented ext_resource uid that Godot's import cache didn't know, so the script never attached and
+##   the node stayed a bare Control ("Nonexistent function 'open'"). Script-only instantiation is robust
+##   (the popup builds its own UI in _ready) and matches repo precedent. Seeds _last_design_proposals
+##   from the peek, opens the overlay, rebuilds the Studio on close. Closes the loop: TDL → R&D Studio
+##   (S41.15 arrow) → Proposals button → popup. Analysis-checked; NOT Godot-parsed.
 ## Version: S41.0 — P3 (Reverse Engineering) catalog corrected to the all-parts model: RE-eligible =
 ##   every part the garage car CARRIES (granted at new-game / bought via Logistics — spec AND open)
 ##   EXCEPT parts the team self-manufactured in CNC. Was spec-only, which hid open parts and (with the
@@ -368,6 +378,28 @@ func _build_designer_column(parent: VBoxContainer) -> void:
 	)
 	parent.add_child(btn_hire)
 
+	## S41.16 — Lead-Designer PROPOSALS button → opens the centred proposals popup (point 3: the TDL/
+	## notification says "proposals ready", and this is where the player sees + accepts them). Reads
+	## the read-only peek so opening the Studio never re-fires the notification. Count shown on the
+	## button; styled active when there's something to act on, muted when empty.
+	var props: Array = GameState.peek_design_proposals()
+	var queueable: int = props.filter(func(p): return p.get("type", "") == "queue_blueprint").size()
+	var has_critical: bool = props.any(func(p): return p.get("priority", "") == "critical")
+	var btn_props = Button.new()
+	if has_critical:
+		btn_props.text = "🚫 Lead Designer — action needed"
+		btn_props.modulate = Color(1.0, 0.55, 0.55)
+	elif queueable > 0:
+		btn_props.text = "🧪 Lead Designer Proposals (%d)" % queueable
+		btn_props.modulate = Color(0.55, 0.9, 1.0)
+	else:
+		btn_props.text = "🧪 Lead Designer Proposals"
+		btn_props.modulate = Color(0.6, 0.6, 0.6)
+	btn_props.custom_minimum_size = Vector2(180, 32)
+	btn_props.add_theme_font_size_override("font_size", 22)
+	btn_props.pressed.connect(_open_design_proposals_popup)
+	parent.add_child(btn_props)
+
 	parent.add_child(_hsep())
 
 	var lbl_comp = Label.new()
@@ -392,6 +424,22 @@ func _build_designer_column(parent: VBoxContainer) -> void:
 		lbl_done.modulate = Color(0.42, 0.72, 0.42)
 		lbl_done.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		comp_vbox.add_child(lbl_done)
+
+## S41.16 — open the centred Lead-Designer proposals popup. Instantiates the popup SCRIPT directly
+## (preload(...).new()) — the same script-only pattern VehicleFactory uses for ModelNamePopup — rather
+## than a .tscn. The popup builds its whole UI in _ready()/_build_ui() with no scene-tree dependency,
+## so a code-instantiated node behaves identically AND avoids the .tscn uid-import fragility (an
+## invented ext_resource uid failed to attach the script, leaving a bare Control → "open() not found").
+## Seeds _last_design_proposals from the READ-ONLY peek first (opening the Studio never re-fires the
+## notification), opens the overlay, and rebuilds the Studio on close so the button count + active-task
+## list reflect any accepted proposals.
+func _open_design_proposals_popup() -> void:
+	GameState._last_design_proposals = GameState.peek_design_proposals()
+	var popup = preload("res://scenes/DesignProposalsPopup.gd").new()
+	get_tree().current_scene.add_child(popup)
+	popup.open(GameState._last_design_proposals)
+	popup.closed.connect(func():
+		_rebuild_studio())
 
 ## S40.15 — a thin used/capacity bar (green within comfort, amber when over-stretched handled by
 ## the Lead card). Purely the aggregate line-usage indicator.
