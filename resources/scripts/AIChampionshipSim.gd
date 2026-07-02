@@ -1,4 +1,13 @@
 class_name AIChampionshipSim
+## Version: S41.13 — P4 R&D ON-TRACK UPLIFT (spec §8, interim). car_strength() now folds in the car's
+##   TEAM P4 bonuses — perf_bonus (lap-time advantage → strength up) + a small reliability_bonus weight
+##   (no DNF roll in the simplified sim, so a more-reliable car finishes better on average). Mirrors the
+##   PLAYER RaceSimulator, which already reads rnd_perf_bonus()/rnd_reliability_bonus(); the AI sim
+##   previously ignored them, so AI R&D had zero on-track effect. Team resolved from the representative
+##   driver's contract_team (same path simulate_round uses for team points). PART-blueprint (P1/P2/P3)
+##   uplift is deliberately NOT here — that arrives with the AI-CnC project when self-made parts install
+##   and change performance; P4 is the piece with direct racing impact today. Analysis-checked; NOT
+##   Godot-parsed.
 ## Version: S37.61 — Bug #38 CREW MODEL: a car earns ONE points award (to its representative),
 ##   shared by the crew (was: each co-driver scored separately).
 ## Version: S37.60 — Bug #38 (multi-driver): a car earns ONE finishing position; every seated
@@ -49,8 +58,31 @@ func car_strength(car) -> float:
 	var mech = gs.all_staff.get(car.mechanic_id, null)
 	if mech != null:
 		mech_mult = 1.0 + (mech.car_setup - 50.0) / 500.0  # ±10% across the stat range
-	# Combine: driver score (0..~100) + a car-index contribution, then the mechanic multiplier.
-	return (drv_score + car_perf) * mech_mult
+	# S41.13 — P4 R&D UPLIFT (spec §8, interim on-track effect). A team whose planner banked P4
+	# special-project effects fields a genuinely stronger car. This mirrors the PLAYER RaceSimulator,
+	# which already applies rnd_perf_bonus() to lap time and rnd_reliability_bonus() to DNF risk — the
+	# AI simplified sim previously ignored both, so AI R&D had no on-track effect. Team-aware: resolve
+	# the car's team from its representative driver's contract_team (same resolution simulate_round
+	# uses to award team points) and read that team's bonuses. Player-team cars are skipped by
+	# simulate_round (real sim owns them), so this only ever scales AI cars here.
+	# NOTE (parts vs P4): this reads P4 SPECIAL-PROJECT effects only. Part-blueprint (P1/P2/P3) uplift
+	# is deliberately NOT here — it arrives with the AI-CnC project when self-made parts get installed
+	# and change performance (spec §8 "next project"). P4 is the piece with direct racing impact today.
+	var rnd_mult := 1.0
+	var rep_drv = gs.all_drivers.get(car.driver_id, null)
+	if rep_drv != null and rep_drv.contract_team != "":
+		var team = gs._find_team_by_id(rep_drv.contract_team)
+		if team != null:
+			var rnd: RnDEngine = gs._rnd_engine
+			if rnd != null:
+				# perf_bonus is a lap-time-advantage fraction (higher = faster) → scale strength up.
+				# reliability_bonus reduces DNF risk; the simplified sim has no DNF roll, so fold it in
+				# at a small weight (a more reliable car finishes better on average) rather than drop it.
+				var perf: float = rnd.perf_bonus(team)
+				var reli: float = rnd.reliability_bonus(team)
+				rnd_mult = 1.0 + perf + reli * 0.25
+	# Combine: driver score (0..~100) + a car-index contribution, mechanic multiplier, then R&D uplift.
+	return (drv_score + car_perf) * mech_mult * rnd_mult
 
 ## ── One race round for ONE championship ───────────────────────────────────────
 ## Computes a finishing order from car_strength + race-day noise and awards points through the

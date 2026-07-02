@@ -1,4 +1,11 @@
 class_name LeadDesignerProposalEngine
+## Version: S41.13 — §8.6 TEAM-AWARE SAFE-START. _latest_safe_start() now computes each part's L1 weeks
+##   via the new _team_l1_weeks() helper (→ RnDEngine.team_designs_from_scratch + get_l1_weeks_for), so
+##   a team designing a part for the FIRST time is scheduled at FULL weeks even mid-cycle and isn't
+##   started too late to field a car (§8.6). Was reading the shared task's incumbent/refresh weeks,
+##   which under-scheduled newcomers. No change to the P2/feasibility/P3-vs-P1 logic. (The S41.6a
+##   [AIPlanDiag] instrumentation is still present — removed in the next chunk once this is confirmed.)
+##   Analysis-checked; NOT Godot-parsed.
 ## Version: S41.6a — DIAGNOSTIC INSTRUMENTATION on top of S41.6. The 10-season playtest produced ZERO
 ##   [AIPlan] lines (planner started no AI task). Each early-out gate (rnd_engine_null / no_studio /
 ##   no_lead / no_free_lines / no_championships / no_primary_cid / reached_planner) is now tallied per
@@ -534,12 +541,13 @@ func _latest_safe_start(team, cid: String, planning: float) -> int:
 	var ns := int(gs.current_season) + 1
 	var max_weeks := 1
 	for part in CAR_PARTS:
-		var tid := _find_task(cid, part, ns, 1, 1)   ## P1 L1 (own-design weeks = the safe upper bound)
-		if tid == "":
-			tid = _find_task(cid, part, ns, 3, 1)     ## fall back to P3 L1 weeks
-		if tid == "":
-			continue
-		var wk := int(gs.RND_TASKS.get(tid, {}).get("weeks", 1))
+		## S41.13 §8.6 — use the TEAM-AWARE L1 weeks, not the shared task's incumbent (refresh) value.
+		## A team designing this part for the FIRST time gets FULL weeks even mid-cycle, so its critical
+		## path (and thus the safe-start week) is computed correctly and it isn't scheduled too late to
+		## field a car. Uses P1 own-design weeks as the safe upper bound (P3 is ≤ same critical path).
+		var wk := _team_l1_weeks(team, cid, part, ns, 1)
+		if wk <= 0:
+			wk = _team_l1_weeks(team, cid, part, ns, 3)   ## fall back to P3 L1 weeks
 		if wk > max_weeks:
 			max_weeks = wk
 	var base := 52 - (max_weeks + 1)   ## +1 for the flat WRA approval week
@@ -547,6 +555,22 @@ func _latest_safe_start(team, cid: String, planning: float) -> int:
 	## planning 0 → full PLAN_LOW_PLANNING_BUFFER_WK.
 	var buffer := int(round(float(PLAN_LOW_PLANNING_BUFFER_WK) * (1.0 - clampf(planning / 100.0, 0.0, 1.0))))
 	return maxi(1, base - buffer)
+
+## S41.13 §8.6 — the TEAM-AWARE L1 design weeks for a part, next season, on a pillar (1=P1, 3=P3).
+## Single-sourced through RnDEngine: base weeks × tier_mult × (full if from-scratch FOR THIS TEAM else
+## refresh-half). "From-scratch for this team" is true at a WRA cycle reset (everyone) OR when the team
+## has never designed this part before (its first-ever design — §8.6). Returns 0 if the base is unknown.
+func _team_l1_weeks(team, cid: String, part: String, ns: int, pillar: int) -> int:
+	var rnd: RnDEngine = gs._rnd_engine
+	if rnd == null:
+		return 0
+	var base: int = rnd.get_l1_base_weeks(part, pillar)
+	if base <= 0:
+		return 0
+	var tier: int = int(gs.CHAMPIONSHIP_REGISTRY.get(cid, {}).get("tier", 1))
+	var tier_mult: float = 1.0 + float(tier - 1) * 0.5
+	var from_scratch: bool = rnd.team_designs_from_scratch(team, cid, part, ns)
+	return rnd.get_l1_weeks_for(float(base), tier_mult, from_scratch)
 
 ## Feasible iff the RP forecast by the deadline clears the survival bill (the 6 baseline L1 parts),
 ## AND the team can afford their CR. Free-line throughput is implicit (studio_level ≥ 1 guaranteed).

@@ -1,4 +1,17 @@
 class_name RnDEngine
+## Version: S41.13 — §8.6 PER-TEAM FROM-SCRATCH WEEKS + planner seam (AI R&D economy, this project).
+##   The GDD §8.6 "a team's FIRST-EVER design is full-weeks even mid-cycle" rule was canon-but-unbuilt:
+##   _is_from_scratch_design() has no team param and the shared RND_TASKS[tid]["weeks"] holds one value
+##   (the incumbent/refresh duration mid-cycle), so a newcomer/entering team was scheduled at HALVED
+##   weeks, started its next-season car too late, and fielded no car. FIX: added team_designs_from_scratch()
+##   (from-scratch = WRA cycle reset OR the team has no prior-season L1 blueprint for [cid,part] from P1
+##   OR P3 — read from completed_bp: player→globals, AI→ledger, so it's correct for both TODAY, no CnC
+##   needed) + _team_has_prior_l1() + the single-source weeks helpers get_l1_weeks_for()/get_l1_base_weeks()
+##   (PART_BASE_L1_WEEKS + PART_CODE_MAP module consts). The task builder now routes its P1/P3 L1 weeks
+##   through get_l1_weeks_for() (incumbent verdict — unchanged output); the PLANNER passes the team-aware
+##   verdict so a first-time design is scheduled at FULL weeks. This is also the SEAM the AI-CnC project
+##   reads (which blueprints a team owns) to drive manufacturing next. Player path unchanged. Analysis-
+##   checked (brace-balance + type-inference audit); NOT Godot-parsed.
 ## Version: S41.11 — AI-ledger P1/P3 SEASON-PRUNE (crash fix). prune_ai_ledgers_for_new_season() now ALSO
 ##   drops each AI ledger's STALE P1/P3 blueprints — those stamped for a season BEFORE the (already-
 ##   incremented) current one. ROOT CAUSE of the ~S8 fast-forward crash-to-desktop: AI P1/P3 blueprints
@@ -444,7 +457,10 @@ func _build_rnd_tasks_for_season(season: int) -> Dictionary:
 			## existing regulation package and designs L1 in half the time (P1_REFRESH_WEEKS_MULT). This
 			## is what lets every team finish all six L1 blueprints before their championship's
 			## registration deadline. Only WEEKS are discounted — RP/CR cost is unchanged.
-			var l1_wk_mult := 1.0 if _is_from_scratch_design(cid, design_season) else P1_REFRESH_WEEKS_MULT
+			## S41.13 — championship-cycle from-scratch verdict (incumbent view). The shared task holds
+			## this (refresh) duration mid-cycle; the planner overrides per-team via get_l1_weeks_for +
+			## team_designs_from_scratch for a newcomer's first design (§8.6).
+			var l1_from_scratch := _is_from_scratch_design(cid, design_season)
 			## S41.8 — P1 L1 CR anchored to the car (base_total_cost × DESIGN_RATIO[tier] × part weight).
 			## Falls back to the legacy flat CR (p1b[2]×tier_mult) if this championship has no CNC_DATA base.
 			var p1_l1_cr := int(round(p1_car_cr_budget * float(P1_CR_WEIGHT.get(part, 0.0)))) \
@@ -453,7 +469,7 @@ func _build_rnd_tasks_for_season(season: int) -> Dictionary:
 				"name": "%s — %s S%s Blueprint L1" % [champ_name, part, ns],
 				"pillar":1,"part":part,"part_code":pcode,"championship_id":cid,
 				"season":design_season,"level":1,"blueprint_id":p1_id,
-				"weeks":max(1,int(p1b[0]*tier_mult*l1_wk_mult)),"rp":int(p1b[1]*tier_mult),
+				"weeks":get_l1_weeks_for(float(p1b[0]), tier_mult, l1_from_scratch),"rp":int(p1b[1]*tier_mult),
 				"cr":p1_l1_cr,"effect":p1b[3],"value":p1b[4],
 			}
 			tasks[p1_l2] = {
@@ -499,7 +515,7 @@ func _build_rnd_tasks_for_season(season: int) -> Dictionary:
 			var re_id = "RE-%s-%s-S%s-L1" % [code, pcode, ns]
 			## S40.17 — same from-scratch vs mid-cycle refresh weeks discount as P1 L1: an RE is the
 			## L1-equivalent, so it must also fit the registration budget mid-cycle.
-			var re_wk_mult := 1.0 if _is_from_scratch_design(cid, design_season) else P1_REFRESH_WEEKS_MULT
+			var re_from_scratch := _is_from_scratch_design(cid, design_season)
 			## S41.8 — P3 L1 CR = new P1 L1 CR × LOCKED P3:P1 ratio (preserves the RE premium exactly).
 			## Same CNC-base fallback: if the P1 CR came from the legacy flat path, so does this.
 			var re_l1_cr := int(round(float(p1_l1_cr) * float(P3_OVER_P1_CR.get(part, 1.0)))) \
@@ -508,7 +524,7 @@ func _build_rnd_tasks_for_season(season: int) -> Dictionary:
 				"name": "%s — %s S%s RE L1" % [champ_name, part, ns],
 				"pillar":3,"part":part,"part_code":pcode,"championship_id":cid,
 				"season":design_season,"level":1,"blueprint_id":re_id,
-				"weeks":max(1,int(p3b[0]*tier_mult*re_wk_mult)),"rp":int(p3b[1]*tier_mult),
+				"weeks":get_l1_weeks_for(float(p3b[0]), tier_mult, re_from_scratch),"rp":int(p3b[1]*tier_mult),
 				"cr":re_l1_cr,"effect":p3b[3],"value":p3b[4],
 			}
 
@@ -927,6 +943,10 @@ func _wra_group_season_for(cid: String, season: int) -> int:
 
 ## S40.17 — is a design targeting `design_season` a FROM-SCRATCH design (cycle start) for this
 ## championship? From-scratch → full L1 weeks; mid-cycle refresh → P1_REFRESH_WEEKS_MULT (0.5).
+## NOTE (S41.13): this is the CHAMPIONSHIP-WIDE cycle test only (regulation reset). It has no team
+## parameter, so the shared RND_TASKS[tid]["weeks"] it feeds is the INCUMBENT (refresh) duration
+## mid-cycle. The per-TEAM first-design rule (§8.6) lives in team_designs_from_scratch() below; the
+## planner uses that + get_l1_weeks_for() to schedule a newcomer at FULL weeks even mid-cycle.
 func _is_from_scratch_design(cid: String, design_season: int) -> bool:
 	return _wra_group_season_for(cid, design_season) == 1
 
@@ -935,6 +955,76 @@ func _is_from_scratch_design(cid: String, design_season: int) -> bool:
 ## Modeled against every championship's real registration budget: at 0.5, all 21 championships can
 ## complete their six L1 blueprints before registration (see the weeks fit table, S40.17 balance pass).
 const P1_REFRESH_WEEKS_MULT := 0.5
+
+## ── §8.6 PER-TEAM FROM-SCRATCH (S41.13) ──────────────────────────────────────
+## GDD §8.6: L1 design weeks are FULL from-scratch, HALVED on a mid-cycle refresh — AND a team's
+## FIRST-EVER design of a part is ALSO full-weeks even mid-cycle (first time = from scratch). The
+## shared task can't hold two durations, so the TEAM-AWARE verdict lives here and the planner applies
+## it via get_l1_weeks_for(). A design is FROM-SCRATCH (full weeks) for a team when EITHER:
+##   (a) the WRA cycle itself is at its start year (regulation reset — applies to every team), OR
+##   (b) this team has NO prior-season L1 blueprint for [cid, part] — its first-ever design of it.
+## It is a REFRESH (half weeks) only mid-cycle AND when the team has designed this part before, i.e.
+## it is iterating on its own prior package. The "prior design" record is the team's completed_bp
+## ledger (P1 OR P3 both count — either produces an owned L1). This is the SEAM the AI-CnC project
+## reads to know which blueprints a team owns to manufacture; the record is built correctly now.
+func team_designs_from_scratch(team, cid: String, part: String, design_season: int) -> bool:
+	if _is_from_scratch_design(cid, design_season):
+		return true   ## regulation reset — from-scratch for everyone this cycle
+	return not _team_has_prior_l1(team, cid, part, design_season)
+
+## True if this team owns a PRIOR-season L1 blueprint for [cid, part] from either P1 (BP-) or P3 (RE-).
+## Reads the team's completed_bp set (player → globals, AI → ledger), matching the champ code + part
+## code embedded in the blueprint id, with the id's stamped season strictly BEFORE design_season.
+func _team_has_prior_l1(team, cid: String, part: String, design_season: int) -> bool:
+	var code: String = str(gs.CHAMP_CODES.get(cid, ""))
+	var pcode: String = str(PART_CODE_MAP.get(part, ""))
+	if code == "" or pcode == "":
+		return false
+	var completed: Array = gs.completed_bp_tasks if _is_player_ledger(team) else _ledger_for(team)["completed_bp"]
+	for tid_any in completed:
+		var tid: String = str(tid_any)
+		## L1 blueprint ids: BP-{code}-{pcode}-S{n}-L1 (P1) or RE-{code}-{pcode}-S{n}-L1 (P3).
+		if not tid.ends_with("-L1"):
+			continue
+		if not ("-%s-%s-S" % [code, pcode]) in tid:
+			continue
+		if _bp_id_season(tid) < design_season and _bp_id_season(tid) > 0:
+			return true
+	return false
+
+## Part NAME → part CODE (module-level mirror of the builder-local PART_CODES, so team-aware helpers
+## outside _build_rnd_tasks_for_season can resolve a blueprint id). Single source for the code map.
+const PART_CODE_MAP := {
+	"Aero": "AER", "Engine": "ENG", "Gearbox": "GRB",
+	"Suspension": "SUS", "Brakes": "BRK", "Chassis": "CHS",
+}
+
+## S41.13 — SINGLE SOURCE for per-part L1 BASE design weeks (the [0] column of the builder's
+## PART_BASE_P1 / PART_BASE_P3). Module-level so the PLANNER can recompute a newcomer's full-weeks
+## schedule (§8.6) without reaching into builder-local consts. ⚠ MIRROR INVARIANT: these MUST equal
+## PART_BASE_P1[part][0] (pillar 1) and PART_BASE_P3[part][0] (pillar 3) inside
+## _build_rnd_tasks_for_season. They are the SAME numbers; if you change a part's base weeks, change
+## it in BOTH places (or refactor the builder to read get_l1_base_weeks()). Kept as an explicit mirror
+## rather than refactoring the validated 20-season builder path. Values verified equal at S41.13.
+const PART_BASE_L1_WEEKS := {
+	1: {"Aero":4, "Engine":6, "Chassis":8, "Gearbox":4, "Brakes":3, "Suspension":4},   ## P1 (Design)
+	3: {"Aero":6, "Engine":10, "Chassis":12, "Gearbox":5, "Brakes":4, "Suspension":5}, ## P3 (Reverse Eng.)
+}
+
+## Base L1 design weeks for a part on a pillar (1=P1, 3=P3). 0 if unknown. Single source (above).
+func get_l1_base_weeks(part: String, pillar: int) -> int:
+	return int((PART_BASE_L1_WEEKS.get(pillar, {}) as Dictionary).get(part, 0))
+
+## ── §8.6 SINGLE-SOURCE L1 WEEKS (S41.13) ─────────────────────────────────────
+## The one place the L1 design-weeks formula lives, so the task builder and the planner can never
+## drift. weeks = max(1, int(base_weeks × tier_mult × (1.0 if from_scratch else P1_REFRESH_WEEKS_MULT))).
+## base_weeks is the part's P1/P3 base (PART_BASE_P1[part][0] / PART_BASE_P3[part][0]); tier_mult is
+## 1 + (tier-1)×0.5. The task builder passes its championship-cycle from_scratch verdict (incumbent
+## view); the planner passes the TEAM-aware verdict (team_designs_from_scratch) so a newcomer's parts
+## are scheduled at full weeks even mid-cycle.
+func get_l1_weeks_for(base_weeks: float, tier_mult: float, from_scratch: bool) -> int:
+	var mult: float = 1.0 if from_scratch else P1_REFRESH_WEEKS_MULT
+	return maxi(1, int(base_weeks * tier_mult * mult))
 
 ## Start a WRA-approved blueprint CNC job. Called from CNCPlant.
 
