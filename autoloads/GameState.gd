@@ -1,3 +1,6 @@
+## Version: S41.7-DIAG2 — TEMPORARY crash instrumentation in advance_week() W52 body (autosave / AI
+##   race loop / planner). Flushed [WKDIAG] breadcrumbs, no logic change. Prior [ROLLDIAG] run proved
+##   the crash is in W52's weekly tick BEFORE _end_season (no Z0 printed). Revert after diagnosis.
 ## Version: S41.7 — CRITICAL LOAD-PATH FIX: ai_cars now SAVED + RESTORED. Root cause of a dead AI world
 ##   after any save/reload: ai_cars (the {champ_id → [Car]} dict linking every AI team to its
 ##   championships) was never serialised and never rebuilt on load. On a loaded save it stayed empty,
@@ -4100,7 +4103,11 @@ func advance_week() -> void:
 
 	## Autosave every 13 weeks — 4 rotating slots
 	if current_week % 13 == 0:
+		if current_week >= max_weeks:
+			print("[WKDIAG] W%d before _autosave" % current_week); OS.delay_msec(0)
 		_autosave()
+		if current_week >= max_weeks:
+			print("[WKDIAG] W%d after _autosave" % current_week); OS.delay_msec(0)
 
 	## Snapshot balance before all changes for P&L calculation
 	var _balance_before = player_team.balance
@@ -4144,6 +4151,8 @@ func advance_week() -> void:
 	_update_ceo_salary()
 
 	# Check for races this week across ALL active championships
+	if current_week >= max_weeks:
+		print("[WKDIAG] W%d before race_loop (active_championships=%d)" % [current_week, active_championships.size()]); OS.delay_msec(0)
 	for champ in active_championships:
 		## Multi-event support: run EVERY race this championship has scheduled this week, in
 		## calendar order (usually one; two for a GK final weekend; more for future Rally/Endurance
@@ -4343,8 +4352,12 @@ func advance_week() -> void:
 	## feasibility-gated. Placed BEFORE the pending-results early-return below so it runs every week even
 	## when a player race result interrupts advance_week. Debug-logged only ([AIPlan] …), never player
 	## news, per design owner. Player R&D stays proposal-driven (unchanged).
+	if current_week >= max_weeks:
+		print("[WKDIAG] W%d after race_loop, before planner" % current_week); OS.delay_msec(0)
 	if _lead_designer_engine != null:
 		_lead_designer_engine.ai_fill_design_lines_all_teams()
+	if current_week >= max_weeks:
+		print("[WKDIAG] W%d after planner (end of W52 body reached)" % current_week); OS.delay_msec(0)
 
 	## After all races processed this week — show first result screen
 	if not _pending_race_results.is_empty():
@@ -4381,8 +4394,14 @@ func advance_week() -> void:
 			add_log("✅ Balance recovered. Bankruptcy counter reset.")
 			weeks_in_negative = 0
 
+	if current_week >= max_weeks:
+		print("[WKDIAG] W%d before week_advanced emit" % current_week); OS.delay_msec(0)
 	emit_signal("week_advanced", current_week)
+	if current_week >= max_weeks:
+		print("[WKDIAG] W%d before log_updated emit" % current_week); OS.delay_msec(0)
 	emit_signal("log_updated")
+	if current_week >= max_weeks:
+		print("[WKDIAG] W%d advance_week RETURNED cleanly" % current_week); OS.delay_msec(0)
 
 func _apply_weekly_fitness_recovery() -> void:
 	_race_simulator.apply_weekly_fitness_recovery()

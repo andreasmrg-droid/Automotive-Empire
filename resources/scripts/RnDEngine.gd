@@ -1,4 +1,22 @@
 class_name RnDEngine
+## Version: S41.11 — AI-ledger P1/P3 SEASON-PRUNE (crash fix). prune_ai_ledgers_for_new_season() now ALSO
+##   drops each AI ledger's STALE P1/P3 blueprints — those stamped for a season BEFORE the (already-
+##   incremented) current one. ROOT CAUSE of the ~S8 fast-forward crash-to-desktop: AI P1/P3 blueprints
+##   were NEVER cleared (S41.10 pruned only P2/UPG; _apply_wra_regulation_change is player-only), so every
+##   AI ledger's known_blueprints / completed_bp / completed_rnd grew UNBOUNDED each season. The weekly AI
+##   planner scans those structures per team per free-line per part (rnd_task_unlocked→_has_l1_blueprint_for
+##   walks the whole known_blueprints; rnd_task_active_or_done walks completed_rnd), so per-week cost climbed
+##   season-over-season until the process ground out mid-compute (the Windows busy-spinner) and died with no
+##   GDScript error. Higher R&D Studio level = more design lines = more scans = crashes a season earlier
+##   (matches the observed L6→S7 vs default→S8). LIFECYCLE (per owner): a car's P1/P3 blueprints are designed
+##   the PRIOR season (stamped season N), then live in CnC ALL of season N so the team can build the car +
+##   spare parts on demand; at the NEXT rollover (into N+1) they've served their purpose and are deleted.
+##   Implemented as: at each rollover (current_season already = the new N), keep P1/P3 stamped season == N,
+##   drop season < N. Uses `< N` (not `== N-1`) so any older straggler is also swept — ledger can't leak a
+##   stale season. completed_bp/_rnd ids carry the stamp in "…-S{n}-L{lv}", parsed via _bp_id_season().
+##   P4/P5 untouched; P2/UPG purge (S41.10) unchanged. Return dict + SeasonManager log now report p1p3_bps.
+##   Analysis-checked (brace-balance + type-inference audit; Variant indexes cast via as Array/as Dictionary,
+##   season parse guarded); NOT Godot-parsed. Verify by fast-forwarding past S8 with per-season output.
 ## Version: S41.10 — AI-ledger season-rollover PRUNE. Added prune_ai_ledgers_for_new_season(): mirrors the
 ##   player's rollover P2/UPG purge (clear completed_upg, drop UPG- ids from completed_rnd, erase P2
 ##   blueprints from known_blueprints, filter them out of wra_active/approved/rejected) across ALL 172 AI
@@ -211,6 +229,12 @@ func prune_ai_ledgers_for_new_season() -> Dictionary:
 	var teams_pruned := 0
 	var upg_ids_cleared := 0
 	var p2_bps_erased := 0
+	var p1p3_bps_erased := 0
+	## S41.11 — current_season is ALREADY incremented to the NEW season (N) by this point in
+	## start_new_season() (increment at its top, prune runs later). So "keep season == N" means keep the
+	## P1/P3 blueprints just designed for the car CnC builds all of season N; "drop season < N" removes the
+	## previous car's blueprints, whose CnC life ended with the season that just closed.
+	var ns := int(gs.current_season)
 	for team in gs.all_teams:
 		if team == null or _is_player_ledger(team):
 			continue
@@ -218,7 +242,8 @@ func prune_ai_ledgers_for_new_season() -> Dictionary:
 			continue
 		var led: Dictionary = _ledger_for(team)   ## also backfills any missing keys defensively
 		## 1) clear completed P2 (upgrade) task ids
-		upg_ids_cleared += (led["completed_upg"] as Array).size()
+		var this_upg_cleared := (led["completed_upg"] as Array).size()
+		upg_ids_cleared += this_upg_cleared
 		led["completed_upg"] = []
 		## 2) drop UPG- ids from completed_rnd (prereq set)
 		led["completed_rnd"] = (led["completed_rnd"] as Array).filter(
@@ -238,9 +263,62 @@ func prune_ai_ledgers_for_new_season() -> Dictionary:
 			func(app): return not (app as Dictionary).get("blueprint_id", "") in p2_bp_ids)
 		led["wra_rejected"] = (led["wra_rejected"] as Array).filter(
 			func(rej): return not (rej as Dictionary).get("blueprint_id", "") in p2_bp_ids)
-		if upg_ids_cleared > 0 or not p2_bp_ids.is_empty():
+		## 5) S41.11 — drop STALE P1/P3 blueprints (pillar 1/3, season < N). These are last season's car,
+		## no longer needed once its CnC season closed. Keep season == N (the car CnC builds next season).
+		## This is what actually BOUNDS the ledger — P1/P3 were never cleared before, so they compounded
+		## every season and the weekly planner's per-team blueprint scans grew until the process crashed.
+		var stale_bp_ids: Array = []
+		for bp_id in led["known_blueprints"]:
+			var bp: Dictionary = led["known_blueprints"][bp_id] as Dictionary
+			if int(bp.get("pillar", 0)) in [1, 3] and int(bp.get("season", ns)) < ns:
+				stale_bp_ids.append(bp_id)
+		for bp_id in stale_bp_ids:
+			(led["known_blueprints"] as Dictionary).erase(bp_id)
+		p1p3_bps_erased += stale_bp_ids.size()
+		## 5b) drop the matching completed_bp / completed_rnd ids whose embedded S{n} stamp is < N. We parse
+		## the stamp from the id ("…-S{n}-L{lv}") rather than blanket-wiping BP-/RE- (which would nuke the
+		## CURRENT-season ids CnC still needs — the reason we can't reuse the player's flat regulation wipe).
+		led["completed_bp"] = (led["completed_bp"] as Array).filter(
+			func(tid): return _keep_bp_completed_id(str(tid), ns))
+		led["completed_rnd"] = (led["completed_rnd"] as Array).filter(
+			func(tid): return _keep_bp_completed_id(str(tid), ns))
+		## 5c) purge stale P1/P3 blueprints from the WRA pipeline too (parity with the P2 purge).
+		led["wra_active"] = (led["wra_active"] as Array).filter(
+			func(sub): return not (sub as Dictionary).get("blueprint_id", "") in stale_bp_ids)
+		led["wra_approved"] = (led["wra_approved"] as Array).filter(
+			func(app): return not (app as Dictionary).get("blueprint_id", "") in stale_bp_ids)
+		led["wra_rejected"] = (led["wra_rejected"] as Array).filter(
+			func(rej): return not (rej as Dictionary).get("blueprint_id", "") in stale_bp_ids)
+		## Per-team tally (S41.11 fix: was keyed off the running TOTAL upg_ids_cleared, so once any team
+		## cleared an UPG every later team counted as pruned; now uses this team's own counts).
+		if this_upg_cleared > 0 or not p2_bp_ids.is_empty() or not stale_bp_ids.is_empty():
 			teams_pruned += 1
-	return {"teams": teams_pruned, "upg_ids": upg_ids_cleared, "p2_bps": p2_bps_erased}
+	return {"teams": teams_pruned, "upg_ids": upg_ids_cleared,
+		"p2_bps": p2_bps_erased, "p1p3_bps": p1p3_bps_erased}
+
+## S41.11 — Keep-predicate for a completed_bp / completed_rnd id during the rollover P1/P3 prune. We DROP
+## only ids we can positively date as stale: it must be a blueprint id (BP-/RE-) AND carry a parseable
+## season stamp strictly BEFORE the new season `ns`. Anything else — non-blueprint prereq ids, or ids we
+## can't date — is kept (never drop something we can't confirm is last season's car). Split out of the
+## filter lambda to avoid a multi-line/backslash-continued lambda (the one parse-fragile GDScript form).
+func _keep_bp_completed_id(tid: String, ns: int) -> bool:
+	var is_bp := tid.begins_with("BP-") or tid.begins_with("RE-")
+	if not is_bp:
+		return true
+	var s := _bp_id_season(tid)
+	if s < 0:
+		return true   ## undateable → keep (defensive)
+	return s >= ns    ## keep current/future; drop strictly-older
+
+## S41.11 — Parse the season stamp from an R&D task/blueprint id of the form "…-S{n}-L{lv}" (P1 "BP-…",
+## P3 "RE-…"). Returns the integer season, or -1 if the id carries no parseable "-S{n}" segment (in which
+## case callers keep the id — we never drop something we can't positively date as stale).
+func _bp_id_season(tid: String) -> int:
+	var parts := tid.split("-")
+	for p in parts:
+		if p.length() >= 2 and p.begins_with("S") and p.substr(1).is_valid_int():
+			return int(p.substr(1))
+	return -1
 
 ## Generates P1/P2/P3/P4 tasks for a given season.
 ## IDs: BP-{CHAMP}-{PART}-S{n}-L{lv} | UPG-... | RE-...-L1

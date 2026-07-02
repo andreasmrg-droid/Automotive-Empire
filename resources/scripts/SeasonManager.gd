@@ -121,6 +121,7 @@ func _init(game_state) -> void:
 # ═══════════════════════════════════════════════════════════════════════════
 
 func end_season() -> void:
+	_rolldiag("Z0_end_season_enter")
 	gs.log_news("=== SEASON %d COMPLETE ===" % gs.current_season)
 
 	# ── 1. Award champion titles for EVERY championship, archive to History ──────
@@ -162,6 +163,7 @@ func end_season() -> void:
 	## Apply reputation inertia — rep moves toward earned value slowly
 	gs._apply_reputation_inertia()
 
+	_rolldiag("Z1_before_season_ended_emit")
 	gs.emit_signal("season_ended", gs.current_season)
 	gs.emit_signal("log_updated")
 	gs._process_sponsors_season_end()
@@ -176,7 +178,12 @@ func end_season() -> void:
 # STEP 2: START NEW SEASON — 15-step order from GDD §16.3
 # ═══════════════════════════════════════════════════════════════════════════
 
+func _rolldiag(tag: String) -> void:
+	print("[ROLLDIAG] ", tag)
+	OS.delay_msec(0)  # force stdout flush so a SIGSEGV on the next stage can't swallow this marker
+
 func start_new_season() -> void:
+	_rolldiag("A_incremented_season")
 	gs.current_season += 1
 	gs.current_week = 1
 	gs.weekly_log.clear()
@@ -240,6 +247,7 @@ func start_new_season() -> void:
 	## proposals are generated at the end (after the car wipe) via generate_tp_assignment_
 	## proposals — see the presentation block. AI auto-assign is moved earlier so AI rosters
 	## are settled before GK fill and the cull read them.
+	_rolldiag("C_before_ai_auto_assign")
 	if gs.current_season >= 2:
 		gs.ai_auto_assign_all_teams()
 
@@ -257,6 +265,7 @@ func start_new_season() -> void:
 			gk_fa_to_clear.append(did)
 	for did in gk_fa_to_clear:
 		gs.all_drivers.erase(did)
+	_rolldiag("D_before_gk_regen")
 	var gk_generated: int = gs.regenerate_gk_field(510)
 	print("[SeasonManager] GK feeder: cleared %d stale FA, generated %d new young cadets." % [
 		gk_fa_to_clear.size(), gk_generated])
@@ -274,6 +283,7 @@ func start_new_season() -> void:
 	## activated (Stage B) person is not culled in the same tick they change status.
 	## _erase_free_agent now archives departing free agents to retired_personnel before
 	## erasing (the Stage-E gap the spec flagged).
+	_rolldiag("E_before_lifecycle_cull")
 	_process_lifecycle_cull()
 
 	# ═══════════════════════════════════════════════════════════════════════
@@ -282,6 +292,7 @@ func start_new_season() -> void:
 	# ═══════════════════════════════════════════════════════════════════════
 
 	# ── Step 5: CNC jobs destroyed, inventory cleared + wipe ALL player cars ─
+	_rolldiag("F_before_car_wipe")
 	gs.player_team_cars.clear()
 	for staff_id in gs.all_staff:
 		var s = gs.all_staff[staff_id]
@@ -330,6 +341,7 @@ func start_new_season() -> void:
 
 	## Re-register AI drivers and teams into championship standings (Season-1 JSON seed
 	## + the absorbed AI roster changes from Stage C).
+	_rolldiag("G_before_load_car_assignments")
 	gs.ai_manager.load_car_assignments()
 
 	# ── Step 4: R&D carry over — P2/UPG fully purged, P1/P3 next-season activate ──
@@ -366,6 +378,7 @@ func start_new_season() -> void:
 	## S41.10 — mirror the above P2/UPG purge across every AI team's rnd_ledger (the player-only prune
 	## above left the 172 AI ledgers to accumulate completed_upg / P2 blueprints / WRA entries unbounded
 	## each season). Same rule as the player; keeps P1/P3 next-season blueprints.
+	_rolldiag("H_before_ai_ledger_prune")
 	var _ai_prune: Dictionary = gs._rnd_engine.prune_ai_ledgers_for_new_season()
 	if int(_ai_prune.get("teams", 0)) > 0:
 		gs.add_log("📋 AI R&D: pruned %d UPG ids + %d P2 blueprints across %d team ledgers for Season %d." % [
@@ -383,6 +396,7 @@ func start_new_season() -> void:
 		(gs.current_season - gs.wra_cycle_start_season) % gs.WRA_CYCLE_LENGTH == 0:
 		gs._apply_wra_regulation_change()
 
+	_rolldiag("I_before_rebuild_rnd_tasks")
 	gs._rebuild_seasonal_rnd_tasks()
 	gs.add_log("🔬 R&D catalog updated for Season %d." % gs.current_season)
 
@@ -393,6 +407,7 @@ func start_new_season() -> void:
 	## (GDD §13.1 "Survive"). Runs here — after teams/cars/championships/R&D-catalog are set for the new
 	## season and BEFORE the weekly loop (and thus before the R&D planner) first runs. Remove when the
 	## real AI income streams (sponsor/prize/commercial) land.
+	_rolldiag("J_before_ai_budget_grant")
 	_ai_apply_season_budget_grant()
 
 	# ── Flush stale planning state from last season (don't re-clear registrations) ──
@@ -407,6 +422,7 @@ func start_new_season() -> void:
 		gs.notify_event("season_no_champs_s%d" % gs.current_season, "Normal",
 			"Season %d started with no championships. Register during this season for Season %d." % [
 			gs.current_season, gs.current_season + 1], "", "event")
+	_rolldiag("L_before_week_advanced_emit")
 	gs.emit_signal("week_advanced", gs.current_week)
 	gs.emit_signal("log_updated")
 

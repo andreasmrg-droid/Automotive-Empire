@@ -1,6 +1,43 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v7.12 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+**Version:** v7.13 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v7.13: (S41.11 diagnosis session) TWO FINDINGS FROM THE SEASON-ROLLOVER CRASH HUNT — no gameplay code
+	changed this session; this is a diagnosis + documentation pass. Temporary instrumentation exists in the
+	tree (see below) and MUST be reverted once the crash is fixed.
+
+	(1) CRASH LOCALIZED — season-boundary SIGSEGV is a UI-rebuild stack overflow, NOT game logic.
+	Symptom: reproducible crash-to-desktop (signal 11, C++ stack overflow; backtrace shows one function
+	self-recursing — frame main+259f90e repeated, entered from the scene-tree/layout layer) at every
+	season boundary when fast-forwarding to season end; triggers deeper into a run (seen S8, S9, S14→15,
+	S15→16, S17→18). Method: flushed print breadcrumbs proved, in order, that (a) end_season/start_new_season
+	run to completion (all [ROLLDIAG] stages Z0→L print), and (b) advance_week()'s W52 body runs to completion
+	AND returns cleanly (all [WKDIAG] probes print, incl. "advance_week RETURNED cleanly"). The crash occurs
+	AFTER advance_week returns, with no intervening log output. The only code there is MainHub._on_skip_to_
+	season_end() → _update_display() + _refresh_log() (scenes/MainHub.gd ~L797-798). So the fault is in the
+	post-skip HUD REBUILD, not the rollover, cull, prune, planner, autosave, or any saved data — all of which
+	were falsified (save depth flat at 7, save size SHRINKING 7.25→6.2→5.37MB, all_staff DECREASING). Leading
+	suspect: one of the refresh builders _update_display() calls — _refresh_notifications (the only self-
+	referential builder; builds nested containers per notification), _refresh_todo, or _refresh_week_strip —
+	recursing in the scene-tree layout pass. NOT yet pinned to the exact builder/line; next session instruments
+	those 4 refresh calls to name it. Correlates with world growth: no_lead climbs 19→22→35→42→50→56 and
+	reached_planner falls 167→…→116 across the run, so the recursing rebuild scales with accumulated state.
+
+	(2) BLUEPRINT WEEKS — first-time-team from-scratch case NOT implemented (real code-vs-canon gap).
+	Canon (§8.6): L1 design weeks are FULL from-scratch (WRA cycle start) and HALVED on a mid-cycle refresh.
+	A team's FIRST-EVER design of a car should ALSO be full-weeks even mid-cycle (first time = from scratch),
+	per the design owner. Code: RnDEngine._rebuild_seasonal_rnd_tasks() sets l1_wk_mult via
+	_is_from_scratch_design(cid, design_season), which returns (_wra_group_season_for(cid, design_season)==1)
+	— i.e. it checks ONLY the cycle boundary, has NO team parameter, and there is NO per-team first-design/
+	entry-season tracking anywhere in the codebase. Also RND_TASKS[tid]["weeks"] is a single GLOBAL value per
+	task, so two durations (full for a newcomer, half for incumbents) for the same blueprint/season cannot even
+	be represented as structured today. Consequence (as flagged by the design owner): a team entering mid-cycle
+	is scheduled by the planner (_latest_safe_start reads that halved weeks) at half the weeks it needs, starts
+	too late, and fields NO next-season car. FIX (not yet done — needs an owner decision): add per-team first-
+	design tracking and make the weeks decision team-aware (planner + RnD start path apply the first-time full-
+	weeks multiplier per team, since the shared task can't). SEPARATE from the crash; no evidence they're linked.
+	§8.6/§8.7 annotated below.
+	NOTE: temporary DIAG instrumentation lives in SeasonManager.gd (S41.11-DIAG, [ROLLDIAG] prints) and
+	GameState.gd (S41.7-DIAG2, [WKDIAG] prints). Both are print-only, no logic change; REVERT after the fix. -->
 <!-- v7.12: (S41.7–S41.10) AI R&D ECONOMY — LOAD FIX, DESIGN-COST REBALANCE, INTERIM BUDGET, LEDGER PRUNE.
 	(S41.7) CRITICAL LOAD-PATH FIX: ai_cars (the {championship_id → [Car]} dict linking every AI team to
 	its championships) was never serialised and never rebuilt on load, so a loaded save left it empty →
@@ -1257,6 +1294,19 @@ team's first season or the first season after a regulation reset) or **0.5** mid
 the discount — RP/CR cost is unchanged**, so tier still makes cars expensive, just not
 un-buildable-in-time. From-scratch vs mid-cycle is detected per championship via
 `RnDEngine._is_from_scratch_design(cid, design_season)` (cycle position; per-group cycle length 4–10, §11).
+
+> **⚠ CODE-vs-CANON GAP (v7.13, confirmed by reading the code — UNFIXED).** The "a new team's first season"
+> clause above is **canon but NOT implemented.** `_is_from_scratch_design(cid, design_season)` returns
+> `(_wra_group_season_for(cid, design_season) == 1)` — it checks **only** the WRA cycle boundary. It has
+> **no team parameter**, and there is **no per-team first-design / entry-season tracking anywhere** in the
+> codebase. So a team designing a car for the **first time mid-cycle** is (wrongly) given the **halved**
+> weeks instead of full. Because `RND_TASKS[tid]["weeks"]` is a **single global value per task**, two
+> durations (full for the newcomer, half for incumbents) for the *same* blueprint/season cannot even be
+> represented as the data stands. **Consequence:** the planner's `_latest_safe_start` reads the halved
+> weeks, starts the newcomer's design too late, and the team fields **no next-season car**. **Fix (needs an
+> owner decision on where first-design state lives):** add per-team first-design tracking and make the weeks
+> decision team-aware in BOTH the planner and the RnD start path (the shared task can't hold two values).
+> This is independent of the v7.13 season-boundary crash — no evidence they're linked.
 
 - **L1 blueprint CR — car-anchored (S41.8 / S41.8b).** Separate from the weeks rule above (which is
 unchanged): the L1 *design CR* used to be a flat `PART_BASE_P1.cr` sum (~104k, ×tier_mult), decoupled from
