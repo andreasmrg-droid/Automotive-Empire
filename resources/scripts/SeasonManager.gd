@@ -1,4 +1,9 @@
 class_name SeasonManager
+## Version: S41.10 — AI-ledger rollover PRUNE call. start_new_season() now invokes
+##   gs._rnd_engine.prune_ai_ledgers_for_new_season() right after the player's own P2/UPG purge, so the
+##   172 AI ledgers get the same season cleanup the player gets (they previously accumulated completed_upg
+##   / P2 blueprints / WRA entries unbounded — a modest memory leak). Logs a one-line summary. Engine logic
+##   lives in RnDEngine S41.10. Analysis-checked; NOT Godot-parsed.
 ## Version: S41.9 — INTERIM AI BUDGET GRANT. AI teams have no income wired (FinancialEngine only drains
 ##   their salaries), so balances bled to zero over a few seasons and the R&D CR/feasibility gates falsely
 ##   locked teams out. start_new_season() now calls _ai_apply_season_budget_grant() (right after the R&D
@@ -357,6 +362,15 @@ func start_new_season() -> void:
 	if expired_upg > 0 or not p2_bp_ids.is_empty():
 		gs.add_log("📋 %d upgrade tasks + %d P2 blueprints purged (R&D/WRA/CNC) for Season %d. Upgrades reset to L1." % [
 			expired_upg, p2_bp_ids.size(), gs.current_season])
+
+	## S41.10 — mirror the above P2/UPG purge across every AI team's rnd_ledger (the player-only prune
+	## above left the 172 AI ledgers to accumulate completed_upg / P2 blueprints / WRA entries unbounded
+	## each season). Same rule as the player; keeps P1/P3 next-season blueprints.
+	var _ai_prune: Dictionary = gs._rnd_engine.prune_ai_ledgers_for_new_season()
+	if int(_ai_prune.get("teams", 0)) > 0:
+		gs.add_log("📋 AI R&D: pruned %d UPG ids + %d P2 blueprints across %d team ledgers for Season %d." % [
+			int(_ai_prune.get("upg_ids", 0)), int(_ai_prune.get("p2_bps", 0)),
+			int(_ai_prune.get("teams", 0)), gs.current_season])
 
 	## FUTURE (S35.11 hook — inert): outbound parts/cars supply contracts activate HERE at
 	## season start. If the provider fails to deliver contracted parts/cars on time, apply a

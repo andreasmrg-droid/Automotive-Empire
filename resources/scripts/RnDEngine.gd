@@ -1,4 +1,12 @@
 class_name RnDEngine
+## Version: S41.10 — AI-ledger season-rollover PRUNE. Added prune_ai_ledgers_for_new_season(): mirrors the
+##   player's rollover P2/UPG purge (clear completed_upg, drop UPG- ids from completed_rnd, erase P2
+##   blueprints from known_blueprints, filter them out of wra_active/approved/rejected) across ALL 172 AI
+##   ledgers. Previously the AI ledgers got NO rollover cleanup, so P2/UPG/WRA data accumulated unbounded
+##   every season (a real, ~MB-scale leak that compounds now ~90% of AI teams self-design). Called from
+##   SeasonManager.start_new_season() right after the player's own prune. P1/P3 next-season blueprints are
+##   kept (same as the player). Analysis-checked (brace-balance + type audit; Variant indexes cast via
+##   as Array/as Dictionary); NOT Godot-parsed.
 ## Version: S41.8b — P3 (Reverse Engineering) L1 CR is now 0.8 × the matching P1 L1 CR (was an RE PREMIUM
 ##   of ~1.2–1.67× under S41.8). RE is the cheaper budget/survival route, which also aligns with the
 ##   planner treating P3 as the cheapest legal part. Only the P3_OVER_P1_CR constant changed; all S41.8
@@ -190,6 +198,49 @@ func _rebuild_seasonal_rnd_tasks() -> void:
 	for k in p4_tasks:
 		if not k in gs.RND_TASKS:
 			gs.RND_TASKS[k] = p4_tasks[k]
+
+## S41.10 — AI-ledger season-rollover prune. The player's R&D state gets a full P2/UPG purge at rollover
+## (SeasonManager: completed_upg cleared, P2 blueprints erased from known_blueprints + WRA). The 172 AI
+## ledgers previously got NONE of this, so completed_upg / P2 known_blueprints / WRA entries accumulated
+## unbounded every season — a real (if modest, ~MB-scale) memory leak that compounds now that ~90% of AI
+## teams self-design each year. This mirrors the player's prune EXACTLY, per AI ledger. Called from
+## SeasonManager.start_new_season() right after the player's own prune block. Returns a small stats dict
+## for logging. P1/P3 next-season blueprints are intentionally KEPT (same as the player): they're stamped
+## for the new season and are needed to field the car.
+func prune_ai_ledgers_for_new_season() -> Dictionary:
+	var teams_pruned := 0
+	var upg_ids_cleared := 0
+	var p2_bps_erased := 0
+	for team in gs.all_teams:
+		if team == null or _is_player_ledger(team):
+			continue
+		if not team.has_meta("rnd_ledger"):
+			continue
+		var led: Dictionary = _ledger_for(team)   ## also backfills any missing keys defensively
+		## 1) clear completed P2 (upgrade) task ids
+		upg_ids_cleared += (led["completed_upg"] as Array).size()
+		led["completed_upg"] = []
+		## 2) drop UPG- ids from completed_rnd (prereq set)
+		led["completed_rnd"] = (led["completed_rnd"] as Array).filter(
+			func(tid): return not str(tid).begins_with("UPG-"))
+		## 3) collect + erase P2 blueprints from known_blueprints
+		var p2_bp_ids: Array = []
+		for bp_id in led["known_blueprints"]:
+			if (led["known_blueprints"][bp_id] as Dictionary).get("pillar", 0) == 2:
+				p2_bp_ids.append(bp_id)
+		for bp_id in p2_bp_ids:
+			(led["known_blueprints"] as Dictionary).erase(bp_id)
+		p2_bps_erased += p2_bp_ids.size()
+		## 4) purge those P2 blueprints from the WRA pipeline (in-flight + approved + rejected)
+		led["wra_active"] = (led["wra_active"] as Array).filter(
+			func(sub): return not (sub as Dictionary).get("blueprint_id", "") in p2_bp_ids)
+		led["wra_approved"] = (led["wra_approved"] as Array).filter(
+			func(app): return not (app as Dictionary).get("blueprint_id", "") in p2_bp_ids)
+		led["wra_rejected"] = (led["wra_rejected"] as Array).filter(
+			func(rej): return not (rej as Dictionary).get("blueprint_id", "") in p2_bp_ids)
+		if upg_ids_cleared > 0 or not p2_bp_ids.is_empty():
+			teams_pruned += 1
+	return {"teams": teams_pruned, "upg_ids": upg_ids_cleared, "p2_bps": p2_bps_erased}
 
 ## Generates P1/P2/P3/P4 tasks for a given season.
 ## IDs: BP-{CHAMP}-{PART}-S{n}-L{lv} | UPG-... | RE-...-L1
