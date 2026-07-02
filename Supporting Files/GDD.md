@@ -1,9 +1,38 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v7.13 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+**Version:** v7.14 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v7.14: (S41.12) SEASON-BOUNDARY CRASH — FIXED, + rollover notification clear, + DIAG reverted.
+	ROOT CAUSE PINNED (from the S7→S8 playtest crash, godot.log): the reproducible season-boundary SIGSEGV
+	is a HUD-rebuild stack overflow in Godot's C++ container-layout pass (backtrace = a single frame
+	self-recursing), NOT game logic — exactly where the v7.13 diagnosis localized it (MainHub post-skip
+	rebuild). MECHANISM: news_feed was capped to 60 ONLY at the top of advance_week(); log_news() appended
+	UNCAPPED. At W52 the rollover's Stage-E cull logs one log_news line PER retiree — 117 at the S7→S8
+	boundary vs ~25 at every earlier boundary — so news_feed swelled to ~180 AFTER that tick's cap had
+	already run. advance_week returned cleanly; then _on_skip_to_season_end → _refresh_log built ~180
+	autowrap + fixed-min-width Labels into a VBox inside a ScrollContainer, and the layout solver recursed
+	past the stack limit. The existing 60-cap would have trimmed it, but it only fires on the NEXT
+	advance_week, which never runs. This is why it reproduced at EVERY boundary but only DEEP into a run
+	(you need a retirement wave big enough to push the label count over the recursion limit — the earlier
+	"scales with no_lead/world-growth" guess was wrong; no_lead was flat at 5, the driver is per-boundary
+	retiree count). FIX (GameState.gd): log_news() now SELF-CAPS at NEWS_FEED_CAP (=20) on every append, so
+	the feed can never reach the rebuild oversized regardless of caller or timing; the advance_week weekly
+	cap is unified to the same constant as a cheap backstop. Only the news-panel DISPLAY is bounded —
+	retirements, rosters, standings, and the retired_personnel History archive are all untouched. §13.2.1
+	updated. (2) ROLLOVER NOTIFICATION CLEAR (SeasonManager.start_new_season): gs.clear_all_notifications()
+	now runs at rollover start — BEFORE the Stage-E cull / aging pass — so last season's operational noise
+	(low fuel, missed registration deadline, DNS readiness) is wiped while the genuine NEW-season
+	notifications that pass generates ("your driver retired — sign a replacement", "car needs building") are
+	preserved. §15 updated. (3) DIAG REVERTED: the S41.7-DIAG2 [WKDIAG] prints (GameState) and the
+	S41.11-DIAG [ROLLDIAG] helper + all A→L call sites (SeasonManager) are removed now the crash is pinned.
+	OBSERVED-BUT-NOT-FIXED (flagged, separate): the S7→S8 boundary retired 117 vs a steady ~25 — a
+	retirement-wave spike from the staff hard-retire-at-65 cliff catching an age-clustered seed cohort. Not
+	the crash (the cap fixes the crash at any wave size) but worth smoothing later (§12 aging). The v7.13
+	from-scratch first-team weeks gap (§8.6) is STILL open — untouched this session, independent of the
+	crash. Files: GameState.gd, SeasonManager.gd. Analysis-checked (brace-balance + type-inference audit);
+	NOT Godot-parsed — verify by fast-forwarding through the S7→S8 boundary (and beyond) without a crash. -->
 <!-- v7.13: (S41.11 diagnosis session) TWO FINDINGS FROM THE SEASON-ROLLOVER CRASH HUNT — no gameplay code
-	changed this session; this is a diagnosis + documentation pass. Temporary instrumentation exists in the
-	tree (see below) and MUST be reverted once the crash is fixed.
+	changed this session; this is a diagnosis + documentation pass. [RESOLVED in v7.14 — crash fixed, DIAG
+	reverted.] Temporary instrumentation existed in the tree (see below) and had to be reverted once fixed.
 
 	(1) CRASH LOCALIZED — season-boundary SIGSEGV is a UI-rebuild stack overflow, NOT game logic.
 	Symptom: reproducible crash-to-desktop (signal 11, C++ stack overflow; backtrace shows one function
@@ -382,7 +411,7 @@
 	 dual-ledger promotion, B-before-E fix, GK-as-sole-generation-source, Stage-E archive write. -->
 <!-- v5.2: §12-A canonical approach flow (interest→bond→contract), release-clause vs buyout-bond
 	 distinction, TP/CFO role split, join-date bond calc, immediate-transfer 1.5×+25% fee. -->
-**Last updated:** 2026-07-01 · **Repo:** https://github.com/andreasmrg-droid/Automotive-Empire.git
+**Last updated:** 2026-07-02 · **Repo:** https://github.com/andreasmrg-droid/Automotive-Empire.git
 
 > This is the single source of truth for the design of Automotive Empire. All prior
 > session-handoff notes and manual "latest update" appendices have been absorbed into
@@ -1812,7 +1841,14 @@ conflated:
   repairs, "added to garage", "starting assets ready", remaining-balance, weekly P&L, week dividers.
   Reset every week. **Not shown in the NEWS panel.**
 - **`news_feed`** (`GameState.log_news`) — the curated WORLD-NEWS stream the **NEWS panel renders**.
-  Persists across weeks (capped at 60), cleared per season, saved/loaded (old saves default empty).
+  Persists across weeks, cleared per season, saved/loaded (old saves default empty). **Capped at
+  `NEWS_FEED_CAP = 20` (S41.12): `log_news()` SELF-TRIMS on every append** — this is not just tidiness,
+  it is a HARD SAFETY INVARIANT. The NEWS panel builds one autowrapping min-width `Label` per entry, and
+  Godot's container-layout pass over enough of them self-recurses to a C++ stack overflow. Before S41.12
+  the cap ran only at the top of `advance_week()`, so a big same-tick batch — the 100+ retirements the
+  Stage-E cull logs at a season rollover — reached MainHub's `_refresh_log` uncapped and crashed the game
+  at the season boundary. Capping inside `log_news` makes the feed size independent of caller/timing. The
+  20-entry limit is display-only; the permanent per-person record lives in `retired_personnel` (§7.1).
 
 **What IS news (routed via `log_news`, or `notify_event(mode:"news")` for the few notification-bearing
 ones):**
@@ -2018,6 +2054,15 @@ week to week (e.g. a delivery week or deadline embedded in it) still collapses. 
 subjects keep distinct items separate while each one collapses over time; the weekly log keeps the
 full history (only the panel collapses). The GK elimination notice additionally fires exactly once
 per season (a per-season flag), since a Round-1 exit otherwise re-announced at every later round.
+
+**Season-rollover clear (S41.12):** `SeasonManager.start_new_season()` calls
+`gs.clear_all_notifications()` at rollover start. Last season's operational notifications (low fuel,
+missed registration deadline, DNS readiness gaps, etc.) are meaningless in the new season and only
+clutter the panel, so the whole notification list is wiped at the boundary. **Ordering matters:** the
+clear runs BEFORE the Stage-E cull / aging pass (§7.1), which is what generates the genuine new-season
+notifications ("your driver retired — sign a replacement", "car needs building", academy/contract
+expiries) — so only the pre-rollover backlog is cleared and the new season's real alerts survive
+intact. (The curated `news_feed` is separately cleared per season in the same function; §13.2.1.)
 
 ### 15.1 Notification Framework — the 1-event model (S37.7)
 
@@ -2419,7 +2464,7 @@ Historical record of what shipped; design facts above already reflect these.
 	the operational `weekly_log`; `GameState.log_news()` is the news entry point. Only genuine world
 	events are news (race result headline, champions, signings/releases, retirements, WRA rule change,
 	season dividers); DNS/setup/development/economic chatter and empty week dividers are log/notification
-	only (§13.2.1). `news_feed` persists across weeks (cap 60), clears per season, saved/loaded.
+	only (§13.2.1). `news_feed` persists across weeks (cap `NEWS_FEED_CAP=20`, S41.12), clears per season, saved/loaded.
   - *News-feed fixes (S37.64)* — (a) **crash fix**: `_push_news` now pushes a `String` into the typed
 	`news_feed` (was a Dictionary → runtime type error on retirements/signings); (b) signings no longer
 	**double-post** to news (their notification is `mode:"event"`, news comes from `log_news`);

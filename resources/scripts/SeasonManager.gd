@@ -1,4 +1,15 @@
 class_name SeasonManager
+## Version: S41.12 — SEASON-BOUNDARY CRASH FIX (part 2/2) + rollover notification clear. (1) Reverted the
+##   S41.11-DIAG [ROLLDIAG] instrumentation (helper + all A→L call sites) now the crash is pinned. The
+##   season-boundary SIGSEGV was a HUD-rebuild layout-pass stack overflow fed by an UNCAPPED news_feed:
+##   the Stage-E cull logs one log_news line per retiree (117 at the S7→S8 boundary in the playtest), and
+##   news_feed's only cap ran at the TOP of the prior advance_week — so the feed reached MainHub's
+##   _refresh_log oversized and the container layout recursed to a C++ stack overflow. Real fix is in
+##   GameState.log_news (self-capping at NEWS_FEED_CAP=20); this file just drops the DIAG. (2) NEW:
+##   start_new_season() now calls gs.clear_all_notifications() at rollover start — before the Stage-E cull
+##   /aging pass — so last season's operational noise (low fuel, missed deadline, DNS readiness) is wiped
+##   while the genuine new-season notifications that pass generates are preserved. Analysis-checked
+##   (brace-balance + type-inference audit); NOT Godot-parsed.
 ## Version: S41.10 — AI-ledger rollover PRUNE call. start_new_season() now invokes
 ##   gs._rnd_engine.prune_ai_ledgers_for_new_season() right after the player's own P2/UPG purge, so the
 ##   172 AI ledgers get the same season cleanup the player gets (they previously accumulated completed_upg
@@ -121,7 +132,6 @@ func _init(game_state) -> void:
 # ═══════════════════════════════════════════════════════════════════════════
 
 func end_season() -> void:
-	_rolldiag("Z0_end_season_enter")
 	gs.log_news("=== SEASON %d COMPLETE ===" % gs.current_season)
 
 	# ── 1. Award champion titles for EVERY championship, archive to History ──────
@@ -163,7 +173,6 @@ func end_season() -> void:
 	## Apply reputation inertia — rep moves toward earned value slowly
 	gs._apply_reputation_inertia()
 
-	_rolldiag("Z1_before_season_ended_emit")
 	gs.emit_signal("season_ended", gs.current_season)
 	gs.emit_signal("log_updated")
 	gs._process_sponsors_season_end()
@@ -178,16 +187,17 @@ func end_season() -> void:
 # STEP 2: START NEW SEASON — 15-step order from GDD §16.3
 # ═══════════════════════════════════════════════════════════════════════════
 
-func _rolldiag(tag: String) -> void:
-	print("[ROLLDIAG] ", tag)
-	OS.delay_msec(0)  # force stdout flush so a SIGSEGV on the next stage can't swallow this marker
-
 func start_new_season() -> void:
-	_rolldiag("A_incremented_season")
 	gs.current_season += 1
 	gs.current_week = 1
 	gs.weekly_log.clear()
 	gs.news_feed.clear()   ## S37.63 — fresh news feed each season
+	## S41.12 — clear last season's stale notifications at rollover start. Prior-season operational
+	## noise (low fuel, missed registration deadline, DNS readiness) is meaningless in the new season
+	## and just clutters the panel. This runs BEFORE the Stage-E cull / aging pass below, so the
+	## genuine NEW-season notifications those generate (e.g. "your driver retired — sign a
+	## replacement", "car needs building") are preserved — only the pre-rollover backlog is wiped.
+	gs.clear_all_notifications()
 	gs.pending_season_screen = "begin_of_season"
 	## S40.14 — reset the profit basis for the new season (tax is measured from here to season end).
 	gs.snapshot_season_start_balance()
@@ -247,7 +257,6 @@ func start_new_season() -> void:
 	## proposals are generated at the end (after the car wipe) via generate_tp_assignment_
 	## proposals — see the presentation block. AI auto-assign is moved earlier so AI rosters
 	## are settled before GK fill and the cull read them.
-	_rolldiag("C_before_ai_auto_assign")
 	if gs.current_season >= 2:
 		gs.ai_auto_assign_all_teams()
 
@@ -265,7 +274,6 @@ func start_new_season() -> void:
 			gk_fa_to_clear.append(did)
 	for did in gk_fa_to_clear:
 		gs.all_drivers.erase(did)
-	_rolldiag("D_before_gk_regen")
 	var gk_generated: int = gs.regenerate_gk_field(510)
 	print("[SeasonManager] GK feeder: cleared %d stale FA, generated %d new young cadets." % [
 		gk_fa_to_clear.size(), gk_generated])
@@ -283,7 +291,6 @@ func start_new_season() -> void:
 	## activated (Stage B) person is not culled in the same tick they change status.
 	## _erase_free_agent now archives departing free agents to retired_personnel before
 	## erasing (the Stage-E gap the spec flagged).
-	_rolldiag("E_before_lifecycle_cull")
 	_process_lifecycle_cull()
 
 	# ═══════════════════════════════════════════════════════════════════════
@@ -292,7 +299,6 @@ func start_new_season() -> void:
 	# ═══════════════════════════════════════════════════════════════════════
 
 	# ── Step 5: CNC jobs destroyed, inventory cleared + wipe ALL player cars ─
-	_rolldiag("F_before_car_wipe")
 	gs.player_team_cars.clear()
 	for staff_id in gs.all_staff:
 		var s = gs.all_staff[staff_id]
@@ -341,7 +347,6 @@ func start_new_season() -> void:
 
 	## Re-register AI drivers and teams into championship standings (Season-1 JSON seed
 	## + the absorbed AI roster changes from Stage C).
-	_rolldiag("G_before_load_car_assignments")
 	gs.ai_manager.load_car_assignments()
 
 	# ── Step 4: R&D carry over — P2/UPG fully purged, P1/P3 next-season activate ──
@@ -378,7 +383,6 @@ func start_new_season() -> void:
 	## S41.10 — mirror the above P2/UPG purge across every AI team's rnd_ledger (the player-only prune
 	## above left the 172 AI ledgers to accumulate completed_upg / P2 blueprints / WRA entries unbounded
 	## each season). Same rule as the player; keeps P1/P3 next-season blueprints.
-	_rolldiag("H_before_ai_ledger_prune")
 	var _ai_prune: Dictionary = gs._rnd_engine.prune_ai_ledgers_for_new_season()
 	if int(_ai_prune.get("teams", 0)) > 0:
 		gs.add_log("📋 AI R&D: pruned %d UPG ids + %d P2 blueprints across %d team ledgers for Season %d." % [
@@ -396,7 +400,6 @@ func start_new_season() -> void:
 		(gs.current_season - gs.wra_cycle_start_season) % gs.WRA_CYCLE_LENGTH == 0:
 		gs._apply_wra_regulation_change()
 
-	_rolldiag("I_before_rebuild_rnd_tasks")
 	gs._rebuild_seasonal_rnd_tasks()
 	gs.add_log("🔬 R&D catalog updated for Season %d." % gs.current_season)
 
@@ -407,7 +410,6 @@ func start_new_season() -> void:
 	## (GDD §13.1 "Survive"). Runs here — after teams/cars/championships/R&D-catalog are set for the new
 	## season and BEFORE the weekly loop (and thus before the R&D planner) first runs. Remove when the
 	## real AI income streams (sponsor/prize/commercial) land.
-	_rolldiag("J_before_ai_budget_grant")
 	_ai_apply_season_budget_grant()
 
 	# ── Flush stale planning state from last season (don't re-clear registrations) ──
@@ -422,7 +424,6 @@ func start_new_season() -> void:
 		gs.notify_event("season_no_champs_s%d" % gs.current_season, "Normal",
 			"Season %d started with no championships. Register during this season for Season %d." % [
 			gs.current_season, gs.current_season + 1], "", "event")
-	_rolldiag("L_before_week_advanced_emit")
 	gs.emit_signal("week_advanced", gs.current_week)
 	gs.emit_signal("log_updated")
 
