@@ -1,4 +1,7 @@
 class_name CarManager
+## Version: S41.15 — buying/building a car now also fires gs._fire_design_proposals_event() (a new car
+##   can change the championships raced → new design candidates), alongside the existing TP trigger.
+##   Analysis-checked; NOT Godot-parsed.
 ## Version: S37.61 — Bug #38 CREW MODEL: co-drivers share ONE car result. Only the car's seat-0
 ##   REPRESENTATIVE is registered in standings (one entry per car); _resync keeps standings = reps.
 ## Version: S37.60 — Bug #38 (multi-driver): assign_driver_to_car is seat-aware (`seat` arg;
@@ -164,6 +167,9 @@ func add_car(for_champ_id: String = "", silent: bool = false) -> bool:
 				"🏎 %s in build — arrives Week %d. Pre-assign a driver via the Garage so it's race-ready on delivery." % [
 				car.car_name, car.delivery_week], "garage", "event")
 		gs._fire_assignment_proposals()
+		## S41.15 — a new car can change the championships the team races → new design candidates.
+		## Refresh the Lead-Designer proposal immediately (event-driven, mirrors the TP trigger above).
+		gs._fire_design_proposals_event()
 	gs.emit_signal("log_updated")
 	return true
 

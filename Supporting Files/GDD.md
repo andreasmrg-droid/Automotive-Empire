@@ -1,6 +1,36 @@
 # Automotive Empire — Game Design Document
 
-**Version:** v7.14 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+**Version:** v7.16 (consolidated master) · **Engine:** Godot 4.7 / GDScript
+<!-- v7.16: (S41.13–S41.15) AI R&D ECONOMY — P4 ON-TRACK UPLIFT, §8.6 FIRST-TEAM WEEKS, PLAYER PROPOSALS
+	(CHANGE-GATED). Folds the S41.13 code (committed) + the S41.15 player-proposal correction into the GDD
+	(the v7.15 draft was never committed; code had outrun the doc — code is truth, doc now caught up).
+	(1) P4 ON-TRACK UPLIFT (§14) — AIChampionshipSim.car_strength() folds in the car's TEAM P4 bonuses
+	(perf_bonus → strength; small reliability_bonus weight), mirroring the player RaceSimulator; AI R&D now
+	has real on-track effect. PART (P1/P2/P3) uplift stays deferred to AI-CnC (parts change perf via CnC).
+	(2) §8.6 PER-TEAM FROM-SCRATCH WEEKS (was v7.13-flagged UNFIXED → now RESOLVED) — a team's first-ever
+	design of a part is full-weeks even mid-cycle, via team_designs_from_scratch() reading completed_bp
+	(player globals / AI ledger); planner recomputes per-team weeks (single-sourced get_l1_weeks_for). Mixed-
+	provenance cars ARE allowed (researched customer-team pattern), so the rule is per-part.
+	(3) PLAYER LEAD-DESIGNER PROPOSALS — CHANGE-GATED + EVENT-DRIVEN (S41.15, TP parity). The first wiring
+	(uncommitted S41.14) called the generator UNCONDITIONALLY every week, re-firing the notification every
+	advance_week (playtest: S1 W2/W3/W4/W5 "hire a Lead Designer" stacked). Corrected to mirror
+	TPProposalEngine exactly: maybe_generate_design_proposals() regenerates only when the design STATE
+	changed (Lead hired/lost, line freed/filled, Studio level or championships changed — via a snapshot +
+	_design_state_changed); fire_design_proposals_event() gives immediate refresh on Designer-hire (Staff
+	Manager) and car buy/build (CarManager), routed through GameState._fire_design_proposals_event. The TDL
+	row now routes to R&D Studio (MainHub._get_todo_destination gained a Lead-Designer/R&D-Studio branch —
+	the arrow was missing). apply refreshes the snapshot post-accept so it can't re-fire.
+	STILL OPEN (explicitly NOT this batch): (a) the R&D Studio PROPOSAL DISPLAY PANEL — the TDL/notification
+	says "proposals ready" but RnDStudio.gd doesn't yet render _last_design_proposals (peek_design_proposals
+	exists, unused); (b) the 5-PILLAR FORECAST/PROJECTION ADVISOR — the Lead Designer should project fully-
+	accumulated end-of-season RP and advise across P1–P5 ("if we accumulate we can RE these parts", "only
+	upgrades this season", "need a CNC Plant", "enough RP for Special Project X", "next commercial model"),
+	with a hybrid statements-plus-actionable-now panel + popup (mirroring RacingDept + TPProposalsPopup).
+	These two are the NEXT task, needing a full P4/P5/commercial-gating read. (c) Retreat & backfill (spec
+	step 6) still open. Files (S41.15): LeadDesignerProposalEngine.gd, GameState.gd, StaffManager.gd,
+	CarManager.gd, MainHub.gd. Analysis-checked (brace-balance + type audit); NOT Godot-parsed — verify by
+	playtest: the "hire a Lead Designer" notification fires ONCE (not weekly); hiring a Designer refreshes it
+	immediately; the TDL row has a working → arrow to R&D Studio. -->
 <!-- v7.14: (S41.12) SEASON-BOUNDARY CRASH — FIXED, + rollover notification clear, + DIAG reverted.
 	ROOT CAUSE PINNED (from the S7→S8 playtest crash, godot.log): the reproducible season-boundary SIGSEGV
 	is a HUD-rebuild stack overflow in Godot's C++ container-layout pass (backtrace = a single frame
@@ -1324,18 +1354,20 @@ the discount — RP/CR cost is unchanged**, so tier still makes cars expensive, 
 un-buildable-in-time. From-scratch vs mid-cycle is detected per championship via
 `RnDEngine._is_from_scratch_design(cid, design_season)` (cycle position; per-group cycle length 4–10, §11).
 
-> **⚠ CODE-vs-CANON GAP (v7.13, confirmed by reading the code — UNFIXED).** The "a new team's first season"
-> clause above is **canon but NOT implemented.** `_is_from_scratch_design(cid, design_season)` returns
-> `(_wra_group_season_for(cid, design_season) == 1)` — it checks **only** the WRA cycle boundary. It has
-> **no team parameter**, and there is **no per-team first-design / entry-season tracking anywhere** in the
-> codebase. So a team designing a car for the **first time mid-cycle** is (wrongly) given the **halved**
-> weeks instead of full. Because `RND_TASKS[tid]["weeks"]` is a **single global value per task**, two
-> durations (full for the newcomer, half for incumbents) for the *same* blueprint/season cannot even be
-> represented as the data stands. **Consequence:** the planner's `_latest_safe_start` reads the halved
-> weeks, starts the newcomer's design too late, and the team fields **no next-season car**. **Fix (needs an
-> owner decision on where first-design state lives):** add per-team first-design tracking and make the weeks
-> decision team-aware in BOTH the planner and the RnD start path (the shared task can't hold two values).
-> This is independent of the v7.13 season-boundary crash — no evidence they're linked.
+> **✅ RESOLVED (S41.13 / v7.16) — the first-team from-scratch weeks are now implemented.** The verdict is
+> per-team via `RnDEngine.team_designs_from_scratch(team, cid, part, design_season)`: **from-scratch (full
+> weeks)** when the WRA cycle is at its start year (regulation reset — everyone) **OR** the team has **no
+> prior-season L1 blueprint** for `[cid, part]` from **either P1 or P3** (its first-ever design); **refresh
+> (half weeks)** only mid-cycle AND when the team has designed the part before. The "prior design" record
+> is the team's `completed_bp` set — player→globals, AI→`rnd_ledger` — so it's correct for **both today
+> with no CnC dependency**. The single global `RND_TASKS[tid]["weeks"]` still holds the incumbent value
+> mid-cycle; the planner recomputes per-team weeks via `_team_l1_weeks` → `get_l1_weeks_for(get_l1_base_
+> weeks(...), tier_mult, team_designs_from_scratch(...))` (single-sourced in `RnDEngine`), so
+> `_latest_safe_start` schedules a newcomer at full weeks and it fields its car. This is also the seam the
+> AI-CnC project reads to know which blueprints a team owns. **Provenance ruling (researched + owner-
+> confirmed):** mixed-provenance cars (buy a base car, self-develop some parts) **are allowed** — the real
+> customer-team pattern and what the P3 pipeline is built for — so the weeks rule is **per-part**, no
+> whole-car "own-or-bought" restriction. Independent of the v7.14 season-boundary crash.
 
 - **L1 blueprint CR — car-anchored (S41.8 / S41.8b).** Separate from the weeks rule above (which is
 unchanged): the L1 *design CR* used to be a flat `PART_BASE_P1.cr` sum (~104k, ×tier_mult), decoupled from
@@ -1971,11 +2003,16 @@ own car (real sim owns that result) and GK (shadow sim).
 player `is_player_champ` branch — it does NOT reopen the S37.43 Bug-3 gate (no DNS spam). Engine
 declared + instantiated at all 3 init sites (new-game / load / setup).
 
-**`car_strength()` is the deliberate SWAP-POINT for Phase 5.** The strength model is currently a pure
-function of existing stats. When the economy phases land, swap its internals to read economic outputs
-(team budgets / character) so AI car strength reflects each team's financial state — without touching
-the plumbing. Pairs with the Transfer Market (P51) for the fully-alive AI world. Full spec:
-`FEATURE_AI_Championship_Sim.md`.
+**`car_strength()` is the deliberate SWAP-POINT for Phase 5.** The strength model was a pure function of
+existing stats. **S41.13 took the first real swap:** `car_strength` now folds in the car's TEAM **P4 R&D
+bonuses** — `perf_bonus` (lap-time-advantage fraction → strength up) plus a small `reliability_bonus`
+weight (no DNF roll in this simplified sim, so a more-reliable car finishes better on average), via
+`gs._rnd_engine.perf_bonus(team)`/`reliability_bonus(team)` with the team resolved from the representative
+driver's `contract_team`. This mirrors the PLAYER `RaceSimulator` (which already applied the same bonuses to
+lap time); the AI sim had ignored them, so AI R&D previously had zero on-track effect. **Still deferred to
+the AI-CnC project:** PART-blueprint (P1/P2/P3) uplift — self-designed parts change performance only once
+CnC installs them and `car_strength` reads real installed AI parts. Pairs with the Transfer Market for the
+fully-alive AI world. Full spec: `FEATURE_AI_Championship_Sim.md`.
 
 **Racing World display (S37.48).** AI championship cards show driver + team leader. The GK card shows
 the driver AND team CHAMPION even when the player raced a different discipline (reads GKDiscipline

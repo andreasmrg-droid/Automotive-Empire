@@ -1,4 +1,15 @@
 class_name LeadDesignerProposalEngine
+## Version: S41.15 — PLAYER LEAD-DESIGNER PROPOSALS: CHANGE-GATED + EVENT-DRIVEN (TP parity). Supersedes
+##   the buggy uncommitted S41.14 wiring, which called generate_design_proposals() UNCONDITIONALLY every
+##   week — re-firing the "hire a Lead Designer" / "proposals ready" notification EVERY advance_week
+##   (S1 W2/W3/W4/W5 stacked in playtest). Now mirrors TPProposalEngine exactly: maybe_generate_design_
+##   proposals() only regenerates + re-notifies when the design STATE changed (Lead hired/lost, a line
+##   freed/filled, Studio level or championships changed) via _take_design_snapshot()/_design_state_
+##   changed(); fire_design_proposals_event() gives immediate refresh on Designer-hire / car buy-build
+##   (wired in StaffManager + CarManager, routed through GameState._fire_design_proposals_event). apply_
+##   design_proposals refreshes the snapshot post-accept so it can't re-fire. (Points 3/4 — the RnDStudio
+##   proposal DISPLAY panel + the 5-pillar forecast/projection advisor — are the NEXT task, not here.)
+##   Analysis-checked (brace-balance + type audit); NOT Godot-parsed.
 ## Version: S41.13 — §8.6 TEAM-AWARE SAFE-START. _latest_safe_start() now computes each part's L1 weeks
 ##   via the new _team_l1_weeks() helper (→ RnDEngine.team_designs_from_scratch + get_l1_weeks_for), so
 ##   a team designing a part for the FIRST time is scheduled at FULL weeks even mid-cycle and isn't
@@ -49,6 +60,57 @@ func generate_design_proposals() -> Array:
 	var proposals := compute_design_queue(gs.player_team, gs.player_team_cars)
 	_fire_design_proposal_notification(proposals)
 	return proposals
+
+## ── CHANGE-GATED weekly regeneration (S41.15 — mirrors TPProposalEngine._tp_roster_changed) ───
+## The weekly heartbeat calls THIS, not generate_design_proposals() directly. It only regenerates
+## (and thus only re-fires the notification/TDL) when the design SITUATION actually changed since the
+## last generation — the same discipline TP uses so the player isn't re-notified every single week.
+## Without this gate the notification fired every advance_week (S1 W2/W3/W4/W5 stacked in playtest).
+func maybe_generate_design_proposals() -> void:
+	if gs.player_team == null:
+		return
+	## Regenerate only when the cache is empty (first run / post-accept cleared) OR the design state
+	## changed (Lead hired/lost, a line freed or filled, Studio level changed, championships changed).
+	if gs._last_design_proposals.is_empty() or _design_state_changed():
+		gs._last_design_proposals = generate_design_proposals()
+		_design_snapshot = _take_design_snapshot()
+
+## Snapshot of everything that affects the design proposal: the Lead Designer (id), the Studio
+## capacity, how many lines are free right now, and the set of championships the team races. If none
+## of these changed week-to-week, the proposal is identical and we must NOT re-notify.
+var _design_snapshot: Dictionary = {}
+
+func _take_design_snapshot() -> Dictionary:
+	var snap: Dictionary = {}
+	var team = gs.player_team
+	if team == null:
+		return snap
+	snap["lead"] = _lead_designer_for(team)
+	snap["capacity"] = _studio_level_for(team)
+	snap["free"] = maxi(0, _studio_level_for(team) - _lines_in_progress_for(team))
+	var champs := _team_championships(team)
+	champs.sort()
+	snap["champs"] = ",".join(champs)
+	return snap
+
+func _design_state_changed() -> bool:
+	var current := _take_design_snapshot()
+	if current.size() != _design_snapshot.size():
+		return true
+	for key in current:
+		if not key in _design_snapshot or current[key] != _design_snapshot[key]:
+			return true
+	return false
+
+## Event-driven trigger — called when a Designer is hired/lost or a car is bought/built (the moments
+## that change idle-line state). Mirrors TPProposalEngine._fire_assignment_proposals: regenerate the
+## proposal immediately, fire ONE notification + TDL, and refresh the snapshot so the weekly gate
+## doesn't re-fire the same thing next tick.
+func fire_design_proposals_event() -> void:
+	if gs.player_team == null:
+		return
+	gs._last_design_proposals = generate_design_proposals()
+	_design_snapshot = _take_design_snapshot()
 
 ## ── Shared, team-agnostic optimiser ──────────────────────────────────────────
 ## Computes a blueprint queue to fill a team's FREE design lines. Free lines = Studio level − lines
@@ -207,6 +269,9 @@ func apply_design_proposals(proposals: Array) -> void:
 	## Re-optimise for the remaining free lines (the started tasks are now in progress, so the
 	## optimiser won't re-propose them) — the single source of truth, same as TP.
 	gs._last_design_proposals = generate_design_proposals()
+	## S41.15 — refresh the change-gate snapshot to the post-accept state so the weekly gate doesn't
+	## immediately re-fire the (now different) proposal next tick (mirrors TP's post-accept snapshot).
+	_design_snapshot = _take_design_snapshot()
 	gs.emit_signal("log_updated")
 
 ## ── Notification + TDL (mirror TPProposalEngine._fire_tp_proposal_notification) ──

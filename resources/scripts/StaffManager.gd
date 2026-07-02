@@ -1,4 +1,7 @@
 class_name StaffManager
+## Version: S41.15 — hiring a Designer now fires gs._fire_design_proposals_event() (event-driven Lead-
+##   Designer proposal refresh), alongside the existing TP trigger for Mechanic/TP/Strategist. Analysis-
+##   checked; NOT Godot-parsed.
 ## Version: S41.0 — Designer `planning` attribute populated in BOTH generation paths: the procedural
 ##   free-agent generator (_generate_staff_attributes) and _create_starting_staff. The latter also
 ##   gained a Designer branch it was missing entirely (starting GP Designers previously got all-zero
@@ -270,6 +273,10 @@ func hire_staff(staff_id: String) -> bool:
 	## Fire assignment proposals for roles that affect car racing
 	if staff.role in ["Race Mechanic", "Team Principal", "Race Strategist"]:
 		gs._fire_assignment_proposals()
+	## S41.15 — hiring a Designer changes idle-line state → refresh the Lead-Designer proposal
+	## immediately (event-driven, mirrors the TP trigger above) instead of waiting for the weekly gate.
+	if staff.role == "Designer":
+		gs._fire_design_proposals_event()
 	gs.emit_signal("log_updated")
 	return true
 

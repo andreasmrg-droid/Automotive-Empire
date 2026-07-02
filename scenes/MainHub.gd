@@ -1,4 +1,7 @@
 extends Control
+## Version: S41.15 — _get_todo_destination() now routes Lead-Designer / R&D-Studio / design-line TDL rows
+##   to RnDStudio.tscn (the arrow was missing: the row text said "R&D Studio" but no branch matched it).
+##   Analysis-checked; NOT Godot-parsed.
 ## Version: S41.2 — Next Race line: strip GK's branded "GK Semi-Final — / GK Grand Final — " prefix
 ##   from the engine-name fallback so it shows just the city (no stray Semi-Final label on GK rounds).
 ##   Analysis-checked only; NOT Godot-parsed.
@@ -1372,6 +1375,10 @@ func _get_todo_destination(task: String) -> String:
 			or "assignment suggestion" in task or "assignment update" in task \
 			or "TP has" in task or "TP proposals" in task or "TP assignments ready" in task or "Racing Department" in task:
 		return "res://scenes/buildings/RacingDept.tscn"
+	## S41.15 — Lead-Designer proposals / idle-line criticals — route to R&D Studio (the arrow that was
+	## missing: the TDL row said "R&D Studio" but _get_todo_destination had no matching branch).
+	if "Lead Designer" in task or "R&D Studio" in task or "design line" in task:
+		return "res://scenes/buildings/RnDStudio.tscn"
 	## Car purchase — always Logistics first
 	if "buy one at Logistics" in task or "No car for" in task or "Buy your first car" in task:
 		return "res://scenes/buildings/Logistics.tscn"

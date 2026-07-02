@@ -1,3 +1,7 @@
+## Version: S41.15 — PLAYER Lead-Designer proposals CHANGE-GATED in advance_week (maybe_generate_design_
+##   proposals, not the unconditional S41.14 call) + _fire_design_proposals_event() delegation for the
+##   Designer-hire / car buy-build event triggers. Stops the every-week notification spam. Analysis-
+##   checked; NOT Godot-parsed.
 ## Version: S41.12 — SEASON-BOUNDARY CRASH FIX (part 1/2) + reverted [WKDIAG] instrumentation. ROOT CAUSE
 ##   (pinned from the S7→S8 playtest crash): the season-boundary SIGSEGV is a HUD-rebuild stack overflow in
 ##   Godot's C++ container-layout pass (backtrace = one frame self-recursing), NOT game logic. Chain:
@@ -4372,6 +4376,13 @@ func advance_week() -> void:
 	## news, per design owner. Player R&D stays proposal-driven (unchanged).
 	if _lead_designer_engine != null:
 		_lead_designer_engine.ai_fill_design_lines_all_teams()
+		## S41.15 — PLAYER Lead-Designer proposals, CHANGE-GATED (mirrors TP). The shared optimiser that
+		## drives the AI planner above also advises the player, but maybe_generate_design_proposals()
+		## only regenerates + re-notifies when the design situation actually changed (Lead hired/lost,
+		## a line freed/filled, Studio level or championships changed) — NOT every week. The earlier
+		## unconditional call re-fired the notification every advance_week (W2/W3/W4/W5 stacked). Event
+		## triggers (hire/car-change) fire fire_design_proposals_event() separately for immediacy.
+		_lead_designer_engine.maybe_generate_design_proposals()
 
 	## After all races processed this week — show first result screen
 	if not _pending_race_results.is_empty():
@@ -5754,6 +5765,12 @@ func _tp_roster_changed() -> bool:
 
 func _fire_assignment_proposals() -> void:
 	_tp_engine._fire_assignment_proposals()
+
+## S41.15 — event-driven Lead-Designer proposal refresh (Designer hired / car bought or built).
+## Mirrors _fire_assignment_proposals; delegates to the planner engine's event trigger.
+func _fire_design_proposals_event() -> void:
+	if _lead_designer_engine != null:
+		_lead_designer_engine.fire_design_proposals_event()
 
 func get_loan_tier() -> int:
 	return _financial_engine.get_loan_tier()
